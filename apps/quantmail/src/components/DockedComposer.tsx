@@ -9,6 +9,8 @@ import { useConfirm } from '../hooks/useConfirm';
 import { apiClient } from '../services/api-client';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
+import { ServerDraftRef, saveServerDraft } from '../lib/serverDraft';
+import { DraftBroadcast, draftShareKey } from '../lib/draftBroadcast';
 import {
   adjustRangesForEdit,
   applyInlineFormat,
@@ -460,7 +462,69 @@ export function DockedComposer({
   // the real draft lifecycle: POST /emails/compose creates the server draft
   // once, PUT /emails/:id updates it. The "Saved" indicator means the bytes
   // are on the server, or it says "Couldn't save".
-  const serverDraftIdRef = useRef<string | null>(null);
+  //
+  // CROSS-TAB CONFLICT (qm-draft-conflict-tabs): every composer kept only a
+  // per-tab draft id and saved with no version, so two tabs replying to the
+  // same thread silently minted two divergent server drafts, and every failed
+  // update dropped the id so the next save minted ANOTHER one. Now the id +
+  // optimistic-concurrency version travel together (ServerDraftRef), updates
+  // carry expectedVersion, and a 409 retries once with the server's fresh
+  // version (last-writer-wins) with a visible notice instead of silently
+  // overwriting. A DraftBroadcast channel adopts one shared draft per reply
+  // context across tabs (no second mint for the same reply) and proactively
+  // drops ids a sibling tab sent or deleted, instead of discovering it via a
+  // 404 on the next autosave and multiplying duplicates.
+  //
+  // KEY SCOPING: the broadcast share key is `reply:<emailId>` over
+  // BroadcastChannel only (same browser profile; never persisted). It is
+  // intentionally disjoint from the draft-privacy lane's account-scoped v2
+  // localStorage keys (fix/qm-draft-privacy-isolation, PR #1133): our keys
+  // never touch storage, theirs never touch the channel. Worst case (a tab
+  // signed into a different account adopting an id), the backend's
+  // userId check answers 404 → the id is dropped and the next save honestly
+  // mints a fresh draft under the right account.
+  const serverDraftRef = useRef(new ServerDraftRef());
+  const broadcastRef = useRef<DraftBroadcast | null>(null);
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
+  // Set inside onConflict/onDeleted during a save; the notice survives the
+  // save so the user actually sees it, and clears on the next CLEAN save.
+  const conflictDuringSaveRef = useRef(false);
+
+  // Subscribe to sibling-tab draft adoptions/retirements for this reply
+  // context. Adopting means "one draft, synced" across tabs instead of two
+  // minted drafts; retirement drops a dead id proactively so the next save
+  // mints exactly one fresh draft instead of 404ing then duplicating.
+  useEffect(() => {
+    const bc = new DraftBroadcast();
+    broadcastRef.current = bc;
+    const key = draftShareKey(replyToId);
+    if (key) {
+      const unadopt = bc.onAdoption(key, ({ draftId, version }) => {
+        const ref = serverDraftRef.current;
+        if (!ref.getId()) ref.adopt(draftId, version ?? null);
+      });
+      const unretire = bc.onRetirement(key, ({ draftId }) => {
+        const ref = serverDraftRef.current;
+        if (ref.getId() === draftId) ref.clear();
+      });
+      // Late-subscriber catch-up: this composer may have mounted after the
+      // sibling's announcement (announcements are fire-and-forget). Ask once
+      // whether a draft already exists for this reply instead of minting a
+      // second one on the first autosave.
+      if (!serverDraftRef.current.getId()) bc.requestDraft(key);
+      return () => {
+        unadopt();
+        unretire();
+        bc.dispose();
+        broadcastRef.current = null;
+      };
+    }
+    return () => {
+      bc.dispose();
+      broadcastRef.current = null;
+    };
+  }, [replyToId]);
+
   const saveDraftToServer = async (): Promise<boolean> => {
     const { bodyText, bodyHtml } = composeMessageBodies(body, signatureHtml, {
       inline: bodyFormats,
@@ -473,41 +537,47 @@ export function DockedComposer({
     // Subject is optional: empty-subject drafts autosave exactly like the rest.
     // The backend composeSchema accepts an empty subject (stored as ''), so
     // there is no reason to silently skip persisting a subjectless draft.
+    const payload = {
+      to: toList,
+      cc: ccList,
+      bcc: bccList,
+      subject: subject.trim(),
+      bodyText,
+      bodyHtml,
+      attachments: attachments as any,
+      inReplyTo: replyToId,
+      messageKind: initialMessageKind,
+    };
+    const ref = serverDraftRef.current;
+    const shareKey = draftShareKey(replyToId);
+    conflictDuringSaveRef.current = false;
     try {
-      if (!serverDraftIdRef.current) {
-        const res = await apiClient.composeEmail({
-          to: toList,
-          cc: ccList,
-          bcc: bccList,
-          subject: subject.trim(),
-          bodyText,
-          bodyHtml,
-          attachments: attachments as any,
-          inReplyTo: replyToId,
-          messageKind: initialMessageKind,
-        });
-        if (!res.success || !res.data?.id) return false;
-        serverDraftIdRef.current = res.data.id;
-      } else {
-        const res = await apiClient.updateDraft(serverDraftIdRef.current, {
-          to: toList,
-          cc: ccList,
-          bcc: bccList,
-          subject: subject.trim(),
-          bodyText,
-          bodyHtml,
-          attachments: attachments as any,
-          inReplyTo: replyToId,
-          messageKind: initialMessageKind,
-        });
-        if (!res.success) {
-          // The draft may have been sent or deleted elsewhere — drop the id
-          // so the next save creates a fresh draft instead of 404ing forever.
-          serverDraftIdRef.current = null;
-          return false;
-        }
-      }
-      return true;
+      const ok = await saveServerDraft({
+        ref,
+        create: async () => {
+          const res = await apiClient.composeEmail(payload);
+          if (res.success && res.data?.id && shareKey) {
+            // Tell sibling tabs the id+version so they adopt instead of
+            // minting a second draft for this reply.
+            broadcastRef.current?.announce(shareKey, res.data.id, res.data.version);
+          }
+          return res;
+        },
+        update: (id, expectedVersion) =>
+          apiClient.updateDraft(id, payload, { expectedVersion }),
+        onConflict: () => {
+          conflictDuringSaveRef.current = true;
+          setDraftNotice(
+            'Another tab or device edited this draft too — your latest changes were saved.',
+          );
+        },
+        onDeleted: () => {
+          conflictDuringSaveRef.current = true;
+          setDraftNotice('This draft was deleted elsewhere — saving as a new draft.');
+        },
+      });
+      if (ok && !conflictDuringSaveRef.current) setDraftNotice(null);
+      return ok;
     } catch {
       return false;
     }
@@ -538,6 +608,16 @@ export function DockedComposer({
     [toRecipients, ccRecipients, bccRecipients, subject, body, attachments],
   );
 
+  const { saveState: draftSaveState, settle: settleDraft } = useDraftAutosave({
+    snapshot: draftSnapshot,
+    hasContent: draftHasContent,
+    save: saveDraftToServer,
+    enabled: !isSending,
+  });
+  const draftSaveLabel = draftSaveStateLabel(draftSaveState);
+  const settleDraftRef = useRef(settleDraft);
+  settleDraftRef.current = settleDraft;
+
   // QM-UIUX-083: every X close path routes through the exact same
   // discard-confirmation as the explicit Discard button. Closing a composer
   // with typed content asks first instead of silently hiding it.
@@ -552,16 +632,35 @@ export function DockedComposer({
       });
       if (!discard) return;
     }
+    // An autosave still on the wire would land AFTER the delete and resurrect
+    // the draft the person just threw away; wait it out so the delete sees
+    // the id (same protection EmailComposer's discard path has).
+    await settleDraftRef.current();
+    const deadId = serverDraftRef.current.getId();
+    if (deadId) {
+      try {
+        await apiClient.deleteEmail(deadId);
+      } catch {
+        // Best effort — still close; the draft stays in Drafts if this failed.
+      }
+      // The id is really gone: drop it locally and tell sibling tabs so they
+      // don't 404 on it later and mint a duplicate. Also clear the notice and
+      // the form state — "Discard" must mean discarded, not hidden.
+      const deadShareKey = draftShareKey(replyToId);
+      if (deadShareKey) broadcastRef.current?.retire(deadShareKey, deadId, 'discarded');
+      serverDraftRef.current.clear();
+      setDraftNotice(null);
+      setToRecipients([]);
+      setCcRecipients([]);
+      setBccRecipients([]);
+      setSubject('');
+      setBody('');
+      setBodyFormats([]);
+      setAttachments([]);
+    }
     onDiscard?.();
     onClose();
-  }, [draftHasContent, confirm, onDiscard, onClose]);
-  const { saveState: draftSaveState } = useDraftAutosave({
-    snapshot: draftSnapshot,
-    hasContent: draftHasContent,
-    save: saveDraftToServer,
-    enabled: !isSending,
-  });
-  const draftSaveLabel = draftSaveStateLabel(draftSaveState);
+  }, [draftHasContent, confirm, onDiscard, onClose, replyToId]);
 
   // Sync initials when props change
   useEffect(() => {
@@ -927,21 +1026,36 @@ export function DockedComposer({
     const doRealSend = async (): Promise<void> => {
       setIsSending(true);
       try {
-        let emailId = serverDraftIdRef.current;
+        const finalPayload = {
+          to: toList,
+          cc: ccList,
+          bcc: bccList,
+          subject: sendSubject,
+          bodyText: draftSnapshot.bodyText,
+          bodyHtml: draftSnapshot.bodyHtml,
+          attachments: draftSnapshot.attachments as any,
+          inReplyTo: draftSnapshot.replyToId,
+          scheduledAt: draftSnapshot.scheduledAt,
+          messageKind: initialMessageKind,
+        };
+        let emailId = serverDraftRef.current.getId();
         if (emailId) {
-          const updateRes = await apiClient.updateDraft(emailId, {
-            to: toList,
-            cc: ccList,
-            bcc: bccList,
-            subject: sendSubject,
-            bodyText: draftSnapshot.bodyText,
-            bodyHtml: draftSnapshot.bodyHtml,
-            attachments: draftSnapshot.attachments as any,
-            inReplyTo: draftSnapshot.replyToId,
-            scheduledAt: draftSnapshot.scheduledAt,
-            messageKind: initialMessageKind,
+          // Guarded final write: a sibling tab's concurrent autosave shows up
+          // as a 409, we retry once with the fresh version (last-writer-wins)
+          // instead of silently dropping its bytes or failing the send.
+          const updated = await saveServerDraft({
+            ref: serverDraftRef.current,
+            // Never invoked: the id is set above, so only the update path runs.
+            create: async () => ({ success: false }),
+            update: (id, expectedVersion) =>
+              apiClient.updateDraft(id, finalPayload, { expectedVersion }),
+            onConflict: () => {
+              setDraftNotice(
+                'Another tab or device edited this draft too — your sent version won.',
+              );
+            },
           });
-          if (!updateRes.success) {
+          if (!updated) {
             // Draft went away (sent/deleted elsewhere) — fall through and
             // compose fresh rather than failing the send.
             emailId = null;
@@ -977,7 +1091,13 @@ export function DockedComposer({
           throw new Error(sendRes.error?.message || 'Failed to deliver email');
         }
 
-        serverDraftIdRef.current = null;
+        serverDraftRef.current.clear();
+        // The draft id is now a sent message, not a draft: tell sibling tabs
+        // so they drop it instead of 404ing on it later and minting a
+        // duplicate. Retire-before-clear also covers the fresh-compose path
+        // (no share key) — nothing is broadcast for those.
+        const sentShareKey = draftShareKey(replyToId);
+        if (sentShareKey && emailId) broadcastRef.current?.retire(sentShareKey, emailId, 'sent');
         onClose();
         onSendSuccess?.();
       } finally {
@@ -1154,6 +1274,18 @@ export function DockedComposer({
               }`}
             >
               {draftSaveLabel}
+            </span>
+          )}
+          {/* Cross-tab conflict / deleted-elsewhere notice: last-writer-wins
+              with a visible explanation, never a silent overwrite. Amber =
+              warning semantics, distinct from the red error indicator. */}
+          {draftNotice && (
+            <span
+              role="status"
+              className="text-[10px] font-medium shrink-0 text-[#FBBF24]"
+              title={draftNotice}
+            >
+              {draftNotice}
             </span>
           )}
         </div>

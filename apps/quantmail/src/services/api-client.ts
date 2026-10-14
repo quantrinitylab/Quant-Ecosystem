@@ -79,7 +79,11 @@ export interface EmailFolder {
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
-  error?: { code: string; message: string; statusCode: number };
+  // The backend error envelope serializes `details` for machine-readable
+  // context (e.g. VERSION_CONFLICT carries { resource, id, expectedVersion,
+  // currentVersion }); the fetch path returns the parsed JSON directly, so
+  // details survive the cast at runtime.
+  error?: { code: string; message: string; statusCode: number; details?: Record<string, unknown> };
   metadata?: Record<string, unknown>;
 }
 
@@ -795,8 +799,22 @@ export class QuantMailApiClient {
     return this.post('/emails/compose', data);
   }
 
-  async updateDraft(id: string, data: ComposeEmailRequest): Promise<ApiResponse<Email>> {
-    return this.put(`/emails/${id}`, data);
+  /**
+   * Update a server draft. Pass `options.expectedVersion` (the version the
+   * composer last observed) for optimistic concurrency: the backend answers
+   * 409 VERSION_CONFLICT instead of silently overwriting another tab's or
+   * device's save. Omit it for the legacy unguarded write.
+   */
+  async updateDraft(
+    id: string,
+    data: ComposeEmailRequest,
+    options?: { expectedVersion?: number },
+  ): Promise<ApiResponse<Email>> {
+    const body =
+      options?.expectedVersion !== undefined
+        ? { ...data, expectedVersion: options.expectedVersion }
+        : data;
+    return this.put(`/emails/${id}`, body);
   }
 
   async sendEmail(

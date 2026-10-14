@@ -19,6 +19,8 @@ import { useSafeEmailHtml } from '../lib/safe-html';
 import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
+import { ServerDraftRef, saveServerDraft } from '../lib/serverDraft';
+import { DraftBroadcast, draftShareKey } from '../lib/draftBroadcast';
 import { parseEmailString, dedupeRecipientPayload, type RecipientOption } from './RecipientChipInput';
 import {
   getSendBlockReason,
@@ -1014,7 +1016,7 @@ export function EmailComposer({
           const sendSubject =
             draftSnapshot.subject ||
             (initialMessageKind === 'chat' ? `Chat with ${toList.map((t) => t.email).join(', ')}` : '');
-          const composeRes = await apiClient.composeEmail({
+          const sendPayload = {
             to: toList,
             cc: ccList,
             bcc: bccList,
@@ -1025,19 +1027,49 @@ export function EmailComposer({
             inReplyTo: draftSnapshot.replyToId,
             scheduledAt: draftSnapshot.scheduledAt,
             messageKind: initialMessageKind,
-          });
+          };
+          // Reuse the autosaved server draft when one exists instead of
+          // orphaning it with a fresh compose (a duplicate draft left in
+          // Drafts after every send). The final write is version-guarded:
+          // a 409 from a sibling tab's concurrent autosave retries once with
+          // the fresh version (last-writer-wins) rather than silently losing
+          // bytes or failing the send.
+          let emailId = fallbackDraftRef.current.getId();
+          if (emailId) {
+            const updated = await saveServerDraft({
+              ref: fallbackDraftRef.current,
+              // Never invoked: the id is set above, so only the update path runs.
+              create: async () => ({ success: false }),
+              update: (id, expectedVersion) =>
+                apiClient.updateDraft(id, sendPayload, { expectedVersion }),
+              onConflict: () => {
+                setFallbackDraftNotice(
+                  'Another tab or device edited this draft too — your sent version won.',
+                );
+              },
+            });
+            if (!updated) emailId = null;
+          }
+          if (!emailId) {
+            const composeRes = await apiClient.composeEmail(sendPayload);
 
-          if (!composeRes.success || !composeRes.data?.id) {
-            throw new Error(composeRes.error?.message || 'Failed to compose email');
+            if (!composeRes.success || !composeRes.data?.id) {
+              throw new Error(composeRes.error?.message || 'Failed to compose email');
+            }
+            emailId = composeRes.data.id;
           }
 
-          const sendRes = await apiClient.sendEmail(composeRes.data.id, {
+          const sendRes = await apiClient.sendEmail(emailId, {
             sendAt: draftSnapshot.scheduledAt,
           });
 
           if (!sendRes.success) {
             throw new Error(sendRes.error?.message || 'Failed to deliver email');
           }
+          // The draft id is now a sent message: drop it locally and tell
+          // sibling tabs so they don't 404 on it later and mint a duplicate.
+          if (fallbackShareKey) fallbackBroadcastRef.current?.retire(fallbackShareKey, emailId, 'sent');
+          fallbackDraftRef.current.clear();
         }
 
         // The host page (e.g. `/compose`) owns the confirmation toast on its
@@ -1149,7 +1181,50 @@ export function EmailComposer({
   // HONESTY: the no-`onSaveDraft` fallback used to POST to `/api/emails/drafts`,
   // a route that does not exist — the "Saved" indicator lied. It now uses the
   // real draft lifecycle (POST /emails/compose once, PUT /emails/:id after).
-  const fallbackDraftIdRef = useRef<string | null>(null);
+  // CROSS-TAB CONFLICT (qm-draft-conflict-tabs): same guarded-save +
+  // broadcast-adoption protocol as DockedComposer — id + version travel
+  // together (ServerDraftRef), updates carry expectedVersion, a 409 retries
+  // once with the server's fresh version (last-writer-wins) with a visible
+  // notice, and sibling tabs adopt one shared draft per reply context instead
+  // of minting duplicates. The share key is `reply:<emailId>` over
+  // BroadcastChannel only (never persisted) — disjoint from the
+  // draft-privacy lane's account-scoped v2 localStorage keys
+  // (fix/qm-draft-privacy-isolation, PR #1133). Only the fallback (self-owned
+  // server draft) path participates: when a host owns the draft via
+  // `onSaveDraft`, the host's id tracking stays untouched.
+  const fallbackDraftRef = useRef(new ServerDraftRef());
+  const fallbackBroadcastRef = useRef<DraftBroadcast | null>(null);
+  const [fallbackDraftNotice, setFallbackDraftNotice] = useState<string | null>(null);
+  const fallbackConflictDuringSaveRef = useRef(false);
+  const fallbackShareKey = useMemo(
+    () => (onSaveDraft ? null : draftShareKey(inReplyTo || initialReplyToId)),
+    [onSaveDraft, inReplyTo, initialReplyToId],
+  );
+
+  useEffect(() => {
+    if (!fallbackShareKey) return;
+    const bc = new DraftBroadcast();
+    fallbackBroadcastRef.current = bc;
+    const unadopt = bc.onAdoption(fallbackShareKey, ({ draftId, version }) => {
+      const ref = fallbackDraftRef.current;
+      if (!ref.getId()) ref.adopt(draftId, version ?? null);
+    });
+    const unretire = bc.onRetirement(fallbackShareKey, ({ draftId }) => {
+      const ref = fallbackDraftRef.current;
+      if (ref.getId() === draftId) ref.clear();
+    });
+    // Late-subscriber catch-up: this composer may have mounted after the
+    // sibling's announcement. Ask once whether a draft already exists for
+    // this reply instead of minting a second one on the first autosave.
+    if (!fallbackDraftRef.current.getId()) bc.requestDraft(fallbackShareKey);
+    return () => {
+      unadopt();
+      unretire();
+      bc.dispose();
+      fallbackBroadcastRef.current = null;
+    };
+  }, [fallbackShareKey]);
+
   const saveDraftToServer = async (): Promise<boolean> => {
     const { bodyText, bodyHtml } = buildOutgoingBodies();
     const toList = to
@@ -1185,37 +1260,47 @@ export function EmailComposer({
       } else {
         // A recipient is the only hard requirement (subject optional, #1126).
         if (getDraftUnsavableReason(to)) return false;
-        if (!fallbackDraftIdRef.current) {
-          const res = await apiClient.composeEmail({
-            to: toList,
-            cc: ccList,
-            bcc: bccList,
-            subject: subject.trim(),
-            bodyText,
-            bodyHtml,
-            attachments: attachments as any,
-            inReplyTo: inReplyTo || initialReplyToId,
-            messageKind: initialMessageKind,
-          });
-          if (!res.success || !res.data?.id) return false;
-          fallbackDraftIdRef.current = res.data.id;
-        } else {
-          const res = await apiClient.updateDraft(fallbackDraftIdRef.current, {
-            to: toList,
-            cc: ccList,
-            bcc: bccList,
-            subject: subject.trim(),
-            bodyText,
-            bodyHtml,
-            attachments: attachments as any,
-            inReplyTo: inReplyTo || initialReplyToId,
-            messageKind: initialMessageKind,
-          });
-          if (!res.success) {
-            fallbackDraftIdRef.current = null;
-            return false;
-          }
-        }
+        const fallbackPayload = {
+          to: toList,
+          cc: ccList,
+          bcc: bccList,
+          subject: subject.trim(),
+          bodyText,
+          bodyHtml,
+          attachments: attachments as any,
+          inReplyTo: inReplyTo || initialReplyToId,
+          messageKind: initialMessageKind,
+        };
+        const ref = fallbackDraftRef.current;
+        fallbackConflictDuringSaveRef.current = false;
+        const ok = await saveServerDraft({
+          ref,
+          create: async () => {
+            const res = await apiClient.composeEmail(fallbackPayload);
+            if (res.success && res.data?.id && fallbackShareKey) {
+              fallbackBroadcastRef.current?.announce(
+                fallbackShareKey,
+                res.data.id,
+                res.data.version,
+              );
+            }
+            return res;
+          },
+          update: (id, expectedVersion) =>
+            apiClient.updateDraft(id, fallbackPayload, { expectedVersion }),
+          onConflict: () => {
+            fallbackConflictDuringSaveRef.current = true;
+            setFallbackDraftNotice(
+              'Another tab or device edited this draft too — your latest changes were saved.',
+            );
+          },
+          onDeleted: () => {
+            fallbackConflictDuringSaveRef.current = true;
+            setFallbackDraftNotice('This draft was deleted elsewhere — saving as a new draft.');
+          },
+        });
+        if (ok && !fallbackConflictDuringSaveRef.current) setFallbackDraftNotice(null);
+        return ok;
       }
       return true;
     } catch {
@@ -1377,13 +1462,17 @@ export function EmailComposer({
         discardDraft();
         return;
       }
-      if (fallbackDraftIdRef.current) {
+      if (fallbackDraftRef.current.getId()) {
+        const deadId = fallbackDraftRef.current.getId()!;
         try {
-          await apiClient.deleteEmail(fallbackDraftIdRef.current);
+          await apiClient.deleteEmail(deadId);
         } catch {
           // Best effort — still leave; the draft stays in Drafts if this failed.
         }
-        fallbackDraftIdRef.current = null;
+        // The id is really gone: tell sibling tabs so they drop it now
+        // instead of 404ing on their next autosave and minting a duplicate.
+        if (fallbackShareKey) fallbackBroadcastRef.current?.retire(fallbackShareKey, deadId, 'discarded');
+        fallbackDraftRef.current.clear();
       }
       leaveComposer();
     } finally {
@@ -1534,6 +1623,13 @@ export function EmailComposer({
                     ) : (
                       draftSaveLabel
                     )}
+                  </span>
+                )}
+                {/* Cross-tab conflict / deleted-elsewhere notice: last-writer-wins
+                    with a visible explanation, never a silent overwrite. */}
+                {fallbackDraftNotice && (
+                  <span role="status" className="text-[11px] font-medium text-[#FBBF24]" title={fallbackDraftNotice}>
+                    {fallbackDraftNotice}
                   </span>
                 )}
               </div>
