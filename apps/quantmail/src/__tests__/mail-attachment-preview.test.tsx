@@ -69,6 +69,7 @@ afterEach(async () => {
   container?.remove();
   document.body.innerHTML = '';
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('mail attachment byte sources', () => {
@@ -94,6 +95,42 @@ describe('mail attachment byte sources', () => {
     expect(attachmentByteSource({ url: 'https://example.com/a.pdf' })).toBeNull();
     expect(attachmentByteSource({ url: '' })).toBeNull();
     expect(attachmentByteSource({})).toBeNull();
+  });
+
+  it('reads a file inserted from QuantDrive through its Drive reference', () => {
+    expect(attachmentByteSource({ url: '/api/drive/files/cmf0abc123_x-9/download' })).toEqual({
+      kind: 'drive',
+      fileId: 'cmf0abc123_x-9',
+    });
+    expect(attachmentByteSource({ url: '/api/drive/files/f1/download?inline=1' })).toEqual({
+      kind: 'drive',
+      fileId: 'f1',
+    });
+    // Only the exact reference shape: nothing that could walk to another route.
+    expect(attachmentByteSource({ url: '/api/drive/files/../admin/download' })).toBeNull();
+    expect(attachmentByteSource({ url: 'https://evil.example/api/drive/files/f1/download' })).toBeNull();
+  });
+
+  it('fetches Drive bytes with the session; a 404 says what it can know, a 403 is Drive’s own words', async () => {
+    auth.authenticatedFetch.mockResolvedValueOnce(new Response(new TextEncoder().encode('%PDF').buffer, { status: 200 }));
+    expect(text(await loadAttachmentBytes({ kind: 'drive', fileId: 'f1' }))).toBe('%PDF');
+    expect(auth.authenticatedFetch).toHaveBeenCalledWith('/api/drive/files/f1/download', {});
+
+    auth.authenticatedFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { message: 'File not found' } }), { status: 404 }),
+    );
+    await expect(loadAttachmentBytes({ kind: 'drive', fileId: 'f1' })).rejects.toThrow(
+      /not available to you .* deleted, or it is in the sender\u2019s Drive and was not shared with you/,
+    );
+
+    auth.authenticatedFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { message: 'This file is quarantined and cannot be downloaded.' } }), {
+        status: 403,
+      }),
+    );
+    await expect(loadAttachmentBytes({ kind: 'drive', fileId: 'f1' })).rejects.toThrow(
+      'This file is quarantined and cannot be downloaded.',
+    );
   });
 
   it('decodes base64 and percent-encoded data: URLs, and refuses malformed ones', () => {
@@ -181,6 +218,42 @@ describe('AttachmentPreview — opening attachments', () => {
     await clickChip('photo.png');
     expect(document.querySelector('[data-testid="engine"]')).toBeNull();
     expect(document.querySelector('.attachment-lightbox img')?.getAttribute('src')).toBe(url);
+  });
+
+  it('opens a document inserted from QuantDrive in the engine, read through Drive', async () => {
+    auth.authenticatedFetch.mockResolvedValue(new Response(new TextEncoder().encode('PK').buffer, { status: 200 }));
+    await mount(
+      <AttachmentPreview
+        attachments={[
+          { id: 'drive_f9_1760000000000', filename: 'plan.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size: 2, url: '/api/drive/files/f9/download' },
+        ]}
+      />,
+    );
+    const chip = await clickChip('plan.docx');
+    expect(chip.getAttribute('aria-disabled')).toBeNull();
+    expect(chip.textContent).not.toContain('unavailable');
+    expect(document.querySelector('[data-testid="engine"]')?.getAttribute('data-kind')).toBe('word');
+    const props = engine.props[engine.props.length - 1]!;
+    expect(text(await props.loadBytes(new AbortController().signal))).toBe('PK');
+    expect(auth.authenticatedFetch.mock.calls[0]![0]).toBe('/api/drive/files/f9/download');
+  });
+
+  it('shows a QuantDrive image from fetched bytes, not from a bare <img> that carries no session', async () => {
+    auth.authenticatedFetch.mockResolvedValue(new Response(new Uint8Array([137, 80, 78, 71]).buffer, { status: 200 }));
+    const createObjectURL = vi.fn(() => 'blob:https://quantmail.in/photo');
+    vi.stubGlobal('URL', Object.assign(class extends URL {}, { createObjectURL, revokeObjectURL: vi.fn() }));
+    await mount(
+      <AttachmentPreview
+        attachments={[{ id: 'drive_p1_1', filename: 'photo.png', mimeType: 'image/png', size: 4, url: '/api/drive/files/p1/download' }]}
+      />,
+    );
+    // No thumbnail pointed at the Drive route: it would answer 401 and render broken.
+    expect(container.querySelector('img[src*="/api/drive/"]')).toBeNull();
+    await clickChip('photo.png');
+    expect(auth.authenticatedFetch.mock.calls[0]![0]).toBe('/api/drive/files/p1/download');
+    expect(document.querySelector('.attachment-lightbox img')?.getAttribute('src')).toBe(
+      'blob:https://quantmail.in/photo',
+    );
   });
 
   it('offers nothing for a metadata-only inbound part, and says so', async () => {
