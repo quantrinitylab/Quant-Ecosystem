@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.QUANTAI_BACKEND_URL || 'http://localhost:3020';
-
+import { QUANTAI_BACKEND_URL } from '../../_lib/agent-proxy';
 function authHeaders(request: NextRequest): HeadersInit {
   return { Authorization: request.headers.get('Authorization') || '' };
 }
@@ -11,7 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const res = await fetch(`${BACKEND_URL}/quanty/ideas/${encodeURIComponent(id)}`, {
+  const res = await fetch(`${QUANTAI_BACKEND_URL}/quanty/ideas/${encodeURIComponent(id)}`, {
     headers: authHeaders(request),
   });
   const data = await res.json();
@@ -24,7 +23,7 @@ export async function PUT(
 ) {
   const { id } = await params;
   const body = await request.json();
-  const res = await fetch(`${BACKEND_URL}/quanty/ideas/${encodeURIComponent(id)}`, {
+  const res = await fetch(`${QUANTAI_BACKEND_URL}/quanty/ideas/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...authHeaders(request) },
     body: JSON.stringify(body),
@@ -38,7 +37,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const res = await fetch(`${BACKEND_URL}/quanty/ideas/${encodeURIComponent(id)}`, {
+  const res = await fetch(`${QUANTAI_BACKEND_URL}/quanty/ideas/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: authHeaders(request),
   });

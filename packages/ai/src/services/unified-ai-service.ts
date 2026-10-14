@@ -70,8 +70,8 @@ export class UnifiedAIService {
     if (isFailClosedMode()) {
       throw new AIProviderUnavailableError(
         `${operation} cannot complete: no AI provider is configured and mock fallback is ` +
-          `disabled in production. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY ` +
-          `to run against a real provider.`,
+          `disabled in production. Set META_API_KEY (primary), OPENAI_API_KEY, ANTHROPIC_API_KEY, ` +
+          `or GOOGLE_API_KEY to run against a real provider.`,
       );
     }
   }

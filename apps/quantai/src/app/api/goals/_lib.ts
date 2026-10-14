@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.QUANTAI_BACKEND_URL || 'http://localhost:3020';
-
+import { QUANTAI_BACKEND_URL } from '../_lib/agent-proxy';
 function authHeaders(request: NextRequest): Record<string, string> {
   return { Authorization: request.headers.get('Authorization') || '' };
 }
@@ -16,7 +15,7 @@ export async function proxyGoals(
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
 ): Promise<NextResponse> {
-  const url = new URL(path, BACKEND_URL);
+  const url = new URL(path, QUANTAI_BACKEND_URL);
   const incoming = new URL(request.url);
   incoming.searchParams.forEach((value, key) => url.searchParams.set(key, value));
 

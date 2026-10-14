@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.QUANTAI_BACKEND_URL || 'http://localhost:3020';
-
+import { QUANTAI_BACKEND_URL } from '../../_lib/agent-proxy';
 export async function PUT(request: NextRequest) {
   const body = await request.json();
-  const res = await fetch(`${BACKEND_URL}/assistant/personality`, {
+  const res = await fetch(`${QUANTAI_BACKEND_URL}/assistant/personality`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
