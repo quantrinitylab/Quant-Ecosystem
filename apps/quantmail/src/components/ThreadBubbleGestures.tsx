@@ -586,18 +586,23 @@ export function ThreadBubbleShell({
 
       {/* Hover quick-actions: Telegram/Slack-style react + reply cluster.
           `group-hover/bubble` only — on coarse pointers the long-press menu
-          is the path, so no tap-target conflict. */}
+          is the path, so no tap-target conflict.
+          Geometry: a 32px pill lifted 20px above the row, so it straddles the
+          16px gap between messages and ends ~6px above the avatar and the
+          sender name. The old 40px pill at `-top-3` reached 28px into the row
+          and covered the first letters of the sender's name on desktop. */}
       <div
-        className={`absolute z-20 hidden [@media(hover:hover)]:flex items-center gap-1 rounded-full border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/95 p-1 opacity-0 shadow-[0_4px_16px_rgba(0,0,0,0.5)] backdrop-blur transition-opacity duration-150 group-hover/bubble:opacity-100 focus-within:opacity-100 ${
+        data-testid="bubble-hover-actions"
+        className={`absolute z-20 hidden [@media(hover:hover)]:flex items-center gap-0.5 rounded-full border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)]/95 p-0.5 opacity-0 shadow-[0_4px_16px_rgba(0,0,0,0.5)] backdrop-blur transition-opacity duration-150 group-hover/bubble:opacity-100 focus-within:opacity-100 ${
           isOutbound ? 'right-3' : 'left-3'
-        } -top-3`}
+        } -top-5`}
       >
         <button
           type="button"
           onClick={doQuoteReply}
           title="Reply to this message"
           aria-label={`Reply to message from ${senderName}`}
-          className="flex size-8 items-center justify-center rounded-full text-[var(--quant-muted-foreground)] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+          className="flex size-7 items-center justify-center rounded-full text-[var(--quant-muted-foreground)] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
         >
           <ReplyArrowIcon className="size-4" />
         </button>
@@ -610,7 +615,7 @@ export function ThreadBubbleShell({
           }}
           title="React to this message"
           aria-label={`React to message from ${senderName}`}
-          className="flex size-8 items-center justify-center rounded-full text-[var(--quant-muted-foreground)] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+          className="flex size-7 items-center justify-center rounded-full text-[var(--quant-muted-foreground)] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
         >
           <SmileyIcon className="size-4" />
         </button>

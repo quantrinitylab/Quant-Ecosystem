@@ -55,6 +55,44 @@ function getUserId(request: unknown): string {
   return userId;
 }
 
+const SummarizeThreadSchema = z.object({
+  messages: z.array(ThreadMessageSchema),
+});
+
+/**
+ * `POST /ai/summarize-thread` — one handler shared by both registrations.
+ */
+function registerSummarizeThreadRoute(
+  fastify: FastifyInstance,
+  summarizeService: AISummarizeService,
+): void {
+  fastify.post('/ai/summarize-thread', async (request, reply) => {
+    const userId = getUserId(request);
+    const body = SummarizeThreadSchema.parse(request.body);
+    const result = await summarizeService.summarizeThread(body.messages, userId);
+    return reply.send({ success: true, data: result });
+  });
+}
+
+/**
+ * The thread "Summarize" card's route, registered at the backend ROOT
+ * (`/ai/summarize-thread`).
+ *
+ * The browser calls `POST /api/ai/summarize-thread`. On staging the ingress
+ * (`infra/k8s/staging-api-ingress.yaml`) rewrites `/api/*` straight to the
+ * backend root, so the request arrives as `/ai/summarize-thread` and never
+ * touches the Next.js route. `aiServicesRoutes` only exists under `/api/v1`,
+ * so every Summarize click 404'd ("Route POST:/ai/summarize-thread not
+ * found") and the card showed "Could not generate summary". Same
+ * dual-registration pattern as `/repos` + `/api/repos` in `app.ts`.
+ *
+ * Only this route is mounted here: re-registering the whole `aiServicesRoutes`
+ * plugin at the root would collide with `aiComposeRoutes` on `/ai/compose`.
+ */
+export async function aiThreadSummaryRoutes(fastify: FastifyInstance) {
+  registerSummarizeThreadRoute(fastify, new AISummarizeService(new AIEngine()));
+}
+
 export default async function aiServicesRoutes(fastify: FastifyInstance) {
   // Initialize AI services
   const engine = new AIEngine();
@@ -135,16 +173,9 @@ export default async function aiServicesRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: result });
   });
 
-  // POST /ai/summarize-thread
-  const SummarizeThreadSchema = z.object({
-    messages: z.array(ThreadMessageSchema),
-  });
-  fastify.post('/ai/summarize-thread', async (request, reply) => {
-    const userId = getUserId(request);
-    const body = SummarizeThreadSchema.parse(request.body);
-    const result = await summarizeService.summarizeThread(body.messages, userId);
-    return reply.send({ success: true, data: result });
-  });
+  // POST /ai/summarize-thread (also reachable at the backend root — see
+  // `aiThreadSummaryRoutes` above)
+  registerSummarizeThreadRoute(fastify, summarizeService);
 
   // POST /ai/summarize
   const SummarizeSingleSchema = z.object({

@@ -8,7 +8,8 @@ import { useEffect, useState } from 'react';
  * Rows carry real swipe actions (left = archive, right = snooze) that a new
  * user has no way to discover. This says so once, in the list header, and
  * never again: dismissal is persisted in localStorage. It is only mounted
- * where swipeable rows exist.
+ * where swipeable rows exist, and only shown when the primary pointer is
+ * touch (desktop rows have hover actions instead).
  */
 
 export const SWIPE_HINT_STORAGE_KEY = 'quantmail.swipe-hint-dismissed';
@@ -66,11 +67,25 @@ export function SwipeHintBar({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
+/**
+ * Whether the primary pointer is a finger. The swipe actions only exist for
+ * touch; with a mouse the same actions are the row's hover buttons, so the tip
+ * would describe a gesture the person cannot make. No matchMedia (old engines,
+ * test DOMs) reads as "not touch" — the hint is optional, never required.
+ */
+export function isTouchPrimary(win: Pick<Window, 'matchMedia'> | undefined): boolean {
+  try {
+    return Boolean(win?.matchMedia?.('(pointer: coarse)').matches);
+  } catch {
+    return false;
+  }
+}
+
 export function SwipeHint() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (!isSwipeHintDismissed(window.localStorage)) {
+    if (isTouchPrimary(window) && !isSwipeHintDismissed(window.localStorage)) {
       setVisible(true);
     }
   }, []);
