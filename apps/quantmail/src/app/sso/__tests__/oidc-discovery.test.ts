@@ -22,6 +22,10 @@ describe('OIDC Discovery & OAuth Authorize', () => {
       expect(data.issuer).toBe('https://quantmail.in');
       expect(data.authorization_endpoint).toBe('https://quantmail.in/sso');
       expect(data.token_endpoint).toBe('https://quantmail.in/api/oauth/token');
+      // fix/qm-jwks-uri-live: the advertised jwks_uri must be a live route
+      // (src/app/api/oauth/jwks/route.ts proxies the backend's
+      // /.well-known/jwks.json) — an RP cannot verify id_tokens otherwise.
+      expect(data.jwks_uri).toBe('https://quantmail.in/api/oauth/jwks');
       expect(data.scopes_supported).toContain('openid');
     });
 
