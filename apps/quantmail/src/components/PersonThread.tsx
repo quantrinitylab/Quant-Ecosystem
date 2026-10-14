@@ -19,6 +19,7 @@ import { htmlToPlainText } from '../lib/htmlToPlainText';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailSafetyBanner } from './EmailSafetyBanner';
 import { AttachmentPreview } from './AttachmentPreview';
+import { attachmentServiceId } from '../lib/mail-attachments';
 import type { ConversationWorld, PersonConversation } from '../lib/peopleGrouping';
 
 // Re-exported so thread consumers can get the contract types from one place.
@@ -109,10 +110,7 @@ function MessageRow({
     mimeType: attachment.mimeType ?? 'application/octet-stream',
     size: attachment.size ?? 0,
     url: attachment.url,
-    attachmentId:
-      typeof attachment.id === 'string' && attachment.id.startsWith('att_')
-        ? attachment.id
-        : null,
+    attachmentId: attachmentServiceId(attachment.id),
   }));
 
   const scrollToMessage = () => {
