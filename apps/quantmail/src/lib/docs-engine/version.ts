@@ -3,7 +3,7 @@
  * `engines/VERSION` (a test pins this): the Docker build writes the bundle there, and the
  * versioned path is what lets the multi-megabyte .wasm files be cached as immutable.
  */
-export const DOCS_ENGINE_VERSION = '0.1.0';
+export const DOCS_ENGINE_VERSION = '0.2.0';
 
 export const DOCS_ENGINE_BASE = `/engines/docs/${DOCS_ENGINE_VERSION}`;
 
