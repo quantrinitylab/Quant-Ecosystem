@@ -1357,6 +1357,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               <div className="mb-5">
                 <input
                   type="text"
+                  aria-label="Add a caption (optional)"
                   placeholder="Add a caption... (optional)"
                   value={snapCaption}
                   onChange={(e) => setSnapCaption(e.target.value)}

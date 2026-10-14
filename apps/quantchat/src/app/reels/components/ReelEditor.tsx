@@ -324,6 +324,7 @@ export function ReelEditor({ videoUrl, onPublish, onCancel }: ReelEditorProps) {
           <div className="space-y-2 rounded-lg bg-gray-900 p-3">
             <input
               type="text"
+              aria-label="Overlay text"
               value={selectedOverlay.text}
               onChange={(e) => updateOverlay(selectedOverlay.id, { text: e.target.value })}
               placeholder="Overlay text"

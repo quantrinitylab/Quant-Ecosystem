@@ -415,7 +415,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({ onPost, onClose }) =
       )}
       {mode === 'gallery' && !capturedMedia && (
         <div className="gallery-picker">
-          <input type="file" accept="image/*,video/*" onChange={handleGallerySelect} />
+          <input type="file" accept="image/*,video/*" onChange={handleGallerySelect} aria-label="Select a photo or video from your gallery" />
           <p>Select a photo or video from your gallery</p>
         </div>
       )}
@@ -450,6 +450,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({ onPost, onClose }) =
               </div>
               <input
                 type="range"
+                aria-label="Brush width"
                 min="1"
                 max="10"
                 value={drawWidth}
@@ -461,11 +462,13 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({ onPost, onClose }) =
           {showTextTool && (
             <div className="text-options">
               <textarea
+                aria-label="Story text"
                 value={textStyle.content}
                 onChange={(e) => setTextStyle((p) => ({ ...p, content: e.target.value }))}
                 placeholder="Type something..."
               />
               <select
+                aria-label="Text font"
                 value={textStyle.fontFamily}
                 onChange={(e) => setTextStyle((p) => ({ ...p, fontFamily: e.target.value }))}
               >
@@ -477,11 +480,13 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({ onPost, onClose }) =
               </select>
               <input
                 type="color"
+                aria-label="Text color"
                 value={textStyle.color}
                 onChange={(e) => setTextStyle((p) => ({ ...p, color: e.target.value }))}
               />
               <input
                 type="range"
+                aria-label="Text font size"
                 min="12"
                 max="72"
                 value={textStyle.fontSize}
@@ -504,6 +509,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({ onPost, onClose }) =
           )}
           <div className="post-controls">
             <select
+              aria-label="Who can see this story"
               value={privacy}
               onChange={(e) => setPrivacy(e.target.value as 'friends' | 'everyone')}
             >

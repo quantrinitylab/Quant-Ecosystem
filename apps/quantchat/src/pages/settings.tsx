@@ -176,10 +176,14 @@ function SelectRow({
   onChange: (value: string) => void;
   children: React.ReactNode;
 }) {
+  const selectId = React.useId();
   return (
     <div className="flex min-h-[44px] flex-wrap items-center justify-between gap-3 py-1">
-      <label className="text-sm">{label}</label>
+      <label className="text-sm" htmlFor={selectId}>
+        {label}
+      </label>
       <select
+        id={selectId}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={selectClassName}
@@ -636,6 +640,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
             <div className="mt-5">
               <h3 className="mb-2 text-sm font-semibold">Language</h3>
               <select
+                aria-label="Language"
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
                 className={selectClassName}

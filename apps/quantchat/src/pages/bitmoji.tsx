@@ -537,6 +537,7 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
                 <h3>Color</h3>
                 <input
                   type="color"
+                  aria-label="Outfit color"
                   value={config.outfitColor}
                   onChange={(e) => updateConfig({ outfitColor: e.target.value })}
                   className="color-input"
@@ -544,6 +545,7 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
                 <h3>Background</h3>
                 <input
                   type="color"
+                  aria-label="Background color"
                   value={config.background}
                   onChange={(e) => updateConfig({ background: e.target.value })}
                   className="color-input"
