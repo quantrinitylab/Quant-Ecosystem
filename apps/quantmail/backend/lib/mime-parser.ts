@@ -143,9 +143,42 @@ function decodedByteLength(body: string, cte: string): number {
   return Buffer.byteLength(body, 'utf-8');
 }
 
+/**
+ * One attachment part's bytes, exactly as the sender attached them.
+ *
+ * The raw message reaches the parser as UTF-8 text. base64 and quoted-printable parts are
+ * ASCII on the wire, so they decode to their exact bytes. A 7bit/8bit/binary part is
+ * recoverable only if its bytes were valid UTF-8: a replacement character means they were
+ * not, and null is returned rather than bytes that differ from what was sent.
+ */
+function partBytes(body: string, cte: string): Buffer | null {
+  const enc = (cte || '').toLowerCase().trim();
+  if (enc === 'base64') return Buffer.from(body.replace(/\s/g, ''), 'base64');
+  if (enc === 'quoted-printable') {
+    const text = body.replace(/=\r?\n/g, '');
+    const chunks: Buffer[] = [];
+    let last = 0;
+    for (const match of text.matchAll(/=([0-9A-Fa-f]{2})/g)) {
+      const at = match.index ?? 0;
+      if (at > last) chunks.push(Buffer.from(text.slice(last, at), 'utf-8'));
+      chunks.push(Buffer.from([parseInt(match[1]!, 16)]));
+      last = at + match[0].length;
+    }
+    if (last < text.length) chunks.push(Buffer.from(text.slice(last), 'utf-8'));
+    return Buffer.concat(chunks);
+  }
+  if (body.includes('\uFFFD')) return null;
+  return Buffer.from(body, 'utf-8');
+}
+
 /** Accumulator threaded through the MIME walk so nested parts share one list. */
 interface WalkContext {
   attachments: ParsedAttachment[];
+  /**
+   * When present, the walk also decodes attachment bytes into `bytes`, keyed by `partIndex`:
+   * every part when `wanted` is null, otherwise only the listed ones.
+   */
+  capture?: { wanted: ReadonlySet<number> | null; bytes: Map<number, Buffer | null> };
 }
 
 function extractContent(
@@ -190,8 +223,12 @@ function extractContent(
 
   if (isAttachment || (filename && !isTextBody)) {
     const contentId = partHeaders?.['content-id']?.replace(/[<>]/g, '').trim();
+    const partIndex = ctx.attachments.length;
+    if (ctx.capture && (!ctx.capture.wanted || ctx.capture.wanted.has(partIndex))) {
+      ctx.capture.bytes.set(partIndex, partBytes(raw, cte));
+    }
     ctx.attachments.push({
-      partIndex: ctx.attachments.length,
+      partIndex,
       filename: filename ?? `attachment-${ctx.attachments.length + 1}`,
       mimeType: ct.split(';')[0]?.trim() || 'application/octet-stream',
       size: decodedByteLength(raw, cte),
@@ -207,9 +244,41 @@ function extractContent(
   return { plain: '', html: '' };
 }
 
-export function parseRawEmail(raw: string): ParsedEmail {
+/** Walk a whole message from its top-level headers; parse and byte extraction share this. */
+function walkMessage(
+  raw: string,
+  ctx: WalkContext,
+): { headers: Record<string, string>; plain: string; html: string } {
   const { headers: hRaw, body } = splitHeadersBody(raw);
   const headers = parseHeaders(hRaw);
+  const contentType = headers['content-type'] ?? 'text/plain';
+  const cte = headers['content-transfer-encoding'] ?? '7bit';
+  const boundary = contentType.match(/boundary="?([^";]+)"?/)?.[1];
+  const { plain, html } = extractContent(body, contentType, cte, ctx, boundary, headers);
+  return { headers, plain, html };
+}
+
+/**
+ * Decode attachment parts of a raw message. Keys are the same `partIndex` values that
+ * `parseRawEmail(raw).attachments` reports — both run the one walk — so a caller holding
+ * the parsed metadata can ask for exactly the parts it wants. A null value is a part whose
+ * bytes cannot be reproduced exactly (see `partBytes`).
+ */
+export function extractAttachmentBytes(
+  raw: string,
+  partIndexes?: Iterable<number>,
+): Map<number, Buffer | null> {
+  const ctx: WalkContext = {
+    attachments: [],
+    capture: { wanted: partIndexes ? new Set(partIndexes) : null, bytes: new Map() },
+  };
+  walkMessage(raw, ctx);
+  return ctx.capture!.bytes;
+}
+
+export function parseRawEmail(raw: string): ParsedEmail {
+  const ctx: WalkContext = { attachments: [] };
+  const { headers, plain, html } = walkMessage(raw, ctx);
   const fromRaw = decodeEncodedWord(headers['from'] ?? '');
   const fromParsed = parseAddresses(fromRaw)[0] ?? { email: 'unknown@unknown.invalid' };
   const toParsed = parseAddresses(decodeEncodedWord(headers['to'] ?? ''));
@@ -218,11 +287,6 @@ export function parseRawEmail(raw: string): ParsedEmail {
   const messageId = headers['message-id']?.replace(/[<>]/g, '').trim();
   const inReplyTo = headers['in-reply-to']?.replace(/[<>]/g, '').trim();
   const references = headers['references']?.trim();
-  const contentType = headers['content-type'] ?? 'text/plain';
-  const cte = headers['content-transfer-encoding'] ?? '7bit';
-  const boundary = contentType.match(/boundary="?([^";]+)"?/)?.[1];
-  const ctx: WalkContext = { attachments: [] };
-  const { plain, html } = extractContent(body, contentType, cte, ctx, boundary, headers);
   let date: Date | undefined;
   if (headers['date']) {
     // `new Date(...)` does not throw on an unparseable string, it returns an
