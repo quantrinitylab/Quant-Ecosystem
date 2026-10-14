@@ -5,12 +5,13 @@
  *
  * The bytes are fetched with the session attached (`loadBytes`) and handed to the Quant Docs
  * engines — WebAssembly in a Web Worker on this device (see `lib/docs-engine`). Pages render
- * lazily as they scroll into view, at the resolution the screen needs; only a bounded number
- * of rendered pages stay in memory. Spreadsheets show each visible sheet's displayed values.
+ * lazily as they scroll into view, at the resolution the screen needs (re-drawn sharper when the
+ * reader zooms); only a bounded number of rendered pages stay in memory. Spreadsheets show each
+ * visible sheet's displayed values.
  * Every failure ends in a plain-language message, with Download as the way out.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   describeEngineError,
   engineErrorCode,
@@ -47,6 +48,14 @@ const RETRYABLE = new Set(['E_CRASH', 'E_TIMEOUT', 'E_LOAD', 'E_WORKER', 'E_CLOS
 const MAX_LIVE_PAGES = 10;
 /** Canvas area cap (Safari refuses canvases above ~16.7 M pixels). */
 const MAX_PAGE_PIXELS = 12_000_000;
+/** Zoom levels, as multiples of "fit to width" (index {@link FIT_ZOOM}). */
+export const ZOOM_STEPS: readonly number[] = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+const FIT_ZOOM = ZOOM_STEPS.indexOf(1);
+/** A page already drawn within this fraction of the wanted scale is left as it is. */
+const RESCALE_TOLERANCE = 0.1;
+
+// Layout effects only run in the browser; on the server this component renders nothing to measure.
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 export function DocumentEnginePreview({ kind, name, size, loadBytes, onDownload, client }: DocumentEnginePreviewProps) {
   const engine = useMemo(() => client ?? getDocsEngineClient(), [client]);
@@ -163,6 +172,23 @@ export function DocumentEnginePreview({ kind, name, size, loadBytes, onDownload,
 // Pages (PDF, documents, presentations)
 // ---------------------------------------------------------------------------------------------
 
+/** Width available to a page at "fit": the scroller's inner width minus its padding. */
+function contentWidth(el: HTMLElement): number {
+  const style = typeof getComputedStyle === 'function' ? getComputedStyle(el) : null;
+  const padding = style ? (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0) : 0;
+  return el.clientWidth - padding;
+}
+
+/** The page box at vertical offset `y` of the scroller: the last one whose top is at or above it. */
+function pageBoxAt(root: HTMLElement, y: number): HTMLElement | null {
+  let hit: HTMLElement | null = null;
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>('[data-page]'))) {
+    if (el.offsetTop > y) break;
+    hit = el;
+  }
+  return hit;
+}
+
 function pageScale(widthPt: number, heightPt: number, cssWidth: number, dpr: number): number {
   let scale = (cssWidth * dpr) / Math.max(widthPt, 1);
   const area = widthPt * heightPt * scale * scale;
@@ -178,9 +204,14 @@ function PagesView({ doc, kind, engine, onFatal }: { doc: OpenedDocument; kind: 
   const busy = useRef(false);
   const disposed = useRef(false);
   const widthRef = useRef(640);
+  const zoomRef = useRef(1);
+  // Where the reader was when the zoom changed, restored once the pages have their new size.
+  const anchor = useRef<{ page: number; within: number; x: number } | null>(null);
   const [drawn, setDrawn] = useState<ReadonlySet<number>>(new Set());
   const [failed, setFailed] = useState<ReadonlySet<number>>(new Set());
   const [current, setCurrent] = useState(0);
+  const [zoomIndex, setZoomIndex] = useState(FIT_ZOOM);
+  const zoom = ZOOM_STEPS[zoomIndex] ?? 1;
   const pages = doc.pageCount;
   const noun = kind === 'slides' ? 'Slide' : 'Page';
 
@@ -193,7 +224,7 @@ function PagesView({ doc, kind, engine, onFatal }: { doc: OpenedDocument; kind: 
     (page: number) => {
       const [w, h] = sizeOf(page);
       const dpr = typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio || 1, 2);
-      return pageScale(w, h, widthRef.current, dpr);
+      return pageScale(w, h, widthRef.current * zoomRef.current, dpr);
     },
     [sizeOf],
   );
@@ -234,7 +265,7 @@ function PagesView({ doc, kind, engine, onFatal }: { doc: OpenedDocument; kind: 
             const at = rendered.current.get(p);
             if (at === undefined) return true;
             const target = targetScale(p);
-            return Math.abs(at - target) / target > 0.2;
+            return Math.abs(at - target) / target > RESCALE_TOLERANCE;
           });
         if (next === undefined || disposed.current) break;
         const scale = targetScale(next);
@@ -272,12 +303,12 @@ function PagesView({ doc, kind, engine, onFatal }: { doc: OpenedDocument; kind: 
     disposed.current = false;
     const root = scrollRef.current;
     if (!root) return;
-    widthRef.current = root.clientWidth - 24 || 640;
+    widthRef.current = contentWidth(root) || 640;
     const ro =
       typeof ResizeObserver === 'undefined'
         ? null
         : new ResizeObserver(() => {
-            widthRef.current = root.clientWidth - 24 || widthRef.current;
+            widthRef.current = contentWidth(root) || widthRef.current;
             void pump();
           });
     ro?.observe(root);
@@ -310,22 +341,82 @@ function PagesView({ doc, kind, engine, onFatal }: { doc: OpenedDocument; kind: 
   const onScroll = useCallback(() => {
     const root = scrollRef.current;
     if (!root) return;
-    const probe = root.scrollTop + root.clientHeight / 3;
-    const items = root.querySelectorAll<HTMLElement>('[data-page]');
-    let page = 0;
-    items.forEach((el, i) => {
-      if (el.offsetTop <= probe) page = i;
-    });
-    setCurrent(page);
+    const box = pageBoxAt(root, root.scrollTop + root.clientHeight / 3);
+    setCurrent(box ? Number(box.dataset.page) : 0);
   }, []);
+
+  const changeZoom = useCallback((index: number) => {
+    const next = Math.min(Math.max(index, 0), ZOOM_STEPS.length - 1);
+    const root = scrollRef.current;
+    // Above the first page (its top padding) the first page is the anchor, a little before it.
+    const box = root ? (pageBoxAt(root, root.scrollTop) ?? root.querySelector<HTMLElement>('[data-page]')) : null;
+    anchor.current =
+      root && box
+        ? {
+            page: Number(box.dataset.page),
+            within: (root.scrollTop - box.offsetTop) / Math.max(box.offsetHeight, 1),
+            x: root.scrollWidth > root.clientWidth ? (root.scrollLeft + root.clientWidth / 2) / root.scrollWidth : 0.5,
+          }
+        : null;
+    zoomRef.current = ZOOM_STEPS[next] ?? 1;
+    setZoomIndex(next);
+  }, []);
+
+  // After a zoom change: keep the same spot of the same page at the top (and centred across),
+  // then draw the visible pages at the new resolution.
+  useIsomorphicLayoutEffect(() => {
+    const root = scrollRef.current;
+    const at = anchor.current;
+    anchor.current = null;
+    if (root && at) {
+      const box = root.querySelector<HTMLElement>(`[data-page="${at.page}"]`);
+      if (box) root.scrollTop = box.offsetTop + at.within * box.offsetHeight;
+      root.scrollLeft = Math.max(0, at.x * root.scrollWidth - root.clientWidth / 2);
+    }
+    void pump();
+  }, [zoomIndex, pump]);
+
+  const zoomButton =
+    'grid h-7 min-w-7 place-items-center px-1.5 font-semibold text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] disabled:opacity-40 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--app-accent)] [@media(pointer:coarse)]:h-9 [@media(pointer:coarse)]:min-w-9';
 
   return (
     <div>
-      <div className="flex items-center justify-between pb-2 text-[11px] text-[var(--quant-muted-foreground)]">
-        <span className="truncate" title={doc.title ?? undefined}>
+      <div className="flex items-center gap-2 pb-2 text-[11px] text-[var(--quant-muted-foreground)]">
+        <span className="min-w-0 flex-1 truncate" title={doc.title ?? undefined}>
           {doc.title || docsEngineLabel(kind)}
         </span>
-        <span aria-live="polite">
+        <div role="group" aria-label="Zoom" className="flex shrink-0 items-center overflow-hidden rounded-md border border-[#232938]">
+          <button
+            type="button"
+            onClick={() => changeZoom(zoomIndex - 1)}
+            disabled={zoomIndex === 0}
+            aria-label="Zoom out"
+            title="Zoom out"
+            className={zoomButton}
+          >
+            <span aria-hidden="true">−</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => changeZoom(FIT_ZOOM)}
+            aria-label={`${Math.round(zoom * 100)}% — fit to width`}
+            title="Fit to width"
+            className={`${zoomButton} min-w-12 border-x border-[#232938] tabular-nums`}
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button
+            type="button"
+            onClick={() => changeZoom(zoomIndex + 1)}
+            disabled={zoomIndex === ZOOM_STEPS.length - 1}
+            aria-label="Zoom in"
+            title="Zoom in"
+            className={zoomButton}
+          >
+            <span aria-hidden="true">+</span>
+          </button>
+        </div>
+        <span aria-live="polite" className="shrink-0 tabular-nums">
           {noun} {Math.min(current + 1, pages)} of {pages}
         </span>
       </div>
@@ -334,7 +425,7 @@ function PagesView({ doc, kind, engine, onFatal }: { doc: OpenedDocument; kind: 
         onScroll={onScroll}
         role="list"
         aria-label={`${docsEngineLabel(kind)} pages`}
-        className="relative max-h-[65vh] overflow-y-auto rounded-lg bg-[#0B0C0E] border border-[var(--quant-surface-elevated)] p-3 space-y-3"
+        className="relative max-h-[70vh] overflow-auto rounded-lg bg-[#0B0C0E] border border-[var(--quant-surface-elevated)] p-2 space-y-2 sm:max-h-[65vh] sm:p-3 sm:space-y-3"
       >
         {Array.from({ length: pages }, (_, page) => {
           const [w, h] = sizeOf(page);
@@ -343,8 +434,8 @@ function PagesView({ doc, kind, engine, onFatal }: { doc: OpenedDocument; kind: 
               key={page}
               role="listitem"
               data-page={page}
-              className="relative mx-auto w-full overflow-hidden rounded-sm bg-white shadow-[0_1px_3px_rgba(0,0,0,0.5)]"
-              style={{ aspectRatio: `${w} / ${h}` }}
+              className="relative mx-auto overflow-hidden rounded-sm bg-white shadow-[0_1px_3px_rgba(0,0,0,0.5)]"
+              style={{ aspectRatio: `${w} / ${h}`, width: `${zoom * 100}%` }}
             >
               <canvas
                 ref={(el) => {
