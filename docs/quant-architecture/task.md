@@ -3390,6 +3390,28 @@ NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes; operator rout
 Rotation -> QM-SCREEN-008/009 (calendar) ROUND 9 regression, queued.
 Status: [x] DONE (R9 regression audit complete 2026-10-14 ~15:55 IST; 49-commit window reviewed, 1 merged fix audited correct, 0 new findings, 7 opens carried; fixes tracked via their PRs)
 
+## QM-SCREEN-007 R10 — Search regression (ROUND 10)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-007r10
+Audit started: 2026-10-15 ~02:40 IST (lane-1 deep audit loop, ROUND 10)
+Base: R9 @ b80dcf2d -> origin/main 3f2ce94bd (fresh fetch). All code read from origin/main tree only.
+R10 REGRESSION DIFF (search scope, b80dcf2d..3f2ce94bd): ~10 merge commits, ZERO touch quantmail search surface (quantchat QC-F-343/330/348 honesty + slides-fonts only; quantchat out of lane-1 scope). No new search code to review — window clean.
+R10 CORRECTION — R9 false-grep CLOSED parser-reachability BLOCKER: R9 claimed "GET /search/emails still has ZERO UI callers (git grep clean)". The grep missed a real caller: commit d2af9e6c0 (2026-10-12, BEFORE R9, 430 insertions + 332 lines of tests) wires api-client.searchEmails() — every UI search path — so Gmail-style operator queries (`from:`, `"exact phrase"`, ...) route to the operator-aware GET /search/emails with a literal-search fallback on failure. Reviewed IN FULL — VERIFIED SOUND: conservative operator regex (mirrors backend SearchQueryService vocabulary; `bob@x.com`/`12:30`/unknown prefixes stay literal), filter-chip queries stay on legacy path (chips have no operator-route params — behavior-preserving, honestly commented), sends both `q` and `query` params (Next-proxy 400 fix, honest comment), failure falls back to literal search rather than erroring. Proxy path verified: no dedicated /api/search/emails/route.ts exists — the /api/[...path] catch-all forwards it, and backend/lib/routes-config.ts:151 allowlists `/^search\/emails$/` GET (the :148-150 prose "no web caller ever used it" refers to /search/parse, correct). So the 007 R1 BLOCKER "wire UI to parser or drop it" is RESOLVED since 2026-10-12; operators now work from the real UI. R9 nuance about in:anywhere spam/trash reachability still stands (parser path was already reachable since R10-correction).
+R9 OPENS RE-VERIFIED STILL PRESENT (byte-checked on 3f2ce94bd, not re-filed):
+- [ ] FINDING P2: is:/has: silently drop unknown values (search-query.service.ts:206-214: unread/read/starred/important/spam only; `is:banana` vanishes — neither filtered nor term-fallback; unknown `in:` folder falls into folderIds -> narrows to zero rows). Carried.
+- [ ] FINDING P3: 0 `signal` refs in useSearchEmails.ts/useUniversalSearch.ts — no abort of in-flight searches.
+- [ ] FINDING P3: universal mail leg pageSize-less (useUniversalSearch.ts:69, no pageSize -> backend default 20 vs 8 for other sources).
+- [ ] FINDING P3: main search input no Esc-to-clear (page.tsx:454 Escape only inside filter-value editor).
+- [ ] FINDING P3: dead search code — SearchBar.tsx 0 importers (dead since R1); SearchResults.tsx dead (UniversalSearchResults.tsx is the live one, different file).
+- [ ] FINDING P3: document search under-covers vs access policy (shared/public docs unfindable) -> BLOCKER: product decision (unchanged).
+R10 FRESH HUNT CLEAN: zero token-in-URL params in search paths, zero coming-soon/lorem/dummy/mock copy, zero toast-theater in all search paths. Prior fixes INTACT: inAnywhere + folderTypeCondition (search-query.service.ts:6/3 refs), trash/spam default exclusion (:317), in:anywhere escape hatch.
+R10 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2 + 0 P3. 1 BLOCKER CLOSED (parser reachability). No fix agents spawned (protocol: P0/P1 only). findings.md: correction note only (no new finding lines).
+LIVE (2026-10-15 ~02:50 IST, proxy 127.0.0.1:8888 healthy): /search?q=test -> honest sign-in gate desktop (1440x900) + mobile (390x844 iPhone 14), pure black, provable copy only. GET /api/search/all, /api/search/emails, /api/emails/search?q=test logged-out -> honest 401 {"code":"UNAUTHORIZED"} (the /search/emails 401 confirms catch-all proxy -> backend wiring end-to-end). Signed-in search UI = needs-auth (no test session). Evidence: /tmp/lane1-007r10-{desktop,mobile}-search.png. /tmp clean; chrome orphans cleaned.
+NOT VERIFIED (needs live/auth, unchanged): staging DB GIN indexes; operator routing live on real data; overlapping-fetch flicker; Hinglish stemming; search latency.
+Rotation -> QM-SCREEN-008/009 (calendar) ROUND 10 regression, queued.
+Status: [x] DONE (R10 regression audit complete 2026-10-15 ~02:55 IST; search-scope window clean, 1 BLOCKER closed via R9-grep correction, 0 new findings, 6 opens carried; fixes tracked via their PRs)
+
 ## QM-SCREEN-008/009 R8 — Calendar regression (ROUND 8)
 Status: [~] IN PROGRESS
 Owner: LANE-1
