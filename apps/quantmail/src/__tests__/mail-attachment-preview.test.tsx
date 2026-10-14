@@ -20,6 +20,9 @@ vi.mock('../components/drive/DocumentEnginePreview', () => ({
 vi.mock('../services/browser-auth-session', () => ({ browserAuthSession: auth }));
 
 import { AttachmentPreview } from '../components/AttachmentPreview';
+import { buildThreadViewCommands, THREAD_KEYBOARD_SCOPE } from '../hooks/useThreadViewKeyboard';
+import { keyboardEngine } from '../lib/keyboard/engine';
+import { registerCommands } from '../lib/keyboard/command-registry';
 import {
   attachmentByteSource,
   attachmentServiceId,
@@ -268,3 +271,99 @@ describe('AttachmentPreview — opening attachments', () => {
     expect(auth.authenticatedFetch).not.toHaveBeenCalled();
   });
 });
+
+describe('AttachmentPreview — Escape closes the preview, not the conversation', () => {
+  // The thread view's real bindings (Escape = close the conversation) behind the preview,
+  // on the real engine listening on the document, the way a mounted thread view has them.
+  let closeConversation: ReturnType<typeof vi.fn>;
+  const releases: Array<() => void> = [];
+
+  beforeEach(() => {
+    closeConversation = vi.fn();
+    releases.push(
+      keyboardEngine.attach(document),
+      registerCommands(
+        buildThreadViewCommands({
+          onArchive: vi.fn(),
+          onMarkUnread: vi.fn(),
+          onToggleStar: vi.fn(),
+          onForward: vi.fn(),
+          onFocusReply: vi.fn(),
+          onSelect: vi.fn(),
+          onClose: closeConversation,
+        }),
+      ),
+      keyboardEngine.pushScope(THREAD_KEYBOARD_SCOPE),
+    );
+  });
+
+  afterEach(() => {
+    while (releases.length) releases.pop()!();
+  });
+
+  async function pressEscape() {
+    const { act } = await import('react');
+    await act(async () => {
+      (document.activeElement ?? document.body).dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }),
+      );
+    });
+  }
+
+  it('a document preview closes and the conversation stays open; the next Escape is the conversation’s', async () => {
+    await mount(
+      <AttachmentPreview
+        attachments={[
+          { id: 'att_1760000000000_k3j4h5', filename: 'report.pdf', mimeType: 'application/pdf', size: 8, url: toDataUrl('application/pdf', '%PDF-1.7') },
+        ]}
+      />,
+    );
+    await clickChip('report.pdf');
+    expect(document.querySelector('[data-testid="engine"]')).not.toBeNull();
+
+    await pressEscape();
+
+    expect(document.querySelector('[data-testid="engine"]')).toBeNull();
+    expect(closeConversation).not.toHaveBeenCalled();
+
+    // Preview gone: Escape belongs to the conversation again.
+    await pressEscape();
+    expect(closeConversation).toHaveBeenCalledTimes(1);
+  });
+
+  it('the image lightbox closes on Escape without leaving the conversation', async () => {
+    const url = toDataUrl('image/png', 'png');
+    await mount(<AttachmentPreview attachments={[{ id: 'i1', filename: 'photo.png', mimeType: 'image/png', size: 3, url }]} />);
+    await clickChip('photo.png');
+    expect(document.querySelector('.attachment-lightbox img')).not.toBeNull();
+
+    await pressEscape();
+
+    expect(closeConversation).not.toHaveBeenCalled();
+    await pressEscape();
+    expect(closeConversation).toHaveBeenCalledTimes(1);
+  });
+
+  it('other conversation shortcuts are held while a preview is open', async () => {
+    const archive = vi.fn();
+    releases.push(
+      registerCommands([
+        { id: 'test.archive', label: 'Archive', group: 'Conversation', keys: 'e', scope: THREAD_KEYBOARD_SCOPE, run: archive },
+      ]),
+    );
+    await mount(
+      <AttachmentPreview
+        attachments={[
+          { id: 'a1', filename: 'deck.pptx', mimeType: 'application/octet-stream', size: 0, url: toDataUrl('application/octet-stream', 'PK') },
+        ]}
+      />,
+    );
+    await clickChip('deck.pptx');
+    const { act } = await import('react');
+    await act(async () => {
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', code: 'KeyE', bubbles: true, cancelable: true }));
+    });
+    expect(archive).not.toHaveBeenCalled();
+  });
+});
+

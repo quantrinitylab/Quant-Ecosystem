@@ -7,6 +7,7 @@ import { browserApiRequest } from '../services/browser-api-request';
 import { DriveFilePreview } from './DriveFilePreview';
 import { DocumentEnginePreview } from './drive/DocumentEnginePreview';
 import { docsEngineKindFor, type DocsEngineKind } from '../lib/docs-engine/formats';
+import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
 import {
   attachmentByteSource,
   loadAttachmentBytes,
@@ -62,6 +63,13 @@ const MAX_ZOOM = 3.0;
 const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
 
 const isImageType = (mimeType: string) => mimeType.startsWith('image/');
+
+/**
+ * While a preview is open it owns the keyboard. Mail views bind Escape to "close the
+ * conversation" (thread scope) and the keyboard engine listens in the capture phase, so
+ * without a scope of its own Escape closed the preview *and* left the conversation behind it.
+ */
+export const ATTACHMENT_PREVIEW_KEYBOARD_SCOPE = 'attachment-preview';
 
 /** A document attachment open in the on-device engine (PDF, Word, PowerPoint, Excel). */
 interface DocumentPreviewTarget {
@@ -326,6 +334,26 @@ export function AttachmentPreview({
       objectUrlRef.current = null;
     }
   }, []);
+
+  // Exclusive while any preview is up: the conversation's shortcuts (Escape = close it,
+  // `e` = archive it, …) must not act on the mail behind the preview.
+  const previewOpen = previewUrl !== null || documentPreview !== null || previewFile !== null;
+  useKeyboardScope(ATTACHMENT_PREVIEW_KEYBOARD_SCOPE, { active: previewOpen, exclusive: true });
+  useShortcut(
+    'escape',
+    () => {
+      // Topmost first. The document dialog's own Escape listener closes it too; both are idempotent.
+      if (previewFile) setPreviewFile(null);
+      else if (documentPreview) setDocumentPreview(null);
+      else closeImagePreview();
+    },
+    {
+      scope: ATTACHMENT_PREVIEW_KEYBOARD_SCOPE,
+      label: 'Close preview',
+      // Escape from a field inside the preview still means "close the preview".
+      allowInInput: true,
+    },
+  );
 
   useEffect(
     () => () => {
