@@ -1,0 +1,32 @@
+[package]
+name = "quant-pdf-engine"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Quant Docs — on-device PDF page rendering, built on the PdfCraft render crate (MIT OR Apache-2.0)."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pdfcraft-render = { git = "https://github.com/storytold/pdfcraft", rev = "c1a41cc5c7c2460fb60af880af69ee28a0c71bd5" }
+wasm-bindgen = "0.2"
+
+# Upstream swaps these crates for its vendored, patched copies through [patch.crates-io] in its
+# workspace root. Patches do not travel with a git dependency, so repeat them here (same rev).
+[patch.crates-io]
+hayro = { git = "https://github.com/storytold/pdfcraft", rev = "c1a41cc5c7c2460fb60af880af69ee28a0c71bd5" }
+hayro-interpret = { git = "https://github.com/storytold/pdfcraft", rev = "c1a41cc5c7c2460fb60af880af69ee28a0c71bd5" }
+hayro-syntax = { git = "https://github.com/storytold/pdfcraft", rev = "c1a41cc5c7c2460fb60af880af69ee28a0c71bd5" }
+hayro-jbig2 = { git = "https://github.com/storytold/pdfcraft", rev = "c1a41cc5c7c2460fb60af880af69ee28a0c71bd5" }
+lopdf = { git = "https://github.com/storytold/pdfcraft", rev = "c1a41cc5c7c2460fb60af880af69ee28a0c71bd5" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[workspace]

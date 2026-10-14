@@ -1,0 +1,23 @@
+[package]
+name = "quant-slides-engine"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Quant Docs — on-device PPTX slide rendering, built on the DeckCraft engine (MIT OR Apache-2.0)."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+deckcraft-engine = { git = "https://github.com/storytold/deckcraft", rev = "457406a7a5b62425e915926c8ccb0984e61a198c" }
+wasm-bindgen = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[workspace]
