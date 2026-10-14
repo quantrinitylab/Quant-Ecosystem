@@ -135,6 +135,24 @@ vi.mock('@quant/shared-ui', async () => {
     LoadingState: ({ text }: { text?: string }) => <div>{text}</div>,
     ErrorState: ({ message }: { message?: string }) => <div>{message}</div>,
     DevicePicker: () => null,
+    // QC-F-322 harness migration (no assertion changed): the meet page
+    // now wires shared-ui's background-blur engine. Raise-hand pins are
+    // not about blur, so that boundary is stubbed OFF here — the real
+    // engine is pinned by qc-f-322-background-engine.test.tsx and
+    // qc-f-322-meet-background.test.tsx.
+    BackgroundBlur: () => null,
+    useBackgroundBlur: () => ({
+      isSupported: false,
+      status: 'off' as const,
+      error: null,
+      mode: 'none' as const,
+      blurAmount: 10,
+      setMode: () => undefined,
+      setBlurAmount: () => undefined,
+      setBackgroundImage: () => undefined,
+    }),
+    applyBackgroundBlur: async () => undefined,
+    BACKGROUND_ASSET_PATH: '/livekit-track-processors',
   };
 });
 
