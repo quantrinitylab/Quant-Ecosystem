@@ -690,7 +690,7 @@ export default function CalendarEventDetailPage() {
                     type="checkbox"
                     checked={notifyGuests}
                     onChange={(e) => setNotifyGuests(e.target.checked)}
-                    className="h-4 w-4 accent-[#3b82f6]"
+                    className="h-4 w-4 accent-[var(--app-accent)]"
                   />
                   Notify guests by email
                   <span className="text-xs text-[var(--quant-muted-foreground)]">
@@ -732,7 +732,7 @@ export default function CalendarEventDetailPage() {
                   type="button"
                   onClick={() => void doSave(true)}
                   disabled={updateEvent.isPending}
-                  className="min-h-11 flex-1 rounded-lg bg-[#3b82f6] px-4 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                  className="min-h-11 flex-1 rounded-lg bg-[var(--app-accent)] px-4 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   {updateEvent.isPending ? 'Saving…' : 'Send update'}
                 </button>

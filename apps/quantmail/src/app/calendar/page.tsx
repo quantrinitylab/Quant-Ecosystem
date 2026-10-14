@@ -152,7 +152,6 @@ function CalendarPageContent() {
     const url = new URL(window.location.href);
     url.searchParams.delete('guestNotice');
     window.history.replaceState(null, '', url.toString());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [activeContextTab, setActiveContextTab] = useState<CalendarContextTab>(
