@@ -46,3 +46,28 @@ export class OpenRouterNotConfiguredError extends AIProviderUnavailableError {
     Object.setPrototypeOf(this, OpenRouterNotConfiguredError.prototype);
   }
 }
+
+/**
+ * Thrown when a caller or deployed configuration names an AI model that is
+ * not registered in the model router (or whose provider is not configured).
+ *
+ * CODEX-REVIEW gate (PR #1119): the router must NEVER silently substitute a
+ * different model when the configured/requested one is unknown — e.g.
+ * production pins `@cf/meta/llama-3.2-1b-instruct` via `AI_DEFAULT_MODEL`,
+ * and scoring must not quietly fall back to the deprecated
+ * `@cf/meta/llama-3.1-70b-instruct`. Fail closed at request time (and at
+ * engine startup for the deployed-environment adapter).
+ */
+export class UnknownModelError extends Error {
+  /** Stable, machine-readable error code for callers/telemetry. */
+  readonly code: string = 'UNKNOWN_MODEL';
+
+  constructor(modelId: string, source: string) {
+    super(
+      `Unknown or unavailable AI model "${modelId}" (from ${source}). ` +
+        'Refusing to silently substitute a different model.',
+    );
+    this.name = 'UnknownModelError';
+    Object.setPrototypeOf(this, UnknownModelError.prototype);
+  }
+}
