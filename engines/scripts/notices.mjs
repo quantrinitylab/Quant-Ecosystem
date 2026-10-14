@@ -6,7 +6,9 @@
 // reachable on wasm32-unknown-unknown, from each engine's Cargo.lock) with its licence
 // expression, then the licence, notice and font-licence files found in their sources,
 // de-duplicated. Upstream NOTICE files (Apache-2.0 §4(d)) and the OFL texts of the fonts the
-// engines embed are included. Re-run after changing any engine Cargo.lock:
+// engines embed are included, as are the fonts served next to the engines (engines/fonts/fonts.txt)
+// with their licence texts (engines/fonts/licenses/). Re-run after changing any engine Cargo.lock
+// or the font list:
 //
 //   node engines/scripts/notices.mjs          # rewrite
 //   node engines/scripts/notices.mjs --check  # exit 1 when the committed file is stale
@@ -156,6 +158,30 @@ for (const { pkg } of sorted) {
   }
 }
 
+// Fonts served as files next to the engines (engines/fonts/fonts.txt, craft-fonts manifest lines).
+const FONTS_LIST = join(ROOT, 'fonts', 'fonts.txt');
+const fontLines = readFileSync(FONTS_LIST, 'utf8').split('\n');
+const fontsRev = (fontLines.find((l) => /^rev [0-9a-f]{40}$/.test(l.trim())) || '').trim().slice(4);
+const fonts = new Map(); // family -> { styles: [], licence, licenceFile, source }
+for (const line of fontLines.map((l) => l.trim()).filter((l) => l && !l.startsWith('#') && l.includes(' | '))) {
+  const [family, style, , , licence, licenceFile, , source] = line.split(' | ').map((f) => f.trim());
+  const entry = fonts.get(family) ?? { styles: [], licence, licenceFile, source: (source || '').replace(/#.*$/, '') };
+  entry.styles.push(style);
+  fonts.set(family, entry);
+}
+for (const [family, { licenceFile }] of fonts) {
+  const f = join(ROOT, 'fonts', 'licenses', licenceFile.replace(/^fonts\//, ''));
+  if (!existsSync(f)) {
+    console.error(`no licence text for the font ${family}: ${relative(process.cwd(), f)}`);
+    process.exit(1);
+  }
+  const text = readFileSync(f, 'utf8').replace(/\r\n/g, '\n').trim();
+  const hash = createHash('sha256').update(text.replace(/\s+/g, ' ')).digest('hex');
+  const entry = texts.get(hash) ?? { file: f.split(sep).pop(), text, hash, users: new Set() };
+  entry.users.add(`font ${family}`);
+  texts.set(hash, entry);
+}
+
 const lines = [];
 lines.push('Quant Docs engines — third-party notices');
 lines.push('');
@@ -189,6 +215,15 @@ if (missing.length) {
     lines.push('');
     lines.push(STANDARD[id]);
   }
+}
+lines.push('');
+lines.push(`== Fonts served with the engines (${fonts.size} families) ==`);
+lines.push('');
+lines.push(`From craft-fonts (https://github.com/storytold/craft-fonts) at ${fontsRev || 'UNKNOWN'}; under fonts/ next to`);
+lines.push('the engines, each folder with its licence text. They are handed to an engine when a document uses them.');
+lines.push('');
+for (const [family, { styles, licence, source }] of [...fonts].sort((a, b) => cmp(a[0], b[0]))) {
+  lines.push(`${family} (${styles.join(', ')}) — ${licence} — ${source}`);
 }
 lines.push('');
 lines.push(`== Licence, notice and font-licence texts (${texts.size}, de-duplicated) ==`);

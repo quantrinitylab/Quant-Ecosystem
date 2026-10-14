@@ -6,8 +6,15 @@
 //!
 //! Pixels come back as straight RGBA8 flattened onto white. Errors are `JsError`s whose
 //! message starts with a stable code (`E_INVALID`, `E_RANGE`).
+//!
+//! Fonts: the web build compiles in only DeckCraft's last-resort face. The worker reads
+//! [`Document::fonts_used`] and hands the matching font files (or their metric-compatible
+//! stand-ins, e.g. Carlito for Calibri) to [`add_font`] before the first slide is drawn.
 
-use deckcraft_model::Presentation;
+use deckcraft_fonts::FontDb;
+use deckcraft_model::resolve::{self, Ctx};
+use deckcraft_model::text::{Bullet, TextBody};
+use deckcraft_model::{Presentation, Shape, ShapeKind};
 use deckcraft_render::{RenderOpts, render_slide};
 use wasm_bindgen::prelude::*;
 
@@ -101,6 +108,18 @@ impl Document {
         None
     }
 
+    /// The fonts the slides' text is drawn in, as JSON:
+    /// `[{"family":"Calibri","bold":false,"italic":false}, …]` — theme fonts resolved, bullet
+    /// fonts and the theme's heading/body fonts included, de-duplicated (case-insensitive).
+    #[wasm_bindgen(js_name = fontsUsed)]
+    pub fn fonts_used(&self) -> String {
+        let list: Vec<serde_json::Value> = fonts_used(&self.pres)
+            .into_iter()
+            .map(|(family, bold, italic)| serde_json::json!({ "family": family, "bold": bold, "italic": italic }))
+            .collect();
+        serde_json::Value::Array(list).to_string()
+    }
+
     /// Rasterize slide `page` (0-based) at `scale` device pixels per point (show view).
     pub fn render(&mut self, page: usize, scale: f32) -> Result<PageImage, JsError> {
         if page >= self.pres.slides.len() {
@@ -111,6 +130,73 @@ impl Document {
         let mut rgba = img.pixels;
         flatten_on_white(&mut rgba);
         Ok(PageImage { width: img.width, height: img.height, rgba })
+    }
+}
+
+/// Make a font file (TrueType/OpenType bytes) available to every slide this engine instance
+/// draws from now on. Returns the number of faces added (0: unreadable, or already loaded).
+#[wasm_bindgen(js_name = addFont)]
+pub fn add_font(bytes: Vec<u8>) -> usize {
+    FontDb::global().add_font(bytes)
+}
+
+/// Is `family` loaded (compiled in, or added with [`add_font`])?
+#[wasm_bindgen(js_name = hasFontFamily)]
+pub fn has_font_family(family: &str) -> bool {
+    FontDb::global().has_family(family)
+}
+
+/// (family, bold, italic) for the slides' text — after DeckCraft's `used_fonts`
+/// (deckcraft-engine `fonts.rs`, MIT OR Apache-2.0), plus the run's weight and slant and the
+/// theme's heading/body fonts. Table cells also ask for bold: table styles embolden header rows.
+fn fonts_used(p: &Presentation) -> Vec<(String, bool, bool)> {
+    let mut out: Vec<(String, bool, bool)> = Vec::new();
+    let mut add = |family: String, bold: bool, italic: bool| {
+        let family = family.trim().to_string();
+        if !family.is_empty() && !out.iter().any(|(f, b, i)| f.eq_ignore_ascii_case(&family) && *b == bold && *i == italic) {
+            out.push((family, bold, italic));
+        }
+    };
+    for slide in &p.slides {
+        let Some(ctx) = Ctx::for_slide(p, slide) else { continue };
+        add(ctx.master.theme.fonts.major.latin.clone(), false, false);
+        add(ctx.master.theme.fonts.minor.latin.clone(), false, false);
+        deckcraft_model::walk(&slide.shapes, &mut |s, _| {
+            if let Some(body) = &s.text {
+                body_fonts(&ctx, s, body, false, &mut add);
+            }
+            if let ShapeKind::Table(t) = &s.kind {
+                for cell in t.rows.iter().flat_map(|r| &r.cells) {
+                    body_fonts(&ctx, s, &cell.text, true, &mut add);
+                }
+            }
+        });
+    }
+    out
+}
+
+fn body_fonts(ctx: &Ctx, s: &Shape, body: &TextBody, table: bool, add: &mut dyn FnMut(String, bool, bool)) {
+    for para in &body.paragraphs {
+        let mut has_text = false;
+        for run in para.runs.iter().filter(|r| !r.text.trim().is_empty()) {
+            has_text = true;
+            let r = resolve::run(ctx, s, para, &run.props);
+            let family = resolve::font_family(ctx, &r);
+            let (bold, italic) = (r.bold.unwrap_or(false), r.italic.unwrap_or(false));
+            add(family.clone(), bold, italic);
+            if table && !bold {
+                add(family, true, italic);
+            }
+        }
+        if !has_text {
+            continue;
+        }
+        let pp = resolve::para(ctx, s, para);
+        if matches!(pp.bullet, Some(Bullet::Char { .. }))
+            && let Some(f) = pp.bullet_font.as_deref()
+        {
+            add(ctx.master.theme.font(f), false, false);
+        }
     }
 }
 
