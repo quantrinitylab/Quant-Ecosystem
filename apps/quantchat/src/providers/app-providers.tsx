@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ThemeProvider,
   CommandPaletteUI,
@@ -10,6 +11,8 @@ import {
 import type { CommandPaletteItem } from '@quant/shared-ui';
 import { MicroInteractionProvider } from './MicroInteractionProvider';
 import { AuthGate } from './auth-gate';
+import { InAppToastContainer } from '../components/ui/InAppToast';
+import { ForegroundToastBridge } from '../components/ui/ForegroundToastBridge';
 
 const commands: CommandPaletteItem[] = [
   { id: 'new-chat', label: 'New Chat', shortcut: 'N', action: () => {} },
@@ -18,6 +21,7 @@ const commands: CommandPaletteItem[] = [
 ];
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   useEffect(() => {
@@ -46,6 +50,14 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
             commands={commands}
           />
         </MicroInteractionProvider>
+        {/* QC-F-341: the in-app toast surface, live at last — the
+            container renders whatever the manager holds, tapped toasts
+            navigate through the real App Router, and the bridge turns
+            real foreground socket events into toasts (gated, ephemeral-
+            safe). Mounted outside AuthGate on purpose: the bridge's own
+            gates fail closed while logged out. */}
+        <InAppToastContainer onNavigate={(deepLink) => router.push(deepLink)} />
+        <ForegroundToastBridge />
         <QuantSidekick />
       </QuantSidekickProvider>
     </ThemeProvider>
