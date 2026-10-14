@@ -673,7 +673,14 @@ export class RepoMigrationService {
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9_.-]/g, '-');
-    const targetOwner = input.targetOwner || 'user-default';
+    // SECURITY: targetOwner is the identity the imported repo is attributed
+    // to. Never silently fall back to a pseudo-user ('user-default') — an
+    // absent owner is an honest 400, never a fake-user attribution.
+    if (!input.targetOwner || !input.targetOwner.trim()) {
+      throw createAppError('Target repository owner is required', 400, 'MISSING_TARGET_OWNER');
+    }
+
+    const targetOwner = input.targetOwner.trim();
 
     // 2. Discover remote Git refs, commit history, and branches
     const discoveredBranches = ['main', 'develop', 'release/v1.0'];
