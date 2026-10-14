@@ -7,7 +7,6 @@ import dynamic from 'next/dynamic';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { AnimatedPage, AppShell, Sidebar } from '@quant/shared-ui';
-import { ErrorState } from '@quant/shared-ui';
 import type { SidebarItem } from '@quant/shared-ui';
 import { useBrandName } from '../components/BrandProvider';
 import { SideChatsSection } from '../components/chat/SideChatsSection';
@@ -123,6 +122,12 @@ export default function AIPage() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [forceShowUI, setForceShowUI] = useState(false);
   const [ignoreError, setIgnoreError] = useState(false);
+
+  // A dismissed banner must reappear when a *new* error arrives — otherwise a
+  // single dismiss would silence every future failure.
+  useEffect(() => {
+    if (error) setIgnoreError(false);
+  }, [error]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -431,31 +436,13 @@ export default function AIPage() {
     );
   }
 
-  if (error && !ignoreError) {
-    return (
-      <AppShell
-        theme={resolvedTheme}
-        sidebar={<Sidebar items={[]} header={<h2 className="text-lg font-semibold">{brandName}</h2>} />}
-      >
-        <QuantAIPageErrorBoundary
-          brandName={brandName}
-          onSignIn={handleNavigateToLogin}
-          onQuantSSO={handleQuantSSO}
-        >
-        <div className="flex flex-col items-center justify-center h-full space-y-4">
-          <ErrorState message={error} onRetry={() => window.location.reload()} />
-          <button
-            type="button"
-            onClick={handleNavigateToLogin}
-            className="px-4 py-2 rounded-lg bg-[var(--quant-surface-hover)] border border-[var(--quant-border)] text-sm hover:bg-[var(--quant-surface)] transition-colors"
-          >
-            Sign In
-          </button>
-        </div>
-        </QuantAIPageErrorBoundary>
-      </AppShell>
-    );
-  }
+  // P1 fix (2026-10-11): a failed message must NEVER nuke the whole chat UI
+  // into a full-page error (which destroyed the composer draft and scroll
+  // position, with only window.location.reload() as recovery). Send failures
+  // now render as the inline dismissible ChatErrorBanner below. The full-page
+  // ErrorState path is intentionally gone here: initial-load/render failures
+  // are handled by QuantAIPageErrorBoundary (render crashes) and the loading
+  // skeleton above.
 
   // ---- Sidebar (Chats / Side chats views) ---------------------------------
   // Shared header/footer are extracted so both the date-grouped "Chats" list
@@ -796,6 +783,14 @@ export default function AIPage() {
             >
               {activeMode === 'chat' ? (
                 <>
+                  {/* Inline send-failure banner — never a full-page takeover */}
+                  {error && !ignoreError && (
+                    <ChatErrorBanner
+                      message={error}
+                      onRetry={retryLastMessage}
+                      onDismiss={() => setIgnoreError(true)}
+                    />
+                  )}
                   {/* Chat Messages */}
                   <ChatMessages
                     messages={messages}
@@ -938,6 +933,46 @@ export default function AIPage() {
       </AnimatedPage>
       </QuantAIPageErrorBoundary>
     </AppShell>
+  );
+}
+
+/* ============ Inline chat error banner ============ */
+// P1 fix (2026-10-11): send/stream failures render here — dismissible, with
+// Retry wired to the existing retryLastMessage(). Never a full-page takeover.
+function ChatErrorBanner({
+  message,
+  onRetry,
+  onDismiss,
+}: {
+  message: string;
+  onRetry: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="mx-4 mt-3 flex items-start gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3"
+    >
+      <span aria-hidden="true" className="text-lg leading-none mt-0.5">
+        ⚠️
+      </span>
+      <p className="flex-1 text-sm leading-relaxed text-red-200">{message}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="shrink-0 rounded-lg bg-red-500/20 border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-100 hover:bg-red-500/30 transition-colors"
+      >
+        Retry
+      </button>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss error"
+        className="shrink-0 rounded-lg px-2 py-1.5 text-xs text-red-300/70 hover:text-red-200 hover:bg-red-500/10 transition-colors"
+      >
+        ✕
+      </button>
+    </div>
   );
 }
 

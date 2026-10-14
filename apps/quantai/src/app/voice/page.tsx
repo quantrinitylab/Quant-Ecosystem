@@ -4,6 +4,7 @@ import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useVoiceCapture } from '../../hooks/useVoiceCapture';
 import { apiFetchRaw } from '@quant/api-client';
+import { getAuthToken } from '../../lib/auth';
 
 export default function VoicePage() {
   const {
@@ -34,7 +35,13 @@ export default function VoicePage() {
       try {
         const form = new FormData();
         form.append('file', wav, 'audio.wav');
-        const sttRes = await apiFetchRaw('/api/voice/stt', { method: 'POST', body: form });
+        const sttRes = await apiFetchRaw('/api/voice/stt', {
+          method: 'POST',
+          body: form,
+          // P1 fix: forward the session bearer token — apiFetchRaw only attaches
+          // Authorization when the caller passes `token` explicitly.
+          token: getAuthToken() ?? undefined,
+        });
         const sttData = (await sttRes.json().catch(() => ({}))) as {
           text?: string;
           error?: string;
@@ -49,6 +56,8 @@ export default function VoicePage() {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ message: text }),
+          // P1 fix: forward the session bearer token (see STT call above).
+          token: getAuthToken() ?? undefined,
         });
         const chatData = (await chatRes.json().catch(() => ({}))) as {
           response?: string;
