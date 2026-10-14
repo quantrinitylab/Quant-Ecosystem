@@ -11,6 +11,7 @@ import { IdentityAvatar } from '../../components/IdentityAvatar';
 import { showToast } from '../../components/InboxToast';
 import { useInbox } from '../../hooks/useInbox';
 import { resolveThreadTarget } from '../../lib/route-ids';
+import { messagePreviewText } from '../../lib/threading';
 import { formatSentRecipientLine } from './recipients';
 import { apiClient } from '../../services/api-client';
 import type { Email, EmailStatus } from '../../types';
@@ -328,7 +329,7 @@ export default function SentPage() {
                         {email.subject || '(no subject)'}
                       </button>
                     </h3>
-                    <p className="sent-row-snippet">{email.snippet}</p>
+                    <p className="sent-row-snippet">{messagePreviewText(email)}</p>
                   </div>
                 </motion.article>
               ))}

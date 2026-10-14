@@ -785,6 +785,64 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       await app.close();
     });
 
+    it('T1-3b: PUT /emails/:id recomputes the stored snippet when the body is edited', async () => {
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/emails/draft-1',
+        payload: {
+          to: [{ email: 'initial@test.com' }],
+          subject: 'Initial Subject',
+          bodyText: 'Edited body\n\n  after the first autosave',
+          bodyHtml: '<p>Edited body</p><p>after the first autosave</p>',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = prisma.email.updateMany.mock.calls[0][0].data;
+      expect(data.snippet).toBe('Edited body after the first autosave');
+
+      await app.close();
+    });
+
+    it('T1-3c: PUT /emails/:id previews the HTML body when the plain body is cleared', async () => {
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/emails/draft-1',
+        payload: {
+          to: [{ email: 'initial@test.com' }],
+          subject: 'Initial Subject',
+          bodyText: '',
+          bodyHtml: '<p>Only&nbsp;<b>rich</b> text</p>',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = prisma.email.updateMany.mock.calls[0][0].data;
+      expect(data.snippet).toBe('Only rich text');
+
+      await app.close();
+    });
+
+    it('T1-3d: PUT /emails/:id leaves the snippet alone when no body is part of the edit', async () => {
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/emails/draft-1',
+        payload: { to: [{ email: 'initial@test.com' }], subject: 'Only the subject changed' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = prisma.email.updateMany.mock.calls[0][0].data;
+      expect(data).not.toHaveProperty('snippet');
+
+      await app.close();
+    });
+
     it('T1-4: PUT /emails/:id rejects unauthenticated callers with 401', async () => {
       const app = await buildTestFastifyApp(prisma, null); // null userId
 

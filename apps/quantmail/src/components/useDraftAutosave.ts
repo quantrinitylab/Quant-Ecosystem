@@ -105,17 +105,31 @@ export class DraftAutosaveController {
     return this.doSave(latest);
   }
 
+  /** The save currently on the wire, so close-time callers can wait it out. */
+  private inflight: Promise<boolean> | null = null;
+  /** True once any save (timer, manual or close-time) has reached the server. */
+  private everSaved = false;
+
   async doSave(snapshot: string): Promise<boolean> {
     if (!this.enabled || this.state === 'saving') return false;
     this.setState('saving');
+    const run = (async () => {
+      try {
+        return await this.saveFn();
+      } catch {
+        return false;
+      }
+    })();
+    this.inflight = run;
     let ok = false;
     try {
-      ok = await this.saveFn();
-    } catch {
-      ok = false;
+      ok = await run;
+    } finally {
+      if (this.inflight === run) this.inflight = null;
     }
     if (ok) {
       this.lastSavedSnapshot = snapshot;
+      this.everSaved = true;
       this.setState('saved');
     } else {
       this.setState('error');
@@ -127,10 +141,46 @@ export class DraftAutosaveController {
     this.clearTimer();
     if (ok) {
       this.lastSavedSnapshot = snapshot;
+      this.everSaved = true;
       this.setState('saved');
     } else {
       this.setState('error');
     }
+  }
+
+  hasEverSaved(): boolean {
+    return this.everSaved;
+  }
+
+  /**
+   * Wait out a save that is already on the wire without starting a new one.
+   * Discard calls this before deleting: an autosave POST that lands AFTER the
+   * delete would otherwise resurrect the draft the person just threw away.
+   */
+  async settle(): Promise<void> {
+    this.clearTimer();
+    const pending = this.inflight;
+    if (pending) {
+      try {
+        await pending;
+      } catch {
+        // doSave already turned the failure into state; nothing to add here.
+      }
+    }
+  }
+
+  /**
+   * Close-time save (Back / Close / edge swipe): cancel the countdown, wait out
+   * an in-flight autosave, then save `snapshot` unless the server already
+   * holds exactly it. Resolves true only when the server has this snapshot,
+   * so the caller's "Draft saved" toast is never a guess. Saving straight
+   * through `saveFn` instead would race an in-flight autosave into a second
+   * POST — a duplicate draft.
+   */
+  async flush(snapshot: string): Promise<boolean> {
+    await this.settle();
+    if (this.state === 'saved' && snapshot === this.lastSavedSnapshot) return true;
+    return this.doSave(snapshot);
   }
 
   clearTimer() {
@@ -171,6 +221,12 @@ export function useDraftAutosave({
   notifyManualSave: (ok: boolean) => void;
   /** Force an immediate save attempt (used by unmount guards). */
   saveNow: () => Promise<boolean>;
+  /** Close-time save of the current content; see DraftAutosaveController.flush. */
+  flush: () => Promise<boolean>;
+  /** Wait out an in-flight save without starting one (discard path). */
+  settle: () => Promise<void>;
+  /** True once any save of this draft has reached the server. */
+  hasSavedOnce: () => boolean;
 } {
   const [saveState, setSaveState] = useState<DraftSaveState>('pristine');
   const controllerRef = useRef<DraftAutosaveController | null>(null);
@@ -224,7 +280,11 @@ export function useDraftAutosave({
     setSaveState(controller.getSaveState());
   }, [controller]);
 
-  return { saveState, notifyManualSave, saveNow };
+  const flush = useCallback(() => controller.flush(snapshot), [controller, snapshot]);
+  const settle = useCallback(() => controller.settle(), [controller]);
+  const hasSavedOnce = useCallback(() => controller.hasEverSaved(), [controller]);
+
+  return { saveState, notifyManualSave, saveNow, flush, settle, hasSavedOnce };
 }
 
 /**

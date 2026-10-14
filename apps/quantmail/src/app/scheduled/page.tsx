@@ -31,6 +31,7 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { IdentityAvatar } from '../../components/IdentityAvatar';
 import { showToast } from '../../components/InboxToast';
 import { useInbox } from '../../hooks/useInbox';
+import { messagePreviewText } from '../../lib/threading';
 import { apiClient } from '../../services/api-client';
 import type { Email } from '../../types';
 import { formatSentRecipientLine } from '../sent/recipients';
@@ -224,7 +225,7 @@ export default function ScheduledPage() {
                         </span>
                       </div>
                       <h3 className="sent-row-subject">{email.subject || '(no subject)'}</h3>
-                      <p className="sent-row-snippet">{email.snippet}</p>
+                      <p className="sent-row-snippet">{messagePreviewText(email)}</p>
                       <div className="sent-row-actions">
                         <button
                           type="button"

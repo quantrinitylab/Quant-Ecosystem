@@ -584,6 +584,11 @@ export function ConversationalThreadView({
   const { user: currentUser } = useAuth();
   const currentEmail = (currentUser?.email || '').toLowerCase();
   const currentHandle = currentEmail.split('@')[0];
+  // Your own avatar: your identity (same precedence as the sidebar
+  // AccountBadge), not the literal "me" label — which gave every message you
+  // sent an "M".
+  const selfAvatarName =
+    currentUser?.displayName || currentUser?.username || currentHandle || 'me';
   const { data: contactGroups } = useContactGroups();
   const updateGroup = useUpdateContactGroup();
   const deleteGroup = useDeleteContactGroup();
@@ -687,6 +692,11 @@ export function ConversationalThreadView({
   const otherParticipant = useMemo(() => {
     const addresses = threadParticipants(messages, currentEmail);
     const email = addresses[0] || '';
+    // A note to self has nobody else in it. Resolving a name for the empty
+    // address fell through cleanContactName's placeholder, so the header read
+    // "Contact" with a "CO" avatar instead of the "You" participantSummary
+    // already computes for exactly this case.
+    if (!email) return { email: '', name: '' };
     const source = messages.find(
       (message) => normalizeAddress(message.from?.email) === normalizeAddress(email),
     );
@@ -1836,7 +1846,7 @@ export function ConversationalThreadView({
               </span>
 
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="flex min-w-0 items-center gap-2">
+                <span className="flex min-w-0 items-center gap-2 overflow-hidden">
                   <span className="truncate text-sm font-bold text-white sm:text-base">
                     {activeGroup.name}
                   </span>
@@ -1856,22 +1866,18 @@ export function ConversationalThreadView({
               className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1.5 text-left transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
               aria-label={`Open details and shared media for ${otherParticipant.name || participantSummary}`}
             >
-              <span
-                aria-hidden="true"
-                className="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-black text-[var(--quant-background)] bg-[var(--quant-primary)]"
-              >
-                {(
-                  (otherParticipant.name || participantSummary)
-                    .replace(/[._-]+/g, ' ')
-                    .split(/\s+/)
-                    .filter(Boolean)[0] || 'C'
-                )
-                  .slice(0, 2)
-                  .toUpperCase()}
-              </span>
+              {/* The same IdentityAvatar the inbox row and the message bubbles
+                  use, so a person keeps one face across the app. The old
+                  hand-rolled initials took the first TWO letters of the first
+                  word ("PR" for Priya). A note to self shows your own avatar. */}
+              <IdentityAvatar
+                name={otherParticipant.email ? otherParticipant.name : selfAvatarName}
+                size="md"
+                className="shrink-0"
+              />
 
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="flex min-w-0 items-center gap-2">
+                <span className="flex min-w-0 items-center gap-2 overflow-hidden">
                   <span className="truncate text-sm font-bold text-white sm:text-base">
                     {otherParticipant.name || participantSummary}
                   </span>
@@ -1917,11 +1923,14 @@ export function ConversationalThreadView({
             </svg>
           </button>
 
-          {/* 2. Forward Button */}
+          {/* 2. Forward Button — sm+ only; on a phone it lives in the "…" menu
+              so the correspondent's name keeps its room (with five 44px
+              targets the name collapsed to nothing and the kind badge slid
+              under Reply). */}
           <button
             type="button"
             onClick={openForwardComposer}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-surface-elevated)] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] sm:min-h-0 sm:min-w-0"
+            className="hidden sm:flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-surface-elevated)] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] sm:min-h-0 sm:min-w-0"
             title="Forward message"
             aria-label="Forward conversation"
           >
@@ -1937,11 +1946,11 @@ export function ConversationalThreadView({
             </svg>
           </button>
 
-          {/* 3. Pin Button */}
+          {/* 3. Pin Button — sm+ only, same reason as Forward. */}
           <button
             type="button"
             onClick={handleToggleStar}
-            className={`flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] sm:min-h-0 sm:min-w-0 ${
+            className={`hidden sm:flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] sm:min-h-0 sm:min-w-0 ${
               starred
                 ? 'text-[var(--quant-primary)] bg-[var(--quant-primary)]/10'
                 : 'text-[var(--quant-muted-foreground)] hover:text-[var(--brand-accent)] hover:bg-[var(--quant-surface-elevated)]'
@@ -2169,6 +2178,55 @@ export function ConversationalThreadView({
                     <path d="M22 18v-2a4 4 0 0 0-4-4H7" />
                   </svg>
                   Reply all
+                </button>
+
+                {/* Phone-only: the header's Forward and Pin buttons stand down
+                    below `sm`, so the menu carries them there. */}
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    openForwardComposer();
+                  }}
+                  className="flex sm:hidden w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg
+                    className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <polyline points="15 17 20 12 15 7" />
+                    <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
+                  </svg>
+                  Forward
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    void handleToggleStar();
+                  }}
+                  className="flex sm:hidden w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg
+                    className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
+                    viewBox="0 0 24 24"
+                    fill={starred ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <line x1="12" y1="17" x2="12" y2="22" />
+                    <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
+                  </svg>
+                  {starred ? 'Unpin' : 'Pin to top'}
                 </button>
 
                 {/* BB-P1-3: standard conversation actions, each wired to the
@@ -2607,7 +2665,7 @@ export function ConversationalThreadView({
                     }`}
                   >
                     <span className="flex items-center gap-3 min-w-0 flex-1">
-                      <IdentityAvatar name={msgFromName} size="sm" />
+                      <IdentityAvatar name={isOutbound ? selfAvatarName : msgFromName} size="sm" />
                       <span className="flex items-center gap-2 min-w-0 flex-1">
                         {/*
                           The name is text, so it takes the text ramp. It used to take
@@ -2824,7 +2882,7 @@ export function ConversationalThreadView({
                       className="flex cursor-pointer items-start justify-between gap-3 p-4 sm:p-5 pb-3"
                     >
                       <div className="flex items-start gap-3 min-w-0">
-                        <IdentityAvatar name={msgFromName} size="md" />
+                        <IdentityAvatar name={isOutbound ? selfAvatarName : msgFromName} size="md" />
 
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
