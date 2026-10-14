@@ -867,6 +867,14 @@ function CalendarPageContent() {
       priority: ev.priority || 'medium',
       subtaskInput: '',
       subtasks: ev.subtasks || [],
+      // fix/qm-calendar-sheet-meta-roundtrip: these fields are stored in the
+      // __QUANT_META__ header on save and now come back on the DTO; without
+      // restoring them the form keeps stale/default values and a re-save
+      // silently resets them (birthday year, period-log feelings/pain/energy).
+      birthYear: typeof ev.birthYear === 'string' ? ev.birthYear : prev.birthYear,
+      feelings: Array.isArray(ev.feelings) ? ev.feelings : prev.feelings,
+      pain: Array.isArray(ev.pain) ? ev.pain : prev.pain,
+      energy: typeof ev.energy === 'string' && ev.energy ? ev.energy : prev.energy,
       flowIntensity: ev.flowIntensity || 'medium',
       spottingColor: ev.spottingColor || 'red',
       currentCycleDay: ev.cycleDay || prev.currentCycleDay,

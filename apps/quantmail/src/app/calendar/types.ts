@@ -81,6 +81,11 @@ export interface CalendarEventLike {
   subtasks?: Array<{ text: string; done: boolean }>;
   flowIntensity?: 'light' | 'medium' | 'heavy' | 'super_heavy' | 'spotting';
   spottingColor?: 'red' | 'brown';
+  // The backend DTO (toEventDto) parses these out of the __QUANT_META__
+  // description header; the edit sheet restores the form from them so a
+  // reloaded Task/Birthday/Period reopens as its own sheet type.
+  birthYear?: string;
+  feelings?: string[];
   collectionMethod?: string;
   symptoms?: string[];
   moods?: string[];

@@ -1156,6 +1156,121 @@ describe('driveLink — the sheet has always sent it; the schema silently droppe
   });
 });
 
+describe('sheet-type round-trip — Task/Birthday/Period meta survives toEventDto', () => {
+  // The defect: the create sheet stores the sheet type plus task/birthday/
+  // period payload fields in the __QUANT_META__ description header, and the
+  // edit sheet restores the form from ev.type/ev.priority/ev.subtasks/… —
+  // but toEventDto only parsed recurrenceParentId/originalStartTime/
+  // driveLink out of that header. After any reload ev.type was undefined, so
+  // a saved Task/Birthday/Period reopened as a generic "Event" and its
+  // priority/subtasks/cycle data never came back into the form.
+  const TASK_META =
+    '__QUANT_META__:{"type":"task","priority":"urgent","subtasks":[{"text":"book venue","done":false},{"text":"send invites","done":true}]}:__END_QUANT_META__\nShip the launch';
+  const PERIOD_META =
+    '__QUANT_META__:{"type":"period","flowIntensity":"heavy","spottingColor":"brown","cycleDay":12,"feelings":["Sad","Tired"],"pain":["Cramps"],"energy":"Low"}:__END_QUANT_META__';
+  const BIRTHDAY_META =
+    '__QUANT_META__:{"type":"birthday","birthYear":"1994"}:__END_QUANT_META__\nMaya';
+
+  it('returns meta.type/priority/subtasks for a saved Task', async () => {
+    const app = await buildApp();
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: TASK_META });
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toMatchObject({
+      type: 'task',
+      priority: 'urgent',
+      subtasks: [
+        { text: 'book venue', done: false },
+        { text: 'send invites', done: true },
+      ],
+    });
+  });
+
+  it('returns the period-log cycle fields for a saved Period entry', async () => {
+    const app = await buildApp();
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: PERIOD_META });
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toMatchObject({
+      type: 'period',
+      flowIntensity: 'heavy',
+      spottingColor: 'brown',
+      cycleDay: 12,
+      feelings: ['Sad', 'Tired'],
+      pain: ['Cramps'],
+      energy: 'Low',
+    });
+  });
+
+  it('returns birthYear for a saved Birthday', async () => {
+    const app = await buildApp();
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: BIRTHDAY_META });
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toMatchObject({ type: 'birthday', birthYear: '1994' });
+  });
+
+  it('drops garbage meta values instead of echoing them to the client', async () => {
+    const app = await buildApp();
+    const junk =
+      '__QUANT_META__:{"type":"rootkit","priority":"mega","subtasks":"nope","cycleDay":"twelve","flowIntensity":"lava","spottingColor":"plaid"}:__END_QUANT_META__\nx';
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: junk });
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+
+    expect(res.statusCode).toBe(200);
+    const data = res.json().data;
+    // The edit sheet switches on ev.type: an unknown value must read as
+    // "no type", never as a sheet type the UI cannot render.
+    expect(data.type).toBeUndefined();
+    expect(data.priority).toBeUndefined();
+    expect(data.subtasks).toBeUndefined();
+    expect(data.cycleDay).toBeUndefined();
+    expect(data.flowIntensity).toBeUndefined();
+    expect(data.spottingColor).toBeUndefined();
+  });
+
+  it('survives a corrupt meta header without losing the DTO', async () => {
+    const app = await buildApp();
+    prisma.event.findUnique.mockResolvedValue({
+      ...ROW,
+      description: '__QUANT_META__:{not json}:__END_QUANT_META__\nagenda',
+    });
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toMatchObject({ id: 'e1', title: 'Design review' });
+    expect(res.json().data.type).toBeUndefined();
+  });
+
+  it('round-trips a task through create → read: the header survives the write path', async () => {
+    const app = await buildApp();
+    // The sheet builds the __QUANT_META__ header client-side and sends it
+    // inside `description`; the create handler must store it verbatim.
+    prisma.event.create.mockResolvedValue({ ...ROW, description: TASK_META });
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/events',
+      payload: {
+        title: 'Ship the launch',
+        start: '2026-09-11T09:00:00.000Z',
+        end: '2026-09-11T10:00:00.000Z',
+        description: TASK_META,
+      },
+    });
+    expect(createRes.statusCode).toBe(201);
+    expect(String(createData().description)).toContain('"type":"task"');
+
+    // …and the DTO on read exposes it again, so the edit sheet reopens the
+    // Task sheet instead of the generic Event sheet.
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: TASK_META });
+    const getRes = await app.inject({ method: 'GET', url: '/events/e1' });
+    expect(getRes.json().data).toMatchObject({ type: 'task', priority: 'urgent' });
+  });
+});
+
 describe('POST /events/:id/rsvp — recurring occurrence ids resolve to the parent', () => {
   // The defect: the handler ran findUnique/update on request.params.id
   // verbatim, so RSVPing from any <parentId>_<iso> occurrence detail page
