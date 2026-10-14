@@ -47,7 +47,7 @@ const dossierProps: QuantGitModalsProps = {
   setViewingFile: noop,
   viewingFile: null,
   selectedRepo: null,
-  viewingBlobSha: null,
+  viewingHeadSha: null,
   closeBlobEditor: noop,
   handleCommitBlob: asyncNoop,
   selectedOfficeAgent: localAgent,

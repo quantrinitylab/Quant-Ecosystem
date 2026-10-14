@@ -12,6 +12,12 @@ export interface RepositoryBlobContent {
   content: string;
   size: number;
   sha: string;
+  /**
+   * The commit SHA the requested ref resolved to at read time. The blob
+   * editor sends this back as `parentSha` (optimistic-concurrency token)
+   * when committing. Empty when the ref does not resolve.
+   */
+  headSha: string;
 }
 
 export interface RepositoryCommitSummary {

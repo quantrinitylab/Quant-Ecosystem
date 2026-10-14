@@ -61,6 +61,10 @@ import { IssuesTab } from './components/IssuesTab';
 import { PullRequestsTab } from './components/PullRequestsTab';
 import { interpretMergeResult, mergeFailureToast } from './mergeOutcome';
 import { resolveBlobLoadOutcome } from './blobLoadOutcome';
+import {
+  headShaFromBlobPayload,
+  toParentShaParam,
+} from './blobHeadSha';
 import { AgentsTab } from './components/AgentsTab';
 import { DiscussionsTab } from './components/DiscussionsTab';
 import { ActionsTab } from './components/ActionsTab';
@@ -166,7 +170,15 @@ function QuantGitContent() {  const router = useRouter();
   const [browsingCommitSha, setBrowsingCommitSha] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState<string>('');
   const [viewingFile, setViewingFile] = useState<FileNode | null>(null);
-  const [viewingBlobSha, setViewingBlobSha] = useState('');
+  /*
+   * Optimistic-concurrency token for the blob editor: the commit SHA the
+   * open file was read at (backend `headSha`, resolved from the browsed
+   * ref). Sent as `parentSha` on commit; the backend 409s when the branch
+   * head moved since the read. This is a COMMIT sha, never the blob
+   * (content) hash and never the raw ref string — both of those made every
+   * blob-editor commit fail (400/409).
+   */
+  const [viewingHeadSha, setViewingHeadSha] = useState('');
   const [pendingRoute, setPendingRoute] = useState<QuantGitRoute | null>(null);
   const [routeHydrated, setRouteHydrated] = useState(false);
   const [selectedOfficeAgent, setSelectedOfficeAgent] = useState<DeployedAgent | null>(null);
@@ -409,6 +421,27 @@ function QuantGitContent() {  const router = useRouter();
   const [repoBranches, setRepoBranches] = useState<string[]>([]);
   const [commits, setCommits] = useState<CommitItem[]>([]);
   const [detailedBranches, setDetailedBranches] = useState<BranchItem[]>([]);
+  /*
+   * Head commit SHA of the currently selected branch, for CodeTab's inline
+   * editor / upload / delete commit inputs (`expectedHeadSha` →
+   * `parentSha`). Sourced from the branches endpoint's per-branch sha, with
+   * the default-branch projection as fallback. Null when unknown — the
+   * commit then degrades to the backend's honest 409 instead of sending a
+   * blob hash or ref string that can never validate.
+   */
+  const currentBranchHeadSha = useMemo(() => {
+    const match = detailedBranches.find((b) => b.name === currentBranch);
+    if (match?.sha) return match.sha;
+    if (
+      currentBranch &&
+      selectedRepo &&
+      currentBranch === selectedRepo.defaultBranch &&
+      selectedRepo.latestCommitSha
+    ) {
+      return selectedRepo.latestCommitSha;
+    }
+    return null;
+  }, [detailedBranches, currentBranch, selectedRepo]);
   const [newBranchInput, setNewBranchInput] = useState('');
   const [settingsName, setSettingsName] = useState('');
   const [settingsDesc, setSettingsDesc] = useState('');
@@ -577,7 +610,7 @@ function QuantGitContent() {  const router = useRouter();
 
   const closeBlobEditor = useCallback(() => {
     setViewingFile(null);
-    setViewingBlobSha('');
+    setViewingHeadSha('');
 
     if (selectedRepo) {
       navigateQuantGit({
@@ -644,7 +677,9 @@ function QuantGitContent() {  const router = useRouter();
           ...file,
           content: outcome.content,
         });
-        setViewingBlobSha(outcome.sha);
+        // headSha (commit at read time) is the commit token — never `sha`
+        // (the raw ref like "main") which the backend rejects.
+        setViewingHeadSha(headShaFromBlobPayload(payload));
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to load file.';
         showToast(message);
@@ -2017,7 +2052,7 @@ function QuantGitContent() {  const router = useRouter();
             branch: input.newBranch || input.branch,
             content: input.content,
             message: input.message,
-            parentSha: input.expectedBlobSha || null,
+            parentSha: toParentShaParam(input.expectedHeadSha),
             isDelete: input.isDelete,
             originalPath: input.originalPath,
           }),
@@ -2102,7 +2137,8 @@ function QuantGitContent() {  const router = useRouter();
             }
           : current,
       );
-      setViewingBlobSha(payload?.data?.blobSha || payload?.data?.sha || '');
+      // After a successful commit the branch head IS the new commit.
+      setViewingHeadSha(payload?.data?.commitSha || '');
 
       setFiles((currentFiles) => {
         const path = input.path;
@@ -2161,11 +2197,14 @@ function QuantGitContent() {  const router = useRouter();
         branch,
         content: '',
         message: message || `Delete ${path.split('/').pop() || path}`,
-        expectedBlobSha: '',
+        // Delete is a commit too: it needs the head SHA captured when the
+        // file was opened. '' (→ parentSha null) 409s on any non-empty
+        // branch, so an unknown head degrades to the honest 409 path.
+        expectedHeadSha: viewingHeadSha,
         isDelete: true,
       });
     },
-    [currentBranch, handleCommitBlob],
+    [currentBranch, handleCommitBlob, viewingHeadSha],
   );
 
   return (
@@ -2405,6 +2444,7 @@ function QuantGitContent() {  const router = useRouter();
                   showToast={showToast}
                   onCommitBlob={handleCommitBlob}
                   onDeleteBlob={handleDeleteBlob}
+                  branchHeadSha={currentBranchHeadSha}
                   onStartPullRequest={handleStartPullRequest}
                   browsingCommitSha={browsingCommitSha}
                   onExitBrowseCommit={() => setBrowsingCommitSha(null)}
@@ -2703,7 +2743,7 @@ function QuantGitContent() {  const router = useRouter();
         setViewingFile={setViewingFile}
         viewingFile={viewingFile}
         selectedRepo={selectedRepo}
-        viewingBlobSha={viewingBlobSha}
+        viewingHeadSha={viewingHeadSha}
         closeBlobEditor={closeBlobEditor}
         handleCommitBlob={handleCommitBlob}
         selectedOfficeAgent={selectedOfficeAgent}

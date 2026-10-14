@@ -152,7 +152,7 @@ describe('QuantGit Live Coding In-Editor PR Creation & 3-Way Merge Security Gate
         newBranch: 'feature/live-coding-parity',
         content: MOCK_EDITING_FILE.content || '',
         message: 'feat: add telemetry streaming handler\n\nImplements low-latency buffer flushing.',
-        expectedBlobSha: 'sha-mock-123',
+        expectedHeadSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       };
 
       await onCommitBlobMock(input);
