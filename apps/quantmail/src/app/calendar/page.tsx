@@ -206,7 +206,6 @@ function CalendarPageContent() {
     }
     // openDedicatedSheet + setFormState are stable callbacks; searchParams is
     // the only real trigger. The param is scrubbed above, so this runs once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   const [activeContextTab, setActiveContextTab] = useState<CalendarContextTab>(

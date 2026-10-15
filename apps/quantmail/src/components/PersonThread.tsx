@@ -247,7 +247,7 @@ function ThreadHeader({
       onClick={onCreateEvent}
       title="Create event from email (B)"
       aria-label="Create calendar event from this conversation"
-      className="ml-auto flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-2 text-zinc-500 transition-all hover:bg-zinc-800 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] sm:min-h-0 sm:min-w-0"
+      className="ml-auto flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-2 text-zinc-500 transition-all hover:bg-zinc-800 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-info)] sm:min-h-0 sm:min-w-0"
     >
       <svg
         className="size-[18px]"
