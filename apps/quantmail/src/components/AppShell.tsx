@@ -10,6 +10,14 @@ import { appDisplayName } from './BrandWordmark';
 // Type only: the shell renders per-app SVG marks itself.
 import { type LogoAppType } from './Interactive3DLogo';
 import { QuantumSplashIntro } from './QuantumSplashIntro';
+// fix/qm-calendar-firstload-error-boundary: the splash renders once per
+// session and the live agent arrives via next/dynamic — both sit on the first
+// paint of every AppShell route with no error containment, so a throw in
+// either used to collapse the whole view into the route-level error screen
+// (the 2026-10-13 /calendar first-load crash shape: once, reload recovered).
+// They are auxiliary surfaces; on failure they vanish (with a console trace),
+// never taking the view down.
+import { AuxSurfaceBoundary } from './AuxSurfaceBoundary';
 import { useInbox } from '../hooks/useInbox';
 import { useAuth } from '../providers/auth-provider';
 import { groupEmailsIntoThreads } from '../lib/threading';
@@ -983,16 +991,22 @@ export function AppShell({
           <QuantyAvatarPicker />
           {/* Live agentic surface: mounted once at shell top level (next to the
               drawer, never inside the header) so a task survives route/header
-              swaps while Quanty works. */}
+              swaps while Quanty works. Wrapped so a chunk-load/render failure
+              in the dynamically-imported agent can never kill the view. */}
           {!hasOwnQuanty && (
-            <QuantyLiveAgent ref={liveAgentRef} onChatSelect={handleLiveAgentChatSelect} />
+            <AuxSurfaceBoundary name="quanty-live-agent">
+              <QuantyLiveAgent ref={liveAgentRef} onChatSelect={handleLiveAgentChatSelect} />
+            </AuxSurfaceBoundary>
           )}
 
           {/* Mobile bottom nav now lives in-flow inside the column above —
               it collapses to height 0 on scroll so content reclaims the space. */}
 
-          {/* Cinematic Quantum Ignition Startup Intro */}
-          <QuantumSplashIntro />
+          {/* Cinematic Quantum Ignition Startup Intro — decorative and
+              session-once; a failure here must never take down the view. */}
+          <AuxSurfaceBoundary name="quantum-splash-intro">
+            <QuantumSplashIntro />
+          </AuxSurfaceBoundary>
         </ShellChromeProvider>
       </section>
     </UndoSendProvider>

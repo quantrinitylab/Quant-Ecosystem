@@ -51,6 +51,13 @@ import {
 } from './components/CalendarContextSubTabs';
 import { CalendarMobileTabStrip } from './components/CalendarMobileTabStrip';
 import { CalendarDayView } from './components/CalendarDayView';
+// fix/qm-calendar-firstload-error-boundary: scoped boundary around the main
+// content surface. Before this, the only boundary above these sub-views was
+// the route-level error.tsx — any render-time throw (e.g. the unidentified
+// 2026-10-13 first-load crash) collapsed the whole view into "QuantMail
+// couldn't open this view". A throwing sub-view now degrades to an honest
+// inline state with a retry; the header, tab strip and shell stay alive.
+import { CalendarSurfaceErrorBoundary } from './components/CalendarSurfaceErrorBoundary';
 import { calendarRouteForTab } from './lib/calendar-route';
 import {
   CalendarFeedSubView,
@@ -1352,7 +1359,17 @@ function CalendarPageContent() {
           onSelectTab={handleSelectMergedTab}
         />
 
-        {/* 4 Sovereign Contextual Sub-Views */}
+        {/* 4 Sovereign Contextual Sub-Views.
+            fix/qm-calendar-firstload-error-boundary: the boundary below is the
+            first-paint crash guard. A render exception in any sub-view used to
+            propagate to the route-level error.tsx and kill the entire view
+            ("QuantMail couldn't open this view") — observed once on a 2026-10-13
+            first load, reload recovered, throwing component unidentified. Now a
+            throwing sub-view degrades to an honest inline error naming the
+            cause, with a retry that performs a full-page reload (the same
+            recovery that resolved the 2026-10-13 incident); first paint can
+            never be a full-view crash again. */}
+        <CalendarSurfaceErrorBoundary surfaceName="calendar main view">
         {(activeContextTab === 'feed' || activeContextTab === 'agenda') &&
         activeView === 'day' &&
         !searchFilter.trim() ? (
@@ -1432,6 +1449,7 @@ function CalendarPageContent() {
             userId={user?.id ?? ''}
           />
         )}
+        </CalendarSurfaceErrorBoundary>
 
         <CalendarEventForm
           activeSheetType={activeSheetType}
