@@ -40,9 +40,27 @@
 // A transient failure anywhere in the transaction (DB down, lookup throw)
 // rolls everything back: the row returns to PENDING and the next tick
 // retries it. A transient problem never cancels a real schedule.
+//
+// QC-F-359: this worker does NOT route through MessageService.sendMessage
+// (it creates the Message directly, below), so the blocked-pair send
+// gate lives here too — deliberately, as its own gate on the same
+// semantics, not as an accidental bypass a future reader should "fix"
+// by rerouting. Before creating the Message, a DIRECT conversation's
+// pair is checked in both block directions via PrivacyService
+// (constructed directly on the transaction client — the getPrivacyService
+// WeakMap cannot key a per-transaction object). 'blocked' is a
+// deterministic gate failure in the QC-F-095 sense: the row flips to
+// CANCELLED and the transaction COMMITS (no Message, no onDelivered).
+// 'unavailable' (malformed block list, failed lookup) is transient:
+// the throw rolls the transaction back, the row stays PENDING, and
+// the next tick retries — a transient problem never cancels a real
+// schedule, and a possibly-blocked message is never delivered on an
+// unproven verdict. The gate reads the block state AT DELIVERY TIME:
+// a block placed after scheduling still stops the delivery.
 // ============================================================================
 
 import type { PrismaClient } from '@prisma/client';
+import { PrivacyService } from './privacy.service';
 
 export const SCHEDULED_POLL_INTERVAL_MS = 30_000; // 30s — < 60s tolerance
 export const SCHEDULED_DELIVERY_TOLERANCE_MS = 60_000; // 60s (Req 11.4)
@@ -63,9 +81,28 @@ interface SchedulerTxClient {
     findFirst: (args: {
       where: { conversationId: string; userId: string; leftAt: null };
     }) => Promise<{ id: string } | null>;
+    /** QC-F-359: peer derivation for the blocked-pair gate. */
+    findMany: (args: {
+      where: { conversationId: string; leftAt: null };
+      select?: { userId: true };
+    }) => Promise<Array<{ userId: string }>>;
   };
   message: { create: (args: unknown) => Promise<unknown> };
-  conversation: { update: (args: unknown) => Promise<unknown> };
+  conversation: {
+    update: (args: unknown) => Promise<unknown>;
+    /** QC-F-359: conversation-type authority for the blocked-pair gate. */
+    findUnique: (args: {
+      where: { id: string };
+      select?: { type: true };
+    }) => Promise<{ type: string } | null>;
+  };
+  /** QC-F-359: PrivacyService's block-list reads (checkBlockedBy). */
+  user: {
+    findUnique: (args: {
+      where: { id: string };
+      select?: { preferences: true };
+    }) => Promise<{ preferences: unknown } | null>;
+  };
   scheduledMessage: {
     /** Atomic claim: resolves with count 1 only if the row still matched. */
     updateMany: (args: {
@@ -207,6 +244,68 @@ export class ScheduledMessageWorker {
           data: { status: 'CANCELLED' },
         });
         return 'cancelled';
+      }
+
+      // 2b. QC-F-359 blocked-pair gate (see the file header). DIRECT
+      // only, both directions, delivery-time state. A lookup that
+      // throws (or a missing conversation row) propagates out of this
+      // callback: the transaction rolls back and the row stays
+      // PENDING — transient, never a cancellation.
+      const conversation = await tx.conversation.findUnique({
+        where: { id: record.conversationId },
+        select: { type: true },
+      });
+      if (!conversation) {
+        throw new Error(
+          `Scheduled delivery gate: conversation ${record.conversationId} not found`,
+        );
+      }
+      if (conversation.type === 'DIRECT') {
+        const activeMembers = await tx.conversationMember.findMany({
+          where: { conversationId: record.conversationId, leftAt: null },
+          select: { userId: true },
+        });
+        const peerIds = activeMembers
+          .map((m) => m.userId)
+          .filter((userId) => userId !== record.userId);
+        if (peerIds.length > 0) {
+          // Direct construction on the tx client (see header): the
+          // shared-instance WeakMap must not cache a per-transaction
+          // object, and checkBlockedBy only needs user.findUnique.
+          const privacy = new PrivacyService(tx as never);
+          let sawUnavailable = false;
+          let blocked = false;
+          for (const peerId of peerIds) {
+            const peerBlockedScheduler = await privacy.checkBlockedBy(
+              peerId,
+              record.userId,
+            );
+            if (peerBlockedScheduler === 'blocked') blocked = true;
+            if (peerBlockedScheduler === 'unavailable') sawUnavailable = true;
+
+            const schedulerBlockedPeer = await privacy.checkBlockedBy(
+              record.userId,
+              peerId,
+            );
+            if (schedulerBlockedPeer === 'blocked') blocked = true;
+            if (schedulerBlockedPeer === 'unavailable') sawUnavailable = true;
+          }
+          if (blocked) {
+            // Deterministic: same CANCELLED + commit path as the
+            // membership failure above. A real block never hides
+            // behind a transient-looking 503 retry loop.
+            await tx.scheduledMessage.update({
+              where: { id: record.id },
+              data: { status: 'CANCELLED' },
+            });
+            return 'cancelled';
+          }
+          if (sawUnavailable) {
+            throw new Error(
+              'Scheduled delivery gate: block status unavailable (transient — row stays PENDING)',
+            );
+          }
+        }
       }
 
       // 3. Deliver. The row's status is already SENT from the claim; commit
