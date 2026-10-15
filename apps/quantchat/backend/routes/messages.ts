@@ -33,6 +33,10 @@ const editMessageSchema = z.object({
   content: z.string().min(1).max(10000),
 });
 
+const reactToMessageSchema = z.object({
+  emoji: z.string().min(1).max(64),
+});
+
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
@@ -211,6 +215,34 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new MessageService(prisma as never);
     const message = await service.pinMessage(request.params.id, userId);
+
+    return reply.send({ success: true, data: message });
+  });
+
+  // POST /messages/:id/reactions - Toggle the caller's reaction on a message
+  // QC-F-410 (QC-2): MessageService.reactToMessage existed (membership-gated,
+  // toggle semantics, service-tested) and the shipped client already called
+  // this path via apiClient.addReaction, but no route ever bound the two —
+  // reactions 404'd at both the backend and the Next proxy. This handler is
+  // the missing link only: identity comes solely from request.auth, the
+  // service owns the membership gate (403 NOT_A_MEMBER) and the toggle, and
+  // — pin parity — no realtime fan-out is emitted here. Only POST exists:
+  // the client's DELETE removeReaction carries no emoji and has no honest
+  // meaning under toggle semantics, so it is deliberately NOT bound.
+  fastify.post<{ Params: { id: string } }>('/messages/:id/reactions', async (request, reply) => {
+    const parseResult = reactToMessageSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new MessageService(prisma as never);
+    const message = await service.reactToMessage(request.params.id, userId, parseResult.data.emoji);
 
     return reply.send({ success: true, data: message });
   });
