@@ -19,8 +19,12 @@
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { Prisma, PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
+import {
+  updateUserPreferences,
+  type PreferencesStore,
+} from '../lib/preferences-update';
 import {
   DEFAULT_PRIVACY,
   extractBlockedUserIds,
@@ -134,6 +138,10 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
   });
 
   // PUT /settings — validate and persist (deep-merge over existing).
+  // QC-F-371: the read-modify-write runs inside updateUserPreferences'
+  // Serializable transaction — a concurrent block/unblock or auto-reply
+  // toggle can no longer be silently overwritten by this save's stale
+  // snapshot (and this save cannot overwrite theirs).
   fastify.put('/', async (request, reply) => {
     const userId = getAuthUserId(request);
     const parsed = settingsBodySchema.safeParse(request.body);
@@ -141,32 +149,29 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       throw createAppError('Invalid settings payload', 400, 'BAD_REQUEST');
     }
     const prisma = getPrisma(fastify);
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { preferences: true },
-    });
-    if (!user) throw createAppError('User not found', 404, 'USER_NOT_FOUND');
-
-    const prefs =
-      user.preferences && typeof user.preferences === 'object'
-        ? { ...(user.preferences as Record<string, unknown>) }
-        : {};
-    const existing = readChatSettings(prefs);
-    const next: ChatSettings = {
-      ...existing,
-      ...(parsed.data.privacy ? { privacy: { ...(existing.privacy ?? {}), ...parsed.data.privacy } } : {}),
-      ...(parsed.data.notifications
-        ? { notifications: { ...(existing.notifications ?? {}), ...parsed.data.notifications } }
-        : {}),
-      ...(parsed.data.theme ? { theme: parsed.data.theme } : {}),
-      ...(parsed.data.language ? { language: parsed.data.language } : {}),
-    };
-    prefs.chatSettings = next;
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: { preferences: prefs as Prisma.InputJsonValue },
-    });
+    const next = await updateUserPreferences<ChatSettings>(
+      prisma as unknown as PreferencesStore,
+      userId,
+      (_tx, currentPreferences) => {
+        const prefs =
+          currentPreferences && typeof currentPreferences === 'object'
+            ? { ...(currentPreferences as Record<string, unknown>) }
+            : {};
+        const existing = readChatSettings(prefs);
+        const merged: ChatSettings = {
+          ...existing,
+          ...(parsed.data.privacy ? { privacy: { ...(existing.privacy ?? {}), ...parsed.data.privacy } } : {}),
+          ...(parsed.data.notifications
+            ? { notifications: { ...(existing.notifications ?? {}), ...parsed.data.notifications } }
+            : {}),
+          ...(parsed.data.theme ? { theme: parsed.data.theme } : {}),
+          ...(parsed.data.language ? { language: parsed.data.language } : {}),
+        };
+        prefs.chatSettings = merged;
+        return { nextPreferences: prefs, result: merged };
+      },
+    );
+    if (!next) throw createAppError('User not found', 404, 'USER_NOT_FOUND');
     // QC-F-042: enforcement gates cache prefs for 30s (PrivacyService);
     // a successful save invalidates this user's entry on the shared
     // instance so the new prefs apply immediately in this process.
@@ -194,53 +199,63 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
         throw createAppError('You cannot block yourself', 400, 'BAD_REQUEST');
       }
       const prisma = getPrisma(fastify);
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { preferences: true },
-      });
-      if (!user) throw createAppError('User not found', 404, 'USER_NOT_FOUND');
+      // QC-F-371: the whole check-and-append runs inside the atomic
+      // preferences transaction — the blocked list is read fresh inside
+      // the transaction (never from a pre-race snapshot), the malformed
+      // list still fails closed BEFORE any write (the throw rolls the
+      // transaction back), and the target row is read through the same
+      // transaction client.
+      const outcome = await updateUserPreferences<{ blockedUsers: unknown[] }>(
+        prisma as unknown as PreferencesStore,
+        userId,
+        async (tx, currentPreferences) => {
+          const existingIds = extractBlockedUserIds(currentPreferences);
+          if (existingIds === null) {
+            // The stored list is present but unreadable: refuse to write
+            // over it (treating it as [] would silently erase real block
+            // records).
+            throw createAppError('Blocked list unavailable', 503, 'BLOCKED_LIST_UNAVAILABLE');
+          }
 
-      const existingIds = extractBlockedUserIds(user.preferences);
-      if (existingIds === null) {
-        // The stored list is present but unreadable: refuse to write over
-        // it (treating it as [] would silently erase real block records).
-        throw createAppError('Blocked list unavailable', 503, 'BLOCKED_LIST_UNAVAILABLE');
-      }
+          const prefs =
+            currentPreferences && typeof currentPreferences === 'object'
+              ? { ...(currentPreferences as Record<string, unknown>) }
+              : {};
+          const existing = readChatSettings(prefs);
+          const blocked = Array.isArray(existing.blockedUsers) ? existing.blockedUsers : [];
 
-      const prefs =
-        user.preferences && typeof user.preferences === 'object'
-          ? { ...(user.preferences as Record<string, unknown>) }
-          : {};
-      const existing = readChatSettings(prefs);
-      const blocked = Array.isArray(existing.blockedUsers) ? existing.blockedUsers : [];
+          if (existingIds.includes(blockedId)) {
+            // Already blocked (canonical object form or legacy bare
+            // string): idempotent no-op — the first blockedAt stands,
+            // no duplicate, no write.
+            return { nextPreferences: null, result: { blockedUsers: blocked } };
+          }
 
-      if (existingIds.includes(blockedId)) {
-        // Already blocked (canonical object form or legacy bare string):
-        // idempotent no-op — the first blockedAt stands, no duplicate.
-        return reply.send({ success: true, data: { blockedUsers: blocked } });
-      }
+          const target = await tx.user.findUnique({
+            where: { id: blockedId },
+            select: { id: true, displayName: true, username: true, deletedAt: true },
+          });
+          if (!target || target.deletedAt != null) {
+            throw createAppError('User not found', 404, 'USER_NOT_FOUND');
+          }
 
-      const target = await prisma.user.findUnique({
-        where: { id: blockedId },
-        select: { id: true, displayName: true, username: true, deletedAt: true },
-      });
-      if (!target || target.deletedAt != null) {
-        throw createAppError('User not found', 404, 'USER_NOT_FOUND');
-      }
-
-      const entry = {
-        id: target.id,
-        name: target.displayName?.trim() || target.username,
-        username: target.username,
-        blockedAt: new Date().toISOString(),
-      };
-      const nextBlocked = [...blocked, entry];
-      prefs.chatSettings = { ...existing, blockedUsers: nextBlocked };
-      await prisma.user.update({
-        where: { id: userId },
-        data: { preferences: prefs as Prisma.InputJsonValue },
-      });
-      return reply.send({ success: true, data: { blockedUsers: nextBlocked } });
+          const targetName =
+            typeof target.displayName === 'string' ? target.displayName : '';
+          const targetUsername =
+            typeof target.username === 'string' ? target.username : '';
+          const entry = {
+            id: blockedId,
+            name: targetName.trim() || targetUsername,
+            username: targetUsername,
+            blockedAt: new Date().toISOString(),
+          };
+          const nextBlocked = [...blocked, entry];
+          prefs.chatSettings = { ...existing, blockedUsers: nextBlocked };
+          return { nextPreferences: prefs, result: { blockedUsers: nextBlocked } };
+        },
+      );
+      if (!outcome) throw createAppError('User not found', 404, 'USER_NOT_FOUND');
+      return reply.send({ success: true, data: outcome });
     },
   );
 
@@ -252,33 +267,38 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
       const blockedId = request.params.userId;
       if (!blockedId) throw createAppError('Blocked user id is required', 400, 'BAD_REQUEST');
       const prisma = getPrisma(fastify);
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { preferences: true },
-      });
-      if (!user) throw createAppError('User not found', 404, 'USER_NOT_FOUND');
-
-      const prefs =
-        user.preferences && typeof user.preferences === 'object'
-          ? { ...(user.preferences as Record<string, unknown>) }
-          : {};
-      const existing = readChatSettings(prefs);
-      const blocked = Array.isArray(existing.blockedUsers) ? existing.blockedUsers : [];
-      // QC-F-317 (R1): the reader (extractBlockedUserIds) also treats bare
-      // string entries as blocked, so the filter must remove BOTH forms —
-      // previously a legacy string entry survived every DELETE while the
-      // handler still answered success, leaving the user blocked forever.
-      const filtered = blocked.filter((entry) => {
-        if (typeof entry === 'string') return entry !== blockedId;
-        return !(
-          entry &&
-          typeof entry === 'object' &&
-          (entry as { id?: unknown }).id === blockedId
-        );
-      });
-      prefs.chatSettings = { ...existing, blockedUsers: filtered };
-      await prisma.user.update({ where: { id: userId }, data: { preferences: prefs as Prisma.InputJsonValue } });
-      return reply.send({ success: true, data: { blockedUsers: filtered } });
+      // QC-F-371: removal also runs inside the atomic preferences
+      // transaction, so a concurrent settings save cannot resurrect the
+      // removed entry from its stale snapshot.
+      const outcome = await updateUserPreferences<{ blockedUsers: unknown[] }>(
+        prisma as unknown as PreferencesStore,
+        userId,
+        (_tx, currentPreferences) => {
+          const prefs =
+            currentPreferences && typeof currentPreferences === 'object'
+              ? { ...(currentPreferences as Record<string, unknown>) }
+              : {};
+          const existing = readChatSettings(prefs);
+          const blocked = Array.isArray(existing.blockedUsers) ? existing.blockedUsers : [];
+          // QC-F-317 (R1): the reader (extractBlockedUserIds) also treats
+          // bare string entries as blocked, so the filter must remove
+          // BOTH forms — previously a legacy string entry survived every
+          // DELETE while the handler still answered success, leaving the
+          // user blocked forever.
+          const filtered = blocked.filter((entry) => {
+            if (typeof entry === 'string') return entry !== blockedId;
+            return !(
+              entry &&
+              typeof entry === 'object' &&
+              (entry as { id?: unknown }).id === blockedId
+            );
+          });
+          prefs.chatSettings = { ...existing, blockedUsers: filtered };
+          return { nextPreferences: prefs, result: { blockedUsers: filtered } };
+        },
+      );
+      if (!outcome) throw createAppError('User not found', 404, 'USER_NOT_FOUND');
+      return reply.send({ success: true, data: outcome });
     },
   );
 
