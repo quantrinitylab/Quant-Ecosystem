@@ -55,6 +55,45 @@ function chipEmailKey(chip: string): string {
 }
 
 /**
+ * The autocomplete's match + rank, extracted pure so tests can drive it
+ * without a DOM.
+ *
+ * Gmail's contact lookup matches names, email addresses AND company names; the
+ * filter here used to check name/email only, so a person stored with only a
+ * company ("Acme") was unfindable by typing "acme". This matches name, email,
+ * company, phone and tags. A name/email hit is a stronger signal than a
+ * company/phone/tag hit, so primary hits sort first (Gmail does the same);
+ * frequency breaks ties inside each tier. The sort is stable, so the caller's
+ * order survives inside a tier.
+ */
+export function rankContactSuggestions(
+  contactList: ContactSuggestion[],
+  inputValue: string,
+  chipEmails: Set<string>,
+  limit = 5,
+): ContactSuggestion[] {
+  const q = inputValue.toLowerCase().trim();
+  if (!q) return [];
+  const isPrimaryHit = (c: ContactSuggestion) =>
+    c.email.toLowerCase().includes(q) || (c.name?.toLowerCase().includes(q) ?? false);
+  return contactList
+    .filter(
+      (c) =>
+        !chipEmails.has(c.email.toLowerCase()) &&
+        (isPrimaryHit(c) ||
+          c.company?.toLowerCase().includes(q) ||
+          c.phone?.toLowerCase().includes(q) ||
+          c.tags?.some((t) => t.toLowerCase().includes(q))),
+    )
+    .sort(
+      (a, b) =>
+        Number(isPrimaryHit(b)) - Number(isPrimaryHit(a)) ||
+        (b.frequency ?? 0) - (a.frequency ?? 0),
+    )
+    .slice(0, limit);
+}
+
+/**
  * Normalize candidate chips against the existing chips' bare addresses.
  * A `Name <email>` chip and a bare `email` chip are the same recipient, so
  * adding one when the other exists is a no-op. Exported for tests: the dedupe
@@ -176,18 +215,12 @@ export function ContactAutocomplete({
 
   // Filter contacts based on input. Already-added addresses are compared on
   // the bare address so a `Name <email>` chip hides its own suggestion.
-  const suggestions = useMemo(() => {
-    if (!inputValue.trim()) return [];
-    const q = inputValue.toLowerCase().trim();
-    return contactList
-      .filter(
-        (c) =>
-          !chipEmails.has(c.email.toLowerCase()) &&
-          (c.email.toLowerCase().includes(q) || c.name?.toLowerCase().includes(q)),
-      )
-      .sort((a, b) => (b.frequency ?? 0) - (a.frequency ?? 0))
-      .slice(0, 5);
-  }, [inputValue, contactList, chipEmails]);
+  // Matching covers name/email/company/phone/tags — see
+  // `rankContactSuggestions`.
+  const suggestions = useMemo(
+    () => rankContactSuggestions(contactList, inputValue, chipEmails),
+    [inputValue, contactList, chipEmails],
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
