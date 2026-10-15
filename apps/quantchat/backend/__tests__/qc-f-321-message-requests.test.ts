@@ -270,6 +270,16 @@ function createFakePrisma(input: {
           return row;
         },
       ),
+      // QC-F-363 §5.3 band fixture-edit: the service's CAS claim needs a
+      // synchronous check-and-set updateMany (QC-F-095 pattern) — the
+      // predicate check and the write happen in one call body, so no
+      // interleaving can split them.
+      updateMany: vi.fn(async ({ where, data }: { where: { id: string; status: string }; data: Partial<FakeRequest> }) => {
+        const row = requests.find((r) => r.id === where.id && r.status === where.status);
+        if (!row) return { count: 0 };
+        Object.assign(row, data);
+        return { count: 1 };
+      }),
     },
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
   };
