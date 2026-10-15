@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { FastifyInstance } from 'fastify';
 import prisma from '@quant/auth/lib/prisma';
 import * as argon2 from 'argon2';
+import { accountLiveness } from '../lib/account-liveness';
 import {
   REFRESH_COOKIE_NAME,
   SessionUser,
@@ -152,6 +153,23 @@ export async function authRoutes(fastify: FastifyInstance) {
         return fail(reply, 401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
       }
 
+      // Soft-delete/status gate, AFTER the password check: a SUSPENDED or
+      // DEACTIVATED live row answers honestly instead of authenticating.
+      // The lookup above already excludes tombstoned rows (deletedAt: null),
+      // so a soft-deleted account answers exactly like a missing one — same
+      // code, same message — and the tombstone cannot be probed for
+      // existence. Checking after the password hash is deliberate: this
+      // endpoint is rate-limited (5/min), so the argon2 cost is bounded, and
+      // a pre-password status check would let anyone map email → account
+      // status without knowing the password.
+      const liveness = accountLiveness(user);
+      if (liveness === 'suspended') {
+        return fail(reply, 401, 'ACCOUNT_SUSPENDED', 'This account is suspended.');
+      }
+      if (liveness === 'deactivated') {
+        return fail(reply, 401, 'ACCOUNT_DEACTIVATED', 'This account is deactivated.');
+      }
+
       // A password alone is not a session for an account with a second factor.
       // The flag and secret must agree. Silently treating a half-enabled row as
       // one-factor authentication turns data corruption into a 2FA bypass; fail
@@ -215,6 +233,12 @@ export async function authRoutes(fastify: FastifyInstance) {
       // P2002. (The P2002 mapping below still covers the concurrent-register
       // TOCTOU, where two normalized-identical rows collide in the
       // transaction.)
+      //
+      // Tombstone retention: this pre-check deliberately has NO deletedAt
+      // filter. A soft-deleted row keeps its unique email claim, so
+      // re-registering that address 409s USER_EXISTS exactly like a live row
+      // — register never silently revives a deleted account. Reviving one is
+      // a product decision (ownership re-proof), not an implicit side effect.
       const existing = await prisma.user.findFirst({
         where: {
           OR: [
