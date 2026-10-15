@@ -43,8 +43,8 @@ export default function DocumentPage() {
     broadcastCursor,
     breadcrumbs,
     subpages,
+    retrySave,
   } = useCollabDoc(docId);
-
   const [fullWidth, setFullWidth] = useState<boolean>(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
   const [isCreatingSubpage, setIsCreatingSubpage] = useState<boolean>(false);
@@ -215,6 +215,28 @@ export default function DocumentPage() {
             </div>
           ) : (
             <div className="min-h-full">
+              {/* Save-failure banner — HONEST SAVE STATUS: the backend rejected
+                  the write, so edits exist only in this browser's localStorage.
+                  Never hidden, never a fake "Saved". */}
+              {syncStatus === 'error' && (
+                <div role="alert" className="mx-auto max-w-4xl px-4 sm:px-12 pt-6">
+                  <div className="flex items-center gap-3 rounded-xl border border-[#F85149]/40 bg-[#F85149]/10 px-4 py-3">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#F85149]" />
+                    <p className="flex-1 text-xs text-[#F0F6FC]">
+                      <span className="font-semibold">Couldn't save this document.</span>{' '}
+                      Your changes are kept in this browser only — they are not
+                      on the server. Your session may have expired.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={retrySave}
+                      className="shrink-0 rounded-lg border border-[#F85149]/50 bg-black px-3 py-1.5 text-xs font-semibold text-[#F85149] hover:bg-[#F85149] hover:text-black transition-colors"
+                    >
+                      Retry save
+                    </button>
+                  </div>
+                </div>
+              )}
               {/* Document Title & Icon Header Area */}
               <div
                 className={`mx-auto pt-12 px-4 sm:px-12 transition-all ${
@@ -358,6 +380,12 @@ export default function DocumentPage() {
               <>
                 <span className="h-2 w-2 rounded-full bg-[#8B949E]" />
                 <span>Offline (Local Cache)</span>
+              </>
+            )}
+            {syncStatus === 'error' && (
+              <>
+                <span className="h-2 w-2 rounded-full bg-[#F85149]" />
+                <span>Save failed — kept locally</span>
               </>
             )}
           </div>

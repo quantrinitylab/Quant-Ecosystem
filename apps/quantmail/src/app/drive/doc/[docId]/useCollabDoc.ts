@@ -93,6 +93,56 @@ const DEFAULT_BLOCKS: EditorBlock[] = [
   },
 ];
 
+// ============================================================================
+// Auto-save outcome contract — HONEST SAVE STATUS
+// The auto-save effect must NEVER report 'saved' unless the backend actually
+// accepted the write. A rejected write (401/403/400/500 on PATCH, or a failed
+// POST create-fallback) is an 'error' so the UI can warn the user that their
+// edits exist only in localStorage. A transport failure (fetch threw) is
+// 'offline'. Split out as a pure exported function so it is unit-testable.
+// ============================================================================
+export type DocSaveOutcome = 'saved' | 'error' | 'offline';
+
+export interface DocSavePayload {
+  title: string;
+  content: string;
+  metadata: DocumentMetadata & { blocks: EditorBlock[] };
+  isPublic: boolean;
+}
+
+export async function performDocSave(
+  request: (
+    url: string,
+    init?: { method: string; body?: string },
+  ) => Promise<{ ok: boolean; status: number }>,
+  docId: string,
+  payload: DocSavePayload,
+): Promise<DocSaveOutcome> {
+  try {
+    const res = await request(`/api/documents/${docId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) return 'saved';
+
+    // PATCH 404: the document was never created in the DB — try POST create.
+    // 'saved' ONLY if the create actually succeeds.
+    if (res.status === 404) {
+      const postRes = await request('/api/documents', {
+        method: 'POST',
+        body: JSON.stringify({ id: docId, ...payload }),
+      });
+      return postRes.ok ? 'saved' : 'error';
+    }
+
+    // Any other rejected write (401/403/400/500/...): do NOT claim 'saved'.
+    return 'error';
+  } catch {
+    return 'offline';
+  }
+}
+
 export function useCollabDoc(docId: string) {
   const [title, setTitleState] = useState<string>('Untitled Document');
   const [blocks, setBlocksState] = useState<EditorBlock[]>(DEFAULT_BLOCKS);
@@ -228,6 +278,10 @@ export function useCollabDoc(docId: string) {
   }, [docId]);
 
   // Debounced auto-save to REST /api/documents/:docId
+  // Manual retry counter: bumping it re-runs the effect without edits.
+  const [saveAttempt, setSaveAttempt] = useState(0);
+  const retrySave = useCallback(() => setSaveAttempt((n) => n + 1), []);
+
   useEffect(() => {
     if (isLoading) return;
 
@@ -238,63 +292,38 @@ export function useCollabDoc(docId: string) {
     }
 
     saveTimeoutRef.current = setTimeout(async () => {
+      // Persist local copy immediately
       try {
-        const mdContent = blocksToMarkdown(blocks);
-        // Persist local copy immediately
-        try {
-          localStorage.setItem(
-            `quant_doc_${docId}`,
-            JSON.stringify({
-              title,
-              blocks,
-              metadata,
-              updatedAt: new Date().toISOString(),
-            }),
-          );
-        } catch {
-          // Ignore localStorage quota errors
-        }
-
-        const res = await browserApiRequest(`/api/documents/${docId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({
+        localStorage.setItem(
+          `quant_doc_${docId}`,
+          JSON.stringify({
             title,
-            content: mdContent,
-            metadata: {
-              ...metadata,
-              blocks,
-            },
-            isPublic,
+            blocks,
+            metadata,
+            updatedAt: new Date().toISOString(),
           }),
-        });
-
-        if (res.ok) {
-          setSyncStatus((current) => (current === 'connected' ? 'connected' : 'saved'));
-          setLastSaved(new Date());
-        } else {
-          // If PATCH 404s (e.g. document wasn't created yet in DB), try POST to create it
-          if (res.status === 404) {
-            await browserApiRequest('/api/documents', {
-              method: 'POST',
-              body: JSON.stringify({
-                id: docId,
-                title,
-                content: mdContent,
-                metadata: {
-                  ...metadata,
-                  blocks,
-                },
-                isPublic,
-              }),
-            });
-            setSyncStatus((current) => (current === 'connected' ? 'connected' : 'saved'));
-            setLastSaved(new Date());
-          } else {
-            setSyncStatus((current) => (current === 'connected' ? 'connected' : 'saved'));
-          }
-        }
+        );
       } catch {
-        setSyncStatus('offline');
+        // Ignore localStorage quota errors
+      }
+
+      const outcome = await performDocSave(browserApiRequest, docId, {
+        title,
+        content: blocksToMarkdown(blocks),
+        metadata: {
+          ...metadata,
+          blocks,
+        },
+        isPublic,
+      });
+
+      if (outcome === 'saved') {
+        setSyncStatus((current) => (current === 'connected' ? 'connected' : 'saved'));
+        setLastSaved(new Date());
+      } else {
+        // 'error' (backend rejected the write) or 'offline' (transport failed):
+        // never claim 'saved' — the edits exist only in localStorage.
+        setSyncStatus(outcome);
       }
     }, 1000);
 
@@ -303,7 +332,7 @@ export function useCollabDoc(docId: string) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [docId, title, blocks, metadata, isPublic, isLoading]);
+  }, [docId, title, blocks, metadata, isPublic, isLoading, saveAttempt]);
 
   // Yjs WebSocket gateway connection (/collab/:docId)
   // yjs is ~100KB+ — imported lazily so the drive/doc route bundle stays lean
@@ -514,5 +543,6 @@ export function useCollabDoc(docId: string) {
     breadcrumbs,
     subpages,
     setSubpages,
+    retrySave,
   };
 }
