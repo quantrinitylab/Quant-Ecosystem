@@ -837,7 +837,15 @@ Status: [x] DONE — LANE-1, branch lane1-audit-010. AUDIT COMPLETE (2026-10-11 
 ### REGRESSION ROUND 10 (2026-10-15 ~05:40–06:00 IST, LANE-1, branch lane1-audit-010-r10)
 
 ### REGRESSION ROUND 11 (2026-10-15 ~15:35–16:10 IST, LANE-1, branch lane1-audit-010-r11)
-Status: [~] IN PROGRESS — Owner: LANE-1, branch lane1-audit-010-r11.
+Status: [x] DONE — Owner: LANE-1, branch lane1-audit-010-r11. AUDIT COMPLETE (regression).
+- Base: R10 @ ecc855fb2 -> origin/main 244ff5a85 (fresh fetch, 100 commits). Code read from origin/main tree only (qe-main working tree stale — never read it).
+- WINDOW: 5 drive-path commits, ALL full-diff reviewed VERIFIED SOUND: 69a0468f1 (honest doc-editor auto-save status — 'saved' only on PATCH ok or 404->POST res.ok; rejected writes -> 'error' red banner with Retry save, copy 'kept in this browser only'; transport failure -> 'offline'; fixes queued 2026-10-13 P1); 2581fe134 / #1199 (invented 'Quanty ONNX Inference Ready' badge -> honest 'Quanty AI · server-side summary', test-pinned); 5c515e86e / #1220 (test-only: Save-to-Drive gate locks honest 404/409 behavior, byte-exact encrypt/decrypt round trip); c2c3d1e38 / #1201 (Drive link insert + send-time permission detector — insert-as-link reuses existing active link or creates viewer-only 'specific'-scope link; detector scans body share tokens, resolves via real public endpoint, grants only on positive backend evidence, labels unverifiable as unverifiable; 'Send without access' / 'Keep editing' honest paths; no ?token=, no fake copy, no new hairlines).
+- Prior fixes byte-verified INTACT on 244ff5a85: honest 'server-side summary' badge copy; doc 'kept in this browser only' banner; zero FF8C42 under components/drive/ (drive-green-accents pinned); R10 #1171/#1172 behavior unchanged.
+- Carryovers STILL OPEN (not re-filed): R5-NEW-2 P3 FastCDC comment (DriveFilesSubView.tsx:384); R6-NEW-2 P3 'Sovereign Cyan Drive' comment + 'FastCDC tags' + 'FastCDC Clean' (QuantPillarTopBar.tsx:5/348/400); R3-P3 '$0.00' test fixture (drive-ai-insights.test.tsx:395/419).
+- Fresh hunt clean: zero ?token= (only test asserting absence), zero fake/mock/demo copy in production paths incl. the 5 new files, zero toast-theater (all link-insert errors gated on real backend results; detector failures surface backend messages verbatim), zero new hairlines (DrivePermissionDialog: 0 border-t/border-b/h-px).
+- NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents spawned (P0/P1-only protocol; subagent.list 0 active). findings.md untouched.
+- Live (egress healthy, proxy 127.0.0.1:8888): /drive -> honest sign-in gate desktop 1440x900 + mobile 390x844 (pure black, provable copy only); /drive/share/bogus123 -> honest 'Share link not found' (no leak); /api/drive/{files,quota,trash,shares/received,folders} -> 401 all (5/5). Signed-in flows = needs-auth. Shots reviewed; Chrome orphans cleaned; /tmp trimmed.
+- Rotation -> QM-SCREEN-012 (contacts) ROUND 11 regression, queued.
 
 Status: [x] DONE — Owner: LANE-1, branch lane1-audit-010-r10. AUDIT COMPLETE (regression).
 - Base: R9 @ 064db7e4c -> origin/main ecc855fb2 (fresh fetch, 114 commits). Code read from origin/main tree only (qe-main working tree stale — never read it).
