@@ -1,9 +1,11 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useInbox } from '../hooks/useMail';
+import { useAuth } from '../providers/auth-provider';
+import { groupEmailsIntoThreads } from '../lib/threading';
 import { useStorageQuota } from '../hooks/useStorageQuota';
 import { ApiRequestError } from '../lib/query-retry';
 import { formatBytes } from '../lib/format-bytes';
@@ -337,7 +339,28 @@ export function SidebarNavGroups() {
   };
   const { data: inboxEmails } = useInbox();
   const { data: draftEmails } = useInbox({ folderType: 'DRAFTS' });
-  const unreadCount = inboxEmails?.filter((e) => !e.isRead).length ?? 0;
+  // Defensive: AppSidebar is normally inside AuthProvider, but tests may
+  // render it standalone — useAuth() throws there (same guard as AppShell).
+  let currentEmail = '';
+  try {
+    const { user: currentUser } = useAuth();
+    currentEmail = currentUser?.email || '';
+  } catch {
+    currentEmail = '';
+  }
+  /**
+   * Unread badge counts unread CONVERSATIONS (threads), not raw emails — the
+   * same definition the inbox page and AppShell's badgeCounts.inbox use
+   * (`thread.isRead` = every message read or sent by me). Counting raw
+   * `!e.isRead` emails disagreed with the inbox's own unread number on the
+   * same screen (badge said "5 unread" while the All lens said "0 unread, 5
+   * total") because sent-mail copies are stored unread.
+   */
+  const unreadCount = useMemo(() => {
+    if (!inboxEmails || inboxEmails.length === 0) return 0;
+    const threads = groupEmailsIntoThreads(inboxEmails, currentEmail);
+    return threads.filter((t) => !t.isRead).length;
+  }, [inboxEmails, currentEmail]);
   const draftCount = draftEmails?.length ?? 0;
   return (
     <>
