@@ -3547,6 +3547,10 @@ LIVE (2026-10-15 ~04:55 IST, proxy 127.0.0.1:8888 restarted healthy — was dead
 Rotation -> QM-SCREEN-010/011 (drive) ROUND 10 regression, queued.
 Status: [x] DONE (R10 regression audit complete 2026-10-15 ~05:00 IST; 116-commit window reviewed, 2 calendar fix PRs verified sound, prior fixes intact, 0 new findings, 10 opens carried; fixes tracked via their PRs)
 
+## QM-SCREEN-008/009 R11 — Calendar regression (ROUND 11)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-008-009-r11, started 2026-10-15 ~14:35 IST; R10 base bfb2e216 → origin/main fresh fetch below)
+- (audit in progress)
+
 ## QM-SCREEN-007 R11 — Search regression (ROUND 11)
 Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-007r11, started 2026-10-15 ~13:40 IST; R10 base 3f2ce94bd → origin/main be5b97a08)
 - Base: R10 @ 3f2ce94bd → origin/main be5b97a08 (fresh fetch, 120 commits). Code read from origin/main tree only (qe-main working tree stale per standing lesson; never read).
