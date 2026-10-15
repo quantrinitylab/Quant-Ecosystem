@@ -1301,42 +1301,57 @@ export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
     filterDateTo,
   ]);
 
-  return useQuery<Email[]>({
+  const searchQuery = useQuery<Email[]>({
     queryKey: mailQueryKeys.search(params),
     placeholderData: localHits.length > 0 ? localHits : undefined,
     queryFn: async () => {
       if (!params || !queryText) return localHits;
+      // A failed backend search must surface, never silently degrade to
+      // local-only: the search page's ErrorState (and its offline/partial
+      // banner) keys off the query error. Returning localHits here made
+      // `error` permanently undefined — the ErrorState was dead code, and on
+      // a backend outage with an empty local index the UI made the false
+      // "No results" claim about a search that never ran.
+      const response = await apiClient.searchEmails(params);
+      if (!response.success) {
+        throw apiRequestError(response.error, 'Mail search failed');
+      }
+      const serverEmails = toEmailList(response.data);
       try {
-        const response = await apiClient.searchEmails(params);
-        if (!response.success) {
-          return localHits;
-        }
-        const serverEmails = toEmailList(response.data);
+        // Local cache write only: a failure must not fail an honest search —
+        // the server results shown are real either way.
         if (serverEmails.length > 0) {
           getFts5Indexer().indexEmails(serverEmails);
         }
-        const seen = new Set(serverEmails.map((e) => e.id));
-        const combined = [...serverEmails];
-        for (const local of localHits) {
-          if (!seen.has(local.id)) {
-            combined.push(local);
-            seen.add(local.id);
-          }
-        }
-        // Belt-and-suspenders: the backend applies every filter it can, but the
-        // `to` bare-fragment case is intentionally client-side (Postgres Json
-        // arrays only support exact element matches), so re-apply the chips to
-        // the unified set. With no active filters this is a no-op pass.
-        return hasActiveFilters
-          ? combined.filter((e) => matchesSearchFilters(e, clientFilters))
-          : combined;
       } catch {
-        // Fall back gracefully to instant local SQLite FTS5 hits
-        return localHits;
+        // Best-effort local index; the search result stands without it.
       }
+      const seen = new Set(serverEmails.map((e) => e.id));
+      const combined = [...serverEmails];
+      for (const local of localHits) {
+        if (!seen.has(local.id)) {
+          combined.push(local);
+          seen.add(local.id);
+        }
+      }
+      // Belt-and-suspenders: the backend applies every filter it can, but the
+      // `to` bare-fragment case is intentionally client-side (Postgres Json
+      // arrays only support exact element matches), so re-apply the chips to
+      // the unified set. With no active filters this is a no-op pass.
+      return hasActiveFilters
+        ? combined.filter((e) => matchesSearchFilters(e, clientFilters))
+        : combined;
     },
     enabled: !!params && !!queryText,
   });
+
+  return {
+    ...searchQuery,
+    // Instant local SQLite FTS5 hits (also the placeholderData). Exposed so
+    // the search page can label them as offline/partial when the backend
+    // search fails, instead of silently presenting them as full results.
+    localHits,
+  };
 }
 
 export default useMail;
