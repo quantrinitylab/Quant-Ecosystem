@@ -117,6 +117,7 @@ export interface MessageRequestPrismaLike {
     count: (args: unknown) => Promise<number>;
     create: (args: unknown) => Promise<MessageRequestRow>;
     update: (args: unknown) => Promise<MessageRequestRow>;
+    updateMany: (args: unknown) => Promise<{ count: number }>;
   };
   conversation: {
     create: (args: unknown) => Promise<{ id: string }>;
@@ -399,6 +400,22 @@ export class MessageRequestService {
    * MEMBER, mirroring ConversationService.createConversation's shapes),
    * delivers firstMessage as its first Message, and marks the request
    * ACCEPTED with the conversation id. All four writes or none.
+   *
+   * Concurrency (QC-F-363): the status check above is only a fast path.
+   * The transaction's FIRST step is an atomic CAS claim — an updateMany
+   * predicated on the row still being PENDING (the QC-F-095 precedent)
+   * — so two concurrent accepts can never both create a conversation:
+   * exactly one caller claims the row, and the loser writes nothing and
+   * is answered from a post-transaction reread with the winner's own
+   * conversationId (or 409 when a concurrent decline won). The claim
+   * writes ACCEPTED directly: the status enum has no intermediate
+   * value, the write is invisible outside the transaction until commit,
+   * and any failure below rolls it back to PENDING. Sender liveness is
+   * re-checked inside the transaction after the claim — a sender who
+   * was deleted after sending gets no conversation (410; the rollback
+   * leaves the request PENDING, never a fabricated DECLINED). The claim
+   * closes the race for THIS request row only; two opposite-direction
+   * rows for the same pair are QC-F-323's dedup slice, not this one's.
    */
   async accept(
     requestId: string,
@@ -417,59 +434,123 @@ export class MessageRequestService {
       );
     }
 
-    const now = new Date();
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const conversation = await tx.conversation.create({
-        data: {
-          type: 'DIRECT',
-          name: null,
-          description: null,
-          createdBy: row.senderId,
-          lastMessageAt: now,
-          metadata: {},
-        },
-      });
-      await tx.conversationMember.createMany({
-        data: [
-          {
-            conversationId: conversation.id,
-            userId: row.senderId,
-            role: 'OWNER',
-            joinedAt: now,
-            nickname: null,
-            isMuted: false,
-            lastReadAt: now,
-          },
-          {
-            conversationId: conversation.id,
-            userId: row.targetId,
-            role: 'MEMBER',
-            joinedAt: now,
-            nickname: null,
-            isMuted: false,
-            lastReadAt: null,
-          },
-        ],
-      });
-      await tx.message.create({
-        data: {
-          conversationId: conversation.id,
-          senderId: row.senderId,
-          type: 'TEXT',
-          content: row.firstMessage,
-        },
-      });
-      return tx.messageRequest.update({
-        where: { id: row.id },
-        data: {
-          status: 'ACCEPTED',
-          conversationId: conversation.id,
-          respondedAt: now,
-        },
-      });
-    });
+    // One full attempt plus a single retry for the contradictory reread
+    // (the claim winner's transaction rolled back, or its ACCEPTED row
+    // is not yet visible with a conversationId). On real Postgres the
+    // retry is near-unreachable — the claim loser waits on the row lock
+    // and reads committed state — but the bound keeps every outcome
+    // honest instead of guessing.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const now = new Date();
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const claim = await tx.messageRequest.updateMany({
+          where: { id: row.id, status: 'PENDING' },
+          data: { status: 'ACCEPTED', respondedAt: now },
+        });
+        if (claim.count === 0) {
+          // A concurrent response won the claim. Write nothing; the
+          // caller re-reads the row outside the transaction and answers
+          // with its true terminal state.
+          return null;
+        }
 
-    return { request: toDto(updated), conversationId: updated.conversationId ?? '' };
+        const sender = await tx.user.findUnique({
+          where: { id: row.senderId },
+          select: { id: true, deletedAt: true },
+        });
+        if (!sender || sender.deletedAt != null) {
+          // The request was real once; the sender is gone now. The
+          // throw rolls the claim back with everything else, so the
+          // request stays PENDING and the recipient can still decline
+          // it to clear the inbox.
+          throw createAppError(
+            'The sender of this request is no longer available',
+            410,
+            'MESSAGE_REQUEST_SENDER_GONE',
+          );
+        }
+
+        const conversation = await tx.conversation.create({
+          data: {
+            type: 'DIRECT',
+            name: null,
+            description: null,
+            createdBy: row.senderId,
+            lastMessageAt: now,
+            metadata: {},
+          },
+        });
+        await tx.conversationMember.createMany({
+          data: [
+            {
+              conversationId: conversation.id,
+              userId: row.senderId,
+              role: 'OWNER',
+              joinedAt: now,
+              nickname: null,
+              isMuted: false,
+              lastReadAt: now,
+            },
+            {
+              conversationId: conversation.id,
+              userId: row.targetId,
+              role: 'MEMBER',
+              joinedAt: now,
+              nickname: null,
+              isMuted: false,
+              lastReadAt: null,
+            },
+          ],
+        });
+        await tx.message.create({
+          data: {
+            conversationId: conversation.id,
+            senderId: row.senderId,
+            type: 'TEXT',
+            content: row.firstMessage,
+          },
+        });
+        // Only the claim winner ever reaches this update, and the claim
+        // holds the row until commit — no concurrent writer can move
+        // the status in between — so setting conversationId here needs
+        // no predicate of its own. status/respondedAt were already
+        // written by the claim above and are NOT written again.
+        return tx.messageRequest.update({
+          where: { id: row.id },
+          data: { conversationId: conversation.id },
+        });
+      });
+
+      if (updated) {
+        return {
+          request: toDto(updated),
+          conversationId: updated.conversationId ?? '',
+        };
+      }
+
+      // Claim lost: answer from the row's true (committed) state — the
+      // winner's conversation is a real success for this caller too.
+      const fresh = await this.prisma.messageRequest.findUnique({
+        where: { id: row.id },
+      });
+      if (fresh && fresh.status === 'ACCEPTED' && fresh.conversationId) {
+        return { request: toDto(fresh), conversationId: fresh.conversationId };
+      }
+      if (fresh && fresh.status === 'DECLINED') {
+        throw createAppError(
+          'This message request is no longer pending',
+          409,
+          'MESSAGE_REQUEST_NOT_PENDING',
+        );
+      }
+      // Contradictory reread: loop retries the whole accept once.
+    }
+
+    throw createAppError(
+      'Message request state is temporarily unavailable',
+      503,
+      'UPSTREAM_UNAVAILABLE',
+    );
   }
 
   /** Decline: terminal for the pair; never creates anything. */
@@ -488,10 +569,45 @@ export class MessageRequestService {
         'MESSAGE_REQUEST_NOT_PENDING',
       );
     }
-    const updated = await this.prisma.messageRequest.update({
-      where: { id: row.id },
-      data: { status: 'DECLINED', respondedAt: new Date() },
-    });
-    return { request: toDto(updated) };
+
+    // QC-F-363: a single conditional update IS the atomic claim — one
+    // statement needs no transaction. Whoever claims the PENDING row
+    // first owns the terminal state: a concurrent accept can neither be
+    // overwritten by this write (DECLINED landing on a live conversation)
+    // nor overwrite it (a declined request silently ACCEPTED). The
+    // loser is answered from a reread, exactly like accept's.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const claim = await this.prisma.messageRequest.updateMany({
+        where: { id: row.id, status: 'PENDING' },
+        data: { status: 'DECLINED', respondedAt: new Date() },
+      });
+      const fresh = await this.prisma.messageRequest.findUnique({
+        where: { id: row.id },
+      });
+      if (claim.count === 1) {
+        // updateMany returns no row; re-read our own committed win.
+        if (fresh) return { request: toDto(fresh) };
+      } else {
+        if (fresh && fresh.status === 'DECLINED') {
+          // A concurrent decline won — the same terminal truth.
+          return { request: toDto(fresh) };
+        }
+        if (fresh && fresh.status === 'ACCEPTED') {
+          throw createAppError(
+            'This message request is no longer pending',
+            409,
+            'MESSAGE_REQUEST_NOT_PENDING',
+          );
+        }
+      }
+      // Contradictory reread (row still PENDING — the claim winner's
+      // transaction rolled back): retry once, then fail closed below.
+    }
+
+    throw createAppError(
+      'Message request state is temporarily unavailable',
+      503,
+      'UPSTREAM_UNAVAILABLE',
+    );
   }
 }
