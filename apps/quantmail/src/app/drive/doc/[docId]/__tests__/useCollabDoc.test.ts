@@ -76,14 +76,14 @@ type Req = (url: string, init?: { method: string; body?: string }) => Promise<{
 describe('performDocSave — honest save status', () => {
   it('returns saved when PATCH succeeds', async () => {
     const req: Req = async () => ({ ok: true, status: 200 });
-    expect(await performDocSave(req, 'doc-1', PAYLOAD)).toBe('saved');
+    expect(await performDocSave(req, 'doc-1', PAYLOAD, 'a@example.com')).toBe('saved');
   });
 
   it.each([400, 401, 403, 500])(
     'returns error (never saved) when PATCH is rejected with %i',
     async (status) => {
       const req: Req = async () => ({ ok: false, status });
-      expect(await performDocSave(req, 'doc-1', PAYLOAD)).toBe('error');
+      expect(await performDocSave(req, 'doc-1', PAYLOAD, 'a@example.com')).toBe('error');
     },
   );
 
@@ -93,7 +93,7 @@ describe('performDocSave — honest save status', () => {
       calls.push(url);
       return url === '/api/documents' ? { ok: true, status: 201 } : { ok: false, status: 404 };
     };
-    expect(await performDocSave(req, 'doc-1', PAYLOAD)).toBe('saved');
+    expect(await performDocSave(req, 'doc-1', PAYLOAD, 'a@example.com')).toBe('saved');
     expect(calls).toEqual(['/api/documents/doc-1', '/api/documents']);
   });
 
@@ -102,13 +102,13 @@ describe('performDocSave — honest save status', () => {
       url === '/api/documents'
         ? { ok: false, status: 500 }
         : { ok: false, status: 404 };
-    expect(await performDocSave(req, 'doc-1', PAYLOAD)).toBe('error');
+    expect(await performDocSave(req, 'doc-1', PAYLOAD, 'a@example.com')).toBe('error');
   });
 
   it('returns offline when the network throws', async () => {
     const req: Req = async () => {
       throw new Error('network down');
     };
-    expect(await performDocSave(req, 'doc-1', PAYLOAD)).toBe('offline');
+    expect(await performDocSave(req, 'doc-1', PAYLOAD, 'a@example.com')).toBe('offline');
   });
 });

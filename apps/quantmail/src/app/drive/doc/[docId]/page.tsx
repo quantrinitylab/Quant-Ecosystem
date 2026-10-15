@@ -19,6 +19,14 @@ import { DocumentVersionHistoryModal } from './DocumentVersionHistoryModal';
 import { BlockEditor } from './BlockEditor';
 import { blocksToMarkdown, markdownToBlocks, downloadMarkdownFile } from './markdown-serializer';
 import { useConfirm } from '../../../../hooks/useConfirm';
+import { useAuth } from '../../../../providers/auth-provider';
+import {
+  docCacheAccountKey,
+  writeDocCache,
+  removeDocCache,
+  purgeLegacyDocCacheKeys,
+  windowDocCacheStorage,
+} from '../../../../lib/docContentCache';
 
 const EMOJI_PRESETS = ['📄', '🚀', '💡', '📝', '📊', '⚡', '🔒', '🎯', '✨', '🔥'];
 
@@ -26,6 +34,17 @@ export default function DocumentPage() {
   const params = useParams<{ docId: string }>();
   const router = useRouter();
   const docId = params?.docId ?? 'default';
+
+  // P1 qm-drive-doc-cache-scope: the doc cache namespace is account-scoped.
+  // Defensive (same guard as AppShell): tests may render without AuthProvider.
+  let currentUserEmail = '';
+  try {
+    const { user: currentUser } = useAuth();
+    currentUserEmail = currentUser?.email || '';
+  } catch {
+    currentUserEmail = '';
+  }
+  const docAccountKey = docCacheAccountKey(currentUserEmail);
 
   const {
     title,
@@ -44,7 +63,7 @@ export default function DocumentPage() {
     breadcrumbs,
     subpages,
     retrySave,
-  } = useCollabDoc(docId);
+  } = useCollabDoc(docId, currentUserEmail);
   const [fullWidth, setFullWidth] = useState<boolean>(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
   const [isCreatingSubpage, setIsCreatingSubpage] = useState<boolean>(false);
@@ -129,8 +148,12 @@ export default function DocumentPage() {
   const handleDuplicateDocument = useCallback(() => {
     const newDocId = 'doc_' + Math.random().toString(36).substring(2, 9);
     try {
-      localStorage.setItem(
-        `quant_doc_${newDocId}`,
+      // Account-scoped: the copy lands in the duplicating account's own
+      // namespace; unknown account = fail closed (no shared cache key).
+      writeDocCache(
+        windowDocCacheStorage(),
+        newDocId,
+        docAccountKey,
         JSON.stringify({
           title: `${title} (Copy)`,
           blocks,
@@ -143,7 +166,7 @@ export default function DocumentPage() {
     } catch {
       showToast({ text: 'Failed to duplicate document', type: 'error', subject: 'doc-duplicate' });
     }
-  }, [title, blocks, metadata, router]);
+  }, [title, blocks, metadata, router, docAccountKey]);
 
   // Delete document handler
   // Was: window.confirm() + localStorage-only removal. The native confirm is
@@ -167,13 +190,16 @@ export default function DocumentPage() {
         body: JSON.stringify({ fileIds: [docId] }),
       });
       if (!res.ok) throw new Error('Delete failed');
-      localStorage.removeItem(`quant_doc_${docId}`);
+      // Remove the current account's cached copy plus any legacy unscoped
+      // copy — no other account's namespace is ever touched.
+      removeDocCache(windowDocCacheStorage(), docId, docAccountKey);
+      purgeLegacyDocCacheKeys(windowDocCacheStorage());
       showToast({ text: 'Document moved to trash', type: 'info', subject: 'doc-delete' });
       router.push('/drive');
     } catch {
       showToast({ text: 'Failed to delete document', type: 'error', subject: 'doc-delete' });
     }
-  }, [docId, router, title, confirmDelete]);
+  }, [docId, router, title, confirmDelete, docAccountKey]);
 
   return (
     <AppShell

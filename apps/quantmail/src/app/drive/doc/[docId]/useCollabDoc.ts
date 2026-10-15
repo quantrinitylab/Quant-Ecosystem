@@ -7,6 +7,13 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type * as Y from 'yjs';
 import { browserAuthSession } from '../../../../services/browser-auth-session';
 import { browserApiRequest } from '../../../../services/browser-api-request';
+import {
+  docCacheAccountKey,
+  purgeLegacyDocCacheKeys,
+  readDocCache,
+  writeDocCache,
+  windowDocCacheStorage,
+} from '../../../../lib/docContentCache';
 import type {
   EditorBlock,
   DocumentCollaborator,
@@ -117,7 +124,14 @@ export async function performDocSave(
   ) => Promise<{ ok: boolean; status: number }>,
   docId: string,
   payload: DocSavePayload,
+  // P1 qm-drive-doc-cache-scope corrective (CODEX): every save carries the
+  // account the content was loaded for. An empty/unresolved binding refuses
+  // the write outright — no REST save is ever attempted without a known
+  // account, and the hook additionally verifies the binding matches the
+  // current account before calling.
+  savedForAccount: string,
 ): Promise<DocSaveOutcome> {
+  if (!savedForAccount) return 'error';
   try {
     const res = await request(`/api/documents/${docId}`, {
       method: 'PATCH',
@@ -143,7 +157,12 @@ export async function performDocSave(
   }
 }
 
-export function useCollabDoc(docId: string) {
+// P1 qm-drive-doc-cache-scope: the hook NEVER touches localStorage with an
+// unscoped key. `currentUserEmail` is the authenticated account identity;
+// unknown/empty account = fail closed (no read, no write). Pass it from the
+// page via useAuth().
+export function useCollabDoc(docId: string, currentUserEmail?: string) {
+  const accountKey = docCacheAccountKey(currentUserEmail);
   const [title, setTitleState] = useState<string>('Untitled Document');
   const [blocks, setBlocksState] = useState<EditorBlock[]>(DEFAULT_BLOCKS);
   const [metadata, setMetadataState] = useState<DocumentMetadata>({ icon: '📄' });
@@ -161,6 +180,45 @@ export function useCollabDoc(docId: string) {
   const localClientIdRef = useRef<string>('c_' + Math.random().toString(36).substring(2, 9));
   const localColorRef = useRef<string>(generateCollaboratorColor());
   const isRemoteApplyingRef = useRef<boolean>(false);
+  const legacyPurgeDoneRef = useRef<boolean>(false);
+
+  // P1 qm-drive-doc-cache-scope corrective (CODEX, same class as #1159):
+  // accountKeyRef tracks the CURRENT account for stale-async guards; the
+  // previous account's value is kept in state so we can hard-reset.
+  const accountKeyRef = useRef<string>(accountKey);
+  const [prevAccountKey, setPrevAccountKey] = useState<string>(accountKey);
+  // Immutable binding: the account whose load last resolved for this mount.
+  // Every write (REST autosave AND local cache) is verified against it —
+  // retained prior-account state can never be saved under a new account.
+  const loadedAccountRef = useRef<string | null>(null);
+
+  // Requirement 1: on accountKey change, hard-reset title/blocks/metadata
+  // (and everything else derived) to pristine empty DURING THIS RENDER,
+  // before any effect reruns — so the hook never renders or writes
+  // mismatched-account state.
+  if (prevAccountKey !== accountKey) {
+    setPrevAccountKey(accountKey);
+    setTitleState('Untitled Document');
+    setBlocksState(DEFAULT_BLOCKS);
+    setMetadataState({ icon: '📄' });
+    setIsPublicState(false);
+    setCollaborators([]);
+    setBreadcrumbs([]);
+    setSubpages([]);
+    setLastSaved(null);
+    setSyncStatus('offline');
+    setIsLoading(true);
+  }
+
+  // Keep the async guards in sync after the reset render commits. Declared
+  // before the load effect so it runs first on the same commit: the stale
+  // binding is dropped before any new load attempt starts.
+  useEffect(() => {
+    if (accountKeyRef.current !== accountKey) {
+      accountKeyRef.current = accountKey;
+      loadedAccountRef.current = null;
+    }
+  });
 
   // Synchronize title changes
   const setTitle = useCallback((newTitle: string) => {
@@ -213,26 +271,47 @@ export function useCollabDoc(docId: string) {
     let isMounted = true;
 
     async function loadDoc() {
+      // Bind the load to the account it started for: a delayed response for
+      // the previous account must never write into the new account's state.
+      const keyAtStart = accountKey;
       setIsLoading(true);
       try {
-        const cached = localStorage.getItem(`quant_doc_${docId}`);
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            if (isMounted) {
-              if (parsed.title) setTitleState(parsed.title);
-              if (parsed.blocks && Array.isArray(parsed.blocks)) setBlocksState(parsed.blocks);
-              if (parsed.metadata) setMetadataState(parsed.metadata);
+        if (!keyAtStart) {
+          // Unknown account: fail closed — nothing to read, pristine empty
+          // remains rendered, and no save will be attempted (see autosave).
+          setSyncStatus('offline');
+          return;
+        }
+        const storage = windowDocCacheStorage();
+        if (storage) {
+          // qm-drive-doc-cache-scope: legacy `quant_doc_<docId>` keys are
+          // unattributable plaintext — purge once per mount under an
+          // authenticated session, never migrate them into the new namespace.
+          if (!legacyPurgeDoneRef.current) {
+            legacyPurgeDoneRef.current = true;
+            purgeLegacyDocCacheKeys(storage);
+          }
+          const cached = readDocCache(storage, docId, keyAtStart);
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (isMounted && keyAtStart === accountKeyRef.current) {
+                if (parsed.title) setTitleState(parsed.title);
+                if (parsed.blocks && Array.isArray(parsed.blocks)) setBlocksState(parsed.blocks);
+                if (parsed.metadata) setMetadataState(parsed.metadata);
+              }
+            } catch {
+              // Ignore parse errors on cached state
             }
-          } catch {
-            // Ignore parse errors on cached state
           }
         }
 
         const res = await browserApiRequest(`/api/documents/${docId}`);
+        // Late response for a superseded account — drop it entirely.
+        if (!isMounted || keyAtStart !== accountKeyRef.current) return;
         if (res.ok) {
           const json = (await res.json()) as { success: boolean; data: DocumentData };
-          if (json.success && json.data && isMounted) {
+          if (json.success && json.data) {
             const doc = json.data;
             setTitleState(doc.title || 'Untitled Document');
             setIsPublicState(Boolean(doc.isPublic));
@@ -255,16 +334,26 @@ export function useCollabDoc(docId: string) {
             }
             setSyncStatus('saved');
             setLastSaved(new Date(doc.updatedAt || Date.now()));
+            // Immutable binding: this content belongs to keyAtStart.
+            loadedAccountRef.current = keyAtStart;
           }
         } else if (res.status === 404) {
           // New document or not yet saved in backend — seed default blocks
+          // (pristine defaults already rendered). Bind the save epoch so the
+          // account that creates it may autosave it.
+          loadedAccountRef.current = keyAtStart;
           setSyncStatus('saved');
+        } else {
+          // 401/403/500: the backend rejected the read — honest error, and
+          // the pristine state from the hard reset stays. loadedAccountRef
+          // is NOT bound, so the autosave below refuses to write.
+          setSyncStatus('error');
         }
       } catch {
         // Fallback gracefully on network error
-        setSyncStatus('offline');
+        if (isMounted && keyAtStart === accountKeyRef.current) setSyncStatus('offline');
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted && keyAtStart === accountKeyRef.current) setIsLoading(false);
       }
     }
 
@@ -275,7 +364,7 @@ export function useCollabDoc(docId: string) {
     return () => {
       isMounted = false;
     };
-  }, [docId]);
+  }, [docId, accountKey]);
 
   // Debounced auto-save to REST /api/documents/:docId
   // Manual retry counter: bumping it re-runs the effect without edits.
@@ -284,6 +373,12 @@ export function useCollabDoc(docId: string) {
 
   useEffect(() => {
     if (isLoading) return;
+    // Requirement 2: gate ALL writes (REST autosave AND local cache) on a
+    // resolved, non-null accountKey. Unknown account → no writes at all.
+    // loadedAccountRef binds the save epoch: the load for THIS account must
+    // have resolved, otherwise the retained prior-account state would be
+    // written under the new account's key before its own load settles.
+    if (!accountKey || loadedAccountRef.current !== accountKey) return;
 
     setSyncStatus((current) => (current === 'connected' ? 'connected' : 'saving'));
 
@@ -292,30 +387,40 @@ export function useCollabDoc(docId: string) {
     }
 
     saveTimeoutRef.current = setTimeout(async () => {
-      // Persist local copy immediately
-      try {
-        localStorage.setItem(
-          `quant_doc_${docId}`,
-          JSON.stringify({
-            title,
-            blocks,
-            metadata,
-            updatedAt: new Date().toISOString(),
-          }),
-        );
-      } catch {
-        // Ignore localStorage quota errors
-      }
+      // Re-check at fire time: the account may have changed during debounce.
+      const firingAccount = accountKeyRef.current;
+      if (!firingAccount || loadedAccountRef.current !== firingAccount) return;
 
-      const outcome = await performDocSave(browserApiRequest, docId, {
-        title,
-        content: blocksToMarkdown(blocks),
-        metadata: {
-          ...metadata,
+      // Persist local copy immediately — account-scoped; fail closed when
+      // the account is unknown (no shared fallback key).
+      writeDocCache(
+        windowDocCacheStorage(),
+        docId,
+        firingAccount,
+        JSON.stringify({
+          title,
           blocks,
+          metadata,
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+
+      const outcome = await performDocSave(
+        browserApiRequest,
+        docId,
+        {
+          title,
+          content: blocksToMarkdown(blocks),
+          metadata: {
+            ...metadata,
+            blocks,
+          },
+          isPublic,
         },
-        isPublic,
-      });
+        // Immutable binding: the save carries the account the content was
+        // loaded for; performDocSave refuses an empty binding.
+        firingAccount,
+      );
 
       if (outcome === 'saved') {
         setSyncStatus((current) => (current === 'connected' ? 'connected' : 'saved'));
@@ -332,13 +437,17 @@ export function useCollabDoc(docId: string) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [docId, title, blocks, metadata, isPublic, isLoading, saveAttempt]);
+  }, [docId, title, blocks, metadata, isPublic, isLoading, saveAttempt, accountKey]);
 
   // Yjs WebSocket gateway connection (/collab/:docId)
   // yjs is ~100KB+ — imported lazily so the drive/doc route bundle stays lean
   // until a document page actually mounts (same pattern as @xterm in BuildTerminal).
+  // P1 qm-drive-doc-cache-scope corrective (CODEX): the effect depends on
+  // accountKey as well as docId, so an account change disposes the previous
+  // collaboration session (socket closed, Y.Doc destroyed) before a new one
+  // starts for the new account. Unknown account → no session at all.
   useEffect(() => {
-    if (typeof window === 'undefined' || !docId) return;
+    if (typeof window === 'undefined' || !docId || !accountKey) return;
 
     let ws: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -403,6 +512,9 @@ export function useCollabDoc(docId: string) {
         };
 
         ws.onmessage = (event: MessageEvent) => {
+          // The socket is closed when the account changes; a late message for
+          // a disposed session must never apply to the new account's state.
+          if (isDisposed) return;
           if (!(event.data instanceof ArrayBuffer)) return;
           const data = new Uint8Array(event.data);
           if (data.byteLength < 2) return;
@@ -524,7 +636,7 @@ export function useCollabDoc(docId: string) {
       }
       ydocRef.current = null;
     };
-  }, [docId]);
+  }, [docId, accountKey]);
 
   return {
     title,
