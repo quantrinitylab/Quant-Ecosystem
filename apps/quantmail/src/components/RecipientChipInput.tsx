@@ -31,6 +31,14 @@ export interface RecipientChipInputProps {
  * the composer, and any second copy of that answer drifts: a chip whose email is
  * `a@x.com,b@y.com` renders perfectly, joins back into a `To:` header nobody can
  * deliver, and is invisible until the send fails.
+ *
+ * Splitting rules: commas, semicolons, newlines and tabs always separate
+ * addresses; a run of whitespace inside a token ALSO separates addresses when
+ * the token is address-shaped (contains '@') — pasting `a@x.com b@y.com`
+ * yields two valid chips, not one malformed chip that per-address validation
+ * then (correctly) flags red. Tokens without '@' are never whitespace-split:
+ * `foo bar` is a display-name-shaped typo and is flagged once, not twice,
+ * and `John Doe <john@x.com>` keeps its name via the angle-bracket branch.
  */
 export function parseEmailString(raw: string): RecipientOption[] {
   if (!raw.trim()) return [];
@@ -47,9 +55,12 @@ export function parseEmailString(raw: string): RecipientOption[] {
         name: angleMatch[1].trim() || undefined,
         email: angleMatch[2].trim().toLowerCase(),
       });
-    } else {
+      continue;
+    }
+    const tokens = part.includes('@') ? part.split(/\s+/).filter(Boolean) : [part];
+    for (const token of tokens) {
       result.push({
-        email: part.trim().toLowerCase(),
+        email: token.trim().toLowerCase(),
       });
     }
   }

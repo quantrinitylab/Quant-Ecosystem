@@ -9,6 +9,7 @@ import { EmailComposer } from '../../components/EmailComposer';
 import type { ComposerMessageData } from '../../components/EmailComposer';
 import { showToast } from '../../components/InboxToast';
 import { stripTrailingSignature } from '../../lib/email-body';
+import { filterValidRecipients } from '../../lib/email-validation';
 import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
 import type { MessageKind } from '../../types';
@@ -127,18 +128,26 @@ export default function ComposePage() {
 
   const composeDraft = useCallback(
     async (data: ComposerMessageData) => {
-      const toAddresses: import('../../types').EmailAddress[] = Array.isArray(data.to)
-        ? (data.to as any[]).map((t) =>
-            typeof t === 'string' ? { email: t } : { email: t.email || '' },
-          )
-        : typeof data.to === 'string'
-          ? data.to
-              .split(/[,;\s]+/)
-              .filter(Boolean)
-              .map((email) => ({ email }))
-          : [];
+      // Compose validation: malformed chips are EXCLUDED from the wire
+      // payload — the backend's compose/updateDraft schemas are
+      // `z.string().email()`, so shipping one is a guaranteed 400. (The
+      // composer already filters before calling onSaveDraft; this is the
+      // host-side belt-and-braces so no caller can ship an undeliverable
+      // address through this adapter.)
+      const toAddresses: import('../../types').EmailAddress[] = filterValidRecipients(
+        Array.isArray(data.to)
+          ? (data.to as any[]).map((t) =>
+              typeof t === 'string' ? { email: t } : { email: t.email || '' },
+            )
+          : typeof data.to === 'string'
+            ? data.to
+                .split(/[,;\s]+/)
+                .filter(Boolean)
+                .map((email) => ({ email }))
+            : [],
+      );
 
-      const ccAddresses: import('../../types').EmailAddress[] | undefined = data.cc
+      const rawCc: import('../../types').EmailAddress[] | undefined = data.cc
         ? typeof data.cc === 'string'
           ? data.cc
               .split(/[,;\s]+/)
@@ -150,8 +159,11 @@ export default function ComposePage() {
               )
             : undefined
         : undefined;
+      const ccAddresses: import('../../types').EmailAddress[] | undefined = rawCc
+        ? filterValidRecipients(rawCc)
+        : undefined;
 
-      const bccAddresses: import('../../types').EmailAddress[] | undefined = data.bcc
+      const rawBcc: import('../../types').EmailAddress[] | undefined = data.bcc
         ? typeof data.bcc === 'string'
           ? data.bcc
               .split(/[,;\s]+/)
@@ -162,6 +174,9 @@ export default function ComposePage() {
                 typeof t === 'string' ? { email: t } : { email: t.email || '' },
               )
             : undefined
+        : undefined;
+      const bccAddresses: import('../../types').EmailAddress[] | undefined = rawBcc
+        ? filterValidRecipients(rawBcc)
         : undefined;
 
       // `?kind=chat` travels via composeKind from the page's search params.

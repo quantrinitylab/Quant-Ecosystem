@@ -19,7 +19,7 @@ import {
   type InlineFormatRange,
 } from '../lib/email-body';
 import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
-import { getInvalidRecipientReason } from '../lib/email-validation';
+import { getInvalidRecipientReason, filterValidRecipients } from '../lib/email-validation';
 import type { Attachment } from './EmailComposer';
 import { createPortal } from 'react-dom';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
@@ -57,11 +57,21 @@ export function buildRecipientPayload(
   cc: RecipientOption[],
   bcc: RecipientOption[],
 ): { to: { email: string }[]; cc?: { email: string }[]; bcc?: { email: string }[] } {
-  const toList = dedupeRecipientPayload(to.map((r) => ({ email: r.email })));
+  // Compose validation: malformed chips are EXCLUDED here, never shipped.
+  // The backend's compose/updateDraft schemas are `z.string().email()`, so a
+  // malformed address in the payload is a guaranteed 400 — including it
+  // would only poison the draft autosave while the red chip + the send-block
+  // already name the real problem. The chip itself stays in the UI until the
+  // user fixes or removes it; it just never reaches the wire.
+  const toList = dedupeRecipientPayload(filterValidRecipients(to.map((r) => ({ email: r.email }))));
   const ccList =
-    cc.length > 0 ? dedupeRecipientPayload(cc.map((r) => ({ email: r.email }))) : undefined;
+    cc.length > 0
+      ? dedupeRecipientPayload(filterValidRecipients(cc.map((r) => ({ email: r.email }))))
+      : undefined;
   const bccList =
-    bcc.length > 0 ? dedupeRecipientPayload(bcc.map((r) => ({ email: r.email }))) : undefined;
+    bcc.length > 0
+      ? dedupeRecipientPayload(filterValidRecipients(bcc.map((r) => ({ email: r.email }))))
+      : undefined;
   return { to: toList, cc: ccList, bcc: bccList };
 }
 
@@ -534,6 +544,11 @@ export function DockedComposer({
       ccRecipients,
       bccRecipients,
     );
+    // Malformed chips are excluded from the payload above, so when nothing
+    // valid remains there is nothing the server can persist (its schema 400s
+    // an empty `to`). Skip the doomed round-trip and report unsaved honestly —
+    // the red chip + the disabled Send already name the problem.
+    if (toList.length === 0) return false;
     // Subject is optional: empty-subject drafts autosave exactly like the rest.
     // The backend composeSchema accepts an empty subject (stored as ''), so
     // there is no reason to silently skip persisting a subjectless draft.

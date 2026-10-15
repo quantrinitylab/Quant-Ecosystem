@@ -43,3 +43,21 @@ export function getInvalidRecipientReason(recipients: Emailable[]): string | nul
   }
   return null;
 }
+
+/**
+ * Exclude malformed addresses from a recipient list BEFORE it leaves the
+ * client. The backend's compose/updateDraft schemas validate recipients with
+ * `z.string().email()`, so a malformed address in a payload is a guaranteed
+ * 400 — shipping it only poisons the draft autosave (the save starts failing
+ * while the real problem is the red chip the user hasn't fixed yet). The
+ * committed chip itself is KEPT and flagged inline (RecipientChipInput) with
+ * the send hard-blocked (getSendBlockReason), so excluding it from the wire
+ * payload loses no information: it was never deliverable.
+ *
+ * Apply at every payload-build site (compose autosave, send, host onSaveDraft
+ * adapters) — never at chip-commit time, so the user still sees exactly what
+ * they typed and can fix it.
+ */
+export function filterValidRecipients<T extends Emailable>(recipients: T[]): T[] {
+  return recipients.filter((r) => isValidEmail(r?.email || ''));
+}

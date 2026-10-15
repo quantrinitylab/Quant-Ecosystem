@@ -22,6 +22,7 @@ import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
 import { ServerDraftRef, saveServerDraft } from '../lib/serverDraft';
 import { DraftBroadcast, draftShareKey } from '../lib/draftBroadcast';
 import { parseEmailString, dedupeRecipientPayload, type RecipientOption } from './RecipientChipInput';
+import { filterValidRecipients, getInvalidRecipientReason } from '../lib/email-validation';
 import {
   getSendBlockReason,
   getSendBlockReaction,
@@ -922,37 +923,49 @@ export function EmailComposer({
 
     // QM-SCREEN-012 R2: dedupe by address — the recipient rows can hold a
     // named chip and a bare chip for the same address, and the payload must
-    // carry each address exactly once.
+    // carry each address exactly once. Malformed chips are excluded too
+    // (belt-and-braces: the send-block guard above already rejects them, but
+    // the wire payload must never carry an undeliverable address).
     const toList = dedupeRecipientPayload(
-      toRecipients.length > 0
-        ? toRecipients.map((r) => ({ email: r.email }))
-        : draftSnapshot.to
-            .split(/[,;\s]+/)
-            .filter(Boolean)
-            .map((email) => ({ email })),
+      filterValidRecipients(
+        toRecipients.length > 0
+          ? toRecipients.map((r) => ({ email: r.email }))
+          : draftSnapshot.to
+              .split(/[,;\s]+/)
+              .filter(Boolean)
+              .map((email) => ({ email })),
+      ),
     );
 
     const ccList =
       ccRecipients.length > 0
-        ? dedupeRecipientPayload(ccRecipients.map((r) => ({ email: r.email })))
+        ? dedupeRecipientPayload(
+            filterValidRecipients(ccRecipients.map((r) => ({ email: r.email }))),
+          )
         : draftSnapshot.cc
           ? dedupeRecipientPayload(
-              draftSnapshot.cc
-                .split(/[,;\s]+/)
-                .filter(Boolean)
-                .map((email) => ({ email })),
+              filterValidRecipients(
+                draftSnapshot.cc
+                  .split(/[,;\s]+/)
+                  .filter(Boolean)
+                  .map((email) => ({ email })),
+              ),
             )
           : undefined;
 
     const bccList =
       bccRecipients.length > 0
-        ? dedupeRecipientPayload(bccRecipients.map((r) => ({ email: r.email })))
+        ? dedupeRecipientPayload(
+            filterValidRecipients(bccRecipients.map((r) => ({ email: r.email }))),
+          )
         : draftSnapshot.bcc
           ? dedupeRecipientPayload(
-              draftSnapshot.bcc
-                .split(/[,;\s]+/)
-                .filter(Boolean)
-                .map((email) => ({ email })),
+              filterValidRecipients(
+                draftSnapshot.bcc
+                  .split(/[,;\s]+/)
+                  .filter(Boolean)
+                  .map((email) => ({ email })),
+              ),
             )
           : undefined;
 
@@ -1227,22 +1240,37 @@ export function EmailComposer({
 
   const saveDraftToServer = async (): Promise<boolean> => {
     const { bodyText, bodyHtml } = buildOutgoingBodies();
-    const toList = to
-      .split(/[,;\s]+/)
-      .filter(Boolean)
-      .map((email) => ({ email }));
+    // Compose validation: malformed chips are EXCLUDED from every wire
+    // payload — the backend's compose/updateDraft schemas are
+    // `z.string().email()`, so shipping one is a guaranteed 400 that poisons
+    // the autosave while the red chip + the send-block already name the real
+    // problem. The chip itself stays in the UI until fixed or removed.
+    const toList = filterValidRecipients(
+      to
+        .split(/[,;\s]+/)
+        .filter(Boolean)
+        .map((email) => ({ email })),
+    );
     const ccList = cc
-      ? cc
-          .split(/[,;\s]+/)
-          .filter(Boolean)
-          .map((email) => ({ email }))
+      ? filterValidRecipients(
+          cc
+            .split(/[,;\s]+/)
+            .filter(Boolean)
+            .map((email) => ({ email })),
+        )
       : undefined;
     const bccList = bcc
-      ? bcc
-          .split(/[,;\s]+/)
-          .filter(Boolean)
-          .map((email) => ({ email }))
+      ? filterValidRecipients(
+          bcc
+            .split(/[,;\s]+/)
+            .filter(Boolean)
+            .map((email) => ({ email })),
+        )
       : undefined;
+    // Nothing the server can persist (the only typed address(es) are
+    // malformed, or there are none): skip the doomed 400 and report unsaved
+    // honestly instead of firing a request that cannot succeed.
+    if (toList.length === 0) return false;
 
     try {
       if (onSaveDraft) {
@@ -1411,6 +1439,12 @@ export function EmailComposer({
         leaveComposer();
         return;
       }
+      // Compose validation: when the save failed because a recipient chip is
+      // malformed (the only address(es) typed are invalid, so the payload was
+      // excluded from the wire), name the actual blocker instead of the
+      // generic "couldn't save" — the user can fix the chip, remove it, or
+      // leave without saving.
+      const invalidReason = getInvalidRecipientReason(allRecipients);
       const leave = await confirm(
         missing
           ? {
@@ -1420,14 +1454,22 @@ export function EmailComposer({
               cancelLabel: 'Keep editing',
               variant: 'destructive',
             }
-          : {
-              title: "Couldn't save draft",
-              message:
-                'Your latest changes were not saved. Leave without saving, or keep editing and try again?',
-              confirmLabel: 'Leave without saving',
-              cancelLabel: 'Keep editing',
-              variant: 'destructive',
-            },
+          : invalidReason
+            ? {
+                title: 'Fix the recipient address?',
+                message: `${invalidReason}. Drafts can't be saved until every recipient address is valid. Leave without saving, or keep editing?`,
+                confirmLabel: 'Leave without saving',
+                cancelLabel: 'Keep editing',
+                variant: 'destructive',
+              }
+            : {
+                title: "Couldn't save draft",
+                message:
+                  'Your latest changes were not saved. Leave without saving, or keep editing and try again?',
+                confirmLabel: 'Leave without saving',
+                cancelLabel: 'Keep editing',
+                variant: 'destructive',
+              },
       );
       if (leave) leaveComposer();
     } finally {
