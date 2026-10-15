@@ -1327,6 +1327,9 @@ FOLLOW-UP P1 VERDICT: handleMergePR FIXED/INTACT (interpretMergeResult, merged o
 R2 NEW-FINDINGS COUNT: 1 P0 + 8 P1 + 7 P2. FIX AGENTS (PR-only, tracked separately, reconcile when they return): lane1-fix-013r2-review-theater (P0 fabricated review + 2 P1 fabricated comments + 2 P1 toast-only review/inline-comment submits + P1 Fork toast-only); lane1-fix-013r2-ux-theater (P1 SECURITY.md + P1 Watch sidebar + P1 MCP + P1 invented Copilot models + 6 P2 toast/theater/template/branchRules). Rotation -> QM-SCREEN-014 R2.
 
 ## QM-SCREEN-014 — Quanty workspace / inline / voice / cross-app task graph
+### R12 claim
+[~] CLAIM — LANE-1, branch lane1-audit-014r12. R12 REGRESSION STARTED (2026-10-16 ~04:35 IST). Base: R11 @ 0a0b34378d -> origin/main 90bd9b4bc (fresh fetch). Auditing Quanty workspace / inline / voice / cross-app task graph: prior fixes + window quanty-path commits + fresh hunt + live logged-out.
+
 ### R11 DONE
 [x] DONE — LANE-1, branch lane1-audit-014r11. R11 REGRESSION AUDIT COMPLETE (2026-10-15 ~18:35–18:55 IST). Base: R10 @ f59e358d29 -> origin/main 0a0b34378d4a9a54e17c80361d69283b2d43f139 (fresh fetch, 77 commits). Code read from origin/main tree only (qe-main working tree stale — never read it).
 - WINDOW CLEAN: ZERO quanty-surface commits (path-filters on src/components/QuantyLiveAgent, src/components/Quanty*.tsx, src/app/api/quanty, backend routes/quanty-agent.ts + routes/quanty-mcp.ts + services/quanty-agent, drive/QuantyFileWorkspace.tsx = EMPTY; name-only file grep quanty/voice/copilot/live-agent = only 2581fe134 drive-scope title-mention (already reviewed in 010/011 R11) + QuantyCopilotView.tsx at app/quantgit/components (already reviewed in 013 R11); title grep on ai/voice/copilot/agent = empty) — pure re-verification pass.
