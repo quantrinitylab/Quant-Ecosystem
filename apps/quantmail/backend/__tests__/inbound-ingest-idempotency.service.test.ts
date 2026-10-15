@@ -81,7 +81,7 @@ function createMockPrisma() {
   const rows: Row[] = [];
   const mock = {
     rows,
-    user: { findUnique: vi.fn(async () => null) },
+    user: { findFirst: vi.fn(async () => null) },
     emailFolder: {
       findFirst: vi.fn(async (args: { where: { userId: string; type: string } }) => ({
         id: args.where.type === 'SPAM' ? 'folder-spam' : 'folder-inbox',

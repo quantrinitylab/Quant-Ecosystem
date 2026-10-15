@@ -158,7 +158,12 @@ interface FolderLookupPrisma {
     findFirst(args: { where: { userId: string; type: string } }): Promise<{ id: string } | null>;
   };
   user: {
-    findUnique(args: { where: { email: string } }): Promise<{ id: string } | null>;
+    // Case-insensitive: legacy user rows predate email normalization and may
+    // carry mixed case (e.g. `LegacyCase@Example.com`), which a lowercased
+    // address never matches with an exact-match findUnique.
+    findFirst(args: {
+      where: { email: { equals: string; mode: 'insensitive' } };
+    }): Promise<{ id: string } | null>;
   };
 }
 
@@ -515,7 +520,14 @@ export class InboundIngestAdapter {
     const db = this.prisma as unknown as FolderLookupPrisma;
     for (const raw of recipients) {
       const address = stripPlusTag((extractAddress(raw) ?? raw).toLowerCase());
-      const user = await db.user.findUnique({ where: { email: address } });
+      // Case-insensitive match, mirroring routes/auth.ts findUserByEmailInsensitive:
+      // legacy user rows predate email normalization and may carry mixed case
+      // (e.g. `LegacyCase@Example.com`), which the lowercased address would
+      // never hit with an exact-match findUnique — dropping their inbound mail
+      // with INBOUND_NO_RECIPIENT.
+      const user = await db.user.findFirst({
+        where: { email: { equals: address, mode: 'insensitive' } },
+      });
       if (user) {
         return user.id;
       }

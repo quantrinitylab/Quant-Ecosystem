@@ -86,7 +86,7 @@ describe('SpamClassifierService (Task QM-03)', () => {
         }),
       },
       user: {
-        findUnique: vi.fn().mockResolvedValue({ id: 'user-1' }),
+        findFirst: vi.fn().mockResolvedValue({ id: 'user-1' }),
       },
       email: {
         findFirst: vi.fn().mockResolvedValue(null),

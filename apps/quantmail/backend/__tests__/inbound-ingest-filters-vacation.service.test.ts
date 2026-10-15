@@ -65,8 +65,10 @@ function createMockPrisma(opts: {
 }) {
   const mock = {
     user: {
-      findUnique: vi.fn(async (a: { where: { email: string } }) =>
-        a.where.email === RECIPIENT ? { id: RECIPIENT_USER_ID } : null,
+      // Emulates Postgres `mode: 'insensitive'`: matches regardless of the
+      // stored row's case, like the service's recipient lookup.
+      findFirst: vi.fn(async (a: { where: { email: { equals: string } } }) =>
+        a.where.email.equals.toLowerCase() === RECIPIENT ? { id: RECIPIENT_USER_ID } : null,
       ),
     },
     emailFolder: {
