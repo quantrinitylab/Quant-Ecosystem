@@ -8,6 +8,7 @@ import Fastify from 'fastify';
 import { errorHandlerPlugin } from '@quant/server-core';
 import reposRoutes, { resetRepoStores, seedSecurityAlertsForTests, seedCodeqlAlertsForTests, seedSecretAlertsForTests } from '../routes/repos';
 import type { BackendSecurityAlert, BackendCodeqlAlert, BackendSecretAlert } from '../routes/repos';
+import { GitProvisioningAdapter } from '../modules/code/adapters/repository.adapter';
 import { execFile } from 'node:child_process';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -2983,6 +2984,132 @@ describe('QuantGit Database-Backed Repos Routes', () => {
         }),
       );
       expect(prisma.branch.create).toHaveBeenCalled();
+    });
+
+    it('POST /repos/:id/forks provisions real git storage and clones the source history', async () => {
+      // Real end-to-end storage: a real bare source repo under GIT_REPOS_PATH
+      // with one real commit, and the REAL provisioning adapter (not the mock).
+      const root = await mkdtemp(join(tmpdir(), 'qm-fork-route-'));
+      const srcBare = join(root, 'user-1', 'Quant-Ecosystem.git');
+      const work = join(root, 'work');
+      await mkdir(join(root, 'user-1'), { recursive: true });
+      const git = (args: string[], cwd?: string) => execFileAsync('git', args, { cwd });
+      await git(['init', '--bare', '--initial-branch=main', srcBare]);
+      await git(['clone', srcBare, work]);
+      const w = (args: string[]) => git(args, work);
+      await w(['config', 'user.email', 'test@example.test']);
+      await w(['config', 'user.name', 'Test']);
+      await w(['checkout', '-b', 'main']);
+      await writeFile(join(work, 'file.txt'), 'fork me\n');
+      await w(['add', 'file.txt']);
+      await w(['commit', '-m', 'init']);
+      await w(['push', '-u', 'origin', 'main']);
+      const { stdout: revOut } = await git(['rev-parse', 'HEAD'], work);
+      const headSha = revOut.trim();
+
+      const prevGitPath = process.env.GIT_REPOS_PATH;
+      process.env.GIT_REPOS_PATH = root;
+      let app: Awaited<ReturnType<typeof buildApp>> | null = null;
+      try {
+        // RepoStorageService reads GIT_REPOS_PATH at construction time.
+        const realProvisioning = new GitProvisioningAdapter();
+        app = await buildApp('user-2');
+        // Swap in the real adapter after build (buildApp pre-decorates a mock).
+        (app as any).repositoryProvisioning = realProvisioning;
+        prisma.repository.create.mockResolvedValueOnce({
+          ...MOCK_REPO,
+          id: 'repo-fork-real',
+          ownerId: 'user-2',
+          name: 'fork-real',
+          description: 'x [forked from Quant-Ecosystem]',
+          forkCount: 0,
+          starCount: 0,
+          storagePathUrl: null,
+          branches: [],
+        });
+        // Source repo's branch rows carry the REAL commit SHA.
+        prisma.branch.findMany.mockResolvedValueOnce([
+          { name: 'main', commitSha: headSha, isProtected: false },
+        ]);
+
+        const res = await app.inject({
+          method: 'POST',
+          url: '/repos/repo-1/forks',
+          payload: { name: 'fork-real' },
+        });
+
+        expect(res.statusCode).toBe(201);
+        const body = res.json();
+        expect(body.success).toBe(true);
+        expect(body.data.id).toBe('repo-fork-real');
+        expect(body.data.storageReady).toBe(true);
+
+        // The fork's bare repo exists on disk and the branch SHA resolves to
+        // the real commit cloned from the source.
+        const forkBare = join(root, 'user-2', 'fork-real.git');
+        const { stdout: forkHead } = await execFileAsync(
+          'git',
+          ['rev-parse', '--verify', 'refs/heads/main^{commit}'],
+          { cwd: forkBare },
+        );
+        expect(forkHead.trim()).toBe(headSha);
+
+        // storagePathUrl was persisted honestly — pointing at the real fork
+        // bare repo, not a fabricated path.
+        const updateCalls = prisma.repository.update.mock.calls.filter(
+          (c: any) => c[0]?.where?.id === 'repo-fork-real',
+        );
+        expect(updateCalls.length).toBeGreaterThanOrEqual(1);
+        expect(updateCalls[updateCalls.length - 1][0].data.storagePathUrl).toContain(
+          'fork-real.git',
+        );
+      } finally {
+        if (app) await app.close();
+        if (prevGitPath === undefined) delete process.env.GIT_REPOS_PATH;
+        else process.env.GIT_REPOS_PATH = prevGitPath;
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+
+    it('POST /repos/:id/forks honestly reports storageReady:false when provisioning fails', async () => {
+      const failingProvisioning = {
+        provision: vi.fn().mockRejectedValue(new Error('disk full')),
+        archive: vi.fn().mockResolvedValue({ storagePath: null }),
+        destroy: vi.fn().mockResolvedValue(undefined),
+      };
+      const app = await buildApp('user-2');
+      // Swap in the failing adapter after build (buildApp pre-decorates a mock).
+      (app as any).repositoryProvisioning = failingProvisioning;
+      prisma.repository.create.mockResolvedValueOnce({
+        ...MOCK_REPO,
+        id: 'repo-fork-fail',
+        ownerId: 'user-2',
+        name: 'fork-fail',
+        description: 'x [forked from Quant-Ecosystem]',
+        forkCount: 0,
+        starCount: 0,
+        storagePathUrl: null,
+        branches: [{ name: 'main', commitSha: '1111111111111111111111111111111111111111' }],
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/forks',
+        payload: { name: 'fork-fail' },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.id).toBe('repo-fork-fail');
+      // Honest: the fork exists but its git storage is not ready — no
+      // fabricated path, no silent success.
+      expect(body.data.storageReady).toBe(false);
+      const updateCalls = prisma.repository.update.mock.calls.filter(
+        (c: any) => c[0]?.where?.id === 'repo-fork-fail',
+      );
+      expect(updateCalls.length).toBeGreaterThanOrEqual(1);
+      expect(updateCalls[updateCalls.length - 1][0].data.storagePathUrl).toBeNull();
     });
 
     it('GET /repos/:id/forks lists forks of the repository', async () => {

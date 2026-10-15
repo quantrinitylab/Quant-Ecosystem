@@ -3684,6 +3684,65 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       data: { forkCount: { increment: 1 } },
     });
 
+    // Provision real git storage for the fork, mirroring the create-repo
+    // route: a fork whose branch rows point at git objects that exist nowhere
+    // is a repo-shaped shell — the honest merge gate then 501s every
+    // merge/file operation on it. So create the bare repo AND clone the
+    // source's refs/objects into it; if that cannot happen, the fork still
+    // completes (DB fork is real) but the response honestly reports
+    // storageReady: false instead of implying storage exists.
+    let forkStoragePath: string | null = null;
+    if (fastify.repositoryProvisioning) {
+      try {
+        const provisioned = await fastify.repositoryProvisioning.provision({
+          owner: userId,
+          name: targetName,
+        });
+        forkStoragePath = provisioned.storagePath;
+
+        // Clone the source repo's git history into the fork so the replicated
+        // branch SHAs resolve against real objects. Refs only — tags and
+        // other namespaces stay with the source.
+        const sourceStoragePath = await resolveRepoPath(repo);
+        if (sourceStoragePath && forkStoragePath) {
+          try {
+            await execFileAsync(
+              'git',
+              ['fetch', sourceStoragePath, '+refs/heads/*:refs/heads/*'],
+              { cwd: forkStoragePath, env: GIT_CHILD_ENV },
+            );
+          } catch (cloneErr) {
+            request.log.warn(
+              { err: cloneErr, repoId: forkedRepo.id },
+              'fork git history clone notice',
+            );
+          }
+        }
+      } catch (storageErr) {
+        request.log.warn(
+          { err: storageErr, repoId: forkedRepo.id },
+          'fork storage provisioning notice',
+        );
+      }
+    }
+
+    // Persist the storage path on the fork row (bookkeeping only — a failure
+    // here must not turn a real fork into a reported failure).
+    let forkStoragePathUrl: string | null = null;
+    try {
+      const updated = (await prisma.repository.update({
+        where: { id: forkedRepo.id },
+        data: { storagePathUrl: forkStoragePath },
+        include: { branches: true },
+      })) as RepoRow;
+      forkStoragePathUrl = updated.storagePathUrl ?? forkStoragePath;
+    } catch (updateErr) {
+      request.log.warn(
+        { err: updateErr, repoId: forkedRepo.id },
+        'fork storage path update notice',
+      );
+    }
+
     const forks = memoryForksStore.get(repo.id) ?? [];
     forks.push(forkedRepo.id);
     memoryForksStore.set(repo.id, forks);
@@ -3693,7 +3752,22 @@ export default async function reposRoutes(fastify: FastifyInstance) {
 
     return reply.status(201).send({
       success: true,
-      data: toDto({ ...forkedRepo, branches, isFork: true, parentRepoId: repo.id }, appUrl),
+      data: {
+        ...toDto(
+          {
+            ...forkedRepo,
+            storagePathUrl: forkStoragePathUrl,
+            branches,
+            isFork: true,
+            parentRepoId: repo.id,
+          },
+          appUrl,
+        ),
+        // Honest storage signal: true only when a real bare repo was
+        // provisioned on disk. Callers must not assume cloneUrl/merge/file
+        // operations work when this is false (merge/file ops 501 honestly).
+        storageReady: Boolean(forkStoragePath),
+      },
     });
   });
 
