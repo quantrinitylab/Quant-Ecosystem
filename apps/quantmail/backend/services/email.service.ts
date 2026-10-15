@@ -1326,14 +1326,31 @@ export class EmailService {
       id: string,
       expectedVersion: number | undefined,
     ) => Promise<unknown>,
+    /**
+     * fix/qm-idempotency-mail-routes: when the batch route runs inside
+     * `handleIdempotentTransaction()`, the claim + mutations + outcome must
+     * commit in ONE database transaction. Passing the helper's tx here runs
+     * the guarded writes directly on it — a nested `$transaction` on a
+     * transaction client is illegal, so it is never attempted. Callers
+     * outside the helper omit it and keep the previous self-contained
+     * transaction (e.g. the Quanty agent mail tools).
+     */
+    tx?: PrismaClient,
   ): Promise<{ count: number }> {
     const ids = Array.from(new Set(emailIds.filter(Boolean)));
     const versions = opts.expectedVersions ?? {};
-    await this.prisma.$transaction(async (tx) => {
+    const run = async (dbTx: unknown) => {
       for (const id of ids) {
-        await mutate(tx as unknown as VersionedTx, id, versions[id]);
+        await mutate(dbTx as unknown as VersionedTx, id, versions[id]);
       }
-    });
+    };
+    if (tx) {
+      await run(tx);
+    } else {
+      await this.prisma.$transaction(async (inner) => {
+        await run(inner);
+      });
+    }
     return { count: ids.length };
   }
 
@@ -1342,23 +1359,29 @@ export class EmailService {
     userId: string,
     isRead = true,
     opts?: MutationOptions,
+    /** fix/qm-idempotency-mail-routes: the idempotent batch route's transaction. */
+    tx?: PrismaClient,
   ): Promise<{ count: number }> {
     if (emailIds.length === 0) return { count: 0 };
     // QM-BACK-002: per-id guards when the caller supplies expectedVersions;
     // the fast path still bumps versions so the column stays truthful.
     if (opts?.expectedVersions) {
-      return this.guardedBatch(emailIds, opts, (tx, id, expectedVersion) =>
-        versionedUpdate<Email>(tx, {
-          id,
-          resource: 'Email',
-          notFoundCode: 'EMAIL_NOT_FOUND',
-          notFoundMessage: 'Email not found',
-          expectedVersion,
-          data: { isRead },
-        }),
+      return this.guardedBatch(
+        emailIds,
+        opts,
+        (gbTx, id, expectedVersion) =>
+          versionedUpdate<Email>(gbTx, {
+            id,
+            resource: 'Email',
+            notFoundCode: 'EMAIL_NOT_FOUND',
+            notFoundMessage: 'Email not found',
+            expectedVersion,
+            data: { isRead },
+          }),
+        tx,
       );
     }
-    const result = await this.prisma.email.updateMany({
+    const result = await (tx ?? this.prisma).email.updateMany({
       where: {
         id: { in: emailIds },
         userId,
@@ -1374,22 +1397,28 @@ export class EmailService {
     archiveFolderId: string,
     userId: string,
     opts?: MutationOptions,
+    /** fix/qm-idempotency-mail-routes: the idempotent batch route's transaction. */
+    tx?: PrismaClient,
   ): Promise<{ count: number }> {
     if (emailIds.length === 0) return { count: 0 };
     // QM-BACK-002: per-id guards when the caller supplies expectedVersions.
     if (opts?.expectedVersions) {
-      return this.guardedBatch(emailIds, opts, (tx, id, expectedVersion) =>
-        versionedUpdate<Email>(tx, {
-          id,
-          resource: 'Email',
-          notFoundCode: 'EMAIL_NOT_FOUND',
-          notFoundMessage: 'Email not found',
-          expectedVersion,
-          data: { folderId: archiveFolderId },
-        }),
+      return this.guardedBatch(
+        emailIds,
+        opts,
+        (gbTx, id, expectedVersion) =>
+          versionedUpdate<Email>(gbTx, {
+            id,
+            resource: 'Email',
+            notFoundCode: 'EMAIL_NOT_FOUND',
+            notFoundMessage: 'Email not found',
+            expectedVersion,
+            data: { folderId: archiveFolderId },
+          }),
+        tx,
       );
     }
-    const result = await this.prisma.email.updateMany({
+    const result = await (tx ?? this.prisma).email.updateMany({
       where: {
         id: { in: emailIds },
         userId,
@@ -1405,29 +1434,35 @@ export class EmailService {
     userId: string,
     hard = false,
     opts?: MutationOptions,
+    /** fix/qm-idempotency-mail-routes: the idempotent batch route's transaction. */
+    tx?: PrismaClient,
   ): Promise<{ count: number }> {
     if (emailIds.length === 0) return { count: 0 };
     // QM-BACK-002: per-id guards when the caller supplies expectedVersions.
     if (opts?.expectedVersions) {
-      return this.guardedBatch(emailIds, opts, (tx, id, expectedVersion) =>
-        versionedUpdate<Email>(tx, {
-          id,
-          resource: 'Email',
-          notFoundCode: 'EMAIL_NOT_FOUND',
-          notFoundMessage: 'Email not found',
-          expectedVersion,
-          data: hard ? { deletedAt: new Date() } : { isTrash: true },
-        }),
+      return this.guardedBatch(
+        emailIds,
+        opts,
+        (gbTx, id, expectedVersion) =>
+          versionedUpdate<Email>(gbTx, {
+            id,
+            resource: 'Email',
+            notFoundCode: 'EMAIL_NOT_FOUND',
+            notFoundMessage: 'Email not found',
+            expectedVersion,
+            data: hard ? { deletedAt: new Date() } : { isTrash: true },
+          }),
+        tx,
       );
     }
     if (hard) {
-      const result = await this.prisma.email.updateMany({
+      const result = await (tx ?? this.prisma).email.updateMany({
         where: { id: { in: emailIds }, userId },
         data: { deletedAt: new Date(), updatedAt: new Date(), version: { increment: 1 } },
       });
       return { count: result.count };
     }
-    const result = await this.prisma.email.updateMany({
+    const result = await (tx ?? this.prisma).email.updateMany({
       where: { id: { in: emailIds }, userId, deletedAt: null },
       data: { isTrash: true, updatedAt: new Date(), version: { increment: 1 } },
     });
@@ -1439,22 +1474,28 @@ export class EmailService {
     userId: string,
     isStarred = true,
     opts?: MutationOptions,
+    /** fix/qm-idempotency-mail-routes: the idempotent batch route's transaction. */
+    tx?: PrismaClient,
   ): Promise<{ count: number }> {
     if (emailIds.length === 0) return { count: 0 };
     // QM-BACK-002: per-id guards when the caller supplies expectedVersions.
     if (opts?.expectedVersions) {
-      return this.guardedBatch(emailIds, opts, (tx, id, expectedVersion) =>
-        versionedUpdate<Email>(tx, {
-          id,
-          resource: 'Email',
-          notFoundCode: 'EMAIL_NOT_FOUND',
-          notFoundMessage: 'Email not found',
-          expectedVersion,
-          data: { isStarred },
-        }),
+      return this.guardedBatch(
+        emailIds,
+        opts,
+        (gbTx, id, expectedVersion) =>
+          versionedUpdate<Email>(gbTx, {
+            id,
+            resource: 'Email',
+            notFoundCode: 'EMAIL_NOT_FOUND',
+            notFoundMessage: 'Email not found',
+            expectedVersion,
+            data: { isStarred },
+          }),
+        tx,
       );
     }
-    const result = await this.prisma.email.updateMany({
+    const result = await (tx ?? this.prisma).email.updateMany({
       where: { id: { in: emailIds }, userId, deletedAt: null },
       data: { isStarred, updatedAt: new Date(), version: { increment: 1 } },
     });

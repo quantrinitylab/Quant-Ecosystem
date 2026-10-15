@@ -2044,7 +2044,14 @@ export default async function emailsRoutes(
   });
 
   // POST /emails/batch - single batch transaction for bulk email actions (Task QM-04)
-  fastify.post('/batch', async (request, reply) => {
+  // fix/qm-idempotency-mail-routes: WR-MAIL-104 catalog command — key required,
+  // and the mutation runs through handleIdempotentTransaction(): the
+  // idempotency claim, the bulk writes and the stored outcome commit in ONE
+  // database transaction. A retry with the same key replays the stored
+  // outcome instead of re-executing the batch (the generic preHandler path
+  // never claims for this route). This closes the crash-between-batch-commit-
+  // and-outcome-write window for bulk archive / hard-delete.
+  fastify.post('/batch', { config: { idempotencyRequired: true, idempotencyTransactional: true } }, async (request, reply) => {
     const parseResult = batchActionSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw parseResult.error;
@@ -2056,7 +2063,6 @@ export default async function emailsRoutes(
     }
 
     const prisma = getPrisma(fastify);
-    const service = new EmailService(prisma);
     const { action, emailIds, folderId, hard } = parseResult.data;
 
     // QM-BACK-002: batch mutations are guarded per-id when the client
@@ -2066,35 +2072,52 @@ export default async function emailsRoutes(
       expectedVersions: parseExpectedVersions(request.body),
       requestId: batchOpts.requestId,
     };
-    let result: { count: number };
-    switch (action) {
-      case 'markRead':
-        result = await service.batchMarkRead(emailIds, userId, true, guarded);
-        break;
-      case 'markUnread':
-        result = await service.batchMarkRead(emailIds, userId, false, guarded);
-        break;
-      case 'archive': {
-        let targetFolderId = folderId;
-        if (!targetFolderId) {
-          const archiveFolder = await getOrCreateFolder(prisma, userId, 'Archive', 'ARCHIVE');
-          targetFolderId = archiveFolder.id;
-        }
-        result = await service.batchArchive(emailIds, targetFolderId!, userId, guarded);
-        break;
-      }
-      case 'delete':
-        result = await service.batchDelete(emailIds, userId, hard ?? false, guarded);
-        break;
-      case 'star':
-        result = await service.batchStar(emailIds, userId, true, guarded);
-        break;
-      case 'unstar':
-        result = await service.batchStar(emailIds, userId, false, guarded);
-        break;
-    }
 
-    return reply.send({ success: true, data: result });
+    await handleIdempotentTransaction(
+      request,
+      reply,
+      prisma as unknown as IdempotencyDatabase,
+      {
+        work: async (tx) => {
+          // Every write below goes through the helper's transaction client:
+          // the batch service takes it as an explicit tx (never nests its
+          // own $transaction on it), and getOrCreateFolder runs on it too.
+          const txPrisma = tx as unknown as PrismaClient;
+          const service = new EmailService(txPrisma);
+          let result: { count: number };
+          switch (action) {
+            case 'markRead':
+              result = await service.batchMarkRead(emailIds, userId, true, guarded, txPrisma);
+              break;
+            case 'markUnread':
+              result = await service.batchMarkRead(emailIds, userId, false, guarded, txPrisma);
+              break;
+            case 'archive': {
+              let targetFolderId = folderId;
+              if (!targetFolderId) {
+                const archiveFolder = await getOrCreateFolder(txPrisma, userId, 'Archive', 'ARCHIVE');
+                targetFolderId = archiveFolder.id;
+              }
+              result = await service.batchArchive(emailIds, targetFolderId!, userId, guarded, txPrisma);
+              break;
+            }
+            case 'delete':
+              result = await service.batchDelete(emailIds, userId, hard ?? false, guarded, txPrisma);
+              break;
+            case 'star':
+              result = await service.batchStar(emailIds, userId, true, guarded, txPrisma);
+              break;
+            case 'unstar':
+              result = await service.batchStar(emailIds, userId, false, guarded, txPrisma);
+              break;
+          }
+          return {
+            statusCode: 200,
+            payload: { success: true, data: result },
+          };
+        },
+      },
+    );
   });
 
   const importMboxSchema = z.object({
