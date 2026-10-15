@@ -273,11 +273,15 @@ export default function ComposePage() {
       // it is on screen, so it must not claim "Message sent". Say what is
       // true: it is sending, and there are 10s to undo.
       //
-      // The recall window closing is the moment the send becomes real. When
-      // it does, confirm it honestly with "Email sent" — unless the user
-      // undid the send, in which case the undo toast has already said what
-      // happened. Without this second toast the app navigates home and the
-      // user never gets a confirmation that the message actually went out.
+      // The recall window closing is NOT delivery confirmation — it is only
+      // the moment the send becomes un-undoable and the worker STARTS
+      // transmitting (the server enqueues a BullMQ job with the same 10s
+      // delay and answers 202 "Email queued for delivery"; SES can still
+      // fail afterwards). So the second toast must never claim "Email
+      // sent" either — that would be a timer guess with zero knowledge of
+      // the delivery outcome. Say what is true instead: the send is
+      // confirmed and delivery is underway — unless the user undid the
+      // send, in which case the undo toast has already said what happened.
       let sendUndone = false;
       showToast({
         text: 'Sending… (10s to undo)',
@@ -304,7 +308,10 @@ export default function ComposePage() {
       });
       window.setTimeout(() => {
         if (!sendUndone) {
-          showToast({ text: 'Email sent', type: 'success' });
+          // Honest copy: at t=10s the undo window closes and transmission
+          // starts — delivery itself is still unconfirmed (see above), so
+          // never claim "Email sent" on this timer.
+          showToast({ text: 'Send confirmed — delivering', type: 'success' });
         }
       }, 10000);
       router.push('/');
