@@ -16,6 +16,7 @@ import {
 } from '../services/outbound-delivery.service';
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
 import { formatEmailRecord } from '../lib/format-email';
+import { assertComposeAttachmentSizes } from '../lib/outbound-attachments';
 import { buildSnippet } from '../lib/snippet';
 import { threadRealtimeHub } from '../services/thread-realtime';
 import { MboxParserService } from '../services/mbox-parser.service';
@@ -384,6 +385,14 @@ export default async function emailsRoutes(
       );
     }
 
+    // Honest size error past the advertised 20 MB/file + 25 MB total attachment
+    // limits (P1 compose-attachment 413 follow-up): the composers enforce these
+    // client-side, but a caller that bypasses the caps must fail loudly here
+    // with a named limit — not opaquely at the 40 MB parser wall, and never
+    // later at the SES 40 MB raw-message cap. Runs before auth like the schema
+    // parse: size is a property of the request, not the caller.
+    assertComposeAttachmentSizes(parseResult.data.attachments);
+
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
@@ -518,6 +527,10 @@ export default async function emailsRoutes(
     async (request, reply) => {
     const parsed = composeSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
+    // Same honest attachment-size backstop as the compose paths (P1
+    // compose-attachment 413 follow-up): the 10s autosave PUTs the full
+    // attachment set, so it enforces the advertised limits too.
+    assertComposeAttachmentSizes(parsed.data.attachments);
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
 
