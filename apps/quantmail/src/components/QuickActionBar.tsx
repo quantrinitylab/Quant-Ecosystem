@@ -9,7 +9,8 @@ interface QuickActionBarProps {
   onReply: () => void;
   onForward: () => void;
   onArchive: () => void;
-  onCreateTask: () => void;
+  /** Optional: when absent the "Create task" suggestion is not shown. */
+  onCreateTask?: () => void;
   onAddToCalendar: () => void;
 }
 
@@ -93,10 +94,11 @@ export function QuickActionBar({
     }
 
     if (
-      combined.includes('action') ||
-      combined.includes('task') ||
-      combined.includes('todo') ||
-      combined.includes('deadline')
+      onCreateTask &&
+      (combined.includes('action') ||
+        combined.includes('task') ||
+        combined.includes('todo') ||
+        combined.includes('deadline'))
     ) {
       suggestions.push({
         id: 'task',

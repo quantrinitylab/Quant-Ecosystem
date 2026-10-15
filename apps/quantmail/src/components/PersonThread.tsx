@@ -12,7 +12,7 @@
  * `../lib/peopleGrouping.ts` (PART 1) and is re-exported here for consumers.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Email } from '../types';
 import { isFromMe } from '../lib/threading';
 import { htmlToPlainText } from '../lib/htmlToPlainText';
@@ -20,6 +20,15 @@ import { IdentityAvatar } from './IdentityAvatar';
 import { EmailSafetyBanner } from './EmailSafetyBanner';
 import { AttachmentPreview } from './AttachmentPreview';
 import { attachmentServiceId } from '../lib/mail-attachments';
+import { showToast } from './InboxToast';
+import { useRegisterCommands } from '../lib/keyboard/hooks';
+import type { Command } from '../lib/keyboard/command-registry';
+import { THREAD_KEYBOARD_SCOPE } from '../hooks/useThreadViewKeyboard';
+import {
+  buildEventDraftFromThread,
+  type EmailDraftEntryType,
+  type EmailEventDraft,
+} from '../lib/emailToEvent';
 import type { ConversationWorld, PersonConversation } from '../lib/peopleGrouping';
 
 // Re-exported so thread consumers can get the contract types from one place.
@@ -30,6 +39,14 @@ export interface PersonThreadProps {
   currentUserEmail: string;
   /** Reply surface rendered below the messages. Never rendered in the Updates world. */
   renderComposer?: React.ReactNode;
+  /**
+   * fix/qm-calendar-nlp-quickadd — one-key event-from-email. The parent
+   * receives the draft built from this conversation's messages (attendees
+   * from the real participants, time parsed or honestly marked suggested)
+   * and decides where it goes — the people page deep-links to
+   * /calendar?emailDraft=. Absent → no event button and no `b` binding.
+   */
+  onEventDraft?: (draft: EmailEventDraft) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -216,7 +233,40 @@ function MessageRow({
 // Thread header
 // ---------------------------------------------------------------------------
 
-function ThreadHeader({ conversation }: { conversation: PersonConversation }) {
+function ThreadHeader({
+  conversation,
+  onCreateEvent,
+}: {
+  conversation: PersonConversation;
+  /** fix/qm-calendar-nlp-quickadd: one-key event-from-email entry point. */
+  onCreateEvent?: () => void;
+}) {
+  const headerAction = onCreateEvent ? (
+    <button
+      type="button"
+      onClick={onCreateEvent}
+      title="Create event from email (B)"
+      aria-label="Create calendar event from this conversation"
+      className="ml-auto flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-2 text-zinc-500 transition-all hover:bg-zinc-800 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] sm:min-h-0 sm:min-w-0"
+    >
+      <svg
+        className="size-[18px]"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <rect width="18" height="18" x="3" y="4" rx="2" />
+        <line x1="16" x2="16" y1="2" y2="6" />
+        <line x1="8" x2="8" y1="2" y2="6" />
+        <line x1="3" x2="21" y1="10" y2="10" />
+      </svg>
+    </button>
+  ) : null;
+
   if (conversation.world === 'groups') {
     const participants = conversation.participantEmails ?? [];
     const shown = participants.slice(0, 4);
@@ -237,6 +287,7 @@ function ThreadHeader({ conversation }: { conversation: PersonConversation }) {
             {extra > 0 ? ` · +${extra} more` : ''}
           </div>
         </div>
+        {headerAction}
       </div>
     );
   }
@@ -250,6 +301,7 @@ function ThreadHeader({ conversation }: { conversation: PersonConversation }) {
         </div>
         <div className="truncate text-xs text-zinc-500">{conversation.email}</div>
       </div>
+      {headerAction}
     </div>
   );
 }
@@ -268,6 +320,7 @@ export function PersonThread({
   conversation,
   currentUserEmail,
   renderComposer,
+  onEventDraft,
 }: PersonThreadProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showNewMessagesPill, setShowNewMessagesPill] = useState(false);
@@ -276,6 +329,45 @@ export function PersonThread({
 
   const messages = [...(conversation.messages ?? [])].sort(
     (a, b) => new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime(),
+  );
+
+  /*
+   * fix/qm-calendar-nlp-quickadd — one-key event-from-email. Same draft
+   * builder as the thread view: attendees from the real participants, time
+   * parsed from the email or honestly marked suggested. Navigation stays
+   * with the parent (no useRouter here — this component renders in tests
+   * without the app router mounted).
+   */
+  const handleCreateEventFromEmail = useCallback(
+    (entryType: EmailDraftEntryType) => {
+      const draft = buildEventDraftFromThread(messages, currentUserEmail, new Date(), entryType);
+      if (!draft) {
+        showToast({ text: 'No messages to build an event from', type: 'error' });
+        return;
+      }
+      onEventDraft?.(draft);
+    },
+    [messages, currentUserEmail, onEventDraft],
+  );
+
+  useRegisterCommands(
+    useMemo(
+      () =>
+        onEventDraft
+          ? [
+              {
+                id: 'thread.createEvent',
+                label: 'Create event from email',
+                group: 'Conversation',
+                keys: 'b',
+                scope: THREAD_KEYBOARD_SCOPE,
+                description: 'Build a calendar event from this conversation — attendees pulled from the thread',
+                run: () => handleCreateEventFromEmail('event'),
+              } satisfies Command,
+            ]
+          : [],
+      [handleCreateEventFromEmail, onEventDraft],
+    ),
   );
 
   // P1-F: only the tail renders; "Load earlier messages" reveals the rest.
@@ -331,7 +423,10 @@ export function PersonThread({
 
   return (
     <div className="flex h-full w-full flex-col bg-black text-zinc-100">
-      <ThreadHeader conversation={conversation} />
+      <ThreadHeader
+        conversation={conversation}
+        onCreateEvent={onEventDraft ? () => handleCreateEventFromEmail('event') : undefined}
+      />
 
       <div className="relative min-h-0 flex-1">
         <div

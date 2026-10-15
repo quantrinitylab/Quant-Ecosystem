@@ -36,6 +36,8 @@ const SCOPE = 'calendar';
 export interface UseCalendarKeyboardOptions {
   /** Open the create-event sheet. */
   onCreateEvent: () => void;
+  /** Open the NLP quick-add input (the `q` key). */
+  onQuickAdd: () => void;
   /** Jump the selected date back to today. */
   onGoToday: () => void;
   /** Move the selected date by `delta` days. */
@@ -86,6 +88,7 @@ export function useCalendarKeyboard(options: UseCalendarKeyboardOptions): void {
 
   const commands: Command[] = [
     live('calendar.createEvent', actions.onCreateEvent),
+    live('calendar.quickAddEvent', actions.onQuickAdd),
     live('calendar.goToday', actions.onGoToday),
     live('calendar.nextDay', () => actions.onStepDay(1)),
     live('calendar.previousDay', () => actions.onStepDay(-1)),

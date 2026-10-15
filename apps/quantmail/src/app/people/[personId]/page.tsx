@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '../../../components/AppShell';
@@ -11,6 +11,7 @@ import { useAuth } from '../../../providers/auth-provider';
 import { groupEmailsByPerson, type PersonConversation } from '../../../lib/peopleGrouping';
 import { inboxSelectTarget } from '../../../lib/inbox-nav';
 import { PersonThread } from '../../../components/PersonThread';
+import { encodeEmailDraft, type EmailEventDraft } from '../../../lib/emailToEvent';
 import { ThreadComposer } from '../../../components/ThreadComposer';
 import { SmartReplySuggestions } from '../../../components/SmartReplySuggestions';
 import type { Email } from '../../../types';
@@ -52,7 +53,15 @@ export default function PersonPage() {
   const isSpamLens = searchParams?.get('lens') === 'spam';
   const backHref = isSpamLens ? '/?lens=spam' : '/people';
 
-  const { data: emails, isLoading, isError, refetch } = useInbox(
+  const {
+    data: emails,
+    isLoading,
+    isError,
+    refetch,
+    loadMore,
+    hasMore,
+    isLoadingMore,
+  } = useInbox(
     // The spam lens lists people built from the SPAM folder query; a
     // spam-only person is absent from the default INBOX dataset, so honor
     // ?lens=spam here or their detail page lands on "Conversation not found".
@@ -112,6 +121,80 @@ export default function PersonPage() {
       (candidate) => candidate.personKey === personKey,
     );
   }, [emails, currentUserEmail, personKey]);
+
+  /**
+   * QM fix qm-person-thread-page-load: the detail page used to see only the
+   * newest-50 first-page window, so a person whose mail is all older than
+   * that rendered "Conversation not found" even though they exist — and now
+   * that PeopleHome pages, tapping an older person's row lands here with the
+   * person beyond the loaded window. Hunt the corpus while they are absent:
+   * one keyset slice at a time, only while the pager says more pages remain
+   * (loadMore no-ops once the cursor is null, so the hunt always ends), and
+   * never concurrently — the hook's own guard serializes it. When the hunt
+   * exhausts the corpus, "not found" below is honest because they genuinely
+   * are not there.
+   *
+   * Anti-loop guard: loadMore swallows page failures internally (toast +
+   * cursor untouched), so a persistently failing page would otherwise keep
+   * the hunt firing forever — a toast-spam + request loop. If a loadMore
+   * cycle completes without the loaded corpus growing at all, the tail is
+   * stuck: stop the hunt and say so honestly instead of looping.
+   */
+  const [olderSearchStuck, setOlderSearchStuck] = useState(false);
+  const huntLoadedLenRef = useRef<number | null>(null);
+  const huntWasLoadingMoreRef = useRef(false);
+
+  // A different person is a fresh hunt: clear the stuck flag and the
+  // progress watermark before the hunt effect below runs (declaration order
+  // is load-bearing: this effect must run first on a personKey change).
+  useEffect(() => {
+    huntLoadedLenRef.current = null;
+    setOlderSearchStuck(false);
+  }, [personKey]);
+
+  useEffect(() => {
+    const huntCycleCompleted = huntWasLoadingMoreRef.current;
+    huntWasLoadingMoreRef.current = isLoadingMore;
+    if (isLoading || isError || isLoadingMore || !personKey) return;
+    if (conversation) return;
+    if (!hasMore || olderSearchStuck) return;
+    const loadedLen = emails?.length ?? 0;
+    if (huntCycleCompleted) {
+      // A hunt-issued loadMore cycle just finished. loadMore swallows page
+      // failures internally (toast + cursor untouched), so compare progress
+      // only here — comparing on any other re-render would false-positive on
+      // same-length realtime patches. If the corpus did not grow, the pager
+      // is stuck: stop the hunt and say so honestly instead of loop-spinning
+      // a toast + request cycle forever.
+      if (huntLoadedLenRef.current !== null && huntLoadedLenRef.current === loadedLen) {
+        setOlderSearchStuck(true);
+        return;
+      }
+    }
+    huntLoadedLenRef.current = loadedLen;
+    void loadMore();
+  }, [
+    isLoading,
+    isError,
+    isLoadingMore,
+    personKey,
+    conversation,
+    hasMore,
+    olderSearchStuck,
+    emails,
+    loadMore,
+  ]);
+
+  // While the hunt is running (or about to start) the person is merely "not
+  // in the loaded window yet" — never say "not found" until the corpus is
+  // genuinely exhausted.
+  const isSearchingOlderMail =
+    !conversation &&
+    !isLoading &&
+    !isError &&
+    !olderSearchStuck &&
+    personKey !== '' &&
+    (hasMore || isLoadingMore);
 
   const conversationWithPending: PersonConversation | undefined = useMemo(() => {
     if (!conversation || pendingSends.length === 0) return conversation;
@@ -237,23 +320,47 @@ export default function PersonPage() {
             <div className="flex flex-1 items-center justify-center" role="status" aria-label="Loading conversation">
               <div className="size-8 animate-spin rounded-full border-2 border-[#2A2D35] border-t-[#F97316]" />
             </div>
-          ) : isError ? (
+          ) : isError || olderSearchStuck ? (
             /* P1-B: a failed fetch is not "not found" — say so honestly and
-               offer a retry, mirroring PeopleHome. */
+               offer a retry, mirroring PeopleHome. The stuck-hunt case (the
+               older-mail pager stopped making progress) shares this branch:
+               the conversation may genuinely exist further back, but the
+               pages would not load — retry re-runs the hunt from the top. */
             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
               <p className="text-sm font-semibold text-white">
-                Couldn&apos;t load this conversation
+                {olderSearchStuck
+                  ? "Couldn't load older messages"
+                  : "Couldn't load this conversation"}
               </p>
               <p className="text-xs text-[#9BA0AA]">
-                Check your connection and try again — nothing was lost.
+                {olderSearchStuck
+                  ? 'This conversation may be further back, but loading more mail keeps failing. Check your connection and try again — nothing was lost.'
+                  : 'Check your connection and try again — nothing was lost.'}
               </p>
               <button
                 type="button"
-                onClick={() => void refetch()}
+                onClick={() => {
+                  setOlderSearchStuck(false);
+                  void refetch();
+                }}
                 className="mt-1 inline-flex min-h-[44px] items-center rounded-xl bg-[#F97316] px-5 text-sm font-bold text-black transition-colors hover:bg-[#FB8A3D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]"
               >
                 Retry
               </button>
+            </div>
+          ) : isSearchingOlderMail ? (
+            /* QM fix qm-person-thread-page-load: the person is not in the
+               loaded window yet, but pages remain — the hunt effect above is
+               paging the corpus for them. An honest "looking further back",
+               never a premature "not found". */
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center" role="status" aria-label="Searching older messages">
+              <div className="size-8 animate-spin rounded-full border-2 border-[#2A2D35] border-t-[#F97316]" />
+              <p className="text-sm font-semibold text-white">
+                Looking through your older messages…
+              </p>
+              <p className="text-xs text-[#9BA0AA]">
+                This conversation isn&apos;t in the newest mail yet — checking further back.
+              </p>
             </div>
           ) : !conversation ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
@@ -322,6 +429,13 @@ export default function PersonPage() {
                   </>
                 )
               }
+              // fix/qm-calendar-nlp-quickadd: one-key event-from-email — the
+              // thread's draft deep-links to /calendar, which opens its event
+              // sheet prefilled (attendees from the thread, time parsed or
+              // honestly marked suggested).
+              onEventDraft={(draft: EmailEventDraft) => {
+                router.push(`/calendar?emailDraft=${encodeEmailDraft(draft)}`);
+              }}
             />
           )}
         </div>
