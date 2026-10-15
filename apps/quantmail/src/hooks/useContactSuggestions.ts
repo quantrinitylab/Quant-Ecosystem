@@ -53,6 +53,11 @@ export function useContactSuggestions(): {
           name: c.name || undefined,
           avatar: c.avatar || undefined,
           frequency: c.frequency ?? 0,
+          // The backend row carries these; the autocomplete filter matches on
+          // them, so dropping them here made company/phone/tags unsearchable.
+          company: c.company || undefined,
+          phone: c.phone || undefined,
+          tags: c.tags && c.tags.length > 0 ? c.tags : undefined,
         }));
 
         // Already highest-frequency first from the server; this only keeps equal

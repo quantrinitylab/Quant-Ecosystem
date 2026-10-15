@@ -315,20 +315,42 @@ export class ContactService {
     return this.requireOwnedContact(contactId, userId);
   }
 
+  /**
+   * Contact lookup for the composer autocomplete and the universal search
+   * "people" tab. Gmail matches names, addresses AND company names; this used
+   * to check name/email only, so a person stored with just a company ("Acme")
+   * was unfindable. Company and phone are substring-matched like name/email
+   * (same four-field set the contacts list route's `q` filter uses); tags
+   * match on exact element — Prisma has no case-insensitive substring
+   * operator for String[] columns, and exact is the same semantics the list
+   * route's `tag` filter already uses. Name/email hits rank above
+   * company/phone/tags hits; frequency keeps the order inside each tier.
+   */
   async searchContacts(userId: string, query: string): Promise<Contact[]> {
     const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
+    const q = query.trim();
 
-    return contactModel.findMany({
+    const results = await contactModel.findMany({
       where: {
         userId,
         OR: [
-          { name: { contains: query, mode: 'insensitive' } },
-          { email: { contains: query, mode: 'insensitive' } },
+          { name: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+          { company: { contains: q, mode: 'insensitive' } },
+          { phone: { contains: q, mode: 'insensitive' } },
+          { tags: { has: q } },
         ],
       },
       take: 10,
       orderBy: { frequency: 'desc' },
     });
+
+    // Stable: name/email hits first, then company/phone/tags hits; the
+    // frequency ordering from the query survives inside each tier.
+    const qLower = q.toLowerCase();
+    const isPrimaryHit = (c: Contact) =>
+      c.name?.toLowerCase().includes(qLower) || c.email.toLowerCase().includes(qLower);
+    return [...results].sort((a, b) => Number(isPrimaryHit(b)) - Number(isPrimaryHit(a)));
   }
 
   async updateContact(

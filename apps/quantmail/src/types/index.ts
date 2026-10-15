@@ -509,6 +509,14 @@ export interface ContactSuggestion {
   name?: string;
   avatar?: string;
   frequency?: number;
+  /**
+   * The fields the compose autocomplete now also matches on (Gmail matches
+   * names, addresses AND company names). Kept optional because not every
+   * suggestion source carries them — the filter just skips what's absent.
+   */
+  company?: string;
+  phone?: string;
+  tags?: string[];
 }
 
 /**
