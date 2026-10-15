@@ -5,17 +5,29 @@
 // WITHOUT its orange ember plate on desktop viewports — white M + eyes
 // floating on black — while mobile showed the full sanctioned brand.
 //
-// Root cause: AuthShell.tsx renders this mark TWICE (mobile + desktop copies)
-// and the component's <radialGradient> carried the STATIC id
+// Original root cause: AuthShell.tsx rendered this mark TWICE (mobile +
+// desktop copies) and the component's <radialGradient> carried the STATIC id
 // "qm-static-plate", so the served HTML had duplicate gradient ids. Chrome
 // resolves `url(#qm-static-plate)` to the FIRST id in document order — the
 // `display:none` mobile copy on desktop — and never resolves a paint server
 // inside a display:none subtree, so the visible desktop copy's plate fill
-// silently failed.
+// silently failed. Fixed in #1233 by deriving the id from React `useId()`
+// (same pattern as AppMark / GraphiteMark), sanitized for `url(#…)` — but
+// the #1233 regression test below was FLAWED: it rendered two DISTINCT
+// elements (different tree paths → different ids) while the real AuthShell
+// scenario renders THE SAME element object twice, which React's RSC Flight
+// renderer renders ONCE (duplicate ids anyway — R12-NEW-1 round 2, fixed by
+// cloning the brand per slot in AuthShell). The real scenario is pinned by
+// src/components/auth/__tests__/auth-shell-brand-slots.test.tsx.
 //
-// The fix derives the gradient id from React `useId()` (same pattern as
-// AppMark / GraphiteMark), sanitized for `url(#…)`.
-//
+// These tests pin the useId fix for the distinct-instances case
+// (renderToStaticMarkup — apps/quantmail has no @testing-library/react):
+//   1. Two DISTINCT instances in one document get DISTINCT gradient ids.
+//   2. Every `url(#…)` reference resolves to a gradient actually defined in
+//      the markup (no dangling paint-server refs).
+//   3. The locked geometry is byte-preserved: ember radial gradient stops,
+//      the M silhouette, and the eyes all still render.
+// ============================================================================
 // These tests pin the fix (renderToStaticMarkup — apps/quantmail has no
 // @testing-library/react):
 //   1. Two instances in one document get DISTINCT gradient ids (the
@@ -30,7 +42,7 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QuantMailLogoStatic } from '../QuantMailLogoStatic';
 
-/** The AuthShell scenario: mobile + desktop brand copies in one document. */
+/** Two DISTINCT instances (distinct tree paths → distinct useId values). */
 function renderTwice(): string {
   return renderToStaticMarkup(
     <>
