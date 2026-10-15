@@ -76,21 +76,40 @@ function EditProfileForm({
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const [bio, setBio] = useState(initialBio);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
 
   const save = async () => {
+    const trimmedName = displayName.trim();
+    const trimmedBio = bio.trim();
+
+    // Local honest reason — BEFORE the API call (and before `saving` flips):
+    // an empty display name can never succeed (the backend schema requires
+    // min(1)), so say so here instead of dropping the field, reporting
+    // 'Saved ✓', and silently keeping the old name.
+    if (!trimmedName) {
+      setMessage({ kind: 'error', text: 'Display name cannot be empty.' });
+      return;
+    }
+
     setSaving(true);
     setMessage(null);
     try {
+      // QC-F-391: a bio the user cleared (there was one, now empty) must be
+      // sent as '' — the backend writes '' and the row is actually cleared.
+      // `bio.trim() || undefined` dropped the key from the JSON body, so the
+      // clear never reached the server and the old bio returned on refetch
+      // while the UI claimed success. A bio that was already empty still
+      // sends undefined — no fake clear for a field that never had a value.
+      const bioCleared = trimmedBio === '' && initialBio.trim() !== '';
       const res = await apiClient.updateProfile({
-        displayName: displayName.trim() || undefined,
-        bio: bio.trim() || undefined,
+        displayName: trimmedName,
+        bio: trimmedBio !== '' ? trimmedBio : bioCleared ? '' : undefined,
       });
       if (!res.success) throw new Error(res.error?.message || 'Save failed');
-      setMessage('Saved ✓');
+      setMessage({ kind: 'success', text: 'Saved ✓' });
       onSaved();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Save failed');
+      setMessage({ kind: 'error', text: err instanceof Error ? err.message : 'Save failed' });
     } finally {
       setSaving(false);
     }
@@ -120,7 +139,14 @@ function EditProfileForm({
           className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-purple-500"
         />
       </label>
-      {message && <p className="text-xs text-gray-400">{message}</p>}
+      {message && (
+        <p
+          role={message.kind === 'success' ? 'status' : 'alert'}
+          className={message.kind === 'success' ? 'text-xs text-emerald-400' : 'text-xs text-red-400'}
+        >
+          {message.text}
+        </p>
+      )}
       <button
         type="button"
         onClick={save}
@@ -204,7 +230,7 @@ export default function ProfilePage() {
                   ✏️
                 </span>
                 <span className="text-sm font-semibold">Edit profile</span>
-                <span className="text-xs text-gray-400">Name, bio and photo</span>
+                <span className="text-xs text-gray-400">Name and bio</span>
               </button>
               <button
                 type="button"
