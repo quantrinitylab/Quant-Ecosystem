@@ -27,7 +27,7 @@
  * Not a vitest test file itself (the `*.worker.ts` name keeps it out of the
  * test glob); the driver test spawns it with `execArgv: ['--import', tsx]`.
  */
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { parentPort, workerData } from 'node:worker_threads';
 
 import {
@@ -37,7 +37,7 @@ import {
   type IdempotencyDatabase,
   type IdempotencyOperationRow,
   type IdempotencyOperationTable,
-} from '../idempotency.ts';
+} from '../idempotency';
 
 // ---------------------------------------------------------------------------
 // Prisma-shaped errors (codes stable across Prisma 5/6)
@@ -127,7 +127,7 @@ function makeTable(db: DatabaseSync): WorkerTable {
     },
     update: async ({ where, data }) => {
       const sets: string[] = [];
-      const vals: unknown[] = [];
+      const vals: SQLInputValue[] = [];
       if (data.status !== undefined) {
         sets.push('status = ?');
         vals.push(data.status);
@@ -174,17 +174,17 @@ function makeTable(db: DatabaseSync): WorkerTable {
 
 function openDatabase(dbPath: string): DatabaseSync {
   const db = new DatabaseSync(dbPath);
-  // WAL: readers never block the writer. busy_timeout: a loser BLOCKS on the
-  // winner's write lock (like a Postgres row-lock wait) instead of failing
-  // fast — the loser's INSERT then hits the committed row's primary key.
-  db.exec(`PRAGMA journal_mode=WAL;`);
+  // busy_timeout FIRST: every statement below can block on another worker's
+  // lock — including the journal_mode switch itself (it needs EXCLUSIVE while
+  // a peer holds RESERVED). Without this, a contested switch throws
+  // SQLITE_BUSY ("database is locked") immediately instead of waiting.
   db.exec(`PRAGMA busy_timeout=15000;`);
+  // WAL: readers never block the writer. A loser BLOCKS on the winner's write
+  // lock (like a Postgres row-lock wait) instead of failing fast — the loser's
+  // INSERT then hits the committed row's primary key.
+  db.exec(`PRAGMA journal_mode=WAL;`);
   db.exec(`PRAGMA synchronous=NORMAL;`);
   return db;
-}
-
-interface TxScope {
-  idempotencyOperation: WorkerTable;
 }
 
 function makeDatabase(db: DatabaseSync): IdempotencyDatabase & { probeTable: WorkerTable } {
@@ -238,11 +238,14 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function main(): Promise<void> {
   const input = workerData as WorkerInput;
-  const db = openDatabase(input.dbPath);
-  const database = makeDatabase(db);
   const result: WorkerResult = { outcome: 'error' };
+  let db: DatabaseSync | undefined;
 
   try {
+    // Opened inside the try: a DB-open failure must surface as a reported
+    // worker result, not an unhandled worker-thread crash.
+    db = openDatabase(input.dbPath);
+    const database = makeDatabase(db);
     if (input.mode === 'race' || input.mode === 'replay') {
       const opResult = await runIdempotentOperation(database, {
         operationId: input.operationId,
@@ -303,7 +306,7 @@ async function main(): Promise<void> {
     }
   } finally {
     try {
-      db.close();
+      db?.close();
     } catch {
       /* ignore */
     }

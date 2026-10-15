@@ -38,7 +38,6 @@ import { Worker } from 'node:worker_threads';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 import type { WorkerResult } from './idempotency-realdb-concurrency.worker';
@@ -133,6 +132,11 @@ function createTestDb(): TestDb {
   const dbPath = join(dir, 'idempotency.db');
   const setup = new DatabaseSync(dbPath);
   setup.exec(DDL);
+  // Establish WAL once, up front, on a single uncontended connection: the
+  // journal-mode switch needs EXCLUSIVE and would otherwise be raced by the
+  // N worker threads in openDatabase (SQLITE_BUSY / "database is locked").
+  // Workers re-issuing the pragma afterwards is a cheap no-op.
+  setup.exec(`PRAGMA journal_mode=WAL;`);
   setup.close();
   const query = <T>(fn: (db: DatabaseSync) => T): T => {
     const db = new DatabaseSync(dbPath);
