@@ -1443,6 +1443,8 @@ VERDICT-LIVE: /notifications logged-out → honest sign-in page desktop (1440x90
 STILL-UNVERIFIED: VAPID keys provisioned in staging; live E2E push delivery; thread-realtime message.new SSE feeding the notification UI.
 R3 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2 (1 R2 carryover P2 confirmed still present). No fix agents spawned (no P0/P1). Rotation -> QM-SCREEN-016 R3.
 
+Status: [~] IN_PROGRESS — LANE-1, branch lane1-audit-016r10 (2026-10-15 ~10:35 IST)
+
 ## QM-SCREEN-016 — Settings / profile / identity / devices / sessions / security
 Status: [x] DONE (R9 regression audit complete 2026-10-14 ~22:35–22:55 IST — Owner: LANE-1, Branch: lane1-audit-016r9; 0 new findings, 5 window commits all diff-verified sound, carryovers confirmed, fixes tracked via their PRs separately).
 
