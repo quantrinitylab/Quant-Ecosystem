@@ -37,6 +37,8 @@ export function StoryViewer({
 }: StoryViewerProps) {
   const currentStory = stories[currentIndex];
   const [isPaused, setIsPaused] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
   const animFrameRef = useRef<number | null>(null);
@@ -59,6 +61,14 @@ export function StoryViewer({
   useEffect(() => {
     if (!autoAdvance || !currentStory || !isOpen) return;
     if (isPaused) return;
+
+    // QC-F-364: a playable video story owns its own progress/advance via
+    // the element's timeupdate/ended handlers below — the stored-duration
+    // rAF must not run for it (the stored duration is not the video's real
+    // length). On video error the rAF path resumes so the viewer can still
+    // advance past the honest fallback instead of wedging.
+    const isVideoStory = currentStory.type === 'video' && !!currentStory.mediaUrl;
+    if (isVideoStory && !videoError) return;
 
     const durationMs = (currentStory.duration || 5) * 1000;
     startTimeRef.current = Date.now() - progressRef.current * durationMs;
@@ -85,13 +95,52 @@ export function StoryViewer({
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [currentIndex, currentStory, autoAdvance, isOpen, isPaused, stories.length]);
+  }, [currentIndex, currentStory, autoAdvance, isOpen, isPaused, stories.length, videoError]);
 
   // Reset progress on story change
   useEffect(() => {
     progressRef.current = 0;
     setProgress(0);
+    setVideoError(false);
   }, [currentIndex]);
+
+  // QC-F-364: video progress comes from the element's own clock. A finite,
+  // positive duration drives the segmented bar; unknown/live durations
+  // leave the bar honestly at its last value — never a fabricated count.
+  const handleVideoTimeUpdate = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    const d = v.duration;
+    if (Number.isFinite(d) && d > 0) {
+      const p = Math.min(Math.max(v.currentTime / d, 0), 1);
+      progressRef.current = p;
+      setProgress(p);
+    }
+  };
+
+  // QC-F-364: `ended` is a video story's only advance — the exact same
+  // onNext/onClose path tap-next uses, so view-marking (which lives in
+  // useStories.nextStory) keeps its current meaning and order.
+  const handleVideoEnded = () => {
+    if (!autoAdvance) return;
+    if (currentIndex < stories.length - 1) {
+      onNextRef.current();
+    } else {
+      onCloseRef.current();
+    }
+  };
+
+  const handleVideoError = () => setVideoError(true);
+
+  // QC-F-364: hold-to-pause must pause the video element itself, not just
+  // the progress clock. play() is catch-guarded: an autoplay-policy
+  // rejection must never surface as an unhandled error.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (isPaused) v.pause();
+    else void v.play().catch(() => {});
+  }, [isPaused, currentStory?.id]);
 
   const handleTap = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -212,6 +261,25 @@ export function StoryViewer({
                     <div className="px-8 text-center">
                       <p className="text-white text-2xl font-medium">{currentStory.text}</p>
                     </div>
+                  ) : currentStory.type === 'video' && currentStory.mediaUrl ? (
+                    videoError ? (
+                      <div className="px-8 text-center">
+                        <p className="text-white/70 text-lg">This video couldn't be played</p>
+                      </div>
+                    ) : (
+                      <video
+                        ref={videoRef}
+                        src={currentStory.mediaUrl}
+                        className="max-w-full max-h-full object-contain"
+                        autoPlay
+                        muted
+                        playsInline
+                        preload="auto"
+                        onTimeUpdate={handleVideoTimeUpdate}
+                        onEnded={handleVideoEnded}
+                        onError={handleVideoError}
+                      />
+                    )
                   ) : currentStory.mediaUrl ? (
                     <img
                       src={currentStory.mediaUrl}
