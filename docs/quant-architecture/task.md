@@ -3546,3 +3546,6 @@ R10 NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents dispatched (protocol:
 LIVE (2026-10-15 ~04:55 IST, proxy 127.0.0.1:8888 restarted healthy — was dead at run start): /calendar → honest sign-in gate desktop 1440x900 + mobile 390x844 iPhone 14, pure black, honest copy; GET /api/calendar/events → honest 401 {"code":"UNAUTHORIZED"} logged out. Signed-in calendar/booking/RSVP/detail flows = needs-auth. Evidence: /tmp/lane1-008r10-{desktop,mobile}-calendar.png. Chrome orphans cleaned.
 Rotation -> QM-SCREEN-010/011 (drive) ROUND 10 regression, queued.
 Status: [x] DONE (R10 regression audit complete 2026-10-15 ~05:00 IST; 116-commit window reviewed, 2 calendar fix PRs verified sound, prior fixes intact, 0 new findings, 10 opens carried; fixes tracked via their PRs)
+
+## QM-SCREEN-007 R11 — Search regression (ROUND 11)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-007r11, started 2026-10-15 ~13:40 IST; R10 base 3f2ce94bd → origin/main be5b97a08)
