@@ -7,6 +7,12 @@ import React, { useState } from 'react';
 
 export interface ChatBubbleProps {
   message: string;
+  /**
+   * Optional pre-rendered presentation of `message` (e.g. inline custom
+   * emoji images). Presentation only — `message` remains the data of
+   * record; when omitted the plain string is rendered exactly as before.
+   */
+  messageNode?: React.ReactNode;
   sender: 'self' | 'other';
   senderName?: string;
   avatarUrl?: string;
@@ -25,6 +31,7 @@ export interface ChatBubbleProps {
 
 export const ChatBubble: React.FC<ChatBubbleProps> = ({
   message,
+  messageNode,
   sender,
   senderName,
   timestamp,
@@ -73,7 +80,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
         {mediaUrl && mediaType === 'image' && (
           <img src={mediaUrl} alt="Shared image" className="rounded-lg mb-2 max-w-full" />
         )}
-        <p className="text-sm whitespace-pre-wrap break-words">{message}</p>
+        <p className="text-sm whitespace-pre-wrap break-words">{messageNode ?? message}</p>
         <div className={`flex items-center gap-1 mt-1 ${isSelf ? 'justify-end' : 'justify-start'}`}>
           <span className={`text-xs ${isSelf ? 'text-blue-200' : 'text-gray-400'}`}>
             {timestamp}
