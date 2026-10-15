@@ -500,6 +500,132 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   }
 
   /**
+   * QC-F-359 — error frame for the blocked-pair gate below. Same shape
+   * as sendNotMember (socket stays open; only this conversation's frame
+   * is denied): `{ type: 'error', code, conversationId, message }`.
+   */
+  function sendGateErrorFrame(
+    socket: WebSocket,
+    conversationId: string,
+    code: 'USER_BLOCKED' | 'UPSTREAM_UNAVAILABLE',
+    message: string,
+  ): void {
+    if (socket.readyState === socket.OPEN) {
+      socket.send(JSON.stringify({ type: 'error', code, conversationId, message }));
+    }
+  }
+
+  /**
+   * QC-F-359 — blocked-pair gate for `chat_message` frames.
+   *
+   * The WS chat path never calls MessageService.sendMessage — it is a
+   * persistence-free live publish — so the durable gate there cannot
+   * cover it: without this check, a blocked user could keep injecting
+   * live messages (and resume-buffer entries) into an existing DIRECT
+   * conversation forever. The gate runs AFTER fresh membership
+   * (ensureFrameMember) and BEFORE publishRoomEvent, so a blocked
+   * frame never reaches the room or the resume buffer (a buffered
+   * frame would replay on reconnect — the block would leak).
+   *
+   * Semantics mirror MessageService.assertDirectSendNotBlocked
+   * exactly: DIRECT only (type from the conversation row), both block
+   * directions, 'blocked' beats 'unavailable', every unproven verdict
+   * (missing delegate, failed lookup, missing row, null privacy)
+   * fails closed with an UPSTREAM_UNAVAILABLE frame, and the socket
+   * is never closed. Typing/receipt frames are NOT gated (ephemeral
+   * soft signals / ticks for already-sent messages).
+   */
+  async function ensureNotBlockedForFrame(
+    conversationId: string,
+    socket: WebSocket,
+    userId: string,
+  ): Promise<boolean> {
+    const denyUnavailable = (): boolean => {
+      sendGateErrorFrame(
+        socket,
+        conversationId,
+        'UPSTREAM_UNAVAILABLE',
+        'Privacy preferences are temporarily unavailable',
+      );
+      return false;
+    };
+
+    if (!prismaClient || !privacy) return denyUnavailable();
+    const prisma = prismaClient as {
+      conversation?: {
+        findUnique(args: unknown): Promise<{ type?: unknown } | null>;
+      };
+      conversationMember?: {
+        findMany(args: unknown): Promise<Array<{ userId: string }>>;
+      };
+    };
+    if (!prisma.conversation?.findUnique || !prisma.conversationMember?.findMany) {
+      return denyUnavailable();
+    }
+
+    let conversation: { type?: unknown } | null;
+    try {
+      conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { type: true },
+      });
+    } catch (err: unknown) {
+      fastify.log.error(
+        { err, conversationId, userId },
+        'blocked-send gate conversation lookup failed; denying (fail-closed)',
+      );
+      return denyUnavailable();
+    }
+    if (!conversation) return denyUnavailable();
+    if (conversation.type !== 'DIRECT') return true;
+
+    let members: Array<{ userId: string }>;
+    try {
+      members = await prisma.conversationMember.findMany({
+        where: { conversationId, leftAt: null },
+        select: { userId: true },
+      });
+    } catch (err: unknown) {
+      fastify.log.error(
+        { err, conversationId, userId },
+        'blocked-send gate member lookup failed; denying (fail-closed)',
+      );
+      return denyUnavailable();
+    }
+
+    const peerIds = members.map((m) => m.userId).filter((id) => id !== userId);
+    let sawUnavailable = false;
+    for (const peerId of peerIds) {
+      const peerBlockedSender = await privacy.checkBlockedBy(peerId, userId);
+      if (peerBlockedSender === 'blocked') {
+        sendGateErrorFrame(
+          socket,
+          conversationId,
+          'USER_BLOCKED',
+          'You cannot send messages in this conversation',
+        );
+        return false;
+      }
+      if (peerBlockedSender === 'unavailable') sawUnavailable = true;
+
+      const senderBlockedPeer = await privacy.checkBlockedBy(userId, peerId);
+      if (senderBlockedPeer === 'blocked') {
+        sendGateErrorFrame(
+          socket,
+          conversationId,
+          'USER_BLOCKED',
+          'You cannot send messages in this conversation',
+        );
+        return false;
+      }
+      if (senderBlockedPeer === 'unavailable') sawUnavailable = true;
+    }
+
+    if (sawUnavailable) return denyUnavailable();
+    return true;
+  }
+
+  /**
    * Subscribe this instance to a conversation channel the first time a local
    * socket joins the room (Requirement 4.1). Subscription is idempotent at the
    * backplane level, so a redundant call is harmless.
@@ -871,10 +997,15 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             // QC-F-037 — a non-member must not inject a live message into a
             // conversation (nor into its resume buffer). Fresh DB check on
             // every frame, mirroring REST sendMessage.
+            // QC-F-359 — and a member of a blocked DIRECT pair must not
+            // inject one either: the blocked-pair gate runs after fresh
+            // membership and before the publish, so the frame reaches
+            // neither the room nor the resume buffer.
             if (
-              await ensureFrameMember(message.conversationId, socket, userId, {
+              (await ensureFrameMember(message.conversationId, socket, userId, {
                 fresh: true,
-              })
+              })) &&
+              (await ensureNotBlockedForFrame(message.conversationId, socket, userId))
             ) {
               // Sender identity is stamped server-side from the authenticated
               // session — never trusted from the client frame.
