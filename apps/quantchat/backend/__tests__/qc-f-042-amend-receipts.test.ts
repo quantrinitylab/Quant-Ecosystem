@@ -543,7 +543,27 @@ describe('QC-F-042 amend gaps 2+3: WS receipt binding + sender reciprocity', () 
         },
       },
       closeFriend: { async findMany() { return []; } },
-      conversation: { async findMany() { return []; } },
+      conversation: {
+        async findMany() {
+          return [];
+        },
+        // QC-F-359 fixture migration: the WS blocked-send gate reads
+        // the conversation type via findUnique before a chat_message
+        // publish. The anchor conversation (conv-w1) has three active
+        // members in MEMBERS — a group scenario, so GROUP is its real
+        // type and the DIRECT-only gate skips it; other known
+        // conversations answer DIRECT (their member sets are pairs).
+        // The gate additionally derives peers from
+        // conversationMember.findMany, which this fake answers [] —
+        // either way no pre-existing frame flow changes. Assertions
+        // unchanged.
+        async findUnique(args: unknown) {
+          const id = (args as { where: { id: string } }).where.id;
+          const memberIds = MEMBERS[id];
+          if (!memberIds) return null;
+          return { id, type: memberIds.length > 2 ? 'GROUP' : 'DIRECT' };
+        },
+      },
     };
 
     app = Fastify({ logger: false });

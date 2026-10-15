@@ -67,6 +67,46 @@ function createFakePrisma(members: MemberRow[]) {
         );
         return row ? { ...row } : null;
       },
+      // QC-F-359 fixture migration: the WS blocked-send gate derives
+      // the peer set from active members. Same rows, same leftAt
+      // filter as findFirst. Assertions unchanged.
+      async findMany(args: {
+        where: { conversationId: string; leftAt: null };
+      }): Promise<MemberRow[]> {
+        return members
+          .filter(
+            (m) =>
+              m.conversationId === args.where.conversationId &&
+              (args.where.leftAt !== null || m.leftAt === null),
+          )
+          .map((m) => ({ ...m }));
+      },
+    },
+    // QC-F-359 fixture migration: the WS blocked-send gate reads the
+    // conversation type from the row. Every conversation in MEMBERS is
+    // an alice+bob (or mallory-solo) 1:1 scenario, so DIRECT is the
+    // scenario's real type; a conversation with no member rows does
+    // not exist here (null → the gate's fail-closed answer, which the
+    // membership gate reaches first in every case in this suite).
+    conversation: {
+      async findUnique(args: {
+        where: { id: string };
+      }): Promise<{ id: string; type: string } | null> {
+        return members.some((m) => m.conversationId === args.where.id)
+          ? { id: args.where.id, type: 'DIRECT' }
+          : null;
+      },
+    },
+    // QC-F-359 fixture migration: block-list reads. `preferences: null`
+    // is a readable empty block list ('clear' in both directions), so
+    // every pre-existing frame flow keeps its behaviour; blocked
+    // scenarios live in the dedicated QC-F-359 suite.
+    user: {
+      async findUnique(args: {
+        where: { id: string };
+      }): Promise<{ id: string; preferences: null }> {
+        return { id: args.where.id, preferences: null };
+      },
     },
     messageDelivery: {
       async findUnique(args: {

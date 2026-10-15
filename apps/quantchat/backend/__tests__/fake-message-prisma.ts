@@ -63,6 +63,13 @@ export interface OutboxRow {
 interface ConversationRow {
   id: string;
   lastMessageAt: Date | null;
+  /**
+   * QC-F-359 fixture migration: the blocked-send gate reads the
+   * conversation TYPE from the row (its only authority). Defaults to
+   * 'DIRECT' — the shape every seed in the consuming suites models
+   * (1:1 member pairs); a seed may override it (see SeedConversation).
+   */
+  type: string;
 }
 
 interface MemberRow {
@@ -88,6 +95,26 @@ export interface FakeMessagePrisma {
       select?: { userId?: boolean };
     }): Promise<Array<{ userId: string }>>;
   };
+  /**
+   * QC-F-359 fixture migration: the blocked-send gate's two reads.
+   * `conversation.findUnique` answers from the seeded rows (absent row
+   * → null, which the gate treats as fail-closed 503 — the same
+   * scenario `exists: false` seeds model). `user.findUnique` returns a
+   * row with `preferences: null` — a readable, empty block list
+   * ('clear' in both directions), so pre-existing sends keep their
+   * behaviour; block scenarios are pinned by the dedicated QC-F-359
+   * suite with its own preference-aware fake.
+   */
+  conversation: {
+    findUnique(args: {
+      where: { id: string };
+    }): Promise<{ id: string; type: string } | null>;
+  };
+  user: {
+    findUnique(args: {
+      where: { id: string };
+    }): Promise<{ id: string; preferences: null }>;
+  };
   $transaction<T>(cb: (tx: unknown) => Promise<T>): Promise<T>;
   /** Inspection hook for assertions — not part of the PrismaClient surface. */
   __state: CommittedStore;
@@ -102,6 +129,8 @@ export interface SeedConversation {
    * throws inside the transaction and the whole send rolls back. Defaults true.
    */
   exists?: boolean;
+  /** QC-F-359: conversation type for the gate's row read. Defaults 'DIRECT'. */
+  type?: string;
 }
 
 /**
@@ -123,6 +152,7 @@ export function createFakeMessagePrisma(seed: SeedConversation[] = []): FakeMess
       store.conversations.set(s.conversationId, {
         id: s.conversationId,
         lastMessageAt: null,
+        type: s.type ?? 'DIRECT',
       });
     }
     for (const userId of s.memberIds) {
@@ -134,6 +164,19 @@ export function createFakeMessagePrisma(seed: SeedConversation[] = []): FakeMess
   const nextId = (prefix: string): string => `${prefix}_${(idSeq += 1)}`;
 
   return {
+    conversation: {
+      async findUnique({ where }) {
+        const row = store.conversations.get(where.id);
+        return row ? { id: row.id, type: row.type } : null;
+      },
+    },
+
+    user: {
+      async findUnique({ where }) {
+        return { id: where.id, preferences: null };
+      },
+    },
+
     conversationMember: {
       async findFirst({ where }) {
         const row = store.members.find(
@@ -205,7 +248,11 @@ export function createFakeMessagePrisma(seed: SeedConversation[] = []): FakeMess
               throw err;
             }
             staged.conversationUpdates.push({ id: where.id, lastMessageAt: data.lastMessageAt });
-            return { id: where.id, lastMessageAt: data.lastMessageAt };
+            return {
+              id: where.id,
+              lastMessageAt: data.lastMessageAt,
+              type: store.conversations.get(where.id)?.type ?? 'DIRECT',
+            };
           },
         },
         messageOutbox: {

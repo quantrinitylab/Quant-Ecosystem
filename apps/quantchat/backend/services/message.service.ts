@@ -5,6 +5,7 @@ import { StorageClient, resolveStorageConfigFromEnv } from '@quant/storage';
 import { assertMediaUrlAllowed } from '../lib/media-url';
 import { PrismaOutboxService, type OutboxService } from './outbox.service';
 import { StreakService } from './streak.service';
+import { getPrivacyService, type PrivacyService } from './privacy.service';
 
 /**
  * Extract an object storage key from a media URL or raw path.
@@ -247,6 +248,7 @@ export class MessageService {
   private readonly outbox: OutboxService;
   private readonly streaks: StreakService;
   private readonly storage: StorageClient | null;
+  private readonly privacy: PrivacyService;
 
   /**
    * @param prisma  Prisma client used for all persistence.
@@ -258,15 +260,21 @@ export class MessageService {
    *   message commits (best-effort; never blocks delivery). Defaults to one bound
    *   to the same Prisma client.
    * @param storage Storage client used for minting authentic SigV4 presigned URLs.
+   * @param privacy Privacy/block resolver for the QC-F-359 send gate.
+   *   Defaults to the shared {@link getPrivacyService} instance bound to
+   *   the same Prisma client (the ConversationService pattern), so
+   *   existing callers keep working unchanged.
    */
   constructor(
     private readonly prisma: PrismaClient,
     outbox?: OutboxService,
     streaks?: StreakService,
     storage?: StorageClient,
+    privacy?: PrivacyService,
   ) {
     this.outbox = outbox ?? new PrismaOutboxService(prisma);
     this.streaks = streaks ?? new StreakService(prisma as never);
+    this.privacy = privacy ?? getPrivacyService(prisma);
     if (storage) {
       this.storage = storage;
     } else {
@@ -297,6 +305,105 @@ export class MessageService {
     return this.storage;
   }
 
+  /**
+   * QC-F-359: blocked-pair gate for an EXISTING conversation.
+   *
+   * QC-F-317 shipped the block writer plus gates for NEW conversations
+   * (checkCanMessage) and 1:1 call initiation, but the send path of a
+   * conversation that already exists was never gated: a user who blocked
+   * the person they were chatting with kept receiving that person's
+   * messages in the very same thread (and could keep sending to them).
+   * This gate closes that hole at the single durable choke point — every
+   * sendMessage caller (REST, story-reply, voice-notes sink, auto-reply
+   * delivery) is bound by it.
+   *
+   * Scope and semantics (band):
+   * - DIRECT conversations only. Group/channel moderation is a
+   *   different system (QC-F-224/F-227); the conversation ROW's `type`
+   *   is the only authority — never a recipient-count proxy.
+   * - Both directions: the peer having blocked the sender AND the
+   *   sender having blocked the peer each stop the send (WhatsApp
+   *   parity — a blocker cannot send either, until they unblock).
+   * - A 'blocked' verdict anywhere wins over an 'unavailable' verdict
+   *   anywhere: a real block must never hide behind a 503. Only when no
+   *   direction is blocked does an 'unavailable' verdict fail the send
+   *   closed with 503 UPSTREAM_UNAVAILABLE — a block list that cannot
+   *   be read (malformed prefs, failed read, missing delegate) is never
+   *   treated as "nobody blocked".
+   * - The conversation type itself is fail-closed: a missing row or a
+   *   failed lookup answers 503, never a guessed GROUP skip.
+   * - The error message is deliberately neutral — it never says WHICH
+   *   direction is blocked (the peer must not learn they were blocked).
+   * - Only the block verdict gates here. whoCanMessage category prefs
+   *   deliberately do NOT gate existing conversations (QC-F-042's doc:
+   *   they guard initiation only) — QC-F-359 case G3 pins that.
+   *
+   * QC-F-353 (media albums): `sendAlbum` does NOT route through
+   * sendMessage, so it MUST call this helper itself (with its own
+   * active-member list) or album sends would reopen this hole.
+   */
+  private async assertDirectSendNotBlocked(
+    conversationId: string,
+    senderId: string,
+    activeMembers: Array<{ userId: string }>,
+  ): Promise<void> {
+    let conversationType: unknown;
+    try {
+      const conversation = await this.prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { type: true },
+      });
+      if (!conversation) {
+        throw new Error('conversation row missing for blocked-send gate');
+      }
+      conversationType = conversation.type;
+    } catch {
+      throw createAppError(
+        'Privacy preferences are temporarily unavailable',
+        503,
+        'UPSTREAM_UNAVAILABLE',
+      );
+    }
+
+    if (conversationType !== 'DIRECT') return;
+
+    const peerIds = activeMembers
+      .map((m) => m.userId)
+      .filter((userId) => userId !== senderId);
+    if (peerIds.length === 0) return;
+
+    let sawUnavailable = false;
+    for (const peerId of peerIds) {
+      const peerBlockedSender = await this.privacy.checkBlockedBy(peerId, senderId);
+      if (peerBlockedSender === 'blocked') {
+        throw createAppError(
+          'You cannot send messages in this conversation',
+          403,
+          'USER_BLOCKED',
+        );
+      }
+      if (peerBlockedSender === 'unavailable') sawUnavailable = true;
+
+      const senderBlockedPeer = await this.privacy.checkBlockedBy(senderId, peerId);
+      if (senderBlockedPeer === 'blocked') {
+        throw createAppError(
+          'You cannot send messages in this conversation',
+          403,
+          'USER_BLOCKED',
+        );
+      }
+      if (senderBlockedPeer === 'unavailable') sawUnavailable = true;
+    }
+
+    if (sawUnavailable) {
+      throw createAppError(
+        'Privacy preferences are temporarily unavailable',
+        503,
+        'UPSTREAM_UNAVAILABLE',
+      );
+    }
+  }
+
   async sendMessage(input: SendMessageInput): Promise<Message> {
     // QC-F-022: fail closed before any lookup or persistence if a runtime
     // caller still asks this server-side service to do "e2e" encryption.
@@ -323,6 +430,23 @@ export class MessageService {
     if (!membership) {
       throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
     }
+
+    // Compute the active-member set NOW (design Algorithm 2): the
+    // QC-F-359 gate below needs the peer set, and the same list is
+    // reused after the gates to derive recipientIds — one query, not
+    // two. Sender is filtered out at the recipient-derivation step.
+    const activeMembers = await this.prisma.conversationMember.findMany({
+      where: { conversationId, leftAt: null },
+      select: { userId: true },
+    });
+
+    // QC-F-359: blocked-pair gate — immediately after membership,
+    // BEFORE any media validation, so a blocked sender learns nothing
+    // from media-validation errors (no MEDIA_URL_NOT_OWNED oracle) and
+    // no storage/media work happens for a send that must not exist.
+    // No Message row, no outbox row, no streak, no lastMessageAt bump
+    // on a blocked send: the gate throws before the transaction.
+    await this.assertDirectSendNotBlocked(conversationId, senderId, activeMembers);
 
     // QC-F-329: bind a snap's storage mediaUrl to its sender BEFORE
     // anything is persisted. Without this, a member could store a snap
@@ -396,12 +520,8 @@ export class MessageService {
     // disclosed non-E2EE path) — never relabelled as E2EE (QC-F-022).
     const storedContent = content;
 
-    // Compute the recipient set: all active conversation members (leftAt: null)
-    // except the sender (design Algorithm 2).
-    const activeMembers = await this.prisma.conversationMember.findMany({
-      where: { conversationId, leftAt: null },
-      select: { userId: true },
-    });
+    // Recipient set: the active members computed above (for the
+    // QC-F-359 gate), minus the sender (design Algorithm 2).
     const recipientIds = activeMembers
       .map((m: { userId: string }) => m.userId)
       .filter((userId: string) => userId !== senderId);

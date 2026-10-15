@@ -125,7 +125,33 @@ function makeClient(store: Store, hooks: ClientHooks = {}) {
   };
 
   const tx = {
-    conversationMember: { findFirst },
+    conversationMember: {
+      findFirst,
+      // QC-F-359 fixture migration: the worker's blocked-pair gate
+      // derives peers from active members — the same membership map
+      // findFirst answers from (leftAt null = active). These
+      // scenarios seed only the scheduler per conversation, so the
+      // peer set is empty and the gate skips. Assertions unchanged.
+      findMany: async (args: unknown) => {
+        const { where } = args as {
+          where: { conversationId: string; leftAt: null };
+        };
+        return [...store.memberships.entries()]
+          .filter(([k, leftAt]) => k.endsWith(`::${where.conversationId}`) && leftAt === null)
+          .map(([k]) => ({ userId: k.slice(0, k.lastIndexOf('::')) }));
+      },
+    },
+    // QC-F-359 fixture migration: gate reads — conversation type from
+    // the row (a conversation exists here iff a scheduled row or a
+    // membership names it; 1:1 scheduled scenarios, so DIRECT) and
+    // block lists from user preferences (null = 'clear'). Assertions
+    // unchanged.
+    user: {
+      findUnique: async (args: unknown) => {
+        const { where } = args as { where: { id: string } };
+        return { id: where.id, preferences: null };
+      },
+    },
     message: {
       create: async (args: unknown) => {
         if (store.failNextMessageCreates > 0) {
@@ -137,7 +163,16 @@ function makeClient(store: Store, hooks: ClientHooks = {}) {
         return { id: `m_${store.created.length}`, ...data };
       },
     },
-    conversation: { update: async () => ({}) },
+    conversation: {
+      update: async () => ({}),
+      findUnique: async (args: unknown) => {
+        const { where } = args as { where: { id: string } };
+        const exists =
+          store.rows.some((r) => r.conversationId === where.id) ||
+          [...store.memberships.keys()].some((k) => k.endsWith(`::${where.id}`));
+        return exists ? { id: where.id, type: 'DIRECT' } : null;
+      },
+    },
     scheduledMessage: { updateMany: scheduledUpdateMany, update: scheduledUpdate },
   };
 

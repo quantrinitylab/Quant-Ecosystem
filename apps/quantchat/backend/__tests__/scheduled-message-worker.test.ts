@@ -56,6 +56,30 @@ function makeFakePrisma(rows: Row[]) {
         members.has(`${where.userId}::${where.conversationId}`)
           ? { id: `mem_${where.userId}_${where.conversationId}` }
           : null,
+      // QC-F-359 fixture migration: the worker's blocked-pair gate
+      // derives peers from active members — the same `members` set
+      // findFirst answers from. These scenarios seed only the
+      // scheduler per conversation, so the peer set is empty and the
+      // gate skips. Assertions unchanged.
+      findMany: async ({
+        where,
+      }: {
+        where: { conversationId: string; leftAt: null };
+      }) =>
+        [...members]
+          .filter((k) => k.endsWith(`::${where.conversationId}`))
+          .map((k) => ({ userId: k.slice(0, k.lastIndexOf('::')) })),
+    },
+    // QC-F-359 fixture migration: gate reads — conversation type from
+    // the row (a conversation exists here iff a scheduled row names
+    // it; the scenarios are 1:1 scheduled sends, so DIRECT is the
+    // real type) and block lists from user preferences (null =
+    // readable empty list, 'clear'). Assertions unchanged.
+    user: {
+      findUnique: async ({ where }: { where: { id: string } }) => ({
+        id: where.id,
+        preferences: null,
+      }),
     },
     message: {
       create: async ({
@@ -67,7 +91,13 @@ function makeFakePrisma(rows: Row[]) {
         return { id: `m_${created.length}`, ...data };
       },
     },
-    conversation: { update: async () => ({}) },
+    conversation: {
+      update: async () => ({}),
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        rows.some((r) => r.conversationId === where.id)
+          ? { id: where.id, type: 'DIRECT' }
+          : null,
+    },
     scheduledMessage: { updateMany: scheduledUpdateMany, update: scheduledUpdate },
   };
   const prisma = {

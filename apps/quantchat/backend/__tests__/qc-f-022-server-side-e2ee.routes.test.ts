@@ -98,6 +98,21 @@ function makeFakePrisma() {
           .map((m) => ({ userId: m.userId }));
       },
     },
+    // QC-F-359 fixture migration: the blocked-send gate reads the
+    // conversation TYPE from the row (this suite's only conversation
+    // is the 1:1 conv-1, so DIRECT) and block lists from user
+    // preferences (null = readable empty list, 'clear' both
+    // directions). Assertions unchanged.
+    conversation: {
+      async findUnique({ where }: any) {
+        return { id: where.id, type: 'DIRECT' };
+      },
+    },
+    user: {
+      async findUnique({ where }: any) {
+        return { id: where.id, preferences: null };
+      },
+    },
     message: messageDelegate,
     async $transaction(cb: (tx: unknown) => Promise<unknown>) {
       const tx = {

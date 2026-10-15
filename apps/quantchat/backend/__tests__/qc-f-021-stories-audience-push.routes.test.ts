@@ -132,6 +132,16 @@ function makeStoriesFakePrisma() {
         )
         .map((c) => ({ id: c.id }));
     },
+    async findUnique({ where }: any) {
+      // QC-F-359 fixture migration: the blocked-send gate reads the
+      // conversation TYPE from the row — answer from this fake's own
+      // conversations list (absent row → null, the gate's fail-closed
+      // case). Block lists come from user.findUnique below, whose
+      // seeded preferences carry no blockedUsers ('clear').
+      // Assertions unchanged.
+      const row = conversations.find((c) => c.id === where.id);
+      return row ? { id: row.id, type: row.type } : null;
+    },
     async create({ data }: any) {
       const row = { id: `conv_new_${++conversationSeq}`, ...data };
       conversations.push(row as never);
