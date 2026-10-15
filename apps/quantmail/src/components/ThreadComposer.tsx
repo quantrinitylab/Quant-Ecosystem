@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { apiClient } from '../services/api-client';
 import { showToast } from '../components/InboxToast';
 import { UndoSendContext } from './UndoSendCountdownBar';
+import { ScheduleSendModal, isPastScheduleTime } from './ScheduleSendModal';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
 import type { PersonConversation } from '../lib/peopleGrouping';
 import {
@@ -93,9 +94,12 @@ export function defaultReplySubject(lastSubject: string): string {
  *
  * Injected so the send orchestration is unit-testable without a DOM or a
  * live server. It is exactly the two calls PR #771's fixed path makes —
- * compose then send — plus the toast callback. There is deliberately no
- * discard handler, no router, and no navigation anywhere in this contract:
- * a failed send must never discard the draft or leave the thread.
+ * compose then send — plus the toast callback, with an optional
+ * `sendAt` carrying the ScheduleSendModal contract (POST /emails/:id/send
+ * with `{ sendAt }`, the same contract DockedComposer and the /compose
+ * page's EmailComposer use). There is deliberately no discard handler, no
+ * router, and no navigation anywhere in this contract: a failed send must
+ * never discard the draft or leave the thread.
  */
 export interface ThreadSendDeps {
   composeEmail: (data: {
@@ -105,7 +109,10 @@ export interface ThreadSendDeps {
     messageKind: 'chat';
     inReplyTo: string;
   }) => Promise<{ success: boolean; data?: { id?: string }; error?: { message?: string } }>;
-  sendEmail: (draftId: string) => Promise<{ success: boolean; error?: { message?: string } }>;
+  sendEmail: (
+    draftId: string,
+    options?: { sendAt?: string },
+  ) => Promise<{ success: boolean; error?: { message?: string } }>;
   toast: (text: string, type: 'success' | 'error') => void;
 }
 
@@ -158,6 +165,17 @@ export function applyThreadTemplateToDraft(input: ThreadTemplateApplyInput): {
   return { body, customSubject };
 }
 
+// Schedule-send clock icon — pure SVG like the file's icon set (mirrors
+// DockedComposer's IconScheduleClock).
+function IconScheduleClock({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
 // Saved email templates (backend /email-templates CRUD) — document icon, pure
 // SVG like the file's icon set (mirrors DockedComposer's IconTemplate).
 function IconTemplate({ className = 'size-4' }: { className?: string }) {
@@ -174,14 +192,22 @@ function IconTemplate({ className = 'size-4' }: { className?: string }) {
 /**
  * The fixed #771 send path for a thread reply: compose a chat-kind draft
  * addressed to the person, in-reply-to the thread's last message, then send
- * it. Success toasts "Message sent"; failure toasts the server's own message
- * and reports `ok: false` so the caller keeps the typed text.
+ * it. Success toasts "Message sent" (or "Message scheduled" for a scheduled
+ * send); failure toasts the server's own message and reports `ok: false` so
+ * the caller keeps the typed text.
+ *
+ * `scheduledAt` (ISO, future) is the ScheduleSendModal contract — carried
+ * into POST /emails/:id/send as `{ sendAt }`, exactly like DockedComposer
+ * and the /compose page's EmailComposer. The backend 400s past times and
+ * the modal rejects them client-side; the component's `handleSend` repeats
+ * the past-time guard as belt-and-braces.
  */
 export async function executeThreadSend(
   deps: ThreadSendDeps,
   conversation: PersonConversation,
   subject: string,
   bodyText: string,
+  scheduledAt?: string,
 ): Promise<ThreadSendOutcome> {
   try {
     const composeRes = await deps.composeEmail({
@@ -194,11 +220,17 @@ export async function executeThreadSend(
     if (!composeRes.success || !composeRes.data?.id) {
       throw new Error(composeRes.error?.message || 'Failed to compose email');
     }
-    const sendRes = await deps.sendEmail(composeRes.data.id);
+    // The schedule contract: sendAt carries the future time; omit it for
+    // an immediate send (the immediate-send call stays byte-identical).
+    // Past times never reach here (guarded above) and the backend 400s
+    // them as backstop — never a silent immediate send.
+    const sendRes = scheduledAt
+      ? await deps.sendEmail(composeRes.data.id, { sendAt: scheduledAt })
+      : await deps.sendEmail(composeRes.data.id);
     if (!sendRes.success) {
       throw new Error(sendRes.error?.message || 'Failed to deliver email');
     }
-    deps.toast('Message sent', 'success');
+    deps.toast(scheduledAt ? 'Message scheduled' : 'Message sent', 'success');
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to send message';
@@ -251,6 +283,13 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
   const [showTemplates, setShowTemplates] = useState(false);
   const [templatesMenuPos, setTemplatesMenuPos] = useState<{ left: number; bottom: number } | null>(null);
   const templatesAnchorRef = useRef<HTMLButtonElement>(null);
+
+  // Schedule-send: this thread composer is a compose surface like any other,
+  // and Gmail ships schedule-send on every compose surface — so it reuses
+  // the same ScheduleSendModal the /compose page's EmailComposer and the
+  // docked composer wire (same pick logic, same past-time rejection, same
+  // POST /emails/:id/send `{ sendAt }` contract).
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   /**
    * Insert a saved template into the reply draft, non-destructively: the
@@ -408,9 +447,30 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
    */
   const undoSend = useContext(UndoSendContext);
 
-  const handleSend = async () => {
+  /**
+   * The send entry: immediate (no `scheduledAt`) or scheduled (ISO, future,
+   * from the ScheduleSendModal). A scheduled send DEFERS to the same
+   * 10-second recall window as an immediate one — it never bypasses it:
+   * during the window nothing has been delivered, so Undo genuinely cancels
+   * the schedule before it exists server-side. The bar claims "Email
+   * scheduled!" via successLabel so it never says "Message sent!" for a
+   * future schedule.
+   */
+  const handleSend = async (scheduledAt?: string) => {
     const text = body.trim();
     if (!text || isSending) return;
+    // Schedule-send: the modal rejects past times and the backend 400s
+    // them — a past scheduledAt must never be queued, or the queue below
+    // would deliver it IMMEDIATELY while the UI claimed "scheduled".
+    // Belt-and-braces here in case the modal's clock raced the confirm
+    // (same convention as DockedComposer, PR #908).
+    if (scheduledAt && isPastScheduleTime(new Date(scheduledAt))) {
+      showToast({
+        text: 'That time has already passed — pick a future time to schedule your send.',
+        type: 'error',
+      });
+      return;
+    }
     setIsSending(true);
     // P1-C: optimistic bubble first — the host shows it as "Sending…".
     onSendStart?.(text, subject);
@@ -436,7 +496,11 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
 
     const deps: ThreadSendDeps = {
       composeEmail: (data) => apiClient.composeEmail(data),
-      sendEmail: (draftId) => apiClient.sendEmail(draftId),
+      // Forward the schedule options only when present: the immediate-send
+      // call stays byte-identical (one arg, no options object), the same
+      // contract the ThreadComposerUndoSend suite pins.
+      sendEmail: (draftId, options) =>
+        options ? apiClient.sendEmail(draftId, options) : apiClient.sendEmail(draftId),
       toast: (t, type) => showToast({ text: t, type }),
     };
 
@@ -455,8 +519,10 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
           to: conversation.name || conversation.email,
           subject,
           body: text,
+          scheduledAt,
+          successLabel: scheduledAt ? 'Email scheduled!' : undefined,
           onSendNow: async () => {
-            const outcome = await executeThreadSend(deps, conversation, subject, text);
+            const outcome = await executeThreadSend(deps, conversation, subject, text, scheduledAt);
             if (!outcome.ok) {
               throw new Error(outcome.errorMessage || 'Failed to send message');
             }
@@ -477,7 +543,7 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
         // No undo provider above this composer: the direct send keeps
         // today's exact behavior — success toasts and clears, failure toasts
         // and keeps the text. Nothing navigates, nothing is discarded.
-        const outcome = await executeThreadSend(deps, conversation, subject, text);
+        const outcome = await executeThreadSend(deps, conversation, subject, text, scheduledAt);
         if (outcome.ok) {
           onSent?.(text, subject);
         } else {
@@ -572,6 +638,22 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
         >
           <IconTemplate className="size-4" />
         </button>
+        {/* Schedule send — the same ScheduleSendModal the /compose page's
+            EmailComposer and the docked composer use: Mail orange accent,
+            chat-bar icon-button sizing, 44px hit target. Disabled until there
+            is text to schedule (chat-style reply: an empty message is never
+            scheduled). */}
+        <button
+          type="button"
+          onClick={() => setShowScheduleModal(true)}
+          disabled={!canSend}
+          data-testid="thread-composer-schedule-button"
+          aria-label="Schedule send"
+          title="Schedule send — pick a future date & time"
+          className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl text-[#9BA0AA] hover:text-[#F97316] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316] disabled:opacity-40"
+        >
+          <IconScheduleClock className="size-4" />
+        </button>
         <button
           type="button"
           onClick={() => void handleSend()}
@@ -645,6 +727,20 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
           </>,
           document.body
         )}
+      {/* Schedule Send Modal — the same component EmailComposer uses on the
+          /compose page and DockedComposer wires (same pick logic, same
+          past-time rejection, same backend contract). Its own fixed z-50
+          backdrop, so no portal is needed — identical to DockedComposer. */}
+      {showScheduleModal && (
+        <ScheduleSendModal
+          isOpen={showScheduleModal}
+          onClose={() => setShowScheduleModal(false)}
+          onSchedule={(at) => {
+            setShowScheduleModal(false);
+            void handleSend(at);
+          }}
+        />
+      )}
     </div>
   );
 }
