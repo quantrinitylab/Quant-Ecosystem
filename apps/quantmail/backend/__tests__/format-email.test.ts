@@ -153,3 +153,61 @@ describe('formatEmailRecord: snooze-state bridging', () => {
     expect(formatted.snoozedUntil).toBe(explicit);
   });
 });
+
+/**
+ * Attachment id namespace isolation (QM-M39-010).
+ *
+ * `att_<uuid>` is the AttachmentService namespace: such an id means the
+ * backend can read the bytes (download route, Save-to-Drive). The formatter
+ * used to synthesize `att_${idx}` / `att_${idx}_${Date.now()}` for metadata-
+ * only attachments, so a prefix-based gate offered Save-to-Drive on rows whose
+ * bytes the backend could not read (readAttachment 404). Synthesized ids must
+ * never start with `att_`; they use `meta_` instead.
+ */
+describe('formatEmailRecord: attachment id prefix', () => {
+  const row = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    id: 'email-1',
+    fromAddress: 'sender@example.com',
+    toAddresses: ['me@quantmail.in'],
+    subject: 'Design review',
+    bodyPlain: 'Hello',
+    ...over,
+  });
+  const ids = (attachments: unknown[]) =>
+    (formatEmailRecord(row({ attachments })).attachments as { id: string }[]).map((a) => a.id);
+  // The strict shape the client matches before offering Save-to-Drive.
+  const SERVICE_ID = /^att_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  it('gives string attachments a meta_-prefixed id, never att_', () => {
+    const [id] = ids(['/uploads/notes.txt']);
+    expect(id.startsWith('meta_')).toBe(true);
+    expect(id.startsWith('att_')).toBe(false);
+    expect(SERVICE_ID.test(id)).toBe(false);
+  });
+
+  it('gives id-less object attachments a meta_-prefixed id, never att_', () => {
+    const [id] = ids([{ filename: 'report.pdf', mimeType: 'application/pdf' }]);
+    expect(id.startsWith('meta_')).toBe(true);
+    expect(id.startsWith('att_')).toBe(false);
+    expect(SERVICE_ID.test(id)).toBe(false);
+  });
+
+  it('keeps a real AttachmentService att_<uuid> id untouched', () => {
+    const stored = 'att_550e8400-e29b-41d4-a716-446655440000';
+    const [id] = ids([{ id: stored, filename: 'kept.pdf' }]);
+    expect(id).toBe(stored);
+  });
+
+  it('never emits a synthesized id that the AttachmentService regex would accept', () => {
+    const formatted = formatEmailRecord(
+      row({
+        attachments: ['/uploads/a.txt', { filename: 'b.pdf' }, { id: '', filename: 'c.pdf' }],
+      }),
+    );
+    const out = (formatted.attachments as { id: string }[]).map((a) => a.id);
+    for (const id of out) {
+      expect(id.startsWith('att_')).toBe(false);
+      expect(SERVICE_ID.test(id)).toBe(false);
+    }
+  });
+});

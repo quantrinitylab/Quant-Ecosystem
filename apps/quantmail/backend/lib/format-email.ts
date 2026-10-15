@@ -49,10 +49,20 @@ export function formatEmailRecord<T extends Record<string, any>>(email: T): T {
     String(email.messageKind ?? '').toUpperCase() === 'CHAT' ? 'chat' : 'mail';
 
   const rawAttachments = Array.isArray(email.attachments) ? email.attachments : [];
+  /*
+   * Synthesized ids use the `meta_` prefix — NEVER `att_`. The `att_`
+   * namespace belongs to AttachmentService (`att_<uuid>`, minted in
+   * backend/services/attachment.service.ts), whose ids mean "the backend can
+   * read these bytes" (QM-M39-010 Save-to-Drive, /api/attachments/:id/download).
+   * Synthesizing `att_` ids for metadata-only rows made prefix-based gates
+   * offer Save-to-Drive on bytes that don't exist (readAttachment 404). Even
+   * though the client now matches the strict UUID shape, the prefix must not
+   * collide, for any consumer of the wire.
+   */
   const attachments = rawAttachments.map((att: any, idx: number) => {
     if (typeof att === 'string') {
       return {
-        id: `att_${idx}`,
+        id: `meta_${idx}`,
         filename: att.split('/').pop() || `attachment_${idx + 1}`,
         mimeType: 'application/octet-stream',
         size: 0,
@@ -60,7 +70,7 @@ export function formatEmailRecord<T extends Record<string, any>>(email: T): T {
       };
     }
     return {
-      id: att.id || `att_${idx}_${Date.now()}`,
+      id: att.id || `meta_${idx}_${Date.now()}`,
       filename: att.filename || att.name || `attachment_${idx + 1}`,
       mimeType: att.mimeType || att.contentType || att.type || 'application/octet-stream',
       size: typeof att.size === 'number' ? att.size : 0,
