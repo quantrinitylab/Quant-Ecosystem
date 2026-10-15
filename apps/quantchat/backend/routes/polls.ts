@@ -24,6 +24,18 @@ import { PollService } from '../services/poll.service';
 // never trusted. Bounds follow house precedents (ids min(1); question
 // max 500 like conversation descriptions; option max 100 like names;
 // options max 10 as the array cap).
+//
+// QC-F-335 — poll modes (quiz + anonymous).
+// Polls previously had only the plainest form: no quiz (correct answer
+// + explanation) and no anonymous voting — and anonymous was
+// structurally impossible because every response carried the voter
+// roster. Two orthogonal axes now exist (`mode: 'standard' | 'quiz'`,
+// `isAnonymous: boolean`). Anonymous is an EXPOSURE contract: identity
+// stays in the stored record (vote replace/toggle needs it) but no
+// response — results, create or vote — ever exposes another user's id
+// on an anonymous poll; quiz answers are revealed only to the creator
+// or after voting. All shaping lives in PollService.serializePoll /
+// getPollResults; these routes only bound the body and pass through.
 interface AuthedRequest {
   auth?: { userId?: string };
   user?: { id?: string };
@@ -43,6 +55,16 @@ const createPollSchema = z.object({
   question: z.string().trim().min(1).max(500),
   options: z.array(z.string().trim().min(1).max(100)).min(2).max(10),
   allowMultiple: z.boolean().optional(),
+  // QC-F-335: poll modes. The schema bounds SHAPE only (enum, index
+  // floor, explanation length — 500 follows the question bound); the
+  // semantic rules (quiz requires an in-range correctOptionIndex, quiz
+  // is single-choice, standard polls reject quiz fields) are enforced
+  // by PollService with 400 INVALID_POLL, because direct service
+  // consumers never pass through this schema.
+  mode: z.enum(['standard', 'quiz']).optional(),
+  isAnonymous: z.boolean().optional(),
+  correctOptionIndex: z.number().int().min(0).optional(),
+  explanation: z.string().trim().max(500).optional(),
 });
 
 const voteSchema = z.object({
@@ -64,8 +86,16 @@ const pollsRoutes: FastifyPluginAsync = async (fastify) => {
       question: parsed.data.question,
       options: parsed.data.options,
       allowMultiple: parsed.data.allowMultiple,
+      mode: parsed.data.mode,
+      isAnonymous: parsed.data.isAnonymous,
+      correctOptionIndex: parsed.data.correctOptionIndex,
+      explanation: parsed.data.explanation,
     });
-    return reply.status(201).send({ success: true, data: poll });
+    // QC-F-335: never return the raw record — it carries the full
+    // voter roster. serializePoll is the single exposure point.
+    return reply
+      .status(201)
+      .send({ success: true, data: pollService.serializePoll(poll, creatorId) });
   });
 
   fastify.post('/:pollId/vote', async (request, reply) => {
@@ -76,7 +106,11 @@ const pollsRoutes: FastifyPluginAsync = async (fastify) => {
     }
     const userId = requireUserId(request);
     const poll = await pollService.votePoll(pollId, userId, parsed.data.optionIndex);
-    return reply.send({ success: true, data: poll });
+    // QC-F-335: same serializer as create — an anonymous poll's vote
+    // response must not hand the voter the roster either, and a quiz
+    // vote response is where the voter gets their correct/incorrect
+    // feedback (the reveal predicate is satisfied by having voted).
+    return reply.send({ success: true, data: pollService.serializePoll(poll, userId) });
   });
 
   fastify.get('/:pollId/results', async (request, reply) => {
