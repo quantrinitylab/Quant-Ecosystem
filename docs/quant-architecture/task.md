@@ -3548,8 +3548,25 @@ Rotation -> QM-SCREEN-010/011 (drive) ROUND 10 regression, queued.
 Status: [x] DONE (R10 regression audit complete 2026-10-15 ~05:00 IST; 116-commit window reviewed, 2 calendar fix PRs verified sound, prior fixes intact, 0 new findings, 10 opens carried; fixes tracked via their PRs)
 
 ## QM-SCREEN-008/009 R11 — Calendar regression (ROUND 11)
-Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-008-009-r11, started 2026-10-15 ~14:35 IST; R10 base bfb2e216 → origin/main fresh fetch below)
-- (audit in progress)
+Status: [x] DONE (R11 regression audit complete 2026-10-15 ~15:15 IST)
+Owner: LANE-1
+Branch: lane1-audit-008-009-r11
+Audit started: 2026-10-15 ~14:35 IST (lane-1 deep audit loop, ROUND 11)
+- Base: R10 @ bfb2e216 → origin/main d8ccdea09 (fresh fetch, 106 commits). Code read from origin/main tree only (qe-main working tree stale per standing lesson; never read).
+- WINDOW: 5 calendar-path commits + 1 test/lint, ALL full-diff reviewed on the origin/main tree, VERIFIED SOUND:
+  - 18c4cb24c (#1208): booking month grid 1-based month off-by-one — real fix: `daysIn1BasedMonth(year,month) = new Date(Date.UTC(year, month, 0)).getUTCDate()` (correct 1-based idiom); both grid call sites switched; pins all 12 months of 2026 + leap Feb. Sound.
+  - 313c7cd8f (#1198): NLP quick-add ('Lunch with Sam 1pm' → QuickAddPopover) — parser returns null on nothing-schedulable (zero dummy/fake/lorem hits); QuickAddPopover calls useCreateEvent().mutateAsync then parent toasts + refetches (real create, honest toast); email-to-event ('b' binding + header button) builds draft from real threadParticipants only; ? sheet help overlay added. Sound.
+  - df2ce40ce: gate-lint followup on #1198 (removes obsolete eslint-disable, raw #3B82F6 → var(--quant-info)). Sound.
+  - 574e2504d (#1195): keyboard shortcuts (t today, j/k step, d/w/m/a views, c/q new, / search, shift+g go-to-date, ? sheet via CALENDAR_COMMAND_REFERENCE, Delete always confirms, z undo). Input safety real: engine.ts:322 `if (inEditable && !binding.allowInInput) continue;`, calendar binds nothing to allowInInput. Undo declines honestly on unparseable DTOs. Sound.
+  - 7ac90858a (#1193): honest error boundary on first-load crash — CalendarSurfaceErrorBoundary names cause + window.location.reload() retry (no fake recovery); AuxSurfaceBoundary silent-fails splash/agent surfaces with console trace. Pure-black, instruction-only copy. (This is the 2026-10-13 first-load crash — the parked A/B/C user decision got an honest-boundary implementation; no new blocker raised.)
+- Prior fixes byte-verified INTACT @ d8ccdea09: #1137 Day-view default (CalendarDayView rendered in page.tsx); __QUANT_META__ round-trip (calendar.ts :16, recurring.service :3, tests :14); 55c36ef64 reminders localStorage (page.tsx :2, BookingLinksModal :4); #1143 METHOD:REQUEST/CANCEL (15 hits); isEmailShaped (25 hits).
+- CARRYOVERS RESOLVED this round (not re-filed): R6-NEW-1 P3 'scheduled' dup — empty state rewritten to single "Free day" h3 (CalendarDayView :581); R9-NEW-1 P3 "When:" label — zero "When:" lines remain in calendar tree (only settings MailFiltersSettings).
+- Carryovers STILL OPEN (not re-filed): P1 guest-RSVP→organizer silent; P1 CREATE invites absent (BLOCKER); P2 attendee contacts-autocomplete; P2 detail orphan (edit sheet); P2 DTO timeZone||timezone||'UTC'; P2 no QuantMeet link generation (BLOCKER); P3 as-never casts; P3 no cancellation semantics; P3 no related mail; R7-NEW-1 P3 invalid ?attendee= empty sheet; R8-NEW-1 P2 public-booking page still renders Mail-orange — verified on current tree: 18c4cb24c's diff was grid-only (no --app-accent setter); booking/[slug]/page.tsx uses var(--app-accent) with no layout/route setter, falls back to --quant-primary #FF8C42.
+- NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 1 P3 (R11-NEW-1 P3: event Detail Inspector modal (CalendarModals.tsx:306) renders time as `toLocaleString()` with clock icon but NO timezone designation — a multi-tz guest sees local time with no tz context; R9-NEW-1's label is gone but the underlying tz-less rendering persists on the new surface).
+- No fix agents dispatched (protocol: P0/P1 only). findings.md untouched (no new P0/P1/P2). subagent.list: 0 active — nothing warranted.
+- Live (2026-10-15 ~14:50 IST, proxy 127.0.0.1:8888 alive): /calendar → honest sign-in gate desktop 1440x900 + mobile 390x844 iPhone 14 (pure black, provable copy only); GET /api/calendar/events → honest 401 {"code":"UNAUTHORIZED"} logged out. Signed-in calendar/booking/RSVP/detail/NLP-quickadd/keyboard flows = needs-auth. Screenshots reviewed + deleted; chrome orphans cleaned; /tmp 10%.
+- Rotation → QM-SCREEN-010/011 (drive) ROUND 11 regression, queued.
+Status: [x] DONE (R11 regression audit complete 2026-10-15 ~15:15 IST; 106-commit window reviewed, 5 calendar commits verified sound, prior fixes intact, 2 P3 carryovers resolved, 1 new P3 re-filed; fixes tracked via their PRs)
 
 ## QM-SCREEN-007 R11 — Search regression (ROUND 11)
 Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-007r11, started 2026-10-15 ~13:40 IST; R10 base 3f2ce94bd → origin/main be5b97a08)
