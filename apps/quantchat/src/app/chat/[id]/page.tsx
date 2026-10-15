@@ -17,6 +17,7 @@ import { useRealtimeChat } from '../../../hooks/useRealtimeChat';
 import { useChatSocket } from '../../../hooks/useChatSocket';
 import { messageListVariants, messageVariants } from '../../../lib/motion-variants';
 import { ReactionPicker } from '../../../components/ReactionPicker';
+import { CustomEmojiText } from '../../../components/CustomEmojiText';
 import { VoiceNoteRecorder } from '../../../components/VoiceNoteRecorder';
 import { LinkPreviewCard } from '../../../components/LinkPreviewCard';
 import { AIAgentPanel } from '../../../components/chat/AIAgentPanel';
@@ -996,6 +997,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                       >
                         <ChatBubble
                           message={msg.content}
+                          messageNode={<CustomEmojiText text={msg.content} />}
                           sender={msg.sender === 'self' ? 'self' : 'other'}
                           timestamp={msg.timestamp}
                           status={msg.status}
@@ -1005,6 +1007,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                   ) : (
                     <ChatBubble
                       message={msg.content}
+                      messageNode={<CustomEmojiText text={msg.content} />}
                       sender={msg.sender === 'self' ? 'self' : 'other'}
                       timestamp={msg.timestamp}
                       status={msg.status}
@@ -1027,7 +1030,12 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                   >
                     <div className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-[var(--quant-muted)] border border-[var(--quant-border)] text-sm">
                       {msg.reactions.slice(0, 5).map((r, i) => (
-                        <span key={i}>{r}</span>
+                        <span key={i}>
+                          <CustomEmojiText
+                            text={r}
+                            emojiClassName="inline-block h-[1em] w-[1em] align-[-0.125em]"
+                          />
+                        </span>
                       ))}
                       {msg.reactions.length > 1 && (
                         <span className="text-xs text-[var(--quant-muted-foreground)] ml-1">
