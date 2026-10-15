@@ -7,6 +7,23 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetchRaw } from '@quant/api-client';
 
+/** Anchor id of the README preview pane rendered by the Code tab. */
+export const README_PANE_ANCHOR_ID = 'quantgit-readme-pane';
+
+/**
+ * Scrolls the Code tab's README preview pane into view (GitHub parity: the
+ * sidebar "Readme" row jumps to the README section below the file tree).
+ * Returns false when the pane is not on the page (or there is no DOM), so
+ * callers degrade honestly instead of pretending to navigate.
+ */
+export function scrollToReadmePane(): boolean {
+  if (typeof document === 'undefined') return false;
+  const pane = document.getElementById(README_PANE_ANCHOR_ID);
+  if (!pane) return false;
+  pane.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  return true;
+}
+
 export interface LanguageStat {
   name: string;
   percentage: number;
@@ -38,6 +55,12 @@ export interface RepoSidebarMetadataProps {
   usedByCount?: string;
   contributorsCount?: number;
   languages?: LanguageStat[];
+  /**
+   * Navigates to the Security tab (where the SECURITY.md policy viewer/editor
+   * lives). When omitted, the "Security policy" row renders as plain,
+   * non-clickable text rather than a dead pseudo-link.
+   */
+  onOpenSecurityPolicy?: () => void;
 }
 
 /**
@@ -105,6 +128,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
   usedByCount = '',
   contributorsCount = 0,
   languages = [],
+  onOpenSecurityPolicy,
 }) => {
   const [starred, setStarred] = useState(isStarred);
   const [currentStars, setCurrentStars] = useState(starsCount);
@@ -178,13 +202,14 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
           </div>
         )}
 
-        {/* Topics Pills */}
+        {/* Topics Pills — plain labels: QuantGit has no topic-search
+            destination, so pills must not pose as clickable links. */}
         {topics.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-1">
             {topics.map((t) => (
               <span
                 key={t}
-                className="px-2.5 py-0.5 rounded-full bg-[#1F2937]/60 hover:bg-[#1F2937] text-[#58A6FF] text-[11px] font-medium border border-[#30363D] cursor-pointer transition-colors"
+                className="px-2.5 py-0.5 rounded-full bg-[#1F2937]/60 text-[#58A6FF] text-[11px] font-medium border border-[#30363D]"
               >
                 {t}
               </span>
@@ -192,16 +217,37 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
           </div>
         )}
 
-        {/* Resources links */}
- <div className="pt-2 space-y-2 text-[#8D96A0]">
-          <div className="flex items-center gap-2 hover:text-[#58A6FF] cursor-pointer">
-            <span>📖</span>
+        {/* Resources links — real navigation targets only. The Readme row scrolls
+            to the README preview pane in the Code tab (GitHub parity); the
+            Security policy row opens the Security tab where SECURITY.md lives.
+            Without a security-policy handler it renders as plain text, never a
+            dead pseudo-link. */}
+        <div className="pt-2 border-t border-[#21262D] space-y-2 text-[#8D96A0]">
+          <button
+            type="button"
+            onClick={scrollToReadmePane}
+            aria-label="Scroll to the Readme preview"
+            className="flex w-full items-center gap-2 text-left hover:text-[#58A6FF] cursor-pointer"
+          >
+            <span aria-hidden="true">📖</span>
             <span>Readme</span>
-          </div>
-          <div className="flex items-center gap-2 hover:text-[#58A6FF] cursor-pointer">
-            <span>🛡️</span>
-            <span>Security policy</span>
-          </div>
+          </button>
+          {onOpenSecurityPolicy ? (
+            <button
+              type="button"
+              onClick={onOpenSecurityPolicy}
+              aria-label="Open the Security tab (security policy)"
+              className="flex w-full items-center gap-2 text-left hover:text-[#58A6FF] cursor-pointer"
+            >
+              <span aria-hidden="true">🛡️</span>
+              <span>Security policy</span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span aria-hidden="true">🛡️</span>
+              <span>Security policy</span>
+            </div>
+          )}
         </div>
       </div>
 

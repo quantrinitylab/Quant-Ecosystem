@@ -2441,6 +2441,7 @@ function QuantGitContent() {  const router = useRouter();
                   onNavigatePath={setCurrentPath}
                   onSelectBranch={handleSelectBranch}
                   onOpenCommitHistory={() => setActiveGitHubTab('commits')}
+                  onOpenSecurityPolicy={() => setActiveGitHubTab('security')}
                   showToast={showToast}
                   onCommitBlob={handleCommitBlob}
                   onDeleteBlob={handleDeleteBlob}

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import type { Repo, FileNode } from '../types';
-import { RepoSidebarMetadata } from './RepoSidebarMetadata';
+import { RepoSidebarMetadata, README_PANE_ANCHOR_ID } from './RepoSidebarMetadata';
 import { BranchSelectorModal } from './BranchSelectorModal';
 import { CloneCodespacesMenu } from './CloneCodespacesMenu';
 import { MarkdownPreview } from './MarkdownPreview';
@@ -586,6 +586,9 @@ export interface CodeTabProps {
   onSelectBranch?: (branch: string) => void;
   // QM-SCREEN-013 P2: navigates to the real commit-history ('commits') tab.
   onOpenCommitHistory?: () => void;
+  // Navigates to the real Security tab (SECURITY.md policy lives there).
+  // Wired into the sidebar's "Security policy" row.
+  onOpenSecurityPolicy?: () => void;
   // QM-SCREEN-013: when set, the workspace is showing the file tree at a
   // detached commit SHA instead of the branch head.
   browsingCommitSha?: string | null;
@@ -688,6 +691,7 @@ export function CodeTab({
   onNavigatePath,
   onSelectBranch,
   onOpenCommitHistory,
+  onOpenSecurityPolicy,
   browsingCommitSha = null,
   onExitBrowseCommit,
   showToast,
@@ -2575,15 +2579,18 @@ pnpm install && pnpm dev
           })}
         </div>
 
-        {/* 5. Syntax-Highlighted Markdown README.md Preview Pane */}
-        <MarkdownPreview
-          content={defaultReadmeContent}
-          repoName={selectedRepo.name}
-          defaultBranch={selectedRepo.defaultBranch || 'main'}
-          onEdit={() =>
-            resolveReadmeEditAction({ readmeFile, openBlobEditor, showToast })
-          }
-        />
+        {/* 5. Syntax-Highlighted Markdown README.md Preview Pane — the sidebar's
+            "Readme" row scrolls to this anchor. */}
+        <div id={README_PANE_ANCHOR_ID} className="scroll-mt-4">
+          <MarkdownPreview
+            content={defaultReadmeContent}
+            repoName={selectedRepo.name}
+            defaultBranch={selectedRepo.defaultBranch || 'main'}
+            onEdit={() =>
+              resolveReadmeEditAction({ readmeFile, openBlobEditor, showToast })
+            }
+          />
+        </div>
       </div>
 
       {/* Right / Sidebar Column (25%) */}
@@ -2598,6 +2605,7 @@ pnpm install && pnpm dev
           starsCount={selectedRepo.stars ?? 0}
           forksCount={selectedRepo.forks ?? 0}
           watchersCount={selectedRepo.watching ?? 0}
+          onOpenSecurityPolicy={onOpenSecurityPolicy}
         />
       </div>
     </div>
