@@ -1074,6 +1074,8 @@ LIVE (2026-10-11 ~21:55 IST): /drive → sign-in gate desktop+mobile (no leak, s
 REQUIREMENT GAPS vs Required (R2 update): resumable transfer IMPLEMENTED (chunk protocol, in-memory sessions 24h TTL); offline cache STILL MISSING; scan-state listing coverage now complete except Trash (P2 above); signed delivery IMPLEMENTED but public-link quarantine BYPASS (P0 above); preview matrix honest; versioning/share/editor/Quanty all verified wired.
 
 ## QM-SCREEN-012 — Contacts / people / relationship context
+### R10 AUDIT STARTED
+Status: [~] IN PROGRESS — LANE-1, branch lane-1/audit-qm-screen-012-contacts-r10 (2026-10-15 ~06:35 IST, lane-1 deep audit loop). Base: R9 @ 7d2997dd → origin/main @ 83e1f912 (fresh fetch, 108 commits).
 Status: [x] DONE — LANE-1, branch lane-1/audit-qm-screen-012-contacts-r9. R9 REGRESSION AUDIT COMPLETE (2026-10-14 ~18:35–18:45 IST, lane-1 deep audit loop).
 Audit scope: origin/main @ 7d2997dd vs R8 base 477434bb (74 commits, fresh fetch).
 Method: git log/grep/show on origin/main tree only (qe-main working tree stale per standing lesson) + read-only tree-verification subagent (no writes) + live logged-out checks via local Chrome tooling (desktop 1440x900 + mobile 390x844); signed-in flows needs-auth (no test session).
