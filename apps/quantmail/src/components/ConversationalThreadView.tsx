@@ -17,6 +17,7 @@ import { GroupEditorModal, type GroupDraft } from './GroupEditorModal';
 import { AddMemberModal } from './AddMemberModal';
 import { AnchoredMenu } from './AnchoredMenu';
 import { EmailSnooze } from './EmailSnooze';
+import { EmailFollowUpReminder } from './EmailFollowUpReminder';
 import { ThreadBubbleShell } from './ThreadBubbleGestures';
 import { showToast } from './InboxToast';
 import { useUndoSend } from './UndoSendCountdownBar';
@@ -817,6 +818,19 @@ export function ConversationalThreadView({
     () => messages.some((m) => !isFromMe(m, currentEmail)),
     [messages, currentEmail],
   );
+
+  /**
+   * fix/qm-followup-reminders: the thread's follow-up target is the LAST
+   * message, and only when it is from me — a thread that ends with their
+   * reply needs no nudge. The EmailFollowUpReminder banner itself applies
+   * the ">48h unanswered" rule, so this only selects *which* sent message
+   * the reminder would attach to.
+   */
+  const followUpTarget = useMemo(() => {
+    if (messages.length === 0) return null;
+    const last = messages[messages.length - 1];
+    return last && isFromMe(last, currentEmail) ? last : null;
+  }, [messages, currentEmail]);
 
   /**
    * Whether the conversation reads as archived: every message in it carries
@@ -2478,6 +2492,23 @@ export function ConversationalThreadView({
           <div className="flex justify-start">
             <ThreadSummaryCard onSummarize={handleSummarizeThread} />
           </div>
+        )}
+        {/* fix/qm-followup-reminders: the component was dead code with zero
+            importers — now it renders for unanswered sent messages and is
+            server-backed (POST /follow-up-reminders persists the row). */}
+        {!isLoading && followUpTarget && (
+          <EmailFollowUpReminder
+            key={followUpTarget.id}
+            emailId={followUpTarget.id}
+            threadId={threadId ?? undefined}
+            subject={threadSubject}
+            sentAt={
+              followUpTarget.createdAt instanceof Date
+                ? followUpTarget.createdAt.toISOString()
+                : undefined
+            }
+            hasReply={false}
+          />
         )}
         {/* Pull-to-load-older indicator */}
         {(pullDistance > 0 || isLoadingOlder) && (

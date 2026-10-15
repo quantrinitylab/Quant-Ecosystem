@@ -49,6 +49,11 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^email-templates\/[^/]+$/, methods: ['GET', 'PUT', 'DELETE'] },
   { pattern: /^vacation-responder$/, methods: ['GET', 'PUT'] },
   { pattern: /^vacation-responder\/(?:enable|disable)$/, methods: ['POST'] },
+  // Follow-up reminders (fix/qm-followup-reminders). The EmailFollowUpReminder
+  // picker calls these through the Next proxy — without these rows the proxy
+  // answers 404 API_ROUTE_NOT_FOUND before the backend ever sees the request.
+  { pattern: /^follow-up-reminders$/, methods: ['GET', 'POST'] },
+  { pattern: /^follow-up-reminders\/[^/]+$/, methods: ['DELETE'] },
   // Contact groups. `/contacts` and `/contacts/:id` have their own route files;
   // these do not, because the pattern list is the cheaper place to add a resource
   // and every method below has an export at the bottom of this file.
