@@ -25,7 +25,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { QuantMailLogo } from '../../components/QuantMailLogo';
+import { QuantMailLogoStatic } from '../../components/QuantMailLogoStatic';
 import { TitaniumGridCanvas } from '../../components/TitaniumGridCanvas';
 import { safeReturnPath } from '../../lib/safe-return-path';
 import {
@@ -508,7 +508,10 @@ export function SsoChooserContent({
       <div className="relative z-10 w-full max-w-md rounded-2xl bg-[#0E1015]/90 backdrop-blur-2xl border border-white/[0.08] shadow-[0_24px_48px_-12px_rgba(0,0,0,0.85),inset_0_1px_0_0_rgba(255,255,255,0.08),0_0_0_1px_rgba(255,255,255,0.02)] p-8 sm:p-10 flex flex-col items-center transition-all">
         {/* Brand Header — bare logo, same tile rendering as the login page */}
         <div className="mb-6 flex flex-col items-center">
-          <QuantMailLogo size={48} showBadge={false} interactive={false} />
+          {/* Zero-JS static SVG mark (same locked geometry as the canvas logo,
+              paints on first paint — the interactive canvas mark would run a
+              rAF loop here for a lockup that can never animate). */}
+          <QuantMailLogoStatic size={48} title="QuantMail" />
         </div>
 
         {/* Title & Client Destination Subtitle */}
