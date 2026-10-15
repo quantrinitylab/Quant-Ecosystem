@@ -60,7 +60,14 @@ function renderSidebar(props: Partial<RepoSidebarMetadataProps> = {}) {
     root = createRoot(container);
   });
   render(props);
-  const starButton = () => container.querySelector('button') as HTMLButtonElement;
+  // NOTE (fix/qm-quantgit-dead-resources-rows): the sidebar now renders real
+  // <button> Resources rows (Readme, Security policy) BEFORE the star button,
+  // so `querySelector('button')` no longer selects the star button. Select it
+  // by its stable aria-label instead.
+  const starButton = () =>
+    container.querySelector(
+      'button[aria-label="Star this repository"], button[aria-label="Unstar this repository"]',
+    ) as HTMLButtonElement;
   return {
     container,
     starButton,
