@@ -4,7 +4,8 @@
 // QuantGit — Repository Metrics & Metadata Sidebar (GitHub Screens 15–17, 116–125)
 // ============================================================================
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface LanguageStat {
   name: string;
@@ -13,6 +14,14 @@ export interface LanguageStat {
 }
 
 export interface RepoSidebarMetadataProps {
+  /**
+   * QuantGit repository id (the `:id` in `/api/repos/:id/star`). When present
+   * the star button persists through the real backend endpoints. When absent
+   * the button stays disabled rather than fabricating a count locally —
+   * unless `onToggleStar` is provided, in which case the owner handles
+   * persistence itself.
+   */
+  repoId?: string;
   repoOwner: string;
   repoName: string;
   description?: string;
@@ -31,7 +40,55 @@ export interface RepoSidebarMetadataProps {
   languages?: LanguageStat[];
 }
 
+/**
+ * Persist a star toggle through the real QuantGit backend.
+ *
+ * POST /api/repos/:id/star stars, DELETE /api/repos/:id/star unstars
+ * (Fastify backend/routes/repos.ts — idempotent, starCount recomputed in the
+ * same transaction). Resolves with the server's authoritative
+ * `{ stars, starred }`; throws an honest Error on transport failure, HTTP
+ * errors, or an unexpected envelope shape.
+ */
+export async function toggleRepoStar(
+  repoId: string,
+  currentlyStarred: boolean,
+): Promise<{ stars: number; starred: boolean }> {
+  const res = await apiFetchRaw(`/api/repos/${encodeURIComponent(repoId)}/star`, {
+    method: currentlyStarred ? 'DELETE' : 'POST',
+  });
+  let body: unknown = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  if (!res.ok) {
+    const envelope = body as { error?: unknown; message?: unknown } | null;
+    const detail =
+      typeof envelope?.error === 'string'
+        ? envelope.error
+        : typeof envelope?.error === 'object' && envelope?.error !== null
+          ? String((envelope.error as { message?: unknown }).message ?? '')
+          : typeof envelope?.message === 'string'
+            ? envelope.message
+            : '';
+    throw new Error(
+      `Could not ${currentlyStarred ? 'unstar' : 'star'} this repository (HTTP ${res.status})${detail ? `: ${detail}` : ''}.`,
+    );
+  }
+  const data = (body as { data?: unknown } | null)?.data as
+    | { stars?: unknown; starred?: unknown }
+    | undefined;
+  if (typeof data?.stars !== 'number' || typeof data?.starred !== 'boolean') {
+    throw new Error(
+      'The star endpoint returned an unexpected response — your star was not updated.',
+    );
+  }
+  return { stars: data.stars, starred: data.starred };
+}
+
 export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
+  repoId,
   repoOwner,
   repoName,
   description = '',
@@ -51,11 +108,51 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
 }) => {
   const [starred, setStarred] = useState(isStarred);
   const [currentStars, setCurrentStars] = useState(starsCount);
+  const [starPending, setStarPending] = useState(false);
+  const [starError, setStarError] = useState<string | null>(null);
 
-  const handleStarClick = () => {
-    setStarred(!starred);
-    setCurrentStars((prev) => (starred ? prev - 1 : prev + 1));
-    onToggleStar?.();
+  // The star state belongs to one repo: when the selected repo (or its
+  // server-provided counts) changes, resync instead of showing stale state.
+  useEffect(() => {
+    setStarred(isStarred);
+    setCurrentStars(starsCount);
+    setStarError(null);
+  }, [repoId, isStarred, starsCount]);
+
+  // Without a repoId there is nothing to persist a star against, so the
+  // button stays disabled rather than fabricating a count locally.
+  const starWired = Boolean(repoId) || Boolean(onToggleStar);
+
+  const handleStarClick = async () => {
+    if (starPending) return;
+    if (!repoId) {
+      // Legacy path: an external owner handles persistence itself.
+      onToggleStar?.();
+      return;
+    }
+    const nextStarred = !starred;
+    const prevStarred = starred;
+    const prevStars = currentStars;
+    // Optimistic update — rolled back below if the server call fails.
+    setStarred(nextStarred);
+    setCurrentStars((c) => c + (nextStarred ? 1 : -1));
+    setStarError(null);
+    setStarPending(true);
+    try {
+      const result = await toggleRepoStar(repoId, prevStarred);
+      // The server is the source of truth after a successful toggle.
+      setStarred(result.starred);
+      setCurrentStars(result.stars);
+      onToggleStar?.();
+    } catch (err) {
+      setStarred(prevStarred);
+      setCurrentStars(prevStars);
+      setStarError(
+        err instanceof Error ? err.message : 'Could not update the star. Please try again.',
+      );
+    } finally {
+      setStarPending(false);
+    }
   };
 
   return (
@@ -116,7 +213,11 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
       <div className="flex items-center gap-2 pt-2 border-t border-[#21262D]">
         <button
           onClick={handleStarClick}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md font-semibold text-xs border transition-colors ${
+          disabled={!starWired || starPending}
+          aria-pressed={starred}
+          aria-label={starred ? 'Unstar this repository' : 'Star this repository'}
+          title={!starWired ? 'Starring is not available for this repository' : undefined}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md font-semibold text-xs border transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
             starred
               ? 'bg-[#21262D] border-[#8B949E] text-[#E3B341]'
               : 'bg-[#21262D] hover:bg-[#30363D] border-[#30363D] text-[#E6EDF3]'
@@ -128,6 +229,11 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
           </span>
         </button>
       </div>
+      {starError && (
+        <p role="alert" className="text-[11px] text-red-400 pt-1">
+          {starError}
+        </p>
+      )}
 
       {/* Releases Widget — only when real release data exists */}
       {(releasesCount > 0 || latestReleaseTag) && (

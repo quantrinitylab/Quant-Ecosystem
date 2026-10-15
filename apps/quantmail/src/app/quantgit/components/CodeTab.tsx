@@ -2589,6 +2589,7 @@ pnpm install && pnpm dev
       {/* Right / Sidebar Column (25%) */}
       <div className="lg:col-span-1">
         <RepoSidebarMetadata
+          repoId={selectedRepo.id}
           repoOwner={selectedRepo.fullName ? selectedRepo.fullName.split('/')[0] : 'quantrinitylab'}
           repoName={selectedRepo.name}
           description={selectedRepo.description}
