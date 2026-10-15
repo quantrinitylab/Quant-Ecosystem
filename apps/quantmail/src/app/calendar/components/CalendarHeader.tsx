@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import type { EntryType } from '../types';
+import { toDateInput } from '../lib/calendar-geometry';
 import { IconCalendar, IconTarget, IconCake } from '../../../components/icons';
 import { useMinuteClock } from '../lib/use-minute-clock';
 
@@ -14,6 +15,12 @@ export interface CalendarHeaderProps {
   activeTimezone?: string;
   onChangeTimezone?: (tz: string) => void;
   onOpenBookingLinks?: () => void;
+  /** The currently selected date — drives the go-to-date picker below. */
+  selectedDate?: Date;
+  /** Jump the calendar to an arbitrary date (the `shift+g` shortcut target).
+   * Optional so isolated renders (tests) keep working; the picker hides when
+   * absent. */
+  onJumpToDate?: (date: Date) => void;
 }
 
 function HeaderGlobeIcon({ className }: { className?: string }) {
@@ -154,10 +161,13 @@ const ENTRY_MENU_ITEMS: Array<{ id: EntryType; label: string; icon: React.ReactN
 function NewEntrySplitButton({
   openDedicatedSheet,
   mainLabel,
+  mainTitle,
   compact,
 }: {
   openDedicatedSheet: (type: EntryType) => void;
   mainLabel: string;
+  /** Discoverable shortcut hint for the primary half. */
+  mainTitle?: string;
   compact?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -195,6 +205,7 @@ function NewEntrySplitButton({
         // Compact (phone): icon-only so the month title keeps its room —
         // "＋ Event ▾" squeezed "October 2026" down to "Oc…" at 390px.
         aria-label={compact ? mainLabel : undefined}
+        title={mainTitle}
         className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-l-lg rounded-r-none font-semibold text-xs ${baseActionClass} ${
           compact ? 'min-w-[44px] justify-center px-2.5' : 'px-3.5 py-1.5'
         }`}
@@ -253,6 +264,8 @@ export function CalendarHeader({
   activeTimezone: _activeTimezone,
   onChangeTimezone: _onChangeTimezone,
   onOpenBookingLinks,
+  selectedDate,
+  onJumpToDate,
 }: CalendarHeaderProps) {
   // Live Dual-Timezone Clock (IST: Asia/Kolkata, PST: America/Los_Angeles).
   // Minute-aligned: the pill shows h:mm, so a 1s interval only re-rendered
@@ -336,10 +349,36 @@ export function CalendarHeader({
           <button
             type="button"
             onClick={goToday}
+            title="Go to today (T)"
             className="inline-flex min-h-[44px] items-center px-3 py-1 text-xs font-medium rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
           >
             Today
           </button>
+
+          {/*
+            Go-to-date picker (fix/qm-calendar-keyboard-shortcuts): the header
+            previously offered no way to jump to an arbitrary date — the
+            `shift+g` shortcut focuses this input. Desktop only; the mobile
+            header keeps its two-row layout untouched.
+          */}
+          {/* Hidden when onJumpToDate is absent (e.g. isolated test renders). */}
+          {selectedDate && onJumpToDate && (
+          <input
+            id="calendar-goto-date"
+            type="date"
+            aria-label="Go to a date"
+            title="Go to a date (Shift+G)"
+            value={toDateInput(selectedDate)}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (!value) return;
+              // Noon, not midnight: parsing the YYYY-MM-DD string back at
+              // 00:00 can land on the previous day in negative-offset zones.
+              onJumpToDate(new Date(`${value}T12:00:00`));
+            }}
+            className="h-11 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] px-2 text-xs text-[var(--quant-muted-foreground)] [color-scheme:dark] transition-colors hover:border-[var(--app-accent)]/50 hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+          />
+          )}
         </div>
 
         {/* Right: Consolidated IST/PST Pill + Action Buttons */}
@@ -374,7 +413,11 @@ export function CalendarHeader({
 
           {/* Split primary action: New Event in one tap; chevron opens the
               Event / Task / Birthday rows the floating FAB used to carry. */}
-          <NewEntrySplitButton openDedicatedSheet={openDedicatedSheet} mainLabel="New Event" />
+          <NewEntrySplitButton
+            openDedicatedSheet={openDedicatedSheet}
+            mainLabel="New Event"
+            mainTitle="New event (C)"
+          />
         </div>
       </div>
 

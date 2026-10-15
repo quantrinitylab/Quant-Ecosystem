@@ -12,6 +12,8 @@ import {
 } from '../../hooks/useCalendar';
 import { useAuth } from '../../providers/auth-provider';
 import { useConfirm } from '../../hooks/useConfirm';
+import { useCalendarKeyboard } from '../../hooks/useCalendarKeyboard';
+import { buildUndoCreatePayload, type UndoCreatePayload } from './lib/calendar-undo';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
 import { useSearchParams } from 'next/navigation';
@@ -245,6 +247,18 @@ function CalendarPageContent() {
   const [isPeriodCustomizeOpen, setIsPeriodCustomizeOpen] = useState(false);
 
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventLike | null>(null);
+  // fix/qm-calendar-keyboard-shortcuts: the `e` shortcut reopens the details of
+  // the last event the user selected. The detail modal nulls `selectedEvent`
+  // on close, so the ref keeps it across closes; it is cleared when the event
+  // is deleted so `e` can never reopen a dead entry.
+  const lastSelectedEventRef = useRef<CalendarEventLike | null>(null);
+  const handleSelectEvent = useCallback((ev: CalendarEventLike | null) => {
+    if (ev) lastSelectedEventRef.current = ev;
+    setSelectedEvent(ev);
+  }, []);
+  // Session undo for the `z` shortcut: the raw DTO of the most recently
+  // deleted entry, rebuilt into a create payload before the delete lands.
+  const lastDeletedRef = useRef<{ payload: UndoCreatePayload; title: string } | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
   const [isQuantyDrawerOpen, setIsQuantyDrawerOpen] = useState(false);
 
@@ -428,6 +442,46 @@ function CalendarPageContent() {
     },
     [currentDate, scrollToDate],
   );
+
+  // fix/qm-calendar-keyboard-shortcuts: `j`/`k` day-stepping. selectDate moves
+  // the month along when the step crosses a boundary, so this stays correct
+  // in every view.
+  const stepDay = useCallback(
+    (delta: number) => {
+      selectDate(
+        new Date(
+          selectedDate.getFullYear(),
+          selectedDate.getMonth(),
+          selectedDate.getDate() + delta,
+        ),
+      );
+    },
+    [selectDate, selectedDate],
+  );
+
+  // fix/qm-calendar-keyboard-shortcuts: the `/` shortcut. Mirrors the shell's
+  // own `/` focus path for routes that filter in place — the desktop sidebar
+  // owns the field (below md its offsetParent is null), the pillar bar owns
+  // it on small screens.
+  const focusCalendarSearch = useCallback(() => {
+    const desktop = document.getElementById('app-shell-search-input');
+    if (desktop instanceof HTMLInputElement && desktop.offsetParent !== null) {
+      desktop.focus();
+      desktop.select();
+      return;
+    }
+    const pillar = document.getElementById('quant-pillar-search-input');
+    if (pillar instanceof HTMLInputElement && pillar.offsetParent !== null) {
+      pillar.focus();
+      pillar.select();
+    }
+  }, []);
+
+  // fix/qm-calendar-keyboard-shortcuts: `shift+m` toggles the collapsible
+  // month strip under the header.
+  const handleToggleMonthGrid = useCallback(() => {
+    setIsMonthExpanded((prev) => !prev);
+  }, []);
 
   const goMonth = useCallback((delta: number) => {
     setCurrentDate((curr) => {
@@ -1141,6 +1195,11 @@ function CalendarPageContent() {
       // emailed, not silently skipped.
       const target = events.find((ev) => ev.id === id) ?? null;
       const guestCount = Array.isArray(target?.attendees) ? target.attendees.length : 0;
+      // fix/qm-calendar-keyboard-shortcuts: capture the raw DTO for `z` undo
+      // BEFORE the delete lands — after it there is nothing to restore from.
+      const rawTarget =
+        (rawEvents as any[] | undefined)?.find((r) => r?.id === id) ?? null;
+      const undoPayload = rawTarget ? buildUndoCreatePayload(rawTarget) : null;
       const ok = await confirm({
         title: 'Delete this entry?',
         message:
@@ -1156,6 +1215,14 @@ function CalendarPageContent() {
             | { guestNotification?: GuestNotificationStatus }
             | undefined;
           setSelectedEvent(null);
+          lastSelectedEventRef.current = null;
+          // fix/qm-calendar-keyboard-shortcuts: stash for `z` undo — only
+          // when the payload rebuilt faithfully. A null payload (unparseable
+          // dates) means the shortcut declines honestly instead of restoring
+          // a corrupted entry.
+          lastDeletedRef.current = undoPayload
+            ? { payload: undoPayload, title: target?.title || 'Entry' }
+            : null;
           showToast({ text: 'Entry deleted', type: 'info' });
           // Honest reporting: never claim guests were notified unless the
           // backend actually sent the cancellation email.
@@ -1172,8 +1239,26 @@ function CalendarPageContent() {
         }
       }
     },
-    [confirm, deleteEvent, events, refetch],
+    [confirm, deleteEvent, events, rawEvents, refetch],
   );
+
+  // fix/qm-calendar-keyboard-shortcuts: `z` restores the most recently deleted
+  // entry by re-creating it from the stashed payload. The create endpoint
+  // sends no guest mail, so undo never re-invites anyone.
+  const handleUndoDelete = useCallback(async () => {
+    const stashed = lastDeletedRef.current;
+    if (!stashed) return;
+    try {
+      await createEvent.mutateAsync(stashed.payload as never);
+      lastDeletedRef.current = null;
+      showToast({ text: `“${stashed.title}” restored`, type: 'success' });
+      void refetch();
+    } catch {
+      // Keep the stash so the user can retry — a failed restore must not
+      // silently eat the only copy.
+      showToast({ text: 'Could not restore the entry — press Z to retry', type: 'error' });
+    }
+  }, [createEvent, refetch]);
 
   const addNotificationReminder = useCallback((timeText: string) => {
     setFormState((prev) => {
@@ -1262,6 +1347,41 @@ function CalendarPageContent() {
     ],
   );
 
+  // fix/qm-calendar-keyboard-shortcuts: the Google-class shortcut set. Mounted
+  // here — the calendar surface — so the `calendar` engine scope is only
+  // active on this page. Every run closes over the handlers above; the hook
+  // proxies them live, so no binding table churn on re-renders.
+  useCalendarKeyboard({
+    onCreateEvent: () => openDedicatedSheet('event'),
+    onGoToday: goToday,
+    onStepDay: stepDay,
+    onGoToDate: () => {
+      document.getElementById('calendar-goto-date')?.focus();
+    },
+    onFocusSearch: focusCalendarSearch,
+    // Views go through the merged-tab path — the same handler the tab row
+    // calls — so the URL (?tab=) and context tabs stay in sync.
+    onSelectView: (view) => handleSelectMergedTab(view),
+    onToggleMonthGrid: handleToggleMonthGrid,
+    onSaveEvent: () => {
+      void handleSaveEntry();
+    },
+    onOpenEventDetails: () => {
+      const ev = lastSelectedEventRef.current;
+      if (ev) setSelectedEvent(ev);
+    },
+    onDeleteSelectedEvent: () => {
+      if (selectedEvent) void handleDeleteEvent(selectedEvent.id);
+    },
+    onUndoDelete: () => {
+      void handleUndoDelete();
+    },
+    canSaveEvent: () => activeSheetType !== null,
+    canOpenEventDetails: () => lastSelectedEventRef.current !== null,
+    canDeleteSelectedEvent: () => selectedEvent !== null,
+    canUndoDelete: () => lastDeletedRef.current !== null,
+  });
+
   return (
     <AppShell
       sidebar={<AppSidebar />}
@@ -1288,6 +1408,8 @@ function CalendarPageContent() {
             handleSelectContextTab('booking');
             setIsBookingLinksOpen(true);
           }}
+          selectedDate={selectedDate}
+          onJumpToDate={selectDate}
         />
 
         {/* Honest failure state (PAUD-P0-5/QM-UIUX-078): the events query
@@ -1365,7 +1487,7 @@ function CalendarPageContent() {
             selectedDate={selectedDate}
             onSelectDate={selectDate}
             openDedicatedSheet={openDedicatedSheet}
-            onSelectEvent={setSelectedEvent}
+            onSelectEvent={handleSelectEvent}
             isLoading={isInitialLoading}
           />
         ) : (activeContextTab === 'feed' || activeContextTab === 'agenda') && activeView === 'week' ? (
@@ -1375,7 +1497,7 @@ function CalendarPageContent() {
             selectedDate={selectedDate}
             onSelectDate={selectDate}
             openDedicatedSheet={openDedicatedSheet}
-            onSelectEvent={setSelectedEvent}
+            onSelectEvent={handleSelectEvent}
           />
         ) : (
           (activeContextTab === 'feed' || activeContextTab === 'agenda') && (
@@ -1385,7 +1507,7 @@ function CalendarPageContent() {
               selectedDate={selectedDate}
               onSelectDate={selectDate}
               openDedicatedSheet={openDedicatedSheet}
-              onSelectEvent={setSelectedEvent}
+              onSelectEvent={handleSelectEvent}
               searchFilter={searchFilter}
               isSearchLoading={searchStatus.phase === 'loading'}
               searchError={
@@ -1403,7 +1525,7 @@ function CalendarPageContent() {
             selectedDate={selectedDate}
             onSelectDate={selectDate}
             openDedicatedSheet={openDedicatedSheet}
-            onSelectEvent={setSelectedEvent}
+            onSelectEvent={handleSelectEvent}
             viewDate={currentDate}
             onPrevMonth={() => goMonth(-1)}
             onNextMonth={() => goMonth(1)}
@@ -1415,7 +1537,7 @@ function CalendarPageContent() {
           <CalendarTrackersSubView
             events={events}
             openDedicatedSheet={openDedicatedSheet}
-            onSelectEvent={setSelectedEvent}
+            onSelectEvent={handleSelectEvent}
             userId={user?.id ?? ''}
           />
         )}
@@ -1428,7 +1550,7 @@ function CalendarPageContent() {
             events={events}
             selectedDate={selectedDate}
             openDedicatedSheet={openDedicatedSheet}
-            onSelectEvent={setSelectedEvent}
+            onSelectEvent={handleSelectEvent}
             userId={user?.id ?? ''}
           />
         )}
