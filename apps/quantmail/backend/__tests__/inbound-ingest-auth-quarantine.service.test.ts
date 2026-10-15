@@ -93,8 +93,12 @@ const NEW_THREAD_ID = 'thread-1';
 function createMockPrisma() {
   const mock = {
     user: {
-      findUnique: vi.fn(async (args: { where: { email: string } }) =>
-        args.where.email === 'alice@quantmail.test' ? { id: RECIPIENT_USER_ID } : null,
+      // Emulates Postgres `mode: 'insensitive'`: matches regardless of the
+      // stored row's case, like the service's recipient lookup.
+      findFirst: vi.fn(async (args: { where: { email: { equals: string } } }) =>
+        args.where.email.equals.toLowerCase() === 'alice@quantmail.test'
+          ? { id: RECIPIENT_USER_ID }
+          : null,
       ),
     },
     emailFolder: {
