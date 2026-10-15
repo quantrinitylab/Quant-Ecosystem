@@ -282,7 +282,7 @@ export function ActionsTab({
                     {isExpanded && (
                       <div
                         data-testid={`terminal-logs-${step.id}`}
-                        className="p-3 bg-[#0D1117] font-mono text-xs overflow-x-auto border-t border-[#30363D]"
+ className="p-3 bg-[#0D1117] font-mono text-xs overflow-x-auto"
                       >
                         {step.logs.length === 0 ? (
                           <p className="px-1 py-6 text-center text-[#7D8590] font-sans">
@@ -436,7 +436,7 @@ export function ActionsTab({
             {/* Workflow Runs List Table */}
             <div
               data-testid="workflow-runs-list"
-              className="border border-[#30363D] rounded-xl bg-[#0D1117] divide-y divide-[#21262D] overflow-hidden"
+ className="border border-[#30363D] rounded-xl bg-[#0D1117] overflow-hidden"
             >
               {filteredRuns.length === 0 && (
                 <div

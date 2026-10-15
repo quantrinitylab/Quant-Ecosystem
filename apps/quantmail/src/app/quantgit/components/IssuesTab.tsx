@@ -328,7 +328,7 @@ export function IssuesTab({
       {selectedIssue ? (
         <div className="space-y-6">
           {/* Back button & Issue Header */}
-          <div className="space-y-3 pb-4 border-b border-[#30363D]">
+ <div className="space-y-3 pb-4">
             <button
               onClick={() => setSelectedIssue(null)}
               className="text-[#58A6FF] hover:underline flex items-center gap-1.5 font-medium"
@@ -386,7 +386,7 @@ export function IssuesTab({
             <div className="flex-1 space-y-4">
               {/* Original Post card */}
               <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
-                <div className="px-4 py-2.5 bg-[#0D1117] border-b border-[#30363D] flex items-center justify-between">
+ <div className="px-4 py-2.5 bg-[#0D1117] flex items-center justify-between">
                   <span className="font-semibold text-xs text-[#E6EDF3]">
                     {selectedIssue.author} commented {selectedIssue.createdAt}
                   </span>
@@ -403,7 +403,7 @@ export function IssuesTab({
 
               {/* Comment Composer with Markdown Toolbar (Screen 153) */}
               <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden space-y-2">
-                <div className="px-3 py-2 bg-[#0D1117] border-b border-[#30363D] flex items-center justify-between">
+ <div className="px-3 py-2 bg-[#0D1117] flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setActiveTabMode('write')}
@@ -528,7 +528,7 @@ export function IssuesTab({
             {/* Metadata Sidebar (Screens 154–158) */}
             <div className="w-full lg:w-64 space-y-4 shrink-0 text-xs">
               {/* Assignees */}
-              <div className="pb-3 border-b border-[#21262D] space-y-1">
+ <div className="pb-3 space-y-1">
                 <div className="flex items-center justify-between text-[#8D96A0]">
                   <span className="font-semibold">Assignees</span>
                   <button className="text-[#58A6FF] hover:underline text-[11px]">EDIT</button>
@@ -537,7 +537,7 @@ export function IssuesTab({
               </div>
 
               {/* Labels */}
-              <div className="pb-3 border-b border-[#21262D] space-y-1.5">
+ <div className="pb-3 space-y-1.5">
                 <div className="flex items-center justify-between text-[#8D96A0]">
                   <span className="font-semibold">Labels</span>
                   <button className="text-[#58A6FF] hover:underline text-[11px]">EDIT</button>
@@ -556,7 +556,7 @@ export function IssuesTab({
               </div>
 
               {/* Milestone */}
-              <div className="pb-3 border-b border-[#21262D] space-y-1">
+ <div className="pb-3 space-y-1">
                 <div className="flex items-center justify-between text-[#8D96A0]">
                   <span className="font-semibold">Milestone</span>
                   <button className="text-[#58A6FF] hover:underline text-[11px]">EDIT</button>
@@ -565,7 +565,7 @@ export function IssuesTab({
               </div>
 
               {/* Linked Items */}
-              <div className="pb-3 border-b border-[#21262D] space-y-1">
+ <div className="pb-3 space-y-1">
                 <div className="flex items-center justify-between text-[#8D96A0]">
                   <span className="font-semibold">Linked items</span>
                   <button className="text-[#58A6FF] hover:underline text-[11px]">EDIT</button>
@@ -587,7 +587,7 @@ export function IssuesTab({
       ) : isCreatingIssue ? (
         /* Issue Creation Composer */
         <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-[#30363D] pb-3">
+ <div className="flex items-center justify-between pb-3">
             <h3 className="font-bold text-sm text-[#E6EDF3]">Create new issue</h3>
             <button
               onClick={() => setIsCreatingIssue(false)}
@@ -841,7 +841,7 @@ export function IssuesTab({
 
           {/* Issues List Container */}
           <div className="border border-[#30363D] rounded-xl bg-[#0D1117] overflow-hidden">
-            <div className="bg-[var(--quant-surface-elevated)] border-b border-[#30363D] px-4 py-3 flex items-center justify-between font-semibold">
+ <div className="bg-[var(--quant-surface-elevated)] px-4 py-3 flex items-center justify-between font-semibold">
               <div className="flex items-center gap-4">
                 <button
                   type="button"
@@ -874,7 +874,7 @@ export function IssuesTab({
               </div>
             </div>
 
-            <div className="divide-y divide-[#21262D]">
+ <div>
               {isLoading ? (
                 <QuantGitRowSkeleton rows={5} testId="issue-list-skeleton" />
               ) : displayIssues.length === 0 ? (

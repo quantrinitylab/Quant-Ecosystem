@@ -284,7 +284,7 @@ export function BranchesTab({
 
         <div
           data-testid="active-branches-list"
-          className="rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] divide-y divide-[#21262D] overflow-hidden text-xs"
+ className="rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] overflow-hidden text-xs"
         >
           {activeBranches.length === 0 ? (
             <div className="p-8 text-center text-[#7D8590]">
@@ -402,7 +402,7 @@ export function BranchesTab({
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4"
         >
           <div className="w-full max-w-md rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-[#21262D] pb-3">
+ <div className="flex items-center justify-between pb-3">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <span>🌱</span> Create a branch
               </h3>
@@ -447,7 +447,7 @@ export function BranchesTab({
                 </select>
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#21262D]">
+ <div className="pt-2 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsNewBranchModalOpen(false)}

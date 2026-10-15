@@ -165,7 +165,7 @@ export function CommitsTab({
           data-testid="commit-diff-view"
           className="bg-[var(--quant-surface-elevated)] border border-[#58A6FF]/40 rounded-lg overflow-hidden shadow-2xl space-y-4 p-4 animate-in fade-in duration-200"
         >
-          <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-[#30363D]">
+ <div className="flex flex-wrap items-start justify-between gap-3 pb-3">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="px-2 py-0.5 text-[11px] font-bold uppercase rounded bg-[#58A6FF]/20 text-[#58A6FF] border border-[#58A6FF]/30">
@@ -257,7 +257,7 @@ export function CommitsTab({
                 >
                   <div
                     onClick={() => toggleFileExpansion(file.filename)}
-                    className="flex items-center justify-between px-3.5 py-2 bg-[var(--quant-surface-elevated)] border-b border-[#21262D] cursor-pointer hover:bg-[#21262D]/60 transition-colors select-none text-xs"
+ className="flex items-center justify-between px-3.5 py-2 bg-[var(--quant-surface-elevated)] cursor-pointer hover:bg-[#21262D]/60 transition-colors select-none text-xs"
                   >
                     <div className="flex items-center gap-2 font-mono">
                       <span className="text-[#7D8590] text-[10px]">{isCollapsed ? '▶' : '▼'}</span>
@@ -274,7 +274,7 @@ export function CommitsTab({
                   </div>
 
                   {!isCollapsed && (
-                    <div className="font-mono text-xs overflow-x-auto divide-y divide-[#21262D]/40">
+ <div className="font-mono text-xs overflow-x-auto">
                       {file.lines && file.lines.length > 0 ? (
                         file.lines.map((line, lIdx) => {
                           const isAdd = line.type === 'addition';
@@ -357,7 +357,7 @@ export function CommitsTab({
               </div>
 
               {/* Commits Container Box */}
-              <div className="rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] divide-y divide-[#21262D] overflow-hidden text-xs">
+ <div className="rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] overflow-hidden text-xs">
                 {items.map((commit) => {
                   const shortSha = commit.shortSha || commit.sha.slice(0, 7);
                   const isExpanded = expandedCommitSha === commit.sha;

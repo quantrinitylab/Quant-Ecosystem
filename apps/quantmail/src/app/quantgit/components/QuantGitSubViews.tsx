@@ -258,7 +258,7 @@ export function QuantGitFeedSubView({ events = [] }: QuantGitFeedSubViewProps) {
     >
       <div className="max-w-7xl mx-auto space-y-6 min-h-full flex flex-col">
         {/* Header Hero */}
-        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
+ <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5">
           <div className="flex items-center gap-3">
             <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6]">
               <SvgFeedIcon className="size-5" />
@@ -374,7 +374,7 @@ export function QuantGitReposSubView({
     >
       <div className="max-w-7xl mx-auto space-y-6 min-h-full flex flex-col">
         {/* Top Header Banner */}
-        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
+ <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5">
           <div className="flex items-center gap-3">
             <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6]">
               <SvgRepoIcon className="size-5" />
@@ -535,7 +535,7 @@ export function QuantGitReposSubView({
               </div>
 
               {/* Card Footer: Language Colored Dot & Star Count */}
-              <div className="mt-5 pt-3.5 border-t border-[#232938] flex items-center justify-between text-xs text-[#8B949E]">
+ <div className="mt-5 pt-3.5 flex items-center justify-between text-xs text-[#8B949E]">
                 <div className="flex items-center gap-2">
                   <span
                     className="size-2.5 rounded-full inline-block"
@@ -602,7 +602,7 @@ export function QuantGitPrsSubView({
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Hero */}
-        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
+ <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5">
           <div className="flex items-center gap-3">
             <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6]">
               <SvgPullRequestIcon className="size-5" />
@@ -806,7 +806,7 @@ export function QuantGitIssuesSubView({
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Hero */}
-        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
+ <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5">
           <div className="flex items-center gap-3">
             <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6]">
               <SvgIssueIcon className="size-5" />
@@ -994,7 +994,7 @@ export function QuantGitActionsSubView({
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Hero */}
-        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
+ <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5">
           <div className="flex items-center gap-3">
             <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6]">
               <SvgActionsIcon className="size-5" />
@@ -1044,7 +1044,7 @@ export function QuantGitActionsSubView({
             data-testid="workflow-master-gate"
             className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-6 shadow-xl space-y-5"
           >
-            <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#232938]">
+ <div className="flex flex-wrap items-center justify-between gap-4 pb-4">
               <div className="flex items-center gap-3">
                 <div
                   className={`flex size-9 items-center justify-center rounded-xl border ${
@@ -1358,7 +1358,7 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
     >
       <div className="max-w-4xl mx-auto w-full space-y-6 flex-1 flex flex-col">
         {/* Header Hero */}
-        <div className="flex items-center justify-between pb-3 sm:pb-5 border-b border-[#232938]">
+ <div className="flex items-center justify-between pb-3 sm:pb-5">
           <div className="flex items-center gap-3">
             <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 text-[#8B5CF6] shadow-lg shadow-[#8B5CF6]/10">
               <SvgCopilotIcon className="size-5" />
@@ -1409,7 +1409,7 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
                 }`}
               >
                 {m.role === 'assistant' && (
-                  <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#232938] text-[11px] font-bold text-[#8B5CF6]">
+ <div className="flex items-center gap-2 mb-2 pb-2 text-[11px] font-bold text-[#8B5CF6]">
                     <SvgCopilotIcon className="size-3.5" />
                     <span>Quanty Assistant</span>
                   </div>

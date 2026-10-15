@@ -496,7 +496,7 @@ export function PullRequestsTab({
         /* PR Detail View with 3-Way Diff, Review Decisions & Merge Box */
         <div className="space-y-6" data-testid="pr-detail-view">
           {/* Header */}
-          <div className="space-y-3 pb-4 border-b border-[#30363D]">
+ <div className="space-y-3 pb-4">
             <button
               onClick={() => setSelectedPR(null)}
               data-testid="back-to-pulls-btn"
@@ -537,7 +537,7 @@ export function PullRequestsTab({
                       data-testid="review-changes-box"
                       className="absolute right-0 top-full mt-2 w-80 bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl p-4 shadow-2xl z-50 space-y-3 animate-in fade-in"
                     >
-                      <div className="flex items-center justify-between border-b border-[#30363D] pb-2">
+ <div className="flex items-center justify-between pb-2">
                         <span className="font-bold text-xs text-[#E6EDF3]">Review changes</span>
                         <button
                           type="button"
@@ -647,7 +647,7 @@ export function PullRequestsTab({
                           </label>
                         </div>
 
-                        <div className="pt-2 border-t border-[#30363D] flex justify-end">
+ <div className="pt-2 flex justify-end">
                           <button
                             type="submit"
                             data-testid="submit-review-btn"
@@ -811,7 +811,7 @@ export function PullRequestsTab({
 
             {checksKnown ? (
               <div
-                className="divide-y divide-[#21262D] text-[11px] text-[#8D96A0] pt-1"
+ className="text-[11px] text-[#8D96A0] pt-1"
                 data-testid="security-ci-checks-list"
               >
                 {activeChecks.map((check) => (
@@ -870,7 +870,7 @@ export function PullRequestsTab({
             )}
 
             {/* Merge Action Box */}
-            <div className="pt-3 border-t border-[#30363D]" data-testid="merge-box-container">
+ <div className="pt-3" data-testid="merge-box-container">
               {selectedPR.state === 'open' ? (
                 mergeAllowed ? (
                   <div className="space-y-3" data-testid="merge-enabled-box">
@@ -1087,7 +1087,7 @@ export function PullRequestsTab({
           </div>
 
           <div className="border border-[#30363D] rounded-xl bg-[#0D1117] overflow-hidden">
-            <div className="bg-[var(--quant-surface-elevated)] border-b border-[#30363D] px-4 py-3 flex items-center justify-between font-semibold">
+ <div className="bg-[var(--quant-surface-elevated)] px-4 py-3 flex items-center justify-between font-semibold">
               <div className="flex items-center gap-4">
                 <button
                   type="button"
@@ -1122,7 +1122,7 @@ export function PullRequestsTab({
               </div>
             </div>
 
-            <div className="divide-y divide-[#21262D]">
+ <div>
               {isLoading ? (
                 <QuantGitRowSkeleton rows={5} testId="pr-list-skeleton" />
               ) : filteredPulls.length === 0 ? (

@@ -108,7 +108,7 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
         </div>
 
         {/* Filters Group */}
-        <div className="pt-3 border-t border-[#30363D] space-y-1">
+ <div className="pt-3 space-y-1">
           <span className="text-[11px] font-semibold text-[#8D96A0] px-3 uppercase tracking-wider">
             Filters
           </span>
@@ -138,7 +138,7 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
       {/* Main Notification Stream */}
       <div className="flex-1 space-y-4">
         {/* Header Toolbar */}
-        <div className="flex items-center justify-between border-b border-[#30363D] pb-3">
+ <div className="flex items-center justify-between pb-3">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setFilterRead('all')}
@@ -172,7 +172,7 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
 
         {/* Notifications List */}
         {filteredNotifs.length > 0 ? (
-          <div className="divide-y divide-[#21262D] rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
+ <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
             {filteredNotifs.map((item) => (
               <div
                 key={item.id}
