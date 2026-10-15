@@ -92,3 +92,27 @@ export const ProactiveAgentJobSchema = z.object({
 });
 
 export type ProactiveAgentJob = z.infer<typeof ProactiveAgentJobSchema>;
+
+// ---------------------------------------------------------------------------
+// CI runs (QuantCode / ci-runner).
+//
+// Payload for the `ci-runs` queue, job name `ci-run`. Produced by the
+// QuantMail backend (`createQueueCiRunnerPort` in
+// apps/quantmail/backend/modules/code/services/pipeline.service.ts) and
+// consumed by services/ci-runner. The backend enqueues with
+// `jobId = runId`, so queue events can be correlated back to the CiRun row.
+// ---------------------------------------------------------------------------
+
+export const CI_RUNS_QUEUE_NAME = 'ci-runs';
+export const CI_RUN_JOB_NAME = 'ci-run';
+
+export const CiRunJobSchema = z.object({
+  runId: z.string(),
+  repoId: z.string(),
+  branch: z.string(),
+  commitSha: z.string(),
+  configYaml: z.string(),
+  variables: z.record(z.string()).optional(),
+});
+
+export type CiRunJob = z.infer<typeof CiRunJobSchema>;

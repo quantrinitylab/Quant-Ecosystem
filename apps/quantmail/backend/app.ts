@@ -41,6 +41,7 @@ import workspaceRoutes from './routes/workspaces';
 import ciRoutes from './routes/ci';
 import ciLogsRoutes from './routes/ci-logs';
 import ciHealingRoutes from './routes/ci-healing';
+import { startCiRunStatusSync } from './modules/code/services/ci-run-events';
 import calendarRoutes from './routes/calendar';
 import driveRoutes from './routes/drive';
 import { driveSyncRoutes } from './routes/drive-sync';
@@ -443,6 +444,22 @@ export async function buildApp(config?: AppConfig) {
   await app.register(notificationRoutes, { prefix: '/notifications' });
   await app.register(searchRoutes, { prefix: '/search' });
   await registerQuantCodeModule(app);
+  // CI runs (fix/qm-quantgit-ci-runs): the ci-runs queue events listener that
+  // flips CiRun rows PENDING -> RUNNING -> SUCCESS|FAILED. Without it, runs
+  // dispatched onto the queue would still sit PENDING forever from the API's
+  // point of view. Skipped under NODE_ENV=test (suites build the app and must
+  // never open a Redis connection), matching the call-reminder sweep pattern.
+  if (process.env['NODE_ENV'] !== 'test') {
+    const stopCiRunStatusSync = startCiRunStatusSync(
+      (app as unknown as { prisma: unknown }).prisma as never,
+      { logger: app.log },
+    );
+    if (stopCiRunStatusSync) {
+      app.addHook('onClose', async () => {
+        await stopCiRunStatusSync();
+      });
+    }
+  }
   await app.register(aiDevtoolsRoutes, { prefix: '/api/v1' });
   await app.register(attachmentRoutes, { prefix: '/attachments' });
 

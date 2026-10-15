@@ -20,6 +20,8 @@ function createMockPrisma() {
     ciRun: {
       create: vi.fn(),
       findUnique: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
     },
   };
 }
@@ -69,7 +71,8 @@ describe('PipelineService', () => {
 
       expect(run).toEqual(createdRun);
 
-      // Recorded as PENDING with the resolved commit + branch.
+      // Recorded as PENDING with the resolved commit + branch, persisting the
+      // pipeline inputs so a later retry can re-dispatch faithfully.
       expect(prisma.ciRun.create).toHaveBeenCalledWith({
         data: {
           repoId: 'repo-1',
@@ -78,6 +81,8 @@ describe('PipelineService', () => {
           commitSha: 'deadbeef',
           status: 'PENDING',
           triggeredBy: 'owner-1',
+          configYaml: 'jobs: []',
+          variables: { ENV: 'ci' },
         },
       });
 
@@ -197,6 +202,112 @@ describe('PipelineService', () => {
         expect.objectContaining({ runId: 'run-9' }),
         { jobId: 'run-9' },
       );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // retryRun (fix/qm-quantgit-ci-runs)
+  // -------------------------------------------------------------------------
+  describe('retryRun', () => {
+    const FAILED_RUN = {
+      id: 'run-7',
+      repoId: 'repo-1',
+      prId: 'pr-1',
+      branch: 'main',
+      commitSha: 'cafe1234',
+      status: 'FAILED',
+      configYaml: 'jobs:\n  build:\n    script: make',
+      variables: { ENV: 'ci' },
+    };
+
+    it('resets a FAILED run to PENDING and re-dispatches the stored inputs', async () => {
+      prisma.ciRun.findUnique.mockResolvedValue(FAILED_RUN);
+      prisma.ciRun.update.mockResolvedValue({ ...FAILED_RUN, status: 'PENDING' });
+
+      const retried = await service.retryRun('run-7');
+
+      expect(prisma.ciRun.update).toHaveBeenCalledWith({
+        where: { id: 'run-7' },
+        data: { status: 'PENDING', startedAt: null, completedAt: null },
+      });
+      // Re-dispatch uses the exact pipeline inputs stored at trigger time.
+      expect(ciRunner.dispatch).toHaveBeenCalledTimes(1);
+      expect(ciRunner.dispatch).toHaveBeenCalledWith({
+        runId: 'run-7',
+        repoId: 'repo-1',
+        branch: 'main',
+        commitSha: 'cafe1234',
+        configYaml: 'jobs:\n  build:\n    script: make',
+        variables: { ENV: 'ci' },
+      });
+      expect(retried.status).toBe('PENDING');
+    });
+
+    it('re-dispatches with an empty config when the stored row predates the inputs columns', async () => {
+      prisma.ciRun.findUnique.mockResolvedValue({
+        ...FAILED_RUN,
+        configYaml: null,
+        variables: null,
+      });
+      prisma.ciRun.update.mockResolvedValue({ ...FAILED_RUN, status: 'PENDING' });
+
+      await service.retryRun('run-7');
+
+      expect(ciRunner.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ runId: 'run-7', configYaml: '' }),
+      );
+    });
+
+    it('throws 404 CI_RUN_NOT_FOUND when the run does not exist', async () => {
+      prisma.ciRun.findUnique.mockResolvedValue(null);
+
+      await expect(service.retryRun('missing')).rejects.toMatchObject({
+        statusCode: 404,
+        code: 'CI_RUN_NOT_FOUND',
+      });
+      expect(prisma.ciRun.update).not.toHaveBeenCalled();
+      expect(ciRunner.dispatch).not.toHaveBeenCalled();
+    });
+
+    it('throws 409 RUN_NOT_FAILED when the run is not FAILED', async () => {
+      prisma.ciRun.findUnique.mockResolvedValue({ ...FAILED_RUN, status: 'RUNNING' });
+
+      await expect(service.retryRun('run-7')).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'RUN_NOT_FAILED',
+      });
+      expect(prisma.ciRun.update).not.toHaveBeenCalled();
+      expect(ciRunner.dispatch).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // dispatch failure is honest: FAILED row + 503, never a forever-PENDING row
+  // -------------------------------------------------------------------------
+  describe('dispatchRun failure (fix/qm-quantgit-ci-runs)', () => {
+    it('marks the run FAILED and throws 503 CI_DISPATCH_FAILED when the queue rejects the dispatch', async () => {
+      prisma.repository.findUnique.mockResolvedValue(REPO);
+      prisma.ciRun.create.mockResolvedValue({
+        id: 'run-8',
+        repoId: 'repo-1',
+        branch: 'main',
+        commitSha: 'deadbeef',
+        status: 'PENDING',
+      });
+      ciRunner.dispatch.mockRejectedValueOnce(new Error('redis down'));
+
+      await expect(
+        service.triggerPipeline('repo-1', 'refs/heads/main', {
+          type: 'PUSH',
+          commitSha: 'deadbeef',
+          configYaml: 'jobs: []',
+        }),
+      ).rejects.toMatchObject({ statusCode: 503, code: 'CI_DISPATCH_FAILED' });
+
+      expect(prisma.ciRun.update).toHaveBeenCalledWith({
+        where: { id: 'run-8' },
+        data: { status: 'FAILED', completedAt: expect.any(Date) },
+      });
     });
   });
 });

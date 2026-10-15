@@ -1867,6 +1867,11 @@ model CiRun {
   commitSha   String
   status      CIStatus  @default(PENDING)
   triggeredBy String?
+  // Pipeline inputs persisted at trigger time so a FAILED run can be retried
+  // faithfully (fix/qm-quantgit-ci-runs). Nullable: runs recorded before this
+  // field existed (or via paths that carry no config) re-dispatch with ''.
+  configYaml  String?
+  variables   Json?
   startedAt   DateTime?
   completedAt DateTime?
   createdAt   DateTime  @default(now())

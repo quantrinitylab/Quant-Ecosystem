@@ -187,6 +187,8 @@ export class PipelineService {
     }
 
     // Record the run (PENDING) — this row IS the PipelineRun returned to callers.
+    // The pipeline inputs are persisted on the row so a FAILED run can be
+    // retried faithfully (see retryRun) instead of losing its config.
     const run = await this.prisma.ciRun.create({
       data: {
         repoId,
@@ -195,12 +197,13 @@ export class PipelineService {
         commitSha,
         status: 'PENDING',
         triggeredBy: trigger.triggeredBy ?? null,
+        configYaml: trigger.configYaml ?? null,
+        variables: trigger.variables ?? undefined,
       },
     });
 
     // Hand off to ci-runner for execution (no-op offline; queued in production).
-    await this.ciRunner.dispatch({
-      runId: run.id,
+    await this.dispatchRun(run.id, {
       repoId,
       branch,
       commitSha,
@@ -209,6 +212,63 @@ export class PipelineService {
     });
 
     return run;
+  }
+
+  /**
+   * Dispatch a recorded run to the ci-runner port. A dispatch failure is
+   * surfaced honestly: the run is marked FAILED (it will never execute) and
+   * the caller gets a 503 instead of a PENDING row that sits forever.
+   */
+  private async dispatchRun(
+    runId: string,
+    input: Omit<CiRunnerDispatch, 'runId'>,
+  ): Promise<void> {
+    try {
+      await this.ciRunner.dispatch({ runId, ...input });
+    } catch {
+      await this.prisma.ciRun.update({
+        where: { id: runId },
+        data: { status: 'FAILED', completedAt: new Date() },
+      });
+      throw createAppError(
+        'CI run could not be dispatched to the ci-runner queue',
+        503,
+        'CI_DISPATCH_FAILED',
+      );
+    }
+  }
+
+  /**
+   * Retry a failed run: reset it to PENDING and re-dispatch the exact
+   * pipeline inputs stored at trigger time.
+   *
+   * @throws 404 when the run does not exist.
+   * @throws 409 when the run is not in FAILED state.
+   * @throws 503 when the re-dispatch to ci-runner fails.
+   */
+  async retryRun(runId: string): Promise<PipelineRun> {
+    const run = await this.prisma.ciRun.findUnique({ where: { id: runId } });
+    if (!run) {
+      throw createAppError('CI run not found', 404, 'CI_RUN_NOT_FOUND');
+    }
+    if (run.status !== 'FAILED') {
+      throw createAppError('Only failed runs can be retried', 409, 'RUN_NOT_FAILED');
+    }
+
+    const reset = await this.prisma.ciRun.update({
+      where: { id: runId },
+      data: { status: 'PENDING', startedAt: null, completedAt: null },
+    });
+
+    await this.dispatchRun(run.id, {
+      repoId: run.repoId,
+      branch: run.branch,
+      commitSha: run.commitSha,
+      configYaml: run.configYaml ?? '',
+      variables: (run.variables as Record<string, string> | null) ?? undefined,
+    });
+
+    return reset;
   }
 
   /**
