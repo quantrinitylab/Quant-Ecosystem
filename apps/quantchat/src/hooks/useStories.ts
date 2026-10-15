@@ -107,8 +107,12 @@ export function useStories(): UseStoriesReturn {
     fetchStories();
   }, [fetchStories]);
 
+  // QC-F-364: video stories are NOT advanced by this timer — a video's
+  // advance owner is its own `ended` event in StoryViewer, because the
+  // stored `duration` is not the video's real length (the stories page
+  // posts media with a hardcoded duration). Photo/text keep this timer.
   useEffect(() => {
-    if (autoAdvance && currentStory) {
+    if (autoAdvance && currentStory && currentStory.type !== 'video') {
       advanceTimerRef.current = setTimeout(() => {
         nextStory();
       }, currentStory.duration * 1000);
