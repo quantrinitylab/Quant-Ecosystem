@@ -860,9 +860,37 @@ export default async function emailsRoutes(
          * for the persisted row instead of rendering a duplicate.
          */
         clientMessageId: z.string().max(128).optional(),
+        /**
+         * Schedule-send: ISO timestamp of a future delivery time — the same
+         * `sendAt` contract as POST /emails/:id/send (one mechanism across
+         * compose surfaces). Past times are 400s, never silently sent now.
+         */
+        sendAt: z.string().optional(),
       })
       .safeParse(request.body);
     if (!parsed.success) throw parsed.error;
+
+    // Schedule-send validation — identical to handleComposeOrSend's: a past
+    // sendAt must never fall through to an immediate send while the client
+    // claimed "scheduled" (honest 400 instead; the modal blocks past times
+    // client-side, this is the backstop).
+    let replyDelayMs: number | undefined;
+    let replyScheduledAt: Date | undefined;
+    if (parsed.data.sendAt) {
+      const parsedDate = new Date(parsed.data.sendAt);
+      if (isNaN(parsedDate.getTime())) {
+        throw createAppError('Invalid sendAt timestamp', 400, 'VALIDATION_ERROR');
+      }
+      if (parsedDate.getTime() <= Date.now()) {
+        throw createAppError(
+          'sendAt is in the past — pick a future time, or send now without one',
+          400,
+          'VALIDATION_ERROR',
+        );
+      }
+      replyDelayMs = parsedDate.getTime() - Date.now();
+      replyScheduledAt = parsedDate;
+    }
 
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
@@ -966,6 +994,10 @@ export default async function emailsRoutes(
     try {
       const sentFolder = await getOrCreateFolder(prisma, userId, 'Sent', 'SENT');
       sent = await sendService.send(userId, draft.id, sentFolder.id, {
+        // Scheduled quick replies ride the same durable queue as scheduled
+        // composer sends — one sendAt mechanism, no second implementation.
+        delayMs: replyDelayMs,
+        sendAt: replyScheduledAt,
         ...mutationOpts(request, reply),
       });
     } catch (sendError) {
@@ -986,49 +1018,60 @@ export default async function emailsRoutes(
       logger: request.log,
     });
 
-    try {
-      await sendService.deliverInternally({
-        fromUserId: userId,
-        subject,
-        bodyPlain: parsed.data.body,
-        toAddresses: to,
-        ccAddresses: cc,
-        threadId: targetThreadId ?? undefined,
-        inReplyTo: original.id,
-        messageKind,
-      });
-    } catch (error) {
-      request.log.warn({ err: error, emailId: sent.id }, 'internal reply delivery failed');
+    // Internal mailbox copies go out NOW only for an immediate reply. A
+    // scheduled reply has not been delivered yet — handleComposeOrSend's
+    // same `if (!delayMs)` convention — the delivery worker owns the
+    // internal copies at the scheduled time.
+    if (!replyDelayMs) {
+      try {
+        await sendService.deliverInternally({
+          fromUserId: userId,
+          subject,
+          bodyPlain: parsed.data.body,
+          toAddresses: to,
+          ccAddresses: cc,
+          threadId: targetThreadId ?? undefined,
+          inReplyTo: original.id,
+          messageKind,
+        });
+      } catch (error) {
+        request.log.warn({ err: error, emailId: sent.id }, 'internal reply delivery failed');
+      }
     }
 
     // Realtime transport (email-chat P0): tell every open view of this thread
     // about the new message NOW instead of waiting for the 30s mailbox poll.
-    try {
-      const formatted: Record<string, unknown> = formatEmailRecord(sent);
-      const broadcastThreadId =
-        targetThreadId ?? (typeof (sent as { threadId?: unknown }).threadId === 'string'
-          ? ((sent as { threadId: string }).threadId as string)
+    // Skipped for a scheduled reply — nothing has been delivered yet, so
+    // broadcasting message.new now would reconcile the sender's optimistic
+    // bubble against a message that does not exist in the thread.
+    if (!replyDelayMs) {
+      try {
+        const formatted: Record<string, unknown> = formatEmailRecord(sent);
+        const broadcastThreadId =
+          targetThreadId ?? (typeof (sent as { threadId?: unknown }).threadId === 'string'
+            ? ((sent as { threadId: string }).threadId as string)
           : null);
-      if (broadcastThreadId) {
-        threadRealtimeHub.broadcastMessage(broadcastThreadId, {
-          id: String(formatted['id'] ?? sent.id),
-          threadId: broadcastThreadId,
-          messageKind: String(formatted['messageKind'] ?? messageKind),
-          from: {
-            name: 'You',
-            email: myEmail,
-          },
-          subject: (formatted['subject'] as string | null | undefined) ?? subject,
-          snippet: (formatted['snippet'] as string | null | undefined) ?? undefined,
-          bodyHtml: (formatted['bodyHtml'] as string | null | undefined) ?? undefined,
-          bodyText: (formatted['bodyText'] as string | null | undefined) ?? parsed.data.body,
-          receivedAt: (formatted['receivedAt'] as string | undefined) ?? undefined,
-          createdAt: (formatted['createdAt'] as string | undefined) ?? undefined,
-          clientMessageId: parsed.data.clientMessageId,
-        });
+        if (broadcastThreadId) {
+          threadRealtimeHub.broadcastMessage(broadcastThreadId, {
+            id: String(formatted['id'] ?? sent.id),
+            threadId: broadcastThreadId,
+            messageKind: String(formatted['messageKind'] ?? messageKind),
+            from: {
+              name: 'You',
+              email: myEmail,
+            },
+            subject: (formatted['subject'] as string | null | undefined) ?? subject,
+            snippet: (formatted['snippet'] as string | null | undefined) ?? undefined,
+            bodyHtml: (formatted['bodyHtml'] as string | null | undefined) ?? undefined,
+            bodyText: (formatted['bodyText'] as string | null | undefined) ?? parsed.data.body,
+            receivedAt: (formatted['receivedAt'] as string | undefined) ?? undefined,
+            createdAt: (formatted['createdAt'] as string | undefined) ?? undefined,
+            clientMessageId: parsed.data.clientMessageId,
+          });
+        }
+      } catch (err) {
+        request.log.warn({ err, emailId: sent.id }, 'thread realtime broadcast failed');
       }
-    } catch (err) {
-      request.log.warn({ err, emailId: sent.id }, 'thread realtime broadcast failed');
     }
 
     return reply.status(202).send({

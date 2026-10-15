@@ -21,6 +21,7 @@ import { EmailFollowUpReminder } from './EmailFollowUpReminder';
 import { ThreadBubbleShell } from './ThreadBubbleGestures';
 import { showToast } from './InboxToast';
 import { useUndoSend } from './UndoSendCountdownBar';
+import { ScheduleSendModal, isPastScheduleTime } from './ScheduleSendModal';
 import { SmartReplySuggestions } from './SmartReplySuggestions';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
@@ -46,7 +47,7 @@ import {
   type EmailDraftEntryType,
 } from '../lib/emailToEvent';
 import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
-import { IconChat, IconMail } from './icons';
+import { IconChat, IconClock, IconMail } from './icons';
 import {
   findConversation,
   groupEmailsIntoThreads,
@@ -564,6 +565,11 @@ export function ConversationalThreadView({
   const quickReplyInputRef = useRef<HTMLInputElement>(null);
   const [isSendingQuickReply, setIsSendingQuickReply] = useState(false);
   const [isQuantyOpen, setIsQuantyOpen] = useState(false);
+  // Schedule-send for the quick-reply bar: the same ScheduleSendModal the
+  // composers use (one schedule mechanism across compose surfaces). Mail mode
+  // has no schedule button — its Send opens the full composer, which owns
+  // scheduling there.
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const showQuanty = useDeferredMount(isQuantyOpen);
   const [replyError, setReplyError] = useState<string | null>(null);
   /*
@@ -1636,8 +1642,28 @@ export function ConversationalThreadView({
   // fails — the bar claims "sent" only on resolve. `onSendFailed` shows the
   // error toast and restores the words, so a failed reply is never celebrated
   // and never silently eaten.
-  const handleSendReply = useCallback(() => {
+  //
+  // SCHEDULE-SEND: `scheduledAt` (ISO, future) comes from the same
+  // ScheduleSendModal the composers use — the quick-reply bar no longer sends
+  // immediate-only. The 10-second recall window is unchanged: Undo inside it
+  // cancels before the schedule exists server-side (the API call only exists
+  // inside `performSend`). A scheduled reply does NOT get an optimistic
+  // bubble — nothing has been delivered — it lands in the thread when the
+  // delivery worker fires it, and the bar claims "Reply scheduled!" via
+  // successLabel so it never says "sent" for a future schedule.
+  const handleSendReply = useCallback((scheduledAt?: string) => {
     if (!quickReplyText.trim() || isSendingQuickReply) return;
+    // PR #908 past-time convention, belt-and-braces: the modal rejects past
+    // times and the backend 400s them — a past scheduledAt must never be
+    // queued, or the queue would deliver it IMMEDIATELY while the UI claimed
+    // "scheduled".
+    if (scheduledAt && isPastScheduleTime(new Date(scheduledAt))) {
+      showToast({
+        text: 'That time has already passed — pick a future time to schedule your reply.',
+        type: 'error',
+      });
+      return;
+    }
     setReplyError(null);
     // A latch, cleared by whichever outcome arrives below. The reply bar has no spinner of
     // its own beyond the button label going to `…`, so the mascot beside it is the only
@@ -1674,14 +1700,42 @@ export function ConversationalThreadView({
         // `'chat'` is the whole point of the bar: what is typed here is a line in the
         // conversation, and the server records that so the mark on it is a fact rather
         // than a guess about its length.
-        const res = await apiClient.replyToEmail(replyTarget, replyContent, undefined, 'chat', clientMessageId);
+        //
+        // The schedule contract: `sendAt` carries the future time; omit it for
+        // an immediate send (the immediate-send call stays byte-identical).
+        // Past times never reach here (guarded above) and the backend 400s
+        // them as backstop — never a silent immediate send.
+        const res = await apiClient.replyToEmail(
+          replyTarget,
+          replyContent,
+          undefined,
+          'chat',
+          clientMessageId,
+          scheduledAt,
+        );
         if (!res.success) {
           // REJECT — never resolve on failure. The countdown bar claims "sent"
           // only when this promise resolves; resolving here after showing an
           // error toast is the silent-loss bug (the bar would celebrate a
           // reply that never reached anyone). The honest failure UI lives in
           // `onSendFailed` below, which the bar calls with this error.
-          throw new Error(res.error?.message || 'Failed to send reply');
+          throw new Error(res.error?.message || (scheduledAt ? 'Failed to schedule reply' : 'Failed to send reply'));
+        }
+
+        // SCHEDULED: nothing has been delivered, so there is no optimistic
+        // bubble to inject and nothing new in the thread to scroll to — the
+        // reply lands when the delivery worker fires it, and it is visible on
+        // the /scheduled page meanwhile. The bar's successLabel ("Reply
+        // scheduled!") already says what happened; the toast states it once
+        // more in plain words.
+        if (scheduledAt) {
+          // No realtime broadcast will ever reference this id for a scheduled
+          // send (the route skips it), so drop the reconciliation mapping —
+          // a late broadcast for it can never arrive.
+          optimisticIdsRef.current.delete(clientMessageId);
+          quantyReact('mail:scheduled');
+          showToast({ text: 'Reply scheduled', type: 'success' });
+          return;
         }
 
         const targetTo = messages[0]?.from ? [messages[0].from] : [];
@@ -1791,6 +1845,12 @@ export function ConversationalThreadView({
       to: recipientLabel,
       body: replyContent,
       onSendNow: performSend,
+      // The schedule-send contract (shared with the composers): scheduledAt
+      // joins the duplicate-guard identity (same words, different time = a
+      // different send), and successLabel keeps the bar from claiming
+      // "Message sent!" for a future schedule.
+      scheduledAt,
+      successLabel: scheduledAt ? 'Reply scheduled!' : undefined,
       // A rejected send hands the words back with an honest error — the bar
       // never claims "sent" for it (silent-loss fix).
       onSendFailed: handleSendFailed,
@@ -3507,6 +3567,25 @@ export function ConversationalThreadView({
             className="min-h-[44px] min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded px-1 sm:px-2 py-1.5 sm:min-h-0"
           />
 
+          {/* Schedule send — the same ScheduleSendModal the composers use
+              (one schedule mechanism across compose surfaces). Chat mode
+              only: in mail mode Send opens the full composer, which owns
+              scheduling there. Mail orange accent; invisible ::after halo so
+              the hit target stays ≥44px. */}
+          {composeMode === 'chat' && (
+            <button
+              type="button"
+              onClick={() => setShowScheduleModal(true)}
+              disabled={!quickReplyText.trim() || isSendingQuickReply}
+              data-testid="quick-reply-schedule-button"
+              aria-label="Schedule send"
+              className="relative flex items-center justify-center p-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all disabled:opacity-30 disabled:pointer-events-none shrink-0 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              title="Schedule send — pick a future date & time"
+            >
+              <IconClock className="size-4" />
+            </button>
+          )}
+
           {/* Send Button — sends the line, or carries it into the full composer */}
           <button
             type="button"
@@ -3620,6 +3699,19 @@ export function ConversationalThreadView({
             await deleteGroup.mutateAsync(group.id);
             setEditingGroup(null);
             setGroupInfoOpen(false);
+          }}
+        />
+      )}
+      {/* Schedule Send Modal — the same component the composers use on the
+          /compose page (same pick logic, same past-time rejection, same
+          backend sendAt contract). z-50 renders above the thread chrome. */}
+      {showScheduleModal && (
+        <ScheduleSendModal
+          isOpen={showScheduleModal}
+          onClose={() => setShowScheduleModal(false)}
+          onSchedule={(at) => {
+            setShowScheduleModal(false);
+            handleSendReply(at);
           }}
         />
       )}
