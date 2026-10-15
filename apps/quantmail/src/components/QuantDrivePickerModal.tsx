@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useDrive } from '../hooks/useDrive';
+import { useDrive, type DriveFile } from '../hooks/useDrive';
 import { formatBytes } from '../lib/format-bytes';
 import {
   IconCheck,
@@ -19,6 +19,10 @@ interface QuantDrivePickerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectFiles: (attachments: Attachment[]) => void;
+  // Insert-as-link path (Gmail parity): inserts live share links into the
+  // message body instead of frozen attachment copies. The composer resolves
+  // the actual share links; the picker stays dumb and returns the selection.
+  onInsertAsLink: (files: DriveFile[]) => void;
 }
 
 type PickerTab = 'recent' | 'my-drive' | 'shared';
@@ -33,6 +37,7 @@ export function QuantDrivePickerModal({
   isOpen,
   onClose,
   onSelectFiles,
+  onInsertAsLink,
 }: QuantDrivePickerModalProps) {
   const { files, loading, fetchFiles } = useDrive();
   const [activeTab, setActiveTab] = useState<PickerTab>('my-drive');
@@ -83,6 +88,12 @@ export function QuantDrivePickerModal({
       url: `/api/drive/files/${f.id}/download`,
     }));
     onSelectFiles(attachments);
+    onClose();
+  };
+
+  const handleInsertAsLink = () => {
+    const selected = files.filter((f) => selectedFileIds.includes(f.id));
+    onInsertAsLink(selected);
     onClose();
   };
 
@@ -300,11 +311,21 @@ export function QuantDrivePickerModal({
               </button>
               <button
                 type="button"
+                onClick={handleInsertAsLink}
+                disabled={selectedFileIds.length === 0}
+                title="Insert a live Drive link into the message body (recipients see later edits)"
+                className="min-h-touch rounded-xl border border-[#2E7D32]/50 bg-[#2E7D32]/15 px-4 text-xs font-semibold text-[#4CAF50] transition-colors hover:bg-[#2E7D32]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] focus-visible:ring-[#4CAF50] disabled:opacity-40"
+              >
+                Insert as link ({selectedFileIds.length})
+              </button>
+              <button
+                type="button"
                 onClick={handleConfirm}
                 disabled={selectedFileIds.length === 0}
+                title="Attach a frozen copy of the file to the message"
                 className="min-h-touch rounded-xl bg-[var(--quant-primary)] px-4 text-xs font-semibold text-[#111111] shadow-[0_4px_16px_rgba(0,0,0,0.6)] transition-colors hover:bg-[var(--quant-primary-hover)] active:bg-[var(--brand-primary-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] focus-visible:ring-[var(--quant-primary)] disabled:opacity-40"
               >
-                Insert Attached ({selectedFileIds.length})
+                Attach copies ({selectedFileIds.length})
               </button>
             </div>
           </div>

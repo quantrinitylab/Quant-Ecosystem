@@ -47,6 +47,17 @@ import {
 } from './icons';
 import { useConfirm } from '../hooks/useConfirm';
 import { useEdgeSwipeBack } from '../hooks/useEdgeSwipeBack';
+import {
+  ensureInsertableDriveLink,
+  extractDriveShareTokens,
+  resolveDriveShareToken,
+  fetchDriveFileAccess,
+  computeDrivePermissionIssues,
+  grantDriveViewAccess,
+  type DriveComposeLink,
+  type DrivePermissionIssue,
+} from './drive-compose-share';
+import type { DriveFile } from '../hooks/useDrive';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { apiClient } from '../services/api-client';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
@@ -70,6 +81,10 @@ const ScheduleSendModal = dynamic(
 );
 const QuantDrivePickerModal = dynamic(
   () => import('./QuantDrivePickerModal').then((m) => m.QuantDrivePickerModal),
+  { ssr: false },
+);
+const DrivePermissionDialog = dynamic(
+  () => import('./DrivePermissionDialog').then((m) => m.DrivePermissionDialog),
   { ssr: false },
 );
 
@@ -589,6 +604,17 @@ export function EmailComposer({
   const [isQuantyDrawerOpen, setIsQuantyDrawerOpen] = useState(false);
   const [isDrivePickerOpen, setIsDrivePickerOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  // Drive links inserted into the body as live links (not attachment copies).
+  // Tracked per session so the send-time permission detector knows each
+  // file's id; pasted links are detected by scanning the body instead.
+  const [driveComposeLinks, setDriveComposeLinks] = useState<DriveComposeLink[]>([]);
+  // Send-time Drive permission detector dialog state.
+  const [drivePermDialog, setDrivePermDialog] = useState<{
+    issues: DrivePermissionIssue[];
+    resolve: (decision: 'proceed' | 'cancel') => void;
+  } | null>(null);
+  const [drivePermBusy, setDrivePermBusy] = useState(false);
+  const [drivePermError, setDrivePermError] = useState<string | null>(null);
   const [showThreeDotsMenu, setShowThreeDotsMenu] = useState(false);
   const [showSendOptionsDropdown, setShowSendOptionsDropdown] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -862,6 +888,145 @@ export function EmailComposer({
   const allRecipients = [...toRecipients, ...ccRecipients, ...bccRecipients];
   const sendBlockReason = getSendBlockReason(to, subject, body, allRecipients);
 
+  // ---------------------------------------------------------------------------
+  // Drive link permission detector (Gmail "Share and send?" parity).
+  //
+  // Runs at send time, before anything is dismissed or queued: for every
+  // Drive link in the body — inserted this session (tracked with file ids)
+  // or pasted/left from an earlier session (share tokens scanned from the
+  // body) — it checks the real sharing state against the recipient list and
+  // prompts when someone lacks access. Access is only claimed on positive
+  // backend evidence; anything unverifiable is surfaced as unverifiable.
+  // ---------------------------------------------------------------------------
+
+  // Mirror handleSend's recipient resolution: chips first, bare `to/cc/bcc`
+  // text parsed as fallback (QM-SCREEN-012 R2 dedupes; here only emails matter).
+  const collectRecipientEmails = useCallback((): string[] => {
+    const out: string[] = [];
+    const pushParsed = (raw: string) => {
+      raw
+        .split(/[,;\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((e) => out.push(e));
+    };
+    if (toRecipients.length > 0) toRecipients.forEach((r) => out.push(r.email));
+    else if (to) pushParsed(to);
+    if (ccRecipients.length > 0) ccRecipients.forEach((r) => out.push(r.email));
+    else if (cc) pushParsed(cc);
+    if (bccRecipients.length > 0) bccRecipients.forEach((r) => out.push(r.email));
+    else if (bcc) pushParsed(bcc);
+    return [...new Set(out.map((e) => e.toLowerCase()))];
+  }, [to, cc, bcc, toRecipients, ccRecipients, bccRecipients]);
+
+  const askDrivePermission = useCallback(
+    (issues: DrivePermissionIssue[]): Promise<'proceed' | 'cancel'> =>
+      new Promise((resolve) => setDrivePermDialog({ issues, resolve })),
+    [],
+  );
+
+  const closeDrivePermDialog = useCallback(
+    (decision: 'proceed' | 'cancel') => {
+      setDrivePermDialog((prev) => {
+        prev?.resolve(decision);
+        return null;
+      });
+      setDrivePermError(null);
+      setDrivePermBusy(false);
+    },
+    [],
+  );
+
+  const handleGrantAccessAndSend = useCallback(async () => {
+    setDrivePermDialog((prev) => {
+      if (!prev) return prev;
+      // Capture the issues synchronously; the async grant below closes via closeDrivePermDialog.
+      void (async () => {
+        setDrivePermBusy(true);
+        setDrivePermError(null);
+        const failures: string[] = [];
+        for (const issue of prev.issues) {
+          if (!issue.fileId || issue.missingEmails.length === 0) continue;
+          const { failed } = await grantDriveViewAccess(issue.fileId, issue.missingEmails);
+          failed.forEach((f) => failures.push(`${f.email}: ${f.error}`));
+        }
+        if (failures.length > 0) {
+          setDrivePermBusy(false);
+          setDrivePermError(
+            `Could not grant access to everyone (${failures.join('; ')}). You can retry, or send without access.`,
+          );
+          return;
+        }
+        closeDrivePermDialog('proceed');
+      })();
+      return prev;
+    });
+  }, [closeDrivePermDialog]);
+
+  const runDriveLinkPermissionCheck = useCallback(async (): Promise<'proceed' | 'cancel'> => {
+    const recipients = collectRecipientEmails();
+    // Only check links still present in the body — the user may have deleted
+    // an inserted link while editing, and the detector must not nag about it.
+    const sessionLinks = driveComposeLinks.filter(
+      (l) => body.includes(l.url) || body.includes(l.sharePath),
+    );
+    const knownTokens = new Set(
+      sessionLinks.map((l) => {
+        const m = /\/drive\/share\/([A-Za-z0-9_-]+)/.exec(l.sharePath);
+        return m ? m[1] : '';
+      }),
+    );
+    const pastedTokens = extractDriveShareTokens(body).filter((t) => !knownTokens.has(t));
+
+    if (sessionLinks.length === 0 && pastedTokens.length === 0) return 'proceed';
+
+    const issues: DrivePermissionIssue[] = [];
+    for (const link of sessionLinks) {
+      try {
+        const access = await fetchDriveFileAccess(link.fileId);
+        const issue = computeDrivePermissionIssues(link.name, link.fileId, access, recipients);
+        if (issue) issues.push(issue);
+      } catch {
+        issues.push({
+          fileId: link.fileId,
+          fileName: link.name,
+          missingEmails: [],
+          unverifiable: true,
+          broken: false,
+        });
+      }
+    }
+    for (const token of pastedTokens) {
+      try {
+        const resolved = await resolveDriveShareToken(token);
+        // An anyone-scope link opens for every recipient — nothing to check.
+        if (resolved.scope === 'anyone') continue;
+        const access = await fetchDriveFileAccess(resolved.fileId);
+        const issue = computeDrivePermissionIssues(
+          resolved.fileName,
+          resolved.fileId,
+          access,
+          recipients,
+        );
+        if (issue) issues.push(issue);
+      } catch (err) {
+        // The backend's own message explains why the link doesn't resolve
+        // (not found, expired, restricted) — surface it verbatim.
+        issues.push({
+          fileId: null,
+          fileName: 'Drive link',
+          missingEmails: [],
+          unverifiable: false,
+          broken: true,
+          brokenMessage: err instanceof Error ? err.message : 'This Drive link could not be resolved.',
+        });
+      }
+    }
+
+    if (issues.length === 0) return 'proceed';
+    return askDrivePermission(issues);
+  }, [body, driveComposeLinks, collectRecipientEmails, askDrivePermission]);
+
   // Send Handler
   //
   // Every exit announces itself to Quanty as well as to the toast rail, and the two are not
@@ -903,6 +1068,14 @@ export function EmailComposer({
     }
 
     const { bodyText, bodyHtml } = buildOutgoingBodies();
+
+    // Drive permission detector (Gmail "Share and send?" parity): checks that
+    // every recipient can open the Drive links in this message BEFORE anything
+    // is dismissed or queued, so "Keep editing" leaves the draft untouched.
+    const drivePermDecision = await runDriveLinkPermissionCheck();
+    if (drivePermDecision === 'cancel') {
+      return;
+    }
 
     // 1. Capture current form draft (to, subject, body, attachments)
     const draftSnapshot = {
@@ -1598,6 +1771,47 @@ export function EmailComposer({
       type: 'success',
     });
   };
+
+  // Insert from QuantDrive as live links (Gmail "Drive link" parity): the
+  // message body gets one share link per file — recipients open the live file
+  // and see later edits — instead of a frozen attachment copy. Reuses an
+  // existing active link when the server has one; otherwise creates a
+  // viewer-only `specific`-scope link so insertion never silently world-shares
+  // a private file. The send-time permission detector below verifies access.
+  const handleInsertDriveLinks = async (driveFiles: DriveFile[]) => {
+    setIsDrivePickerOpen(false);
+    let inserted = 0;
+    for (const f of driveFiles) {
+      try {
+        const link = await ensureInsertableDriveLink(
+          f.id,
+          f.name,
+          typeof window !== 'undefined' ? window.location.origin : '',
+        );
+        setDriveComposeLinks((prev) => [
+          ...prev.filter((l) => l.fileId !== link.fileId),
+          link,
+        ]);
+        handleInsertLink(link.name, link.url);
+        inserted += 1;
+      } catch (err) {
+        // Honest: the link was never created, so say so — never pretend.
+        quantyReact('sys:error');
+        showToast({
+          text: `Could not create a share link for ${f.name}`,
+          type: 'error',
+        });
+      }
+    }
+    if (inserted > 0) {
+      quantyReact('file:uploaded');
+      showToast({
+        text: `Inserted ${inserted} Drive link(s) from QuantDrive`,
+        type: 'success',
+      });
+    }
+  };
+
 
   const busy = isSending || isSaving;
 
@@ -3122,6 +3336,23 @@ export function EmailComposer({
               isOpen={isDrivePickerOpen}
               onClose={() => setIsDrivePickerOpen(false)}
               onSelectFiles={handleAttachFromDrive}
+              onInsertAsLink={handleInsertDriveLinks}
+            />
+          )}
+
+          {/* Drive link permission detector (Hidden during Print) */}
+          {drivePermDialog && (
+            <DrivePermissionDialog
+              isOpen
+              issues={drivePermDialog.issues}
+              busy={drivePermBusy}
+              error={drivePermError}
+              canGrant={drivePermDialog.issues.some(
+                (i) => i.fileId && i.missingEmails.length > 0,
+              )}
+              onGrantAndSend={handleGrantAccessAndSend}
+              onSendWithout={() => closeDrivePermDialog('proceed')}
+              onKeepEditing={() => closeDrivePermDialog('cancel')}
             />
           )}
 
