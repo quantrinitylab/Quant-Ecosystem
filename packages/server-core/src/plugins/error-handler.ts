@@ -69,6 +69,24 @@ async function errorHandlerPlugin(fastify: FastifyInstance) {
       });
     }
 
+    // Fastify body-limit rejections (FST_ERR_CTP_BODY_TOO_LARGE): the request
+    // simply exceeded a route's bodyLimit — e.g. the compose routes' 40 MB
+    // ceiling for attachment payloads. This branch MUST sit above the
+    // isAppError branch: a FastifyError carries both `code` and `statusCode`,
+    // so isAppError claims it and would pass the raw code through. Name it
+    // honestly so callers can tell the user what actually happened instead of
+    // surfacing an opaque machine code.
+    if ((error as { code?: string }).code === 'FST_ERR_CTP_BODY_TOO_LARGE') {
+      return reply.status(413).send({
+        success: false,
+        error: {
+          code: 'PAYLOAD_TOO_LARGE',
+          message: 'The request body is too large for this endpoint.',
+          statusCode: 413,
+        },
+      });
+    }
+
     // Known app errors
     if (isAppError(error)) {
       return reply.status(error.statusCode).send({
