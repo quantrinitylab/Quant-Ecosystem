@@ -85,10 +85,14 @@ export default function RegisterPage() {
     <AuthPageTransition>
       <AuthShell
         brand={
+          // Copy-honesty note (2026-10-15): subtitle previously promised
+          // "assisted drafting", which is not a provable user-facing truth
+          // (see note in login/login-skeleton.tsx). Restricted to shipped
+          // features: mail, scheduling.
           <AuthBrandPanel
             eyebrow="Create your workspace identity"
             title="Start with one clear address."
-            subtitle="Claim a QuantMail handle for a focused workspace across mail, scheduling, and assisted drafting."
+            subtitle="Claim a QuantMail handle for a focused workspace across mail and scheduling."
           />
         }
       >

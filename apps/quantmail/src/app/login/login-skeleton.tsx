@@ -14,11 +14,20 @@ import { AuthShell } from '../../components/auth/AuthShell';
 
 /** Shared brand copy for the sign-in shell (single source — page + skeleton). */
 export function LoginBrand() {
+  // Copy-honesty note (2026-10-15): this subtitle previously promised
+  // "assisted drafting", which is not a provable user-facing truth — the only
+  // AI-writing path (compose/page.tsx handleAIAssist → POST /api/ai/compose)
+  // has no shipped UI trigger; EmailComposer's onAIAssist prop is declared
+  // but never rendered (dead plumbing, queue L668). Per the 2026-10-07
+  // design rule (every word an instruction or a provable truth), the claim
+  // is dropped and the copy is restricted to shipped features (threads,
+  // schedules). Same treatment as the "drafts the reply" card fixed in
+  // PR #1083.
   return (
     <AuthBrandPanel
       eyebrow="Return to your workspace"
       title="Your work, back in focus."
-      subtitle="Open your mail workspace with threads, schedules, and assisted drafting kept in one clear flow."
+      subtitle="Open your mail workspace with threads and schedules kept in one clear flow."
     />
   );
 }
