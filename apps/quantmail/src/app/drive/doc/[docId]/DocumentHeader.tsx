@@ -162,6 +162,12 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                 <span className="text-[#8B949E] font-medium hidden md:inline">Offline</span>
               </>
             )}
+            {syncStatus === 'error' && (
+              <>
+                <span className="h-2 w-2 rounded-full bg-[#F85149]" />
+                <span className="text-[#F85149] font-medium hidden md:inline">Save failed</span>
+              </>
+            )}
           </div>
 
           {/* Collaborator Presence Avatars */}
