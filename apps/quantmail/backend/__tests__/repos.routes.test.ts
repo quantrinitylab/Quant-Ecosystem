@@ -3013,7 +3013,9 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       try {
         // RepoStorageService reads GIT_REPOS_PATH at construction time.
         const realProvisioning = new GitProvisioningAdapter();
-        app = await buildApp('user-2', { repositoryProvisioning: realProvisioning });
+        app = await buildApp('user-2');
+        // Swap in the real adapter after build (buildApp pre-decorates a mock).
+        (app as any).repositoryProvisioning = realProvisioning;
         prisma.repository.create.mockResolvedValueOnce({
           ...MOCK_REPO,
           id: 'repo-fork-real',
@@ -3075,7 +3077,9 @@ describe('QuantGit Database-Backed Repos Routes', () => {
         archive: vi.fn().mockResolvedValue({ storagePath: null }),
         destroy: vi.fn().mockResolvedValue(undefined),
       };
-      const app = await buildApp('user-2', { repositoryProvisioning: failingProvisioning });
+      const app = await buildApp('user-2');
+      // Swap in the failing adapter after build (buildApp pre-decorates a mock).
+      (app as any).repositoryProvisioning = failingProvisioning;
       prisma.repository.create.mockResolvedValueOnce({
         ...MOCK_REPO,
         id: 'repo-fork-fail',
