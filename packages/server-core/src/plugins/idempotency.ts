@@ -312,7 +312,15 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
 /** Redis-backed store. `claimProcessing` uses `SET … NX` so concurrent
  *  claimants across instances cannot both win. */
 export class RedisIdempotencyStore implements IdempotencyStore {
-  constructor(private readonly redis: Redis) {}
+  // NOTE: explicit field + assignment instead of a TS parameter property
+  // (`constructor(private readonly redis: Redis)`). This module is imported
+  // by `idempotency-realdb-concurrency.worker.ts` inside a raw
+  // `node:worker_threads` worker, where Node >= 22.18 strips types natively
+  // and REJECTS parameter properties ("not supported in strip-only mode").
+  private readonly redis: Redis;
+  constructor(redis: Redis) {
+    this.redis = redis;
+  }
 
   private async withTimeout<T>(op: Promise<T>, what: string): Promise<T> {
     let timer: NodeJS.Timeout | undefined;
@@ -470,7 +478,14 @@ function isPrismaCode(err: unknown, code: string): boolean {
  * lazily on access.
  */
 export class DbIdempotencyStore implements IdempotencyStore {
-  constructor(private readonly table: IdempotencyOperationTable) {}
+  // NOTE: explicit field + assignment instead of a TS parameter property —
+  // see the note on RedisIdempotencyStore above. This class is exercised by
+  // the real-database concurrency worker under Node >= 22.18 native
+  // type-stripping, which rejects parameter properties.
+  private readonly table: IdempotencyOperationTable;
+  constructor(table: IdempotencyOperationTable) {
+    this.table = table;
+  }
 
   private toEntry(row: IdempotencyOperationRow): StoredEntry | null {
     if (row.expiresAt.getTime() <= Date.now()) return null;

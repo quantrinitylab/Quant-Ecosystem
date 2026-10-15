@@ -37,7 +37,20 @@ import {
   type IdempotencyDatabase,
   type IdempotencyOperationRow,
   type IdempotencyOperationTable,
-} from '../idempotency';
+  // @ts-expect-error TS5097: the explicit `.ts` extension is REQUIRED at
+  // runtime (see note below) but the package's `moduleResolution: bundler`
+  // tsconfig rejects `.ts` import paths without `allowImportingTsExtensions`
+  // (which would force noEmit on the whole package build). This file is a
+  // standalone worker entry, not library code.
+} from '../idempotency.ts';
+// NOTE: the explicit `.ts` extension is REQUIRED, not stylistic. This file
+// runs in a raw `node:worker_threads` worker (not under vitest's vite-node
+// transform). Node >= 22.18 strips types natively and resolves an explicit
+// `.ts` specifier, but NEVER resolves extensionless TS imports —
+// `from '../idempotency'` dies here with
+// "Cannot find module '.../src/plugins/idempotency'" (red gate + full-sweep
+// on PR #1203, run 38681413732). tsx's loader accepts the explicit extension
+// as well, so this works under both loaders.
 
 // ---------------------------------------------------------------------------
 // Prisma-shaped errors (codes stable across Prisma 5/6)
