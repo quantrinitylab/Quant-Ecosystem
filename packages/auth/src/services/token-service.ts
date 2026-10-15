@@ -279,6 +279,33 @@ export class TokenService {
       throw new Error('User not found');
     }
 
+    // Account-liveness gate: a soft-deleted (tombstoned) or admin-disabled
+    // row must not keep minting access tokens off a stale refresh token.
+    // Mirrors the /auth/login contract in apps/quantmail/backend/routes/auth.ts
+    // (accountLiveness): 'deleted' answers exactly like a missing user so the
+    // tombstone cannot be probed for existence; suspended/deactivated answer
+    // distinctly so callers can be honest about the reason. The whole refresh
+    // family is revoked — every sibling token in it belongs to the same dead
+    // account. (Defensive cast: the generated Prisma User type is a stub in
+    // some build layouts; the runtime row carries these columns per the
+    // database schema.)
+    const row = user as unknown as { deletedAt?: Date | string | null; status?: string | null };
+    const verdictStatus = typeof row.status === 'string' ? row.status.toUpperCase() : '';
+    if (row.deletedAt) {
+      await this.prisma.refreshToken.updateMany({
+        where: { family: existingToken.family },
+        data: { isRevoked: true },
+      });
+      throw new Error('User not found');
+    }
+    if (verdictStatus === 'SUSPENDED' || verdictStatus === 'DEACTIVATED') {
+      await this.prisma.refreshToken.updateMany({
+        where: { family: existingToken.family },
+        data: { isRevoked: true },
+      });
+      throw new Error(verdictStatus === 'SUSPENDED' ? 'Account suspended' : 'Account deactivated');
+    }
+
     // Use original scopes if available, otherwise default
     const scopes: PermissionScope[] = (payload['scopes'] as PermissionScope[] | undefined) || [
       'openid',
