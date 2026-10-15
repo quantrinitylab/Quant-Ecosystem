@@ -31,10 +31,42 @@ export interface VerificationBadgeInfo {
 }
 
 /**
- * Computes SHA-256 hex fingerprint of an identity public key.
+ * Strictly decodes a base64 identity public key into its raw bytes.
+ *
+ * Cross-client contract (QC-F-398): identity keys are 32 raw bytes carried
+ * as canonical padded standard base64 — the exact form Flutter's
+ * `base64.encode` produces and the form the Flutter client requires
+ * (chat_core/lib/src/crypto/safety_number.dart). Node's base64 decoder is
+ * lenient (it ignores invalid characters and tolerates missing padding), so
+ * canonical form is enforced with a round-trip check: a string is accepted
+ * only if decoding and re-encoding reproduces it byte-for-byte. Anything
+ * else — empty, invalid base64, non-canonical form, or not exactly
+ * 32 bytes — throws (fail-closed, matching Dart's ArgumentError behaviour).
+ * No degraded or fabricated value is ever produced from a bad key.
+ */
+function decodeIdentityKeyBytes(publicKey: string): Buffer {
+  if (typeof publicKey !== 'string' || publicKey.length === 0) {
+    throw new Error('Identity public key must decode to exactly 32 bytes');
+  }
+  const bytes = Buffer.from(publicKey, 'base64');
+  if (bytes.length !== 32 || bytes.toString('base64') !== publicKey) {
+    throw new Error('Identity public key must decode to exactly 32 bytes');
+  }
+  return bytes;
+}
+
+/**
+ * Computes the identity-key fingerprint of an identity public key.
+ *
+ * Cross-client contract (QC-F-398): base64(SHA-256(raw key bytes)) — the
+ * pinned Flutter value (chat_core safety_number.dart
+ * `identityKeyFingerprint`). The key STRING is never hashed; its decoded
+ * 32 raw bytes are. Throws on any key that is not a canonical 32-byte
+ * base64 identity key.
  */
 export function computePublicKeyFingerprint(publicKey: string): string {
-  return crypto.createHash('sha256').update(publicKey).digest('hex');
+  const keyBytes = decodeIdentityKeyBytes(publicKey);
+  return crypto.createHash('sha256').update(keyBytes).digest('base64');
 }
 
 /**
@@ -160,24 +192,35 @@ export function parseAndVerifyContactQr(
 }
 
 /**
- * Computes a 60-digit Signal-grade peer safety number from both users' public keys.
- * Symmetrically sorted: computePeerSafetyNumber(A, B) === computePeerSafetyNumber(B, A).
- * Output format: 12 blocks of 5 digits separated by spaces ("XXXXX XXXXX ...").
+ * Computes the 60-digit peer safety number from both users' identity public keys.
  *
- * @param userAPublicKey Identity key or public key of User A
- * @param userBPublicKey Identity key or public key of User B
+ * Cross-client contract (QC-F-398): the DIGITS are the pinned Flutter
+ * values (chat_core/lib/src/crypto/safety_number.dart) — both keys are
+ * decoded to their raw 32 bytes, sorted byte-wise, concatenated with NO
+ * separator, and hashed with SHA-512; the digest is read as 12 chunks of
+ * 5-byte big-endian uint40 and each chunk contributes the first 5 digits
+ * of its zero-padded decimal form. The spaces in this client's return
+ * value are only its display form ("XXXXX XXXXX ..."); the digits are the
+ * contract. Symmetrically sorted:
+ * computePeerSafetyNumber(A, B) === computePeerSafetyNumber(B, A).
+ * Throws on any key that is not a canonical 32-byte base64 identity key.
+ *
+ * @param userAPublicKey Identity public key of User A (base64, 32 raw bytes)
+ * @param userBPublicKey Identity public key of User B (base64, 32 raw bytes)
  * @returns 60-digit string formatted in 12 blocks of 5 digits
  */
 export function computePeerSafetyNumber(userAPublicKey: string, userBPublicKey: string): string {
-  const sorted = [userAPublicKey, userBPublicKey].sort();
-  const hash = crypto.createHash('sha512').update(`${sorted[0]}:${sorted[1]}`).digest();
+  const keyA = decodeIdentityKeyBytes(userAPublicKey);
+  const keyB = decodeIdentityKeyBytes(userBPublicKey);
+  const sorted = Buffer.compare(keyA, keyB) <= 0 ? [keyA, keyB] : [keyB, keyA];
+  const hash = crypto.createHash('sha512').update(Buffer.concat(sorted)).digest();
 
   const blocks: string[] = [];
   for (let i = 0; i < 12; i++) {
-    // Read 4-byte chunk from the 64-byte SHA-512 digest
-    const chunk = hash.readUInt32BE(i * 4);
-    const num = chunk % 100000;
-    blocks.push(num.toString().padStart(5, '0'));
+    // Read a 5-byte big-endian uint40 chunk from the 64-byte SHA-512 digest
+    // and take the first 5 digits of its zero-padded decimal form.
+    const chunk = hash.readUIntBE(i * 5, 5);
+    blocks.push(chunk.toString().padStart(5, '0').slice(0, 5));
   }
 
   return blocks.join(' ');
@@ -251,7 +294,11 @@ export function verifyPeerFingerprints(
     if (options?.userAPublicKey && options?.userBPublicKey) {
       safetyNumber = computePeerSafetyNumber(options.userAPublicKey, options.userBPublicKey);
     } else {
-      safetyNumber = computePeerSafetyNumber(scannedFingerprint, expectedFingerprint);
+      // Honest-empty (QC-F-398): a safety number is computed from identity
+      // KEYS, never from fingerprints. Without keys there is no number —
+      // fabricating one from the fingerprint strings would produce a
+      // plausible-looking number that belongs to no real key pair.
+      safetyNumber = '';
     }
   }
 
