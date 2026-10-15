@@ -368,7 +368,33 @@ function makeWorkerFake(
       const updatesSnapshot = conversationUpdates.length;
       try {
         return await fn({
-          conversationMember: { findFirst },
+          conversationMember: {
+            findFirst,
+            // QC-F-359 fixture migration: the worker's blocked-pair
+            // gate derives peers from active members — the same
+            // membership map findFirst answers from. These scenarios
+            // seed only the scheduler per conversation, so the peer
+            // set is empty and the gate skips. Assertions unchanged.
+            findMany: async (args: unknown) => {
+              const { where } = args as {
+                where: { conversationId: string; leftAt: null };
+              };
+              return [...opts.memberships.entries()]
+                .filter(([k, leftAt]) => k.endsWith(`::${where.conversationId}`) && leftAt === null)
+                .map(([k]) => ({ userId: k.slice(0, k.lastIndexOf('::')) }));
+            },
+          },
+          // QC-F-359 fixture migration: gate reads — conversation
+          // type from the row (existence follows this fake's own
+          // `existing` set, the same one conversation.update honours;
+          // 1:1 scheduled scenarios, so DIRECT) and block lists from
+          // user preferences (null = 'clear'). Assertions unchanged.
+          user: {
+            findUnique: async (args: unknown) => {
+              const { where } = args as { where: { id: string } };
+              return { id: where.id, preferences: null };
+            },
+          },
           message: {
             create: async (args: unknown) => {
               const { data } = args as { data: CreatedMessage };
@@ -377,6 +403,10 @@ function makeWorkerFake(
             },
           },
           conversation: {
+            findUnique: async (args: unknown) => {
+              const { where } = args as { where: { id: string } };
+              return existing.has(where.id) ? { id: where.id, type: 'DIRECT' } : null;
+            },
             update: async (args: unknown) => {
               const { where } = args as { where: { id: string } };
               if (!existing.has(where.id)) {

@@ -140,6 +140,17 @@ function makeWorld() {
   }
 
   const conversationDelegate = {
+    // QC-F-359 fixture migration: MessageService's blocked-send gate
+    // reads the conversation row's type via findUnique. The rows here
+    // already carry their real type (conv-dm DIRECT, conv-group-open
+    // GROUP, created rows take createConversation's type) — answering
+    // from the same store keeps the scenario honest. No assertion
+    // changes; user preferences above carry no blockedUsers, so the
+    // gate's verdict is 'clear'.
+    async findUnique({ where }: { where: { id: string } }) {
+      const row = conversations.find((c) => c.id === where.id);
+      return row ? { ...row } : null;
+    },
     async findMany({ where }: { where: Record<string, unknown> }) {
       return conversations
         .filter((c) => {

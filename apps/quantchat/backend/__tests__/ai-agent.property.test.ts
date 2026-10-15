@@ -226,11 +226,39 @@ function makeFakePrisma(rows: Row[]) {
       ? { id: `mem_${where.userId}_${where.conversationId}` }
       : null;
   const tx = {
-    conversationMember: { findFirst: findFirstMember },
+    conversationMember: {
+      findFirst: findFirstMember,
+      // QC-F-359 fixture migration: the worker's blocked-pair gate
+      // derives peers from active members — the same rows findFirst
+      // answers from. Each property scenario seeds only the scheduler
+      // for its conversation, so the peer set is empty and the gate
+      // skips. Assertions unchanged.
+      findMany: async ({ where }: { where: { conversationId: string } }) =>
+        rows
+          .filter((r) => r.conversationId === where.conversationId)
+          .map((r) => ({ userId: r.userId })),
+    },
     message: {
       create: async (args: { data: unknown }) => ({ id: 'm', ...(args.data as object) }),
     },
-    conversation: { update: async () => ({}) },
+    conversation: {
+      update: async () => ({}),
+      // QC-F-359 fixture migration: gate read — conversation type
+      // from the row (a conversation exists iff a scheduled row names
+      // it; these are 1:1 scheduled sends, so DIRECT).
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        rows.some((r) => r.conversationId === where.id)
+          ? { id: where.id, type: 'DIRECT' }
+          : null,
+    },
+    // QC-F-359 fixture migration: gate read — block lists from user
+    // preferences (null = readable empty list, 'clear').
+    user: {
+      findUnique: async ({ where }: { where: { id: string } }) => ({
+        id: where.id,
+        preferences: null,
+      }),
+    },
     scheduledMessage: { updateMany: scheduledUpdateMany, update: scheduledUpdate },
   };
   return {

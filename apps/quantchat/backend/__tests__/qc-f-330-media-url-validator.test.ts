@@ -203,7 +203,16 @@ function createMockPrisma() {
       count: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
     },
-    conversation: { update: vi.fn().mockResolvedValue({}) },
+    conversation: {
+      // QC-F-359 fixture migration: blocked-send gate reads (type from
+      // the row; block list from user preferences — null = readable
+      // empty list, 'clear' both directions). No assertion changes.
+      findUnique: vi.fn().mockResolvedValue({ id: 'conv-1', type: 'DIRECT' }),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    user: {
+      findUnique: vi.fn().mockResolvedValue({ preferences: null }),
+    },
     conversationMember: {
       findFirst: vi.fn().mockResolvedValue({ id: 'member-1', leftAt: null }),
       findMany: vi.fn().mockResolvedValue([{ userId: 'viewer-1' }]),
