@@ -835,6 +835,10 @@ Status: [x] DONE (R2 regression complete 2026-10-11 ~20:00 IST; all merged R1 fi
 Status: [x] DONE — LANE-1, branch lane1-audit-010. AUDIT COMPLETE (2026-10-11 ~04:15 IST): 11 P0, 5 P1, 11 P2 + requirement gaps logged in task body. Live: /drive → sign-in desktop+mobile; drive APIs 401 logged out (airtight); signed-in flows needs-auth. FIX AGENTS (PR-only, tracked separately): lane1-fix-010-proxy-gaps (P0 proxy gaps + move mismatch + share-id bug), lane1-fix-010-fake-purge (fake-data purge + P1s + P2 cleanup). Rotation → QM-SCREEN-011.
 
 ### REGRESSION ROUND 10 (2026-10-15 ~05:40–06:00 IST, LANE-1, branch lane1-audit-010-r10)
+
+### REGRESSION ROUND 11 (2026-10-15 ~15:35–16:10 IST, LANE-1, branch lane1-audit-010-r11)
+Status: [~] IN PROGRESS — Owner: LANE-1, branch lane1-audit-010-r11.
+
 Status: [x] DONE — Owner: LANE-1, branch lane1-audit-010-r10. AUDIT COMPLETE (regression).
 - Base: R9 @ 064db7e4c -> origin/main ecc855fb2 (fresh fetch, 114 commits). Code read from origin/main tree only (qe-main working tree stale — never read it).
 - WINDOW: 2 drive-path commits, BOTH full-diff reviewed VERIFIED SOUND: 6a2921ae0 / #1171 (mail attachment preview treats Drive references as first-class byte source: { kind: 'drive', fileId } for exact /api/drive/files/<id>/download refs, authenticatedFetch with session, Drive docs open in on-device engine, Drive images via object URLs, no unauthenticated <img> thumbnails; honest 404 copy 'file was deleted, or it is in the sender's Drive and was not shared with you'; AttachmentPreview canOpen/canSaveToDrive logic sound); 40af8d680 / #1172 (RecipientAttachmentCopier: internal delivery reads each Drive pick ONCE as the sender — same owner check/decrypt/integrity check as external delivery — and stores per-recipient READY copies via AttachmentService.storeBytes; sender's own copy untouched; best-effort: failed copy keeps reference + logged warn, delivery never fails). Other 112 commits = non-drive scope.
