@@ -94,6 +94,11 @@ function makeDb(memberIds: string[] = [A, B, C]) {
         return row;
       },
     },
+    // QC-F-371: setEnabled writes through the atomic preferences helper,
+    // which requires $transaction. Sequential fake: tx client is the
+    // same store (no interleaving in this suite).
+    $transaction: async <T,>(fn: (tx: AutoReplyPrisma) => Promise<T>): Promise<T> =>
+      fn(prisma),
     conversationMember: {
       findFirst: async ({ where }) => {
         const leftAt = memberships.get(key(where.userId, where.conversationId));

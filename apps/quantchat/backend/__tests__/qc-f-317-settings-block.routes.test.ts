@@ -81,7 +81,14 @@ function makeStore(seed: Record<string, Partial<FakeUserRow>>) {
       update,
     },
   };
-  return { rows, update, prisma: prisma as unknown as PrismaClient, raw: prisma };
+  // QC-F-371: settings writers now run through the atomic preferences
+  // helper, which requires $transaction on the client. Sequential fake:
+  // the tx client is the same store (no interleaving in this suite).
+  const prismaWithTx = Object.assign(prisma, {
+    $transaction: async <T,>(fn: (tx: typeof prisma) => Promise<T>): Promise<T> =>
+      fn(prisma),
+  });
+  return { rows, update, prisma: prismaWithTx as unknown as PrismaClient, raw: prismaWithTx };
 }
 
 type Store = ReturnType<typeof makeStore>;

@@ -34,6 +34,10 @@ import { AIEngine } from '@quant/ai';
 import { createAppError } from '@quant/server-core';
 import { AutoReplyManager } from '../lib/auto-reply-manager';
 import { QuantAIAgent, type AutoReplyInput, type AutoReplyResult } from '../lib/ai-agent';
+import {
+  updateUserPreferences,
+  type PreferencesStore,
+} from '../lib/preferences-update';
 import { MessageService } from './message.service';
 
 // Structural Prisma surface (declared locally so this service typechecks
@@ -53,6 +57,13 @@ export interface AutoReplyPrisma {
       data: { preferences: unknown };
     }) => Promise<unknown>;
   };
+  // QC-F-371: setEnabled writes User.preferences through the shared
+  // atomic helper (lib/preferences-update), which needs interactive
+  // transactions on the same client.
+  $transaction: <T>(
+    fn: (tx: AutoReplyPrisma) => Promise<T>,
+    options?: { isolationLevel?: string },
+  ) => Promise<T>;
   conversationMember: {
     findFirst: (args: {
       where: { conversationId: string; userId: string; leftAt: null };
@@ -159,30 +170,32 @@ export class AutoReplyService {
   ): Promise<{ conversationId: string; enabled: boolean; cancelledCount: number }> {
     await this.assertMember(userId, conversationId);
 
-    const row = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { preferences: true },
-    });
-    if (!row) {
+    // QC-F-371: the toggle's read-modify-write runs inside the shared
+    // atomic preferences transaction — a concurrent settings save or
+    // block/unblock can no longer be silently overwritten by this
+    // toggle's stale snapshot (and the toggle cannot overwrite theirs).
+    const outcome = await updateUserPreferences<{ conversationIds: string[] }>(
+      this.prisma as unknown as PreferencesStore,
+      userId,
+      (_tx, currentPreferences) => {
+        const prefs: Record<string, unknown> = isPlainObject(currentPreferences)
+          ? { ...currentPreferences }
+          : {};
+        const chat: Record<string, unknown> = isPlainObject(prefs['chatSettings'])
+          ? { ...(prefs['chatSettings'] as Record<string, unknown>) }
+          : {};
+        const current = extractAutoReplyConversationIds(currentPreferences);
+        const next = enabled
+          ? [...new Set([...current, conversationId])]
+          : current.filter((id) => id !== conversationId);
+        chat['autoReply'] = { conversationIds: next };
+        prefs['chatSettings'] = chat;
+        return { nextPreferences: prefs, result: { conversationIds: next } };
+      },
+    );
+    if (!outcome) {
       throw createAppError('User not found', 404, 'USER_NOT_FOUND');
     }
-
-    const prefs: Record<string, unknown> = isPlainObject(row.preferences)
-      ? { ...row.preferences }
-      : {};
-    const chat: Record<string, unknown> = isPlainObject(prefs['chatSettings'])
-      ? { ...(prefs['chatSettings'] as Record<string, unknown>) }
-      : {};
-    const current = extractAutoReplyConversationIds(row.preferences);
-    const next = enabled
-      ? [...new Set([...current, conversationId])]
-      : current.filter((id) => id !== conversationId);
-    chat['autoReply'] = { conversationIds: next };
-    prefs['chatSettings'] = chat;
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { preferences: prefs },
-    });
 
     let cancelledCount = 0;
     if (enabled) {

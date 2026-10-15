@@ -1012,6 +1012,11 @@ describe('QC-F-042 settings: PUT invalidates the shared privacy cache', () => {
       conversationMember: { async findMany() { return []; } },
       conversation: { async findMany() { return []; } },
     };
+    // QC-F-371: the settings PUT writer runs through the atomic
+    // preferences helper, which requires $transaction on the client.
+    Object.assign(prisma, {
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
+    });
     const app = await buildTestApp(
       async (a) => {
         await a.register(settingsRoutes, { prefix: '/settings' });
