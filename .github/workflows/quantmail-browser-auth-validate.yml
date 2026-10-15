@@ -185,7 +185,7 @@ jobs:
         if: matrix.stage == 'registration-contract'
         run: |
           set -euo pipefail
-          registration='apps/quantmail/src/app/register/page.tsx'
+          registration='apps/quantmail/src/app/register/register-form.tsx'
           session='apps/quantmail/src/services/browser-auth-session.ts'
           grep -F "import { browserAuthSession } from '../../services/browser-auth-session';" "$registration" >/dev/null
           grep -F 'browserAuthSession.register({' "$registration" >/dev/null

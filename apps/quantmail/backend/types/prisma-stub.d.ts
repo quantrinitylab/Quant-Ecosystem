@@ -160,6 +160,12 @@ declare module '@prisma/client' {
     commitSha: string;
     status: string;
     triggeredBy: string | null;
+    // Pipeline inputs persisted at trigger time (schema.prisma: configYaml
+    // String?, variables Json?) so a FAILED run can be retried faithfully.
+    // Keep in sync with the CiRun model — this stub shadows the generated
+    // @prisma/client types for the whole backend compilation unit.
+    configYaml: string | null;
+    variables: unknown;
     startedAt: Date | null;
     completedAt: Date | null;
     createdAt: Date;
