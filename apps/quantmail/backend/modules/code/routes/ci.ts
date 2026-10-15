@@ -2,7 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import type { PrismaClient } from '@prisma/client';
-import { PipelineService } from '../services/pipeline.service';
+import { TypedQueue, CiRunJobSchema, CI_RUNS_QUEUE_NAME } from '@quant/queue';
+import { PipelineService, createQueueCiRunnerPort } from '../services/pipeline.service';
+import { ciRedisConnection } from '../services/ci-run-events';
 
 function getUserId(request: unknown): string {
   const req = request as { auth?: { userId?: string } };
@@ -118,9 +120,15 @@ export default async function ciRoutes(fastify: FastifyInstance) {
   if (!prisma) {
     throw new Error('PrismaClient is not available. Register the prisma plugin before CI routes.');
   }
-  // PipelineService uses the default offline ci-runner adapter here; production
-  // boot wires a queue-backed adapter via createQueueCiRunnerPort (see service).
-  const pipelineService = new PipelineService(prisma);
+  // Production wiring (fix/qm-quantgit-ci-runs): the queue-backed ci-runner
+  // adapter. Previously this used the default noop adapter, so every triggered
+  // run sat PENDING forever and branch-protection status checks could never
+  // go green. The CiRun row's status is flipped PENDING -> RUNNING ->
+  // SUCCESS|FAILED by the ci-runs queue-events listener started in app.ts.
+  const ciRunsQueue = new TypedQueue(CI_RUNS_QUEUE_NAME, CiRunJobSchema, ciRedisConnection());
+  const pipelineService = new PipelineService(prisma, {
+    ciRunner: createQueueCiRunnerPort(ciRunsQueue),
+  });
 
   // GET /runs - list CI runs
   fastify.get<{ Params: { owner: string; name: string } }>(
@@ -248,14 +256,9 @@ export default async function ciRoutes(fastify: FastifyInstance) {
 
       const { run } = await loadRepoRun(prisma, request, owner, name, runId);
 
-      if (run.status !== 'FAILED') {
-        throw createAppError('Only failed runs can be retried', 409, 'RUN_NOT_FAILED');
-      }
-
-      const retried = await prisma.ciRun.update({
-        where: { id: runId },
-        data: { status: 'PENDING', startedAt: null, completedAt: null },
-      });
+      // Scoping + FAILED-gate live in retryRun; it re-dispatches the stored
+      // pipeline inputs so the retried run actually executes.
+      const retried = await pipelineService.retryRun(run.id);
 
       return reply.send({ success: true, data: retried });
     },
