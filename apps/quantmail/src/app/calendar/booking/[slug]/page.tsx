@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TIMEZONES } from '../../types';
-import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolveSlotsResponse, generateGuestDaySlots, slotsWithinGuestDay, guestDayKeyToYmd, compareGuestDayKeys, todayInTimeZone, weekdayInTimeZone, isGuestDayEnabled, formatGuestDayHeader, formatGuestDayShort, defaultSelectedGuestDay } from './booking-utils';
+import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolveSlotsResponse, generateGuestDaySlots, slotsWithinGuestDay, guestDayKeyToYmd, compareGuestDayKeys, todayInTimeZone, weekdayInTimeZone, isGuestDayEnabled, formatGuestDayHeader, formatGuestDayShort, defaultSelectedGuestDay, daysIn1BasedMonth } from './booking-utils';
 import type { BookingLinkDetails, BookingLinkLoadStatus, BookingSlotItem, GuestDayKey } from './booking-utils';
 import {
   IconClock,
@@ -376,7 +376,11 @@ export default function PublicBookingPage(props: PageProps) {
     const hostTz = meetingDetails.timezone || 'UTC';
 
     const firstDayIndex = weekdayInTimeZone({ year, month, day: 1 }, selectedTimezone);
-    const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    // GuestDayKey.month is 1-based — daysIn1BasedMonth wraps the
+    // Date.UTC(year, month, 0) last-day-of-month idiom (regression: the
+    // previous month+1 read the NEXT month's length, so Jan showed 28 days
+    // and Feb offered invalid day keys 29–31).
+    const daysInMonth = daysIn1BasedMonth(year, month);
 
     const days: Array<{
       key: GuestDayKey;
@@ -389,7 +393,7 @@ export default function PublicBookingPage(props: PageProps) {
 
     // Padding for days before the 1st (previous month's tail)
     const prevMonth = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
-    const daysInPrevMonth = new Date(Date.UTC(prevMonth.year, prevMonth.month + 1, 0)).getUTCDate();
+    const daysInPrevMonth = daysIn1BasedMonth(prevMonth.year, prevMonth.month);
     for (let i = 0; i < firstDayIndex; i++) {
       days.push({
         key: { year: prevMonth.year, month: prevMonth.month, day: daysInPrevMonth - firstDayIndex + i + 1 },

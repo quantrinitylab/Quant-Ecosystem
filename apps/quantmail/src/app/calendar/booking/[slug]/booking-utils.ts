@@ -480,6 +480,18 @@ export function compareGuestDayKeys(a: GuestDayKey, b: GuestDayKey): number {
   return 0;
 }
 
+/**
+ * Days in a 1-based month (GuestDayKey.month is 1-based: 1 = January).
+ * Date.UTC(year, month, 0) is the last-day-of-month idiom — day 0 rolls back
+ * to the last day of the 1-based month. Regression guard: the booking month
+ * grid once used Date.UTC(year, month + 1, 0), which reads the NEXT month's
+ * length (January showed February's 28 days, February offered March's 31,
+ * producing invalid date keys like Feb 30/31).
+ */
+export function daysIn1BasedMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
 /** Add (or subtract) whole calendar days — pure UTC math, no zone involved. */
 export function addDaysToKey(key: GuestDayKey, n: number): GuestDayKey {
   const d = new Date(Date.UTC(key.year, key.month - 1, key.day + n));
