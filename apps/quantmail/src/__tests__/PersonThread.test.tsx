@@ -546,6 +546,15 @@ describe('PersonThread attachments (interactive chips)', () => {
             { id: 'a2', filename: 'meta.pdf', mimeType: 'application/pdf', size: 100, url: 'https://example.com/meta.pdf' },
           ],
         }),
+        makeAttachmentEmail({
+          id: 'm4',
+          attachments: [
+            // Legacy string attachment as the backend formatter ships it:
+            // a synthesized meta_ id (never att_) → no Save button, even
+            // though the row carries a url.
+            { id: 'meta_0', filename: 'legacy.pdf', mimeType: 'application/pdf', size: 100, url: 'https://example.com/legacy.pdf' },
+          ],
+        }),
       ],
     });
     const container = renderIntoDom(
