@@ -497,7 +497,27 @@ async function createNewMailNotification(
         findFirst(args: unknown): Promise<{ id: string } | null>;
         create(args: unknown): Promise<unknown>;
       };
+      emailThread: {
+        findUnique(args: unknown): Promise<{ userId: string; isMuted: boolean } | null>;
+      };
     };
+    // Muted threads never notify: muting a conversation is the user asking for
+    // silence (Gmail/Superhuman parity — muted conversations "won't trigger
+    // notifications"). The mail itself is still delivered; only the in-app
+    // notification row and the web push are skipped.
+    if (email.threadId) {
+      const thread = await db.emailThread.findUnique({
+        where: { id: email.threadId },
+        select: { userId: true, isMuted: true },
+      });
+      if (thread && thread.userId === userId && thread.isMuted) {
+        log.info(
+          { userId, emailId: email.id, threadId: email.threadId },
+          '[inbound] notification skipped — thread is muted',
+        );
+        return;
+      }
+    }
     const existing = await db.notification.findFirst({
       where: { userId, type: 'new_email', sourceEntityId: email.id },
       select: { id: true },

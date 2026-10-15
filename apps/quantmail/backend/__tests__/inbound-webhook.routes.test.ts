@@ -24,6 +24,7 @@ const state = vi.hoisted(() => ({
   users: [] as Array<{ id: string; email: string; username: string; role: string }>,
   s3Send: vi.fn(),
   notifications: [] as Array<Record<string, unknown>>,
+  threads: [] as Array<{ id: string; userId: string; isMuted: boolean }>,
 }));
 
 vi.mock('@quant/database', () => ({
@@ -60,6 +61,14 @@ vi.mock('@quant/database', () => ({
         const row = { id: `notif-${state.notifications.length + 1}`, ...data };
         state.notifications.push(row);
         return row;
+      }),
+    },
+    // Muted-thread check: the notification path reads EmailThread.isMuted before
+    // persisting the in-app row or firing the push.
+    emailThread: {
+      findUnique: vi.fn(async (args: unknown) => {
+        const id = (args as { where?: { id?: string } }).where?.id;
+        return state.threads.find((t) => t.id === id) ?? null;
       }),
     },
   },
@@ -286,6 +295,7 @@ function ingestCall(index = 0): IngestArgs {
 beforeEach(async () => {
   state.users.length = 0;
   state.notifications.length = 0;
+  state.threads.length = 0;
   state.s3Send.mockReset();
   s3ReturnsRawEmail();
   delete process.env['INBOUND_SNS_TOPIC_ARNS'];
@@ -784,6 +794,40 @@ describe('POST /webhook/inbound — new mail creates an in-app notification (QM-
 
     expect(response.statusCode).toBe(200);
     expect(state.notifications).toHaveLength(1);
+  });
+
+  it('does not notify for mail in a muted thread — the mail still lands', async () => {
+    state.users.push(localUser());
+    state.threads.push({ id: 'thread-1', userId: 'u-bob', isMuted: true });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+    // Muting silences notifications, not delivery: the copy was ingested.
+    expect(ingest).toHaveBeenCalledTimes(1);
+    expect(state.notifications).toHaveLength(0);
+  });
+
+  it('does not let another user\u2019s muted thread silence this user\u2019s notification', async () => {
+    state.users.push(localUser());
+    state.threads.push({ id: 'thread-1', userId: 'u-eve', isMuted: true });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+
+    expect(response.statusCode).toBe(200);
+    // A thread id collision across users must not mute someone else's mail:
+    // the notification fires because the recipient's own thread is not muted.
+    expect(state.notifications).toHaveLength(1);
+    expect(state.notifications[0]).toMatchObject({ userId: 'u-bob', type: 'new_email' });
   });
 
   it('a notification failure never breaks mail delivery', async () => {
