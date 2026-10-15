@@ -133,3 +133,52 @@ describe('RecipientChipInput render (docked composer To field)', () => {
     expect(html).toContain('Recipients (e.g. sundar@google.com)');
   });
 });
+
+describe('parseEmailString (whitespace-separated addresses)', () => {
+  it('splits `a@x.com b@y.com` into two valid recipients, not one malformed chip', () => {
+    const parsed = parseEmailString('a@x.com b@y.com');
+    expect(parsed).toEqual([{ email: 'a@x.com' }, { email: 'b@y.com' }]);
+  });
+
+  it('never whitespace-splits a token without @ (`foo bar` stays one flagged fragment)', () => {
+    const parsed = parseEmailString('foo bar');
+    expect(parsed).toEqual([{ email: 'foo bar' }]);
+  });
+
+  it('still keeps `John Doe <john@x.com>` as one named recipient', () => {
+    expect(parseEmailString('John Doe <john@x.com>')).toEqual([
+      { name: 'John Doe', email: 'john@x.com' },
+    ]);
+  });
+});
+
+describe('buildRecipientPayload (compose validation: malformed excluded)', () => {
+  it('excludes malformed chips from the wire payload, keeps the valid ones', () => {
+    const payload = buildRecipientPayload(
+      [{ email: 'a@x.com' }, { email: 'foobar' }, { email: 'b@y.com' }],
+      [{ email: 'notanemail' }],
+      [],
+    );
+    expect(payload.to).toEqual([{ email: 'a@x.com' }, { email: 'b@y.com' }]);
+    // cc had only a malformed chip: nothing valid to ship. The composer
+    // autosave skips the save on an empty `to`; an empty-but-present cc/bcc
+    // must not appear as `[]` (API contract: undefined, not empty arrays).
+    expect(payload.cc).toEqual([]);
+    expect(payload.bcc).toBeUndefined();
+  });
+
+  it('yields an empty `to` when every chip is malformed (autosave skips the doomed 400)', () => {
+    const payload = buildRecipientPayload([{ email: 'foobar' }], [], []);
+    expect(payload.to).toEqual([]);
+  });
+
+  it('dedupes AFTER filtering, so a malformed dup never leaks through', () => {
+    const payload = buildRecipientPayload(
+      [{ email: 'A@X.com' }, { email: 'a@x.com' }, { email: 'bad' }],
+      [],
+      [],
+    );
+    // dedupe keeps the FIRST occurrence as-is (keyed on lowercase)
+    expect(payload.to).toEqual([{ email: 'A@X.com' }]);
+  });
+});
