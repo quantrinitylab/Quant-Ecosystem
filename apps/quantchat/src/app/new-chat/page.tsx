@@ -47,6 +47,10 @@ export default function NewChatPage() {
   const [isCreating, setIsCreating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // QC-F-397: people-search sequence guard — sirf sabse taaza runSearch
+  // invocation hi state badlegi; purane jawab/error/finally chup-chaap
+  // girenge (debounce in-flight requests ko NAHI rokta).
+  const searchSeqRef = useRef(0);
   // QC-F-321: message-request state. When a direct create is refused with
   // MESSAGE_NOT_ALLOWED (the default 'friends' gate denying a stranger),
   // the honest next step is a request composer — the request is sent ONLY
@@ -125,7 +129,20 @@ export default function NewChatPage() {
     }
   };
 
+  // QC-F-397: page chhodne par pending debounce radd + chalti search ko
+  // invalidate — unmount ke baad koi search fire/setState NAHI karegi.
+  useEffect(() => {
+    return () => {
+      searchSeqRef.current += 1;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   const runSearch = useCallback(async (q: string) => {
+    // QC-F-397: har invocation (khaali-query samet) sequence bump karegi —
+    // box saaf karna bhi hawa me udti search ko invalidate kar deta hai.
+    const seq = ++searchSeqRef.current;
+    const isLatest = () => seq === searchSeqRef.current;
     const trimmed = q.trim();
     if (trimmed.length < 1) {
       setContacts([]);
@@ -137,6 +154,7 @@ export default function NewChatPage() {
     setError(null);
     try {
       const res = await apiClient.searchUsers(trimmed);
+      if (!isLatest()) return;
       if (!res.success) {
         throw new Error(res.error?.message || 'Search failed');
       }
@@ -150,10 +168,14 @@ export default function NewChatPage() {
       setContacts(list.filter((c) => c.id !== user?.id));
       setSearched(true);
     } catch (e) {
+      if (!isLatest()) return;
+      // QC-F-397 (C1): taaza search fail ho to purani list saaf — ErrorState
+      // ke neeche kisi aur query ke tappable log NAHI bachenge.
+      setContacts([]);
       setError(e instanceof Error ? e.message : 'Search failed');
       setSearched(true);
     } finally {
-      setIsSearching(false);
+      if (isLatest()) setIsSearching(false);
     }
   }, [user?.id]);
 
