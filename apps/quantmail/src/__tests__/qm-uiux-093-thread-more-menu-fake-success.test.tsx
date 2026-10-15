@@ -173,6 +173,7 @@ vi.mock('../components/ThreadSummaryCard', () => ({
 vi.mock('../components/icons', () => ({
   IconChat: () => null,
   IconMail: () => null,
+  IconClock: () => null,
 }));
 vi.mock('../components/SwipeableEmailRow', () => ({
   isCoarsePointer: () => false,

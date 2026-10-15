@@ -1070,8 +1070,20 @@ export class QuantMailApiClient {
      * the persisted row instead of rendering a duplicate (email-chat P0-3).
      */
     clientMessageId?: string,
+    /**
+     * Schedule-send: ISO timestamp of a future delivery time — the same
+     * `sendAt` contract the composer passes to POST /emails/:id/send.
+     * Omitted for an immediate reply so that call stays byte-identical.
+     */
+    sendAt?: string,
   ): Promise<ApiResponse<Email>> {
-    return this.post(`/emails/${id}/reply`, { body, replyAll, messageKind, clientMessageId });
+    return this.post(`/emails/${id}/reply`, {
+      body,
+      replyAll,
+      messageKind,
+      clientMessageId,
+      ...(sendAt ? { sendAt } : {}),
+    });
   }
 
   async forwardEmail(
