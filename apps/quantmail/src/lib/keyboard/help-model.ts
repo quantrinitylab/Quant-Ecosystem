@@ -19,6 +19,7 @@
 import {
   COMMAND_GROUPS,
   INBOX_COMMAND_REFERENCE,
+  CALENDAR_COMMAND_REFERENCE,
   type Command,
   type CommandGroup,
 } from './command-registry';
@@ -79,6 +80,22 @@ export function buildHelpGroups(commands: readonly Command[]): HelpGroup[] {
   // with its live label, `u` reading "Mark as read" on an unread row — always
   // wins over the static one.
   for (const reference of INBOX_COMMAND_REFERENCE) {
+    if (registered.has(reference.id)) continue;
+    add(reference.group, {
+      id: reference.id,
+      label: reference.label,
+      keys: reference.keys,
+      available: false,
+      elsewhere: true,
+      destructive: !!reference.destructive,
+      description: reference.description,
+    });
+  }
+
+  // Same fallback for the calendar surface: opening `?` from the inbox
+  // documents the calendar's keys (dimmed, "elsewhere") instead of pretending
+  // only mail bindings exist.
+  for (const reference of CALENDAR_COMMAND_REFERENCE) {
     if (registered.has(reference.id)) continue;
     add(reference.group, {
       id: reference.id,

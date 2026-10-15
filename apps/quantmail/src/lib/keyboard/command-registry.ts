@@ -36,6 +36,11 @@ export const COMMAND_GROUPS = [
   'Apps',
   'AI',
   'View',
+  // The calendar surface owns a full Google-class shortcut set (t/j/k/c/…);
+  // they read as one section in the `?` sheet rather than scattered across
+  // Navigation/View/Compose, where they would collide visually with the
+  // mail-scoped rows they shadow by scope depth.
+  'Calendar',
   'Account',
 ] as const;
 
@@ -176,6 +181,116 @@ const inboxReferenceById = new Map(INBOX_COMMAND_REFERENCE.map((entry) => [entry
  */
 export function inboxCommand(id: InboxCommandId): CommandReference & { id: InboxCommandId } {
   return inboxReferenceById.get(id)!;
+}
+
+export type CalendarCommandId =
+  | 'calendar.goToday'
+  | 'calendar.nextDay'
+  | 'calendar.previousDay'
+  | 'calendar.goToDate'
+  | 'calendar.searchEvents'
+  | 'calendar.viewDay'
+  | 'calendar.viewWeek'
+  | 'calendar.viewMonth'
+  | 'calendar.viewAgenda'
+  | 'calendar.toggleMonthGrid'
+  | 'calendar.createEvent'
+  | 'calendar.saveEvent'
+  | 'calendar.openEventDetails'
+  | 'calendar.deleteEvent'
+  | 'calendar.undoDelete';
+
+/**
+ * Every binding the calendar page owns, in the order the sheet should read them.
+ *
+ * The same single-declaration contract as `INBOX_COMMAND_REFERENCE`:
+ * `useCalendarKeyboard` spreads these entries onto its live commands rather
+ * than restating id/label/group/keys, so the `?` sheet cannot document a key
+ * the calendar does not bind. `help-model.ts` falls back to this list when the
+ * calendar is not mounted, the way it does for the inbox.
+ *
+ * Two deliberate deviations from Google Calendar's documented set, both forced
+ * by the engine's sequence rules:
+ *
+ * - Google's bare `g` (go to date) is not bound: the app owns fifteen global
+ *   `g …` navigation chords, and a bare `g` in the deeper calendar scope would
+ *   consume the press before any of them could complete (the engine only holds
+ *   a chord for a longer sequence when nothing matched). `shift+g` focuses the
+ *   header date picker instead.
+ * - `t` (today) and `c` (new event) shadow the global theme-toggle and
+ *   compose bindings while the calendar scope is active — the same shadowing
+ *   the inbox already does for `c`. Scope depth resolves it deterministically.
+ */
+export const CALENDAR_COMMAND_REFERENCE: Array<CommandReference & { id: CalendarCommandId }> = [
+  { id: 'calendar.goToday', label: 'Go to today', group: 'Calendar', keys: 't', description: 'Jump back to the current date' },
+  { id: 'calendar.nextDay', label: 'Next day', group: 'Calendar', keys: 'j', description: 'Move the selected date forward one day' },
+  { id: 'calendar.previousDay', label: 'Previous day', group: 'Calendar', keys: 'k', description: 'Move the selected date back one day' },
+  {
+    id: 'calendar.goToDate',
+    label: 'Go to a date…',
+    group: 'Calendar',
+    keys: 'shift+g',
+    description: 'Focus the header date picker — plain G stays the app-wide navigation prefix',
+  },
+  { id: 'calendar.searchEvents', label: 'Search events', group: 'Calendar', keys: '/', description: 'Focus the calendar search field' },
+  { id: 'calendar.viewDay', label: 'Day view', group: 'Calendar', keys: ['d', '1'] },
+  { id: 'calendar.viewWeek', label: 'Week view', group: 'Calendar', keys: ['w', '2'] },
+  { id: 'calendar.viewMonth', label: 'Month view', group: 'Calendar', keys: ['m', '3'] },
+  { id: 'calendar.viewAgenda', label: 'Agenda view', group: 'Calendar', keys: ['a', '4'] },
+  {
+    id: 'calendar.toggleMonthGrid',
+    label: 'Expand/collapse month grid',
+    group: 'Calendar',
+    keys: 'shift+m',
+    description: 'Toggle the collapsible month strip under the header',
+  },
+  {
+    id: 'calendar.createEvent',
+    label: 'New event',
+    group: 'Calendar',
+    keys: ['c', 'q'],
+    description: 'Open the event editor — Q is the quick-add alias',
+  },
+  {
+    id: 'calendar.saveEvent',
+    label: 'Save event',
+    group: 'Calendar',
+    keys: 's',
+    description: 'Save the open editor; never fires while typing in a text field',
+  },
+  {
+    id: 'calendar.openEventDetails',
+    label: 'Open event details',
+    group: 'Calendar',
+    keys: 'e',
+    description: 'Reopen the details of the last selected event',
+  },
+  {
+    id: 'calendar.deleteEvent',
+    label: 'Delete selected event',
+    group: 'Calendar',
+    keys: ['delete', 'backspace'],
+    destructive: true,
+    description: 'Delete the selected event — always asks first',
+  },
+  {
+    id: 'calendar.undoDelete',
+    label: 'Undo delete',
+    group: 'Calendar',
+    keys: 'z',
+    description: 'Restore the entry deleted most recently in this session',
+  },
+];
+
+const calendarReferenceById = new Map(CALENDAR_COMMAND_REFERENCE.map((entry) => [entry.id, entry]));
+
+/**
+ * The reference entry for a calendar binding. The id is a union rather than a
+ * `string`, so a typo is a type error and not a command that silently loses its
+ * label and key at runtime.
+ */
+export function calendarCommand(id: CalendarCommandId): CommandReference & { id: CalendarCommandId } {
+  return calendarReferenceById.get(id)!;
 }
 
 interface Registration {
