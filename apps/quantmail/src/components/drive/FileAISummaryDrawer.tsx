@@ -1186,7 +1186,7 @@ export function FileAISummaryDrawer({
         <div className="bg-[var(--quant-surface-elevated)]/90 p-4 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2 text-slate-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            <span>Quanty ONNX Inference Ready</span>
+            <span>Quanty AI · server-side summary</span>
           </div>
 
           <button
