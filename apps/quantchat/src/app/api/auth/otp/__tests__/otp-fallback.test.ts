@@ -1,14 +1,19 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { POST as requestPOST } from '../request/route';
 import { POST as verifyPOST } from '../verify/route';
-import { clearOtpForTesting, activeOtpCodes } from '../store';
 
 // Mock fetch to simulate offline backend
 const originalFetch = global.fetch;
 
-describe('OTP Fail-Closed Authentication (no demo bypass)', () => {
+function verifyRequest(otp: string) {
+  return new Request('http://localhost/api/auth/otp/verify', {
+    method: 'POST',
+    body: JSON.stringify({ phoneNumber: '+919876543210', otp }),
+  });
+}
+
+describe('OTP Fail-Closed Authentication (no demo bypass, no local token mint)', () => {
   beforeEach(() => {
-    clearOtpForTesting();
     global.fetch = vi.fn().mockRejectedValue(new Error('fetch failed'));
   });
 
@@ -31,9 +36,6 @@ describe('OTP Fail-Closed Authentication (no demo bypass)', () => {
     expect(json.error.code).toBe('OTP_UPSTREAM_UNAVAILABLE');
     // SECURITY: no code (demo or otherwise) may leak to the client
     expect(json.data?.demoCode).toBeUndefined();
-
-    // SECURITY: no working code may be stored locally either
-    expect(activeOtpCodes.get('+919876543210')).toBeUndefined();
   });
 
   it('request OTP strips demoCode from a successful upstream passthrough (QC-F-062 defense-in-depth)', async () => {
@@ -80,83 +82,96 @@ describe('OTP Fail-Closed Authentication (no demo bypass)', () => {
     expect(res.status).toBe(503);
     const json = await res.json();
     expect(json.success).toBe(false);
-    expect(activeOtpCodes.get('+919876543210')).toBeUndefined();
+    expect(json.error.code).toBe('OTP_UPSTREAM_UNAVAILABLE');
   });
 
-  it('verify OTP with 123456 is rejected when upstream is offline (no universal code)', async () => {
-    const req = new Request('http://localhost/api/auth/otp/verify', {
-      method: 'POST',
-      body: JSON.stringify({ phoneNumber: '+919876543210', otp: '123456' }),
-    });
+  it('verify OTP fails closed with 503 when upstream is offline (QC-F-091 — no local fallback, no minted token)', async () => {
+    const res = await verifyPOST(verifyRequest('123456'));
+    expect(res.status).toBe(503);
+    const text = await res.text();
+    // SECURITY: the proxy must never mint a session token or fabricate a user
+    expect(text).not.toContain('qchat_sess_');
+    expect(text).not.toContain('accessToken');
+    const json = JSON.parse(text);
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('OTP_UPSTREAM_UNAVAILABLE');
+  });
 
-    const res = await verifyPOST(req);
+  it('verify OTP rejects EVERY code when upstream is offline — there is no locally-issued code path anymore (QC-F-091)', async () => {
+    // Before the fix, a code seeded into the proxy's local store was
+    // accepted while the backend was down and exchanged for a self-minted
+    // `qchat_sess_...` token + fabricated user. That store is deleted:
+    // any code at all must now fail closed.
+    const res = await verifyPOST(verifyRequest('731946'));
+    expect(res.status).toBe(503);
+    const json = await res.json();
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('OTP_UPSTREAM_UNAVAILABLE');
+    expect(json.data).toBeUndefined();
+  });
+
+  it('verify OTP passes an upstream error status through verbatim instead of falling back (QC-F-091)', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: false,
+          error: { message: 'Too many attempts', code: 'OTP_RATE_LIMITED' },
+        }),
+        { status: 429, headers: { 'Content-Type': 'application/json' } },
+      ) as unknown as Response,
+    );
+
+    const res = await verifyPOST(verifyRequest('731946'));
+    expect(res.status).toBe(429);
+    const json = await res.json();
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('OTP_RATE_LIMITED');
+    expect(json.error.message).toBe('Too many attempts');
+  });
+
+  it('verify OTP passes an upstream invalid-code rejection through verbatim (backend is the only authority)', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: false,
+          error: { message: 'Invalid verification code', code: 'OTP_INVALID' },
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      ) as unknown as Response,
+    );
+
+    const res = await verifyPOST(verifyRequest('000000'));
     expect(res.status).toBe(400);
     const json = await res.json();
-
     expect(json.success).toBe(false);
-    expect(json.error.message).toBe('Invalid or expired verification code');
+    expect(json.error.code).toBe('OTP_INVALID');
+    expect(json.error.message).toBe('Invalid verification code');
   });
 
-  it('verify OTP accepts a locally-issued (real-SMS) code once, then it is spent', async () => {
-    // Codes can only enter the store through a real upstream issuance;
-    // here the test seeds one directly to verify the store path.
-    activeOtpCodes.set('+919876543210', {
-      code: '731946',
-      expiresAt: Date.now() + 5 * 60 * 1000,
-    });
+  it('verify OTP passes an upstream success through verbatim — tokens come only from the backend', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            accessToken: 'backend-issued-access-token',
+            refreshToken: 'backend-issued-refresh-token',
+            user: { id: 'backend-user-id', phoneNumber: '+919876543210', role: 'USER' },
+            isNewUser: false,
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ) as unknown as Response,
+    );
 
-    const req = new Request('http://localhost/api/auth/otp/verify', {
-      method: 'POST',
-      body: JSON.stringify({ phoneNumber: '+919876543210', otp: '731946' }),
-    });
-
-    const res = await verifyPOST(req);
+    const res = await verifyPOST(verifyRequest('731946'));
     expect(res.status).toBe(200);
     const json = await res.json();
-
     expect(json.success).toBe(true);
-    expect(json.data.accessToken).toBeDefined();
-    expect(json.data.user.phoneNumber).toBe('+919876543210');
-    expect(json.data.isFallback).toBe(true);
-
-    // one-time use: the same code must not verify again
-    const req2 = new Request('http://localhost/api/auth/otp/verify', {
-      method: 'POST',
-      body: JSON.stringify({ phoneNumber: '+919876543210', otp: '731946' }),
-    });
-    const res2 = await verifyPOST(req2);
-    expect(res2.status).toBe(400);
-  });
-
-  it('verify OTP rejects an expired locally-issued code', async () => {
-    activeOtpCodes.set('+919876543210', {
-      code: '731946',
-      expiresAt: Date.now() - 1000,
-    });
-
-    const req = new Request('http://localhost/api/auth/otp/verify', {
-      method: 'POST',
-      body: JSON.stringify({ phoneNumber: '+919876543210', otp: '731946' }),
-    });
-
-    const res = await verifyPOST(req);
-    expect(res.status).toBe(400);
-    const json = await res.json();
-    expect(json.success).toBe(false);
-  });
-
-  it('verify OTP with invalid code returns 400', async () => {
-    const req = new Request('http://localhost/api/auth/otp/verify', {
-      method: 'POST',
-      body: JSON.stringify({ phoneNumber: '+919876543210', otp: '000000' }),
-    });
-
-    const res = await verifyPOST(req);
-    expect(res.status).toBe(400);
-    const json = await res.json();
-
-    expect(json.success).toBe(false);
-    expect(json.error.message).toBe('Invalid or expired verification code');
+    expect(json.data.accessToken).toBe('backend-issued-access-token');
+    expect(json.data.refreshToken).toBe('backend-issued-refresh-token');
+    expect(json.data.user.id).toBe('backend-user-id');
+    expect(json.data.isFallback).toBeUndefined();
   });
 
   it('verify OTP still requires phoneNumber and otp', async () => {
