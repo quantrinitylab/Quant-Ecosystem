@@ -195,6 +195,7 @@ export type CalendarCommandId =
   | 'calendar.viewAgenda'
   | 'calendar.toggleMonthGrid'
   | 'calendar.createEvent'
+  | 'calendar.quickAddEvent'
   | 'calendar.saveEvent'
   | 'calendar.openEventDetails'
   | 'calendar.deleteEvent'
@@ -248,8 +249,15 @@ export const CALENDAR_COMMAND_REFERENCE: Array<CommandReference & { id: Calendar
     id: 'calendar.createEvent',
     label: 'New event',
     group: 'Calendar',
-    keys: ['c', 'q'],
-    description: 'Open the event editor — Q is the quick-add alias',
+    keys: 'c',
+    description: 'Open the full event editor',
+  },
+  {
+    id: 'calendar.quickAddEvent',
+    label: 'Quick-add event',
+    group: 'Calendar',
+    keys: 'q',
+    description: 'Type "Lunch with Sam 1pm" — the date is parsed and the event is created',
   },
   {
     id: 'calendar.saveEvent',

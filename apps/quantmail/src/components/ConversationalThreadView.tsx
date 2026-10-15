@@ -36,6 +36,15 @@ import {
 } from './ThreadRelatedPanel';
 import { EmailReadReceipt } from './EmailReadReceipt';
 import { Quanty } from './Quanty';
+import { QuickActionBar } from './QuickActionBar';
+import { useRegisterCommands } from '../lib/keyboard/hooks';
+import type { Command } from '../lib/keyboard/command-registry';
+import { THREAD_KEYBOARD_SCOPE } from '../hooks/useThreadViewKeyboard';
+import {
+  buildEventDraftFromThread,
+  encodeEmailDraft,
+  type EmailDraftEntryType,
+} from '../lib/emailToEvent';
 import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
 import { IconChat, IconMail } from './icons';
 import {
@@ -678,6 +687,45 @@ export function ConversationalThreadView({
       `/compose?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body ? `\n\n---------- Forwarded message ---------\n${body}` : '')}`,
     );
   }, [messages, primaryMessage, router, threadSubject]);
+
+  /*
+   * fix/qm-calendar-nlp-quickadd — one-key event-from-email (Superhuman "B"
+   * style). Builds a calendar draft from the thread — attendees from the real
+   * participants, time parsed from the email or honestly marked suggested —
+   * and deep-links to /calendar, which opens its event sheet prefilled.
+   */
+  const handleCreateEventFromEmail = useCallback(
+    (entryType: EmailDraftEntryType) => {
+      const draft = buildEventDraftFromThread(messages, currentEmail, new Date(), entryType);
+      if (!draft) {
+        showToast({ text: 'No messages to build an event from', type: 'error' });
+        return;
+      }
+      router.push(`/calendar?emailDraft=${encodeEmailDraft(draft)}`);
+    },
+    [messages, currentEmail, router],
+  );
+
+  // The `b` binding lives here (not in useThreadViewKeyboard) because only
+  // this view owns the messages the draft is built from. The `thread` scope
+  // is pushed by the parent page's useThreadViewKeyboard while mounted.
+  useRegisterCommands(
+    useMemo(
+      () =>
+        [
+          {
+            id: 'thread.createEvent',
+            label: 'Create event from email',
+            group: 'Conversation',
+            keys: 'b',
+            scope: THREAD_KEYBOARD_SCOPE,
+            description: 'Build a calendar event from this conversation — attendees pulled from the thread',
+            run: () => handleCreateEventFromEmail('event'),
+          } satisfies Command,
+        ],
+      [handleCreateEventFromEmail],
+    ),
+  );
 
   /*
    * Per-message gestures: swipe-right / menu Reply quotes this message into
@@ -2568,6 +2616,24 @@ export function ConversationalThreadView({
           <div className="space-y-4 pt-4">
             <div className="h-20 bg-[var(--quant-surface)]/60 rounded-2xl animate-pulse border border-[var(--quant-surface-elevated)]/60" />
             <div className="h-64 bg-[var(--quant-surface)]/60 rounded-3xl animate-pulse border border-[var(--quant-surface-elevated)]/60" />
+          </div>
+        )}
+
+        {/*
+          * fix/qm-calendar-nlp-quickadd: the QuickActionBar was dead code —
+          * rendered by nothing. It now lives in the reading pane with every
+          * handler wired, including "Add to calendar" (one-key email→event).
+          */}
+        {!isLoading && messages.length > 0 && (
+          <div className="px-4 sm:px-5">
+            <QuickActionBar
+              email={messages[messages.length - 1]}
+              onReply={openReplyComposer}
+              onForward={openForwardComposer}
+              onArchive={() => onArchive?.(conversationMessageIds)}
+              onCreateTask={() => handleCreateEventFromEmail('task')}
+              onAddToCalendar={() => handleCreateEventFromEmail('event')}
+            />
           </div>
         )}
 

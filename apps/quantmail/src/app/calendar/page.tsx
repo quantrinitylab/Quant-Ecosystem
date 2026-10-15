@@ -44,6 +44,8 @@ import { CalendarHeader } from './components/CalendarHeader';
 import { CalendarEventForm } from './components/CalendarEventForm';
 import { CalendarModals } from './components/CalendarModals';
 import { BookingLinksModal } from './components/BookingLinksModal';
+import { QuickAddPopover } from './components/QuickAddPopover';
+import { decodeEmailDraft } from '../../lib/emailToEvent';
 import type { WeekViewSheetOpts } from './components/CalendarWeekView';
 import {
   CalendarContextSubTabs,
@@ -163,6 +165,49 @@ function CalendarPageContent() {
     window.history.replaceState(null, '', url.toString());
   }, []);
 
+  // fix/qm-calendar-nlp-quickadd: one-key event-from-email. The thread view
+  // deep-links here with ?emailDraft=<base64url draft>; the event sheet opens
+  // prefilled (title, attendees from the thread, parsed-or-suggested time).
+  // The param is scrubbed immediately so a refresh never reopens the sheet.
+  useEffect(() => {
+    const raw = searchParams?.get('emailDraft');
+    if (!raw) return;
+    const scrub = () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('emailDraft');
+      window.history.replaceState(null, '', url.toString());
+    };
+    const draft = decodeEmailDraft(raw);
+    scrub();
+    if (!draft) {
+      showToast({ text: 'Could not read the email draft — the link may be damaged', type: 'error' });
+      return;
+    }
+    const start = new Date(draft.startISO);
+    const end = new Date(draft.endISO);
+    const startOk = !Number.isNaN(start.getTime());
+    const endOk = !Number.isNaN(end.getTime());
+    const entryType: EntryType = draft.entryType === 'task' ? 'task' : 'event';
+    openDedicatedSheet(entryType, startOk ? start : undefined);
+    setFormState((prev) => ({
+      ...prev,
+      title: draft.title,
+      startDate: startOk ? toDateInput(start) : prev.startDate,
+      startTime: startOk ? toTimeInput(start) : prev.startTime,
+      endDate: endOk ? toDateInput(end) : startOk ? toDateInput(start) : prev.endDate,
+      endTime: endOk ? toTimeInput(end) : startOk ? toTimeInput(start) : prev.endTime,
+      allDay: draft.allDay,
+      attendees: draft.attendees,
+      attendeeInput: '',
+      description: draft.description,
+    }));
+    if (draft.timeWasSuggested) {
+      showToast({ text: 'Time suggested from the email — adjust it before saving', type: 'info' });
+    }
+    // openDedicatedSheet + setFormState are stable callbacks; searchParams is
+    // the only real trigger. The param is scrubbed above, so this runs once.
+  }, [searchParams]);
+
   const [activeContextTab, setActiveContextTab] = useState<CalendarContextTab>(
     () => initialCalendarRoute().contextTab,
   );
@@ -244,6 +289,8 @@ function CalendarPageContent() {
 
   // Active Creation Sheet Type (Dedicated sheet per mode)
   const [activeSheetType, setActiveSheetType] = useState<EntryType | null>(null);
+  // fix/qm-calendar-nlp-quickadd: the `q` quick-add popover (NLP input).
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   // Ref mirror of isSaving: guards against stale closures and React state
@@ -1360,6 +1407,7 @@ function CalendarPageContent() {
   // proxies them live, so no binding table churn on re-renders.
   useCalendarKeyboard({
     onCreateEvent: () => openDedicatedSheet('event'),
+    onQuickAdd: () => setQuickAddOpen(true),
     onGoToday: goToday,
     onStepDay: stepDay,
     onGoToDate: () => {
@@ -1621,6 +1669,22 @@ function CalendarPageContent() {
           isOpen={isBookingLinksOpen}
           onClose={() => setIsBookingLinksOpen(false)}
           userEmail={currentUserEmail}
+        />
+
+        {/* fix/qm-calendar-nlp-quickadd: `q` NLP quick-add ("Lunch with Sam 1pm"). */}
+        <QuickAddPopover
+          open={quickAddOpen}
+          onClose={() => setQuickAddOpen(false)}
+          onCreated={(title) => {
+            setQuickAddOpen(false);
+            showToast({ text: `Event "${title}" added`, type: 'success' });
+            void refetch();
+          }}
+          onOpenFullEditor={(title) => {
+            setQuickAddOpen(false);
+            openDedicatedSheet('event');
+            setFormState((prev) => ({ ...prev, title }));
+          }}
         />
 
         {dialog}

@@ -48,6 +48,7 @@ const ALL_IDS: CalendarCommandId[] = [
   'calendar.viewAgenda',
   'calendar.toggleMonthGrid',
   'calendar.createEvent',
+  'calendar.quickAddEvent',
   'calendar.saveEvent',
   'calendar.openEventDetails',
   'calendar.deleteEvent',
@@ -120,6 +121,7 @@ function Harness({
 }) {
   useCalendarKeyboard({
     onCreateEvent: handlers.createEvent,
+    onQuickAdd: handlers.quickAdd,
     onGoToday: handlers.goToday,
     onStepDay: handlers.stepDay,
     onGoToDate: handlers.goToDate,
@@ -146,6 +148,7 @@ describe('useCalendarKeyboard (real engine)', () => {
 
   const handlers = () => ({
     createEvent: vi.fn((...args: unknown[]) => { calls.createEvent.push(args); }),
+    quickAdd: vi.fn((...args: unknown[]) => { calls.quickAdd.push(args); }),
     goToday: vi.fn((...args: unknown[]) => { calls.goToday.push(args); }),
     stepDay: vi.fn((...args: unknown[]) => { calls.stepDay.push(args); }),
     goToDate: vi.fn((...args: unknown[]) => { calls.goToDate.push(args); }),
@@ -160,7 +163,7 @@ describe('useCalendarKeyboard (real engine)', () => {
 
   beforeEach(() => {
     calls = {
-      createEvent: [], goToday: [], stepDay: [], goToDate: [], focusSearch: [],
+      createEvent: [], quickAdd: [], goToday: [], stepDay: [], goToDate: [], focusSearch: [],
       selectView: [], toggleMonthGrid: [], saveEvent: [], openEventDetails: [],
       deleteEvent: [], undoDelete: [],
     };
@@ -210,6 +213,12 @@ describe('useCalendarKeyboard (real engine)', () => {
     press('/');
     expect(calls.createEvent.length).toBe(1);
     expect(calls.focusSearch.length).toBe(1);
+  });
+
+  it('opens quick-add on `q` — not the full editor (fix/qm-calendar-nlp-quickadd)', () => {
+    press('q');
+    expect(calls.quickAdd.length).toBe(1);
+    expect(calls.createEvent.length).toBe(0);
   });
 
   it('focuses the go-to-date picker on shift+g', () => {

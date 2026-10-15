@@ -11,6 +11,7 @@ import { useAuth } from '../../../providers/auth-provider';
 import { groupEmailsByPerson, type PersonConversation } from '../../../lib/peopleGrouping';
 import { inboxSelectTarget } from '../../../lib/inbox-nav';
 import { PersonThread } from '../../../components/PersonThread';
+import { encodeEmailDraft, type EmailEventDraft } from '../../../lib/emailToEvent';
 import { ThreadComposer } from '../../../components/ThreadComposer';
 import { SmartReplySuggestions } from '../../../components/SmartReplySuggestions';
 import type { Email } from '../../../types';
@@ -428,6 +429,13 @@ export default function PersonPage() {
                   </>
                 )
               }
+              // fix/qm-calendar-nlp-quickadd: one-key event-from-email — the
+              // thread's draft deep-links to /calendar, which opens its event
+              // sheet prefilled (attendees from the thread, time parsed or
+              // honestly marked suggested).
+              onEventDraft={(draft: EmailEventDraft) => {
+                router.push(`/calendar?emailDraft=${encodeEmailDraft(draft)}`);
+              }}
             />
           )}
         </div>
