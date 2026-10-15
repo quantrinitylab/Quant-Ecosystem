@@ -215,7 +215,10 @@ describe('AuthBrandPanel "AI triage" card copy honesty', () => {
 //
 // The login brand panel (login-skeleton.tsx LoginBrand) and the register
 // page subtitle promised "assisted drafting" — the same invented-AI-claim
-// class as the "drafts the reply" card fixed in PR #1083. The only AI-writing
+// class as the "drafts the reply" card fixed in PR #1083. The register
+// subtitle has since moved into register-skeleton.tsx RegisterBrand
+// (server-rendered shell + client form island, PR #1189) — the tests track
+// the new home. The only AI-writing
 // path (compose/page.tsx handleAIAssist → POST /api/ai/compose) has no
 // user-facing trigger: EmailComposer's onAIAssist prop is declared but never
 // rendered (dead plumbing). Per the provable-truth rule, the claim was
@@ -262,8 +265,8 @@ describe('Auth brand-subtitle "assisted drafting" copy honesty', () => {
   const registerUserFacing = stripComments(
     readFileSync(
       findSource(
-        'src/app/register/page.tsx',
-        'apps/quantmail/src/app/register/page.tsx',
+        'src/app/register/register-skeleton.tsx',
+        'apps/quantmail/src/app/register/register-skeleton.tsx',
       ),
       'utf8',
     ),
