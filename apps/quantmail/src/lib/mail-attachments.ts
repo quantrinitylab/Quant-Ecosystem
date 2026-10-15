@@ -33,9 +33,11 @@ const DRIVE_FILE_UNAVAILABLE =
   'sender\u2019s Drive and was not shared with you.';
 
 /**
- * The AttachmentService id, when `id` is one. Composer ids (`att_<time>_<random>`) and the thread
- * formatter's positional fallbacks start with `att_` too but name no stored object: a prefix
- * check offered "Save to Drive" on them, and the save could only answer 404.
+ * The AttachmentService id, when `id` is one. Composer ids (`att_<time>_<random>`) and the
+ * thread formatter's old positional fallbacks started with `att_` too but name no stored
+ * object: a prefix check offered "Save to Drive" on them, and the save could only answer 404.
+ * (The formatter now synthesizes `meta_` ids — backend/lib/format-email.ts — but the
+ * composer still mints `att_` ids, so the strict shape stands.)
  */
 export function attachmentServiceId(id: unknown): string | null {
   return typeof id === 'string' && SERVICE_ID.test(id) ? id : null;
