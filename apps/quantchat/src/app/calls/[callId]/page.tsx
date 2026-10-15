@@ -11,8 +11,14 @@
 
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Room, RoomEvent, Track } from 'livekit-client';
-import { AppShell, TopBar } from '@quant/shared-ui';
+import { Room, RoomEvent, Track, type LocalVideoTrack } from 'livekit-client';
+import {
+  AppShell,
+  TopBar,
+  BackgroundBlur,
+  useBackgroundBlur,
+  BACKGROUND_ASSET_PATH,
+} from '@quant/shared-ui';
 import { apiClient } from '../../../services/api-client';
 
 type Phase = 'joining' | 'in-call' | 'ended' | 'error';
@@ -35,6 +41,18 @@ export default function CallRoomPage({
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const joinedRef = useRef(false);
+
+  // QC-F-322: in-call background blur (this page auto-joins, so there
+  // is no pre-join choice here — brief Sudhaar 5). Bound to the live
+  // camera publication track; status is the track's own proof
+  // (getProcessor()), and a new track after a camera toggle is
+  // re-processed by the hook before anything may claim "Blur on".
+  const camTrack = (room.localParticipant.getTrackPublication(
+    Track.Source.Camera,
+  )?.videoTrack ?? null) as LocalVideoTrack | null;
+  const background = useBackgroundBlur(camTrack, {
+    assetPath: BACKGROUND_ASSET_PATH,
+  });
 
   const attachTracks = useCallback(() => {
     // Local preview
@@ -235,6 +253,15 @@ export default function CallRoomPage({
               >
                 {isCameraOn ? '📹' : '🚫'}
               </button>
+              {/* QC-F-322: background menu — "Blur on" renders only
+                  while the published track really carries the
+                  processor; failure shows the honest error copy. */}
+              <BackgroundBlur
+                mode={background.mode}
+                status={background.status}
+                error={background.error}
+                onModeChange={background.setMode}
+              />
             </div>
           </>
         )}

@@ -40,6 +40,13 @@ export {
   Polls,
   BreakoutRoomPanel,
   BackgroundBlur,
+  useBackgroundBlur,
+  applyBackgroundBlur,
+  removeBackgroundBlur,
+  trackHasBackgroundProcessor,
+  backgroundIsSupported,
+  BACKGROUND_ASSET_PATH,
+  BACKGROUND_BLUR_ERROR_MESSAGE,
 } from './components/Media';
 export type {
   MeetingRoomProps,
@@ -64,6 +71,7 @@ export type {
   BackgroundBlurOptions,
   UseBackgroundBlurReturn,
   BackgroundMode,
+  BackgroundStatus,
 } from './components/Media';
 
 // Media player components
