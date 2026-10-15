@@ -60,6 +60,7 @@ model User {
   twoFactorBackupCodes TwoFactorBackupCode[]
   passwordResetTokens  PasswordResetToken[]
   emailVerificationCodes EmailVerificationCode[]
+  followUpReminders FollowUpReminder[]
   personalAccessTokens PersonalAccessToken[]
   oauthClients       OAuthClient[]        @relation("UserOwnedClients")
   oauthConsents      OAuthConsent[]
@@ -322,6 +323,37 @@ model EmailVerificationCode {
   @@index([userId])
   @@index([expiresAt])
   @@map("email_verification_codes")
+}
+
+/**
+ * Follow-up reminders (fix/qm-followup-reminders). Server-backed replacement
+ * for the dead EmailFollowUpReminder component: the user sets "remind me about
+ * this thread in N days" on a sent email that has no reply, the row survives
+ * reloads, and the People home resurfaces due reminders at the top of the
+ * conversation list (Superhuman/Gmail-nudge behavior).
+ *
+ * A reminder is ACTIVE while dismissedAt is null. "Due" is remindAt <= now —
+ * the People home computes that client-side, no server clock skew to chase.
+ * One active reminder per (user, thread): the POST route upserts on
+ * (userId, threadId) instead of stacking duplicates. threadId is nullable
+ * because legacy callers only know the email id; emailId is the fallback key.
+ */
+model FollowUpReminder {
+  id          String    @id @default(cuid())
+  userId      String
+  emailId     String
+  threadId    String?
+  subject     String?
+  remindAt    DateTime
+  dismissedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, remindAt])
+  @@map("follow_up_reminders")
 }
 
 model PersonalAccessToken {

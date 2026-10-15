@@ -14,6 +14,7 @@ import mailFiltersRoutes from './routes/mail-filters';
 import vacationResponderRoutes from './routes/vacation-responder';
 import emailTemplatesRoutes from './routes/email-templates';
 import emailSignaturesRoutes from './routes/email-signatures';
+import followUpReminderRoutes from './routes/follow-up-reminders';
 import notificationRoutes from './routes/notifications';
 import searchRoutes from './routes/search';
 import {
@@ -436,6 +437,9 @@ export async function buildApp(config?: AppConfig) {
   await app.register(vacationResponderRoutes, { prefix: '/vacation-responder' });
   await app.register(emailTemplatesRoutes, { prefix: '/email-templates' });
   await app.register(emailSignaturesRoutes, { prefix: '/email-signatures' });
+  // Follow-up reminders (fix/qm-followup-reminders): server-backed replacement
+  // for the dead EmailFollowUpReminder component.
+  await app.register(followUpReminderRoutes, { prefix: '/follow-up-reminders' });
   await app.register(notificationRoutes, { prefix: '/notifications' });
   await app.register(searchRoutes, { prefix: '/search' });
   await registerQuantCodeModule(app);

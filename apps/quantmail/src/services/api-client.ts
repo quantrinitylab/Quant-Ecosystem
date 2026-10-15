@@ -377,6 +377,20 @@ export interface EmailSignaturePreference {
   isDefault: boolean;
 }
 
+/**
+ * A persisted follow-up reminder (fix/qm-followup-reminders). Server-backed:
+ * the row survives reloads and the People home resurfaces due reminders at
+ * the top of the conversation list. Dates travel as ISO strings.
+ */
+export interface FollowUpReminder {
+  id: string;
+  emailId: string;
+  threadId: string | null;
+  subject: string | null;
+  remindAt: string;
+  createdAt: string;
+}
+
 export interface VacationResponderPreference {
   id: string;
   enabled: boolean;
@@ -1211,6 +1225,28 @@ export class QuantMailApiClient {
 
   async deleteEmailSignature(id: string): Promise<ApiResponse<{ message: string }>> {
     return this.delete(`/email-signatures/${id}`);
+  }
+
+  /**
+   * Follow-up reminders (fix/qm-followup-reminders). The dead EmailFollowUpReminder
+   * component used to toast-and-forget; these calls persist the reminder on the
+   * backend and the People home resurfaces due ones.
+   */
+  async listFollowUpReminders(): Promise<ApiResponse<FollowUpReminder[]>> {
+    return this.get('/follow-up-reminders');
+  }
+
+  async setFollowUpReminder(data: {
+    emailId: string;
+    threadId?: string;
+    subject?: string;
+    remindAt: string;
+  }): Promise<ApiResponse<FollowUpReminder>> {
+    return this.post('/follow-up-reminders', data);
+  }
+
+  async dismissFollowUpReminder(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.delete(`/follow-up-reminders/${id}`);
   }
 
   async getVacationResponder(): Promise<ApiResponse<VacationResponderPreference | null>> {
