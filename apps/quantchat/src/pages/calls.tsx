@@ -11,13 +11,18 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { apiClient } from '../services/api-client';
 import { sanitizeErrorMessage } from '../lib/sanitize-error';
+import type { CallStatus, CallType } from '../types';
 
+// QC-F-400: type/status are bound to the shared canonical wire vocabulary
+// (the backend DTO translates the Prisma UPPERCASE enums into it), so a
+// stray string can no longer slip past the compiler into the comparisons
+// below.
 interface CallHistoryEntry {
   id: string;
   conversationId?: string;
   initiatorId?: string;
-  type?: string;
-  status?: string;
+  type?: CallType;
+  status?: CallStatus;
   startedAt?: string | null;
   endedAt?: string | null;
   duration?: number | null;
@@ -108,9 +113,21 @@ export const CallsPage: React.FC = () => {
     return '📞';
   };
 
+  // QC-F-400: explicit display text per canonical status. The old
+  // first-letter-uppercase fallback passed raw backend enums straight
+  // through ("MISSED"/"ENDED" shouted on every row) whenever a comparison
+  // missed; with an exhaustive map plus a type-based fallback, no state
+  // can ever render a raw enum again.
+  const CALL_STATUS_TEXT: Record<CallStatus, string> = {
+    missed: 'Missed',
+    ended: 'Ended',
+    declined: 'Declined',
+    active: 'Ongoing',
+    ringing: 'Ringing',
+  };
+
   const callStatusText = (call: CallHistoryEntry): string => {
-    if (call.status === 'missed') return 'Missed';
-    if (call.status) return call.status.charAt(0).toUpperCase() + call.status.slice(1);
+    if (call.status) return CALL_STATUS_TEXT[call.status];
     return call.type === 'video' ? 'Video call' : 'Voice call';
   };
 
