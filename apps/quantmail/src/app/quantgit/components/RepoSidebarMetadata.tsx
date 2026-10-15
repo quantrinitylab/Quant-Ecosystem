@@ -222,7 +222,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
             Security policy row opens the Security tab where SECURITY.md lives.
             Without a security-policy handler it renders as plain text, never a
             dead pseudo-link. */}
-        <div className="pt-2 border-t border-[#21262D] space-y-2 text-[#8D96A0]">
+        <div className="pt-2 space-y-2 text-[#8D96A0]">
           <button
             type="button"
             onClick={scrollToReadmePane}
