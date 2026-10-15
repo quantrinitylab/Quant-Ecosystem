@@ -22,7 +22,7 @@ export function QuantGitRowSkeleton({ rows = 5, testId = 'quantgit-row-skeleton'
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="p-4 flex items-start justify-between gap-4 border-b border-[#21262D] last:border-b-0"
+ className="p-4 flex items-start justify-between gap-4 last:border-b-0"
         >
           <div className="flex-1 space-y-2 animate-pulse">
             <div className="flex items-center gap-2">

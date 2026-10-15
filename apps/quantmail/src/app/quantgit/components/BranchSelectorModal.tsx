@@ -56,7 +56,7 @@ export const BranchSelectorModal: React.FC<BranchSelectorModalProps> = ({
       {/* Modal Card */}
       <div className="relative w-full max-w-sm rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl overflow-hidden z-10 flex flex-col text-sm text-[#E6EDF3] animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#30363D]">
+ <div className="flex items-center justify-between px-4 py-3">
           <span className="font-semibold text-xs text-[#E6EDF3] tracking-wide">
             Switch branches/tags
           </span>
@@ -77,7 +77,7 @@ export const BranchSelectorModal: React.FC<BranchSelectorModalProps> = ({
         </div>
 
         {/* Search Input */}
-        <div className="p-3 border-b border-[#30363D]">
+ <div className="p-3">
           <div className="relative flex items-center">
             <svg
               className="absolute left-3 w-4 h-4 text-[#8D96A0]"
@@ -104,7 +104,7 @@ export const BranchSelectorModal: React.FC<BranchSelectorModalProps> = ({
         </div>
 
         {/* Tabs: Branches vs Tags */}
-        <div className="flex border-b border-[#30363D] bg-[#0D1117]">
+ <div className="flex bg-[#0D1117]">
           <button
             onClick={() => setActiveTab('branches')}
             className={`flex-1 py-2 text-xs font-semibold text-center border-b-2 transition-colors ${
@@ -128,7 +128,7 @@ export const BranchSelectorModal: React.FC<BranchSelectorModalProps> = ({
         </div>
 
         {/* Items List */}
-        <div className="max-h-72 overflow-y-auto divide-y divide-[#21262D]">
+ <div className="max-h-72 overflow-y-auto">
           {activeTab === 'branches' ? (
             filteredBranches.length > 0 ? (
               filteredBranches.map((branch) => {
@@ -212,7 +212,7 @@ export const BranchSelectorModal: React.FC<BranchSelectorModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2.5 bg-[#0D1117] border-t border-[#30363D] text-center">
+ <div className="px-4 py-2.5 bg-[#0D1117] text-center">
           <span className="text-xs text-[#58A6FF] hover:underline cursor-pointer">
             {activeTab === 'branches' ? 'View all branches' : 'View all tags'}
           </span>

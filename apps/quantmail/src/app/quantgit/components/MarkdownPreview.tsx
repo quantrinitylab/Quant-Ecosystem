@@ -426,7 +426,7 @@ export function MarkdownPreview({
   return (
     <div className="border border-[#30363D] rounded-md bg-[#0D1117] overflow-hidden mt-6 shadow-sm">
       {/* Header Bar */}
-      <div className="bg-[var(--quant-surface-elevated)] border-b border-[#30363D] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+ <div className="bg-[var(--quant-surface-elevated)] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2 font-bold text-white">
           <svg height="16" viewBox="0 0 16 16" width="16" fill="#7D8590" className="shrink-0">
             <path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Zm7.251 10.324.53-.53a3.75 3.75 0 0 1 2.65-1.094h3.57V2.5h-3.006a2.25 2.25 0 0 0-2.25 2.25v6.524ZM6.75 4.75A2.25 2.25 0 0 0 4.504 2.5H1.5v7.95h3.757a3.75 3.75 0 0 1 2.651 1.094Z" />
@@ -525,7 +525,7 @@ export function MarkdownPreview({
               return (
                 <h1
                   key={idx}
-                  className="text-2xl font-bold text-white border-b border-[#21262D] pb-3 tracking-tight flex items-center gap-2"
+ className="text-2xl font-bold text-white pb-3 tracking-tight flex items-center gap-2"
                 >
                   {sec.text}
                 </h1>
@@ -536,7 +536,7 @@ export function MarkdownPreview({
               return (
                 <h2
                   key={idx}
-                  className="text-lg font-bold text-white border-b border-[#21262D] pb-2 pt-4 tracking-tight flex items-center gap-2"
+ className="text-lg font-bold text-white pb-2 pt-4 tracking-tight flex items-center gap-2"
                 >
                   {sec.text}
                 </h2>
@@ -560,7 +560,9 @@ export function MarkdownPreview({
             }
 
             if (sec.type === 'hr') {
-              return <hr key={idx} className="border-[#30363D] my-4" />;
+              // No-divider-lines lock: user-authored thematic breaks render as
+              // spacing-based separation (role=separator), not a drawn rule line.
+              return <div key={idx} role="separator" aria-orientation="horizontal" className="my-4" />;
             }
 
             if (sec.type === 'quote') {
@@ -594,7 +596,7 @@ export function MarkdownPreview({
                   key={idx}
                   className="my-3 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden"
                 >
-                  <div className="bg-[#0D1117] border-b border-[#30363D] px-3.5 py-1.5 flex items-center justify-between text-[11px] text-[#7D8590]">
+ <div className="bg-[#0D1117] px-3.5 py-1.5 flex items-center justify-between text-[11px] text-[#7D8590]">
                     <span className="font-mono text-[#58A6FF] uppercase font-semibold">
                       {sec.lang}
                     </span>
@@ -652,7 +654,7 @@ export function MarkdownPreview({
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#30363D]">
+ <tbody>
                       {sec.rows.map((row, rIdx) => (
                         <tr
                           key={rIdx}

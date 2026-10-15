@@ -2247,7 +2247,7 @@ function QuantGitContent() {  const router = useRouter();
         />
       {/* 2. Repository Sub-Navigation Bar & 10 Tabs (When in Repo view with selected repo) */}
       {activeDeckTab === 'repos' && selectedRepo && (
-        <div className="bg-[#010409] border-b border-[#30363D] pt-4 px-4 sm:px-8">
+ <div className="bg-[#010409] pt-4 px-4 sm:px-8">
           <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
             <div className="flex items-center gap-2">
               <button
@@ -2309,7 +2309,7 @@ function QuantGitContent() {  const router = useRouter();
             </div>
           </div>
 
-          <nav className="flex items-center gap-1 overflow-x-auto scrollbar-none border-t border-[#21262D] text-xs font-semibold">
+ <nav className="flex items-center gap-1 overflow-x-auto scrollbar-none text-xs font-semibold">
             {[
               { id: 'code', label: 'Code', badge: null },
               { id: 'commits', label: 'Commits', badge: commits.length },
@@ -2557,7 +2557,7 @@ function QuantGitContent() {  const router = useRouter();
                       )
                     }
                   />
-                  <div className="pt-6 border-t border-[#30363D]">
+ <div className="pt-6">
                     <h4 className="text-sm font-bold text-white mb-3">Deployed Workspace Agents</h4>
                     <AgentsTab agents={agents} setModalState={setModalState} />
                   </div>
@@ -2620,7 +2620,7 @@ function QuantGitContent() {  const router = useRouter();
                     handleSaveSettings={handleSaveSettings}
                     handleDeleteRepo={handleDeleteRepo}
                   />
-                  <div className="pt-8 border-t border-[#30363D]">
+ <div className="pt-8">
                     <DeveloperAppearanceSettings
                       onSave={() => showToast('Developer appearance settings saved!')}
                     />

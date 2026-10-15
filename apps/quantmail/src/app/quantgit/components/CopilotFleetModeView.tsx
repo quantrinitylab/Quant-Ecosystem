@@ -88,7 +88,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
   return (
     <div className="w-full max-w-4xl mx-auto flex flex-col h-[calc(100vh-140px)] text-[#E6EDF3] py-2 relative">
       {/* Copilot Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-[#30363D]">
+ <div className="flex items-center justify-between pb-3">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-blue-500 flex items-center justify-center text-white text-base font-bold shadow-md">
             🤖
@@ -203,7 +203,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
       </div>
 
       {/* Input Composer & Toolbar */}
-      <form onSubmit={handleSubmit} className="pt-2 border-t border-[#30363D] space-y-2">
+ <form onSubmit={handleSubmit} className="pt-2 space-y-2">
         {/* Context chips */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {selectedContext.map((ctx) => (
@@ -249,7 +249,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
           />
 
           {/* Bottom Toolbar: Mode pills + Model selector + Send */}
-          <div className="flex items-center justify-between pt-1 border-t border-[#21262D]">
+ <div className="flex items-center justify-between pt-1">
             {/* Mode Selector */}
             <div className="flex items-center gap-1 bg-[#0D1117] p-0.5 rounded-lg border border-[#30363D]">
               {(['ask', 'agent', 'debug'] as const).map((mode) => (

@@ -49,7 +49,7 @@ export function DiscussionsTab({
         </button>
       </div>
 
-      <div className="border border-[#30363D] rounded-md bg-[#0D1117] divide-y divide-[#21262D]">
+ <div className="border border-[#30363D] rounded-md bg-[#0D1117]">
         {discussions.map((d) => (
           <div
             key={d.id}

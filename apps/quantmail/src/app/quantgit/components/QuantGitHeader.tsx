@@ -62,7 +62,7 @@ export function QuantGitHeader({
   return (
     <>
       {activeDeckTab === 'quanty' ? (
-        <div className="shrink-0 z-20 bg-[var(--quant-background)] border-b border-[#21262D] px-4 py-2 flex items-center justify-between text-xs">
+ <div className="shrink-0 z-20 bg-[var(--quant-background)] px-4 py-2 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2.5">
             <button
               type="button"
@@ -131,7 +131,7 @@ export function QuantGitHeader({
           </div>
         </div>
       ) : (
-        <div className="shrink-0 z-20 bg-[var(--quant-background)] border-b border-[#21262D] px-4 sm:px-6 py-2 flex items-center justify-between text-xs">
+ <div className="shrink-0 z-20 bg-[var(--quant-background)] px-4 sm:px-6 py-2 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2.5 min-w-0">
             {/* Git Branch / Sovereign Repository Icon */}
             <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 text-[#8B5CF6]">
@@ -241,7 +241,7 @@ export function QuantGitHeader({
                   <div className="fixed inset-0 z-40" onClick={() => setIsCreateMenuOpen(false)} />
                   <div
                     data-testid="create-new-dropdown-menu"
-                    className="absolute right-0 mt-1.5 w-48 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-xl py-1 z-50 text-xs text-[#E6EDF3] divide-y divide-[#21262D] animate-in fade-in"
+ className="absolute right-0 mt-1.5 w-48 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-xl py-1 z-50 text-xs text-[#E6EDF3] animate-in fade-in"
                   >
                     <div className="py-1">
                       {/* SIA-P1-7: "New repository" lives as the single primary
@@ -336,7 +336,7 @@ export function QuantGitHeader({
             onClick={() => setIsHistoryOpen(false)}
           />
           <aside className="fixed top-0 left-0 bottom-0 w-80 bg-[var(--quant-surface-elevated)] border-r border-[#30363D] z-50 p-4 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200">
-            <div className="flex items-center justify-between pb-3 border-b border-[#21262D]">
+ <div className="flex items-center justify-between pb-3">
               <div className="flex items-center gap-2">
                 <BubbleAvatar state="coding" size={28} />
                 <span className="font-bold text-sm text-white">Chat History</span>

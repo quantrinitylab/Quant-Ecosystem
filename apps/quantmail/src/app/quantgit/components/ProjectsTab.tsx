@@ -16,7 +16,7 @@ export function ProjectsTab({ projects, handleMoveKanban }: ProjectsTabProps) {
         const title = col === 'todo' ? 'To do' : col === 'in_progress' ? 'In progress' : 'Done';
         return (
           <div key={col} className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-md p-3 space-y-3">
-            <div className="flex items-center justify-between font-bold text-white border-b border-[#21262D] pb-2">
+ <div className="flex items-center justify-between font-bold text-white pb-2">
               <span>{title}</span>
               <span className="px-2 py-px rounded-full bg-[#21262D] text-[#7D8590] text-[10px]">
                 {colCards.length}

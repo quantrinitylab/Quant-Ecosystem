@@ -214,7 +214,7 @@ export function InsightsTab({
           <h4 className="font-bold text-white">Commit Frequency & Activity</h4>
           {insights.dailyCommits.length > 0 ? (
             <>
-              <div className="h-32 flex items-end gap-2 border-b border-[#30363D] pb-2">
+ <div className="h-32 flex items-end gap-2 pb-2">
                 {insights.dailyCommits.map((day) => (
                   <div key={day.label} className="flex-1 flex flex-col items-center gap-1">
                     <span className="text-[10px] text-[#7D8590]">{day.count}</span>

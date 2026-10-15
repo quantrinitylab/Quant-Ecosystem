@@ -193,7 +193,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
         )}
 
         {/* Resources links */}
-        <div className="pt-2 border-t border-[#21262D] space-y-2 text-[#8D96A0]">
+ <div className="pt-2 space-y-2 text-[#8D96A0]">
           <div className="flex items-center gap-2 hover:text-[#58A6FF] cursor-pointer">
             <span>📖</span>
             <span>Readme</span>
@@ -210,7 +210,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
           implying a persisted notification setting with no subscription
           endpoint behind it. Watch returns when a real subscription endpoint
           exists. */}
-      <div className="flex items-center gap-2 pt-2 border-t border-[#21262D]">
+ <div className="flex items-center gap-2 pt-2">
         <button
           onClick={handleStarClick}
           disabled={!starWired || starPending}
@@ -237,7 +237,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
 
       {/* Releases Widget — only when real release data exists */}
       {(releasesCount > 0 || latestReleaseTag) && (
-        <div className="pt-4 border-t border-[#21262D] space-y-2">
+ <div className="pt-4 space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="font-semibold text-xs text-[#E6EDF3] flex items-center gap-1.5">
               <span>Releases</span>
@@ -264,14 +264,14 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
 
       {/* Used by Widget — only when real data exists */}
       {usedByCount && (
-        <div className="pt-4 border-t border-[#21262D] space-y-2">
+ <div className="pt-4 space-y-2">
           <h4 className="font-semibold text-xs text-[#E6EDF3]">Used by {usedByCount}</h4>
         </div>
       )}
 
       {/* Contributors Widget — only when real data exists */}
       {contributorsCount > 0 && (
-        <div className="pt-4 border-t border-[#21262D] space-y-2">
+ <div className="pt-4 space-y-2">
           <h4 className="font-semibold text-xs text-[#E6EDF3] flex items-center gap-1.5">
             <span>Contributors</span>
             <span className="px-1.5 py-px rounded-full bg-[#21262D] text-[10px] text-[#8D96A0]">
@@ -283,7 +283,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
 
       {/* Languages Distribution Bar — only when real data exists */}
       {languages.length > 0 && (
-        <div className="pt-4 border-t border-[#21262D] space-y-2.5">
+ <div className="pt-4 space-y-2.5">
           <h4 className="font-semibold text-xs text-[#E6EDF3]">Languages</h4>
 
           {/* Multi-segmented color bar */}

@@ -1107,7 +1107,7 @@ pnpm install && pnpm dev
         >
           {/* Breadcrumb Path Bar & In-Editor Toolbar */}
           <div
-            className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 ${
+ className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${
               editorTheme === 'github-dark'
                 ? 'bg-[var(--quant-surface-elevated)] border-[#30363D]'
                 : 'bg-[#F6F8FA] border-[#D0D7DE]'
@@ -1295,7 +1295,7 @@ pnpm install && pnpm dev
           {isSearchOpen && (
             <div
               data-testid="search-replace-widget"
-              className={`flex flex-wrap items-center justify-between gap-3 px-4 py-2 border-b text-xs ${
+ className={`flex flex-wrap items-center justify-between gap-3 px-4 py-2 text-xs ${
                 editorTheme === 'github-dark'
                   ? 'bg-[var(--quant-surface-elevated)] border-[#30363D]'
                   : 'bg-[#F6F8FA] border-[#D0D7DE]'
@@ -1424,7 +1424,7 @@ pnpm install && pnpm dev
                     : 'bg-white text-[#1F2328]'
                 }`}
               >
-                <div className="flex items-center justify-between pb-2 mb-3 border-b border-[#30363D] text-[11px] text-[#7D8590]">
+ <div className="flex items-center justify-between pb-2 mb-3 text-[11px] text-[#7D8590]">
                   <span>Viewing raw source</span>
                   <button
                     type="button"
@@ -1494,7 +1494,7 @@ pnpm install && pnpm dev
               >
                 {/* Diff Sub-Header */}
                 <div
-                  className={`flex items-center justify-between px-4 py-2 border-b text-xs ${
+ className={`flex items-center justify-between px-4 py-2 text-xs ${
                     editorTheme === 'github-dark'
                       ? 'bg-[var(--quant-surface-elevated)] border-[#30363D]'
                       : 'bg-[#F6F8FA] border-[#D0D7DE]'
@@ -1551,10 +1551,10 @@ pnpm install && pnpm dev
                   }`}
                 >
                   {diffViewStyle === 'split' ? (
-                    <div className="grid grid-cols-2 divide-x divide-[#30363D] min-w-full">
+                    <div className="grid grid-cols-2 gap-4 min-w-full">
                       {/* Left: Original Base */}
                       <div className="p-2 space-y-0.5">
-                        <div className="text-[10px] text-[#7D8590] uppercase tracking-wider font-bold pb-1 border-b border-[#30363D] mb-1">
+ <div className="text-[10px] text-[#7D8590] uppercase tracking-wider font-bold pb-1 mb-1">
                           Original Base (
                           {originalFileContent ? originalFileContent.split('\n').length : 0} lines)
                         </div>
@@ -1570,7 +1570,7 @@ pnpm install && pnpm dev
 
                       {/* Right: Current Edits */}
                       <div className="p-2 space-y-0.5">
-                        <div className="text-[10px] text-[#7D8590] uppercase tracking-wider font-bold pb-1 border-b border-[#30363D] mb-1">
+ <div className="text-[10px] text-[#7D8590] uppercase tracking-wider font-bold pb-1 mb-1">
                           Current Edits ({lines.length} lines)
                         </div>
                         {lines.map((line, idx) => (
@@ -1585,7 +1585,7 @@ pnpm install && pnpm dev
                     </div>
                   ) : (
                     /* Unified Diff */
-                    <div className="divide-y divide-[#21262D]">
+ <div>
                       {diffLines.map((line, idx) => {
                         const isAdd = line.type === 'added';
                         const isDel = line.type === 'removed';
@@ -1674,7 +1674,7 @@ pnpm install && pnpm dev
 
             {/* Bottom Status Bar */}
             <div
-              className={`flex items-center justify-between px-4 py-1.5 text-[11px] border-t ${
+ className={`flex items-center justify-between px-4 py-1.5 text-[11px] ${
                 editorTheme === 'github-dark'
                   ? 'bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#7D8590]'
                   : 'bg-[#F6F8FA] border-[#D0D7DE] text-[#656D76]'
@@ -1692,7 +1692,7 @@ pnpm install && pnpm dev
 
           {/* GitHub-Parity Commit Changes Box */}
           <div
-            className={`p-4 border-t space-y-3 ${
+ className={`p-4 space-y-3 ${
               editorTheme === 'github-dark'
                 ? 'bg-[var(--quant-surface-elevated)] border-[#30363D]'
                 : 'bg-[#F6F8FA] border-[#D0D7DE]'
@@ -1882,7 +1882,7 @@ pnpm install && pnpm dev
             className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
           >
             <div className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-left">
-              <div className="flex items-center justify-between pb-3 border-b border-[#30363D]">
+ <div className="flex items-center justify-between pb-3">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <span className="text-[#F85149]">🗑️</span>
                   <span>Delete {editingFile.name}</span>
@@ -1952,7 +1952,7 @@ pnpm install && pnpm dev
                 </label>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#30363D]">
+ <div className="flex items-center justify-end gap-3 pt-3">
                 <button
                   type="button"
                   data-testid="cancel-delete-modal-button"
@@ -2003,7 +2003,7 @@ pnpm install && pnpm dev
             className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
           >
             <div className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
-              <div className="flex items-center justify-between pb-3 border-b border-[#30363D]">
+ <div className="flex items-center justify-between pb-3">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <span>History for</span>
                   <span className="font-mono text-[#58A6FF]">{editingFile.path}</span>
@@ -2024,7 +2024,7 @@ pnpm install && pnpm dev
                 </div>
               </div>
 
-              <div className="flex justify-end pt-2 border-t border-[#30363D]">
+ <div className="flex justify-end pt-2">
                 <button
                   type="button"
                   onClick={() => setIsHistoryOpen(false)}
@@ -2224,7 +2224,7 @@ pnpm install && pnpm dev
                       setIsAddFileOpen(false);
                       uploadInputRef.current?.click();
                     }}
-                    className="w-full text-left px-3 py-2 hover:bg-[#21262D] text-[#E6EDF3] flex items-center gap-2 font-medium border-t border-[#21262D]"
+ className="w-full text-left px-3 py-2 hover:bg-[#21262D] text-[#E6EDF3] flex items-center gap-2 font-medium"
                   >
                     <span className="text-[#58A6FF]">↑</span>
                     <span>Upload files</span>
@@ -2438,7 +2438,7 @@ pnpm install && pnpm dev
         </div>
 
         {/* 4. Real File Explorer Tree Table */}
-        <div className="border border-t-0 border-[#30363D] rounded-b-md divide-y divide-[#21262D] text-xs bg-[#0D1117] overflow-hidden">
+ <div className="border border-t-0 border-[#30363D] rounded-b-md text-xs bg-[#0D1117] overflow-hidden">
           {/* ".." Parent Directory Row when inside a subfolder in directory mode */}
           {viewMode === 'directory' && parentPath !== null && !filterQuery && (
             <div

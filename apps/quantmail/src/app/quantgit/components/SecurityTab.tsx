@@ -901,7 +901,7 @@ export function SecurityTab({
 
       {/* 2. Sub-Tabs Navigation Bar */}
       <div
-        className="flex items-center gap-1 border-b border-[#30363D] pb-0 overflow-x-auto"
+ className="flex items-center gap-1 pb-0 overflow-x-auto"
         data-testid="security-subtabs"
       >
         <button
@@ -1092,7 +1092,7 @@ export function SecurityTab({
 
           {/* Detailed Advisory Cards List */}
           <div
-            className="border border-[#30363D] rounded-md bg-[#0D1117] divide-y divide-[#21262D]"
+ className="border border-[#30363D] rounded-md bg-[#0D1117]"
             data-testid="dependabot-advisories-list"
           >
             {filteredDependabotAlerts.length === 0 ? (
@@ -1304,7 +1304,7 @@ export function SecurityTab({
 
           {/* Secret Alerts List */}
           <div
-            className="border border-[#30363D] rounded-md bg-[#0D1117] divide-y divide-[#21262D]"
+ className="border border-[#30363D] rounded-md bg-[#0D1117]"
             data-testid="secret-alerts-list"
           >
             {filteredSecretAlerts.length === 0 ? (
@@ -1470,7 +1470,7 @@ export function SecurityTab({
 
           {/* SAST Alerts List */}
           <div
-            className="border border-[#30363D] rounded-md bg-[#0D1117] divide-y divide-[#21262D]"
+ className="border border-[#30363D] rounded-md bg-[#0D1117]"
             data-testid="codeql-alerts-list"
           >
             {filteredCodeqlAlerts.length === 0 ? (
@@ -1545,13 +1545,13 @@ export function SecurityTab({
                     data-testid={`codeql-diff-${alert.id}`}
                     className="rounded bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden font-mono text-[11px]"
                   >
-                    <div className="px-3 py-1.5 bg-[#21262D] border-b border-[#30363D] text-[#7D8590] font-semibold text-[10px] flex items-center justify-between">
+ <div className="px-3 py-1.5 bg-[#21262D] text-[#7D8590] font-semibold text-[10px] flex items-center justify-between">
                       <span>Recommended Code Fix Diff</span>
                       <span className="text-[#3FB950] font-normal">Automated Patch Ready</span>
                     </div>
 
                     {/* Vulnerable code (red) */}
-                    <div className="px-3 py-2 bg-[#F85149]/10 text-[#F85149] border-b border-[#F85149]/20 flex items-start gap-2">
+ <div className="px-3 py-2 bg-[#F85149]/10 text-[#F85149] flex items-start gap-2">
                       <span className="font-bold select-none">-</span>
                       <pre className="overflow-x-auto whitespace-pre-wrap">{alert.codeSnippet}</pre>
                     </div>
@@ -1684,7 +1684,7 @@ export function SecurityTab({
               </button>
             </div>
 
-            <div className="space-y-3 pt-2 divide-y divide-[#30363D]">
+ <div className="space-y-3 pt-2">
               {/* Check 1: Require pull request reviews before merging */}
               <label
                 data-testid="rule-require-pr-reviews"

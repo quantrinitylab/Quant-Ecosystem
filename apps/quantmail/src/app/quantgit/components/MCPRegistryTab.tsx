@@ -139,7 +139,7 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = () => {
       </div>
 
       {/* Category Pills & Total Count */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#30363D] pb-3">
+ <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-sm text-[#E6EDF3]">All MCP servers</span>
           <span className="px-2 py-0.5 rounded-full bg-[#21262D] text-xs font-mono text-[#8D96A0]">
@@ -208,7 +208,7 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = () => {
               </div>
 
               {/* Footer info: category only — no fabricated install counts */}
-              <div className="flex items-center justify-end pt-2 border-t border-[#21262D] text-[11px] text-[#8D96A0]">
+ <div className="flex items-center justify-end pt-2 text-[11px] text-[#8D96A0]">
                 <span className="capitalize px-2 py-0.5 rounded-md bg-[#21262D] text-[10px]">
                   {server.category}
                 </span>

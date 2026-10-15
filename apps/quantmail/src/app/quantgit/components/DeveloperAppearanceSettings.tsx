@@ -103,7 +103,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
   return (
     <div className="w-full max-w-3xl mx-auto space-y-8 text-xs text-[#E6EDF3] py-4">
       {/* Header */}
-      <div className="border-b border-[#30363D] pb-4">
+ <div className="pb-4">
         <h2 className="text-xl font-bold text-[#E6EDF3]">Appearance & Accessibility</h2>
         <p className="text-[#8D96A0] pt-1">
           Customize how QuantGit looks and responds to your workflow.
@@ -159,7 +159,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
       </div>
 
       {/* Section 2: Editor Settings (Screens 44–45) */}
-      <div className="pt-6 border-t border-[#30363D] space-y-4">
+ <div className="pt-6 space-y-4">
         <h3 className="text-sm font-semibold text-[#E6EDF3]">Editor settings</h3>
 
         {/* Tab Size Preference */}
@@ -224,7 +224,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
       </div>
 
       {/* Section 3: Keyboard Shortcuts & Hovercards (Screens 39–43) */}
-      <div className="pt-6 border-t border-[#30363D] space-y-4">
+ <div className="pt-6 space-y-4">
         <h3 className="text-sm font-semibold text-[#E6EDF3]">Accessibility & Navigation</h3>
 
         {/* Character Keys */}
@@ -264,7 +264,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
       </div>
 
       {/* Section 4: Feature Roadmap (Screen 48) — honest labeling: planned, not available. */}
-      <div className="pt-6 border-t border-[#30363D] space-y-3">
+ <div className="pt-6 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold text-[#E6EDF3]">Feature Roadmap</h3>
@@ -277,7 +277,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
           </span>
         </div>
 
-        <div className="divide-y divide-[#21262D] rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
+ <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
           {roadmapFeatures.map((feat) => (
             <div key={feat.id} className="p-3.5 flex items-center justify-between gap-4">
               <h5 className="font-semibold text-xs text-[#E6EDF3]">{feat.name}</h5>
@@ -290,7 +290,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
       </div>
 
       {/* Save — real save path: writes localStorage, then notifies the parent. */}
-      <div className="pt-6 border-t border-[#30363D] flex items-center gap-3">
+ <div className="pt-6 flex items-center gap-3">
         <button
           type="button"
           onClick={handleSave}
