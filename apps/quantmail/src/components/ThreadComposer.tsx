@@ -1,9 +1,11 @@
 'use client';
 
 import { useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { apiClient } from '../services/api-client';
 import { showToast } from '../components/InboxToast';
 import { UndoSendContext } from './UndoSendCountdownBar';
+import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
 import type { PersonConversation } from '../lib/peopleGrouping';
 import {
   clearThreadDraft,
@@ -113,6 +115,63 @@ export interface ThreadSendOutcome {
 }
 
 /**
+ * Merge a saved template's body into the thread-reply draft, non-destructively.
+ *
+ * Pure function so the merge rule is unit-testable: an empty draft is
+ * replaced by the template text; a non-empty draft gets the template text
+ * appended with a blank-line separator — the user's own words are never
+ * silently clobbered. Same convention as DockedComposer's saved-templates
+ * apply (thread replies have no format ranges to reconcile, so only the
+ * text matters).
+ */
+export function mergeSavedTemplateIntoDraft(currentBody: string, templateBody: string): string {
+  const trimmed = templateBody ?? '';
+  return currentBody.trim() ? `${currentBody}\n\n${trimmed}` : trimmed;
+}
+
+export interface ThreadTemplateApplyInput {
+  body: string;
+  newTopic: boolean;
+  customSubject: string;
+  template: EmailTemplate;
+}
+
+/**
+ * The full saved-template apply for a thread reply, as pure data so the
+ * subject rule is unit-testable alongside the body rule. The thread subject
+ * is automatic (`Re: …`); only a New-topic draft whose subject field is
+ * still empty inherits the template's subject — never clobbering a typed one.
+ *
+ * Honest scope: backend /email-templates stores name/subject/body only
+ * (no attachments, no per-template CC/BCC), so only body (+ new-topic
+ * subject) are inserted — nothing is faked.
+ */
+export function applyThreadTemplateToDraft(input: ThreadTemplateApplyInput): {
+  body: string;
+  customSubject: string;
+} {
+  const body = mergeSavedTemplateIntoDraft(input.body, input.template.body);
+  const customSubject =
+    input.newTopic && !input.customSubject.trim() && input.template.subject.trim()
+      ? input.template.subject.trim()
+      : input.customSubject;
+  return { body, customSubject };
+}
+
+// Saved email templates (backend /email-templates CRUD) — document icon, pure
+// SVG like the file's icon set (mirrors DockedComposer's IconTemplate).
+function IconTemplate({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="8" y="2" width="8" height="4" rx="1" />
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+      <line x1="9" y1="12" x2="15" y2="12" />
+      <line x1="9" y1="16" x2="13" y2="16" />
+    </svg>
+  );
+}
+
+/**
  * The fixed #771 send path for a thread reply: compose a chat-kind draft
  * addressed to the person, in-reply-to the thread's last message, then send
  * it. Success toasts "Message sent"; failure toasts the server's own message
@@ -184,6 +243,30 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
   const [customSubject, setCustomSubject] = useState(restoredDraft?.customSubject ?? '');
   const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Saved email templates (backend /email-templates CRUD, via the
+  // EmailTemplates picker) — the same backend-backed surface the docked
+  // composer wires. The picker is portaled to document.body and anchored
+  // above the toolbar button so the chat bar's layout can never clip it.
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templatesMenuPos, setTemplatesMenuPos] = useState<{ left: number; bottom: number } | null>(null);
+  const templatesAnchorRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Insert a saved template into the reply draft, non-destructively: the
+   * body is replaced only when empty, otherwise appended — the user's own
+   * words are never silently clobbered (same convention as DockedComposer).
+   * State math lives in the pure `applyThreadTemplateToDraft` above so the
+   * subject rule is unit-testable; this is the thin state/toast wrapper.
+   */
+  const applySavedTemplate = (template: EmailTemplate) => {
+    setShowTemplates(false);
+    const next = applyThreadTemplateToDraft({ body, newTopic, customSubject, template });
+    setBody(next.body);
+    setCustomSubject(next.customSubject);
+    showToast({ text: `Template "${template.name}" applied`, type: 'success' });
+    textareaRef.current?.focus();
+  };
 
   // The honest save indicator state. 'pristine' shows nothing (draftSaveStateLabel
   // returns null); 'saved'/'error' show the real outcome of the last write.
@@ -461,6 +544,34 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
           disabled={isSending}
           className="max-h-40 min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-sm text-white placeholder-[#6B6E76] focus:outline-none disabled:opacity-60"
         />
+        {/* Saved email templates — the real backend-backed picker
+            (EmailTemplates.tsx, /email-templates CRUD), the same surface the
+            docked composer wires. Anchored above the chat bar via the portaled
+            popover below. */}
+        <button
+          type="button"
+          ref={templatesAnchorRef}
+          onClick={() => {
+            // Capture the anchor rect BEFORE toggling, so the portaled
+            // popover can position itself above the button even though the
+            // chat bar sits at the bottom of a scrolled thread view.
+            if (!showTemplates && templatesAnchorRef.current) {
+              const rect = templatesAnchorRef.current.getBoundingClientRect();
+              setTemplatesMenuPos({
+                left: Math.max(8, Math.min(rect.left, window.innerWidth - 348)),
+                bottom: Math.max(8, window.innerHeight - rect.top + 8),
+              });
+            }
+            setShowTemplates((prev) => !prev);
+          }}
+          aria-expanded={showTemplates}
+          aria-label="Insert a saved email template"
+          title="Insert a saved email template"
+          disabled={isSending}
+          className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl text-[#9BA0AA] hover:text-[#F97316] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316] disabled:opacity-40"
+        >
+          <IconTemplate className="size-4" />
+        </button>
         <button
           type="button"
           onClick={() => void handleSend()}
@@ -502,6 +613,38 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
             the chat-style bar stays quiet), mirroring EmailComposer. */}
         {draftSaveLabel && <span> · {draftSaveLabel}</span>}
       </p>
+      {/* Saved-templates picker — portaled to document.body with fixed
+          positioning so the chat bar's layout can never clip it. Reads from
+          the real backend /email-templates CRUD via the Next proxy. */}
+      {showTemplates &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setShowTemplates(false)}
+              aria-hidden="true"
+            />
+            <div
+              className="fixed z-50"
+              style={
+                templatesMenuPos
+                  ? { left: templatesMenuPos.left, bottom: templatesMenuPos.bottom }
+                  : { left: 12, bottom: 76 }
+              }
+              role="dialog"
+              aria-label="Saved email templates"
+            >
+              <EmailTemplates
+                isOpen={showTemplates}
+                onClose={() => setShowTemplates(false)}
+                onSelectTemplate={applySavedTemplate}
+                variant="popover"
+              />
+            </div>
+          </>,
+          document.body
+        )}
     </div>
   );
 }
