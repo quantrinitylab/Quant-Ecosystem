@@ -1537,9 +1537,9 @@ STILL-UNVERIFIED: signed-in sessions/grants/PAT/2FA flows live.
 R3 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 1 P2 (R3-NEW-1; R2-NEW-1/R2-NEW-2 confirmed still present, not re-counted). No fix agents spawned (no P0/P1). Rotation -> QM-SCREEN-017 R3.
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
-Status: [x] DONE (R1 audit + R2 regression + R3 regression complete 2026-10-12; #855 staff-gating verified intact on origin/main 01b700aee; 0 new P0/P1/P2 in R3; 1 false-alarm P0 withdrawn — see correction note in R3 section)
+Status: [~] IN PROGRESS (R10 regression audit — Owner: LANE-1, Branch: lane1-audit-017r10; base origin/main c5daf572a, fresh fetch 2026-10-15 ~11:35 IST)
 Owner: LANE-1
-Branch: lane1-audit-017r3
+Branch: lane1-audit-017r10
 Required: capability RBAC, tenant isolation, domain verification, DLP, audit explorer, legal hold, retention, export/deletion, incident visibility, break-glass controls.
 Dependencies: QM-WORK-011; backend integrity tasks.
 - [x] FINDING P0: retention/legal-hold API is any-auth, not staff-gated — any signed-in user can create PERMANENT_DELETE retention policies, place legal holds on any custodian, and RELEASE legal holds. | expected: staff-only (requireStaff like routes/admin.ts) | actual: requireUserId only in routes/retention.ts | evidence: POST /retention/policies, POST /retention/legal-holds, DELETE /retention/legal-holds/:id all call requireUserId; no role check. Logged-out probe → honest 401s. FIXED: PR #855 (merge b72a98b4, commit a05f5fc9) staff-gated all six retention routes (requireStaff, STAFF_ROLES ADMIN+MODERATOR, 401/403 semantics); diff scope CLEAN (retention.ts, audit-logs.ts + 3 test files only). Verified intact on origin/main 6757f022 (2026-10-12 R2: git-grep requireStaff on all six routes). CORRECTION 2026-10-12 R3: an R3 "regression" claim (PR #756 silently reverted #855) was a FALSE ALARM — the R3 auditor read the stale local working tree (local main 162e30535) instead of origin/main. Verified on origin/main 01b700aee's actual tree: retention.ts has 8 requireStaff — fix INTACT. #756's merge is not on origin/main.
