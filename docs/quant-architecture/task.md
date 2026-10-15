@@ -1496,7 +1496,7 @@ R10 REGRESSION AUDIT COMPLETE: [x] DONE — LANE-1, branch lane1-audit-016r10 (2
 - Live (egress RECOVERED — 015 R10 outage cleared; proxy 127.0.0.1:8888 healthy): /settings desktop 1440x900 + /security mobile 390x844 iPhone 14 -> honest sign-in gate (pure black, mail-orange accent, honest copy "Encrypted in transit — Your mail is encrypted between your device and our servers"); GET /api/settings/tokens, /api/auth/sessions, /api/oauth/grants, /api/oauth/userinfo -> honest 401 {"code":"UNAUTHORIZED"} 4/4. Signed-in = needs-auth (as R1–R9). Shots: /tmp/lane1-016r10-desktop-settings.png + /tmp/lane1-016r10-mobile-security.png; chrome orphans cleaned.
 - Ledger: R10 DONE pushed to architecture/quant-company-system-v1. Rotation -> QM-SCREEN-017 (admin) ROUND 10 regression, queued.
 
-Status: [x] DONE (R10 regression audit complete 2026-10-15 ~10:55 IST — Owner: LANE-1, Branch: lane1-audit-016r10; 0 new findings, window clean, prior fixes intact, live sign-in gates + 401s verified).
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-016r11, started 2026-10-15 ~20:35 IST; R10 base 4da0101c9 → origin/main f2b41b8745)
 
 ## QM-SCREEN-016 — Settings / profile / identity / devices / sessions / security
 Status: [x] DONE (R9 regression audit complete 2026-10-14 ~22:35–22:55 IST — Owner: LANE-1, Branch: lane1-audit-016r9; 0 new findings, 5 window commits all diff-verified sound, carryovers confirmed, fixes tracked via their PRs separately).
