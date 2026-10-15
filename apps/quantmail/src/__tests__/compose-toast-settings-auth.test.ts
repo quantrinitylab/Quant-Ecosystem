@@ -4,9 +4,15 @@
 //
 // 1. /compose must confirm the send honestly: "Sending… (10s to undo)" at t=0
 //    (QM-UIUX-025 — the message is not sent yet during the recall window),
-//    then "Email sent" when the 10s window closes, unless the user undid.
-//    Before this fix the page navigated home with no confirmation that the
-//    message actually went out.
+//    then "Send confirmed — delivering" when the 10s window closes, unless
+//    the user undid. The window closing is only the moment the send becomes
+//    un-undoable and the worker STARTS transmitting — delivery itself is
+//    still unconfirmed (the server answers 202 "Email queued for delivery"
+//    and SES can still fail afterwards), so the page must NEVER claim
+//    "Email sent" on that 10s timer. Before the honesty fixes the page
+//    navigated home with no confirmation that the message actually went out,
+//    then a later fix added the timer toast but with the unqualified
+//    "Email sent" lie.
 //
 // 2. Auth hydrate must bound BOTH legs: the refresh AND the profile load.
 //    Before this fix only `browserAuthSession.refresh()` was raced with a
@@ -44,11 +50,17 @@ describe('/compose send confirmation', () => {
     expect(composePageSource).toContain("text: 'Sending… (10s to undo)'");
   });
 
-  it('confirms "Email sent" after the recall window closes', () => {
-    expect(composePageSource).toContain("text: 'Email sent'");
+  it('confirms honestly after the recall window closes — never claims "Email sent" on the timer', () => {
+    // At t=10s the undo window closes and transmission STARTS; delivery is
+    // still unconfirmed (202 "Email queued for delivery" → the worker
+    // transmits afterwards, SES can still fail). The only honest copy is
+    // the confirmed-but-in-flight one — the unqualified "Email sent" claim
+    // must be gone from the page source entirely.
+    expect(composePageSource).toContain("text: 'Send confirmed — delivering'");
+    expect(composePageSource).not.toContain("text: 'Email sent'");
   });
 
-  it('does not claim "Email sent" when the user undid the send', () => {
+  it('does not claim anything after the window when the user undid the send', () => {
     // The delayed confirmation is guarded by the undo flag.
     expect(composePageSource).toMatch(/let sendUndone = false/);
     expect(composePageSource).toMatch(/sendUndone = true/);
