@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { activeOtpCodes } from '../store';
 
 export async function POST(req: Request) {
   try {
@@ -29,64 +28,30 @@ export async function POST(req: Request) {
 
       clearTimeout(timeoutId);
 
-      if (response.ok) {
-        const data = await response.json();
-        return NextResponse.json(data, { status: response.status });
-      }
-      throw new Error(`Backend error: ${response.status}`);
+      // The backend is the ONLY authority that can verify an OTP and issue
+      // tokens. Whatever it answers — success or rejection — is passed
+      // through verbatim; this proxy never second-guesses it.
+      const data = await response.json();
+      return NextResponse.json(data, { status: response.status });
     } catch (error) {
       clearTimeout(timeoutId);
 
-      // Fallback: verify ONLY against codes issued by this service's own
-      // store (which can only hold codes issued with a real SMS). There is
-      // no universal/demo code — '123456' was removed as a critical auth
-      // backdoor. If the upstream provider and the local store both have no
-      // valid code, verification fails.
-      const fallbackEntry = activeOtpCodes.get(normalizedPhone);
-
-      let isValid = false;
-      if (
-        fallbackEntry &&
-        fallbackEntry.code === otp &&
-        fallbackEntry.expiresAt > Date.now()
-      ) {
-        isValid = true;
-      }
-
-      if (isValid) {
-        // cleanup
-        activeOtpCodes.delete(normalizedPhone);
-
-        const phoneBuffer = Buffer.from(normalizedPhone).toString('hex');
-        const token = `qchat_sess_${Date.now()}_${phoneBuffer}`;
-        const user = {
-          id: 'user_' + phoneBuffer.slice(0, 12),
-          phoneNumber: normalizedPhone,
-          username: 'User ' + normalizedPhone.slice(-4),
-          role: 'USER',
-        };
-
-        return NextResponse.json(
-          {
-            success: true,
-            data: {
-              accessToken: token,
-              refreshToken: token + '_rf',
-              user,
-              isFallback: true,
-            },
+      // FAIL CLOSED (QC-F-091): when the upstream OTP provider is
+      // unreachable, do NOT fall back to a locally stored code and never
+      // mint a token or fabricate a user in this proxy — that was a
+      // latent P0-A-class identity forgery (any future writer populating
+      // the local store would have turned it into a live backdoor).
+      // Mirror the request route: 503 OTP_UPSTREAM_UNAVAILABLE.
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            message: 'Verification service is unavailable. Please try again later.',
+            code: 'OTP_UPSTREAM_UNAVAILABLE',
           },
-          { status: 200 },
-        );
-      } else {
-        return NextResponse.json(
-          {
-            success: false,
-            error: { message: 'Invalid or expired verification code' },
-          },
-          { status: 400 },
-        );
-      }
+        },
+        { status: 503 },
+      );
     }
   } catch (error: any) {
     return NextResponse.json(
