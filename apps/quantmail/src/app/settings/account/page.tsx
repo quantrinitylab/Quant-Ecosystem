@@ -5,6 +5,7 @@ import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
 import { SettingsSection } from '../SettingsPrimitives';
 import { DataExportSettings } from './DataExportSettings';
+import { RecoveryEmailSettings } from './RecoveryEmailSettings';
 
 export default function AccountSettingsPage() {
   return (
@@ -81,6 +82,11 @@ export default function AccountSettingsPage() {
 
           {/* Data export — wired to the QM-BACK-006 export center (QM-UIUX-091) */}
           <DataExportSettings />
+
+          {/* Out-of-band account recovery (fix/qm-account-recovery-3): reset
+              links are mailed here too when set, for lockouts where the
+              QuantMail inbox itself is unreachable. */}
+          <RecoveryEmailSettings />
         </div>
       </div>
     </AppShell>

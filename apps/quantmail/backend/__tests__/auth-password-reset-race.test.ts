@@ -349,7 +349,8 @@ const USER = {
   deletedAt: null,
 };
 
-const SENT_MESSAGE = 'If an account exists with that address, reset instructions have been sent.';
+const SENT_MESSAGE =
+  "If an account exists with that address, reset instructions have been sent to the account's email — and to its recovery email, if one was set.";
 
 const tick = (n = 5) => {
   let p = Promise.resolve();

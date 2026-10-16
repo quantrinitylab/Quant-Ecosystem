@@ -19,6 +19,12 @@ model User {
   avatarUrl           String?
   bannerUrl           String?
   phoneNumber         String?    @unique
+  // Out-of-band account recovery channel (NOT SMS/phone OTP — the product has
+  // no phone OTP infra). Password-reset links are mailed here too when set, so
+  // a lockout with no active session — where the QuantMail inbox itself is
+  // unreachable — does not become permanent. Nullable: no backfill needed.
+  // No unique index: one shared family mailbox may back more than one account.
+  recoveryEmail       String?
   role                UserRole   @default(USER)
   status              UserStatus @default(PENDING_VERIFICATION)
   emailVerified       Boolean    @default(false)

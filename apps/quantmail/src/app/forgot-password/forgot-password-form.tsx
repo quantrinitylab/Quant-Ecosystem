@@ -65,7 +65,8 @@ export function ForgotPasswordForm() {
           Reset your password
         </h1>
         <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
-          Enter your full QuantMail address to request reset instructions.
+          Enter your full QuantMail address to request reset instructions. The link goes to the
+          account&apos;s email — and to its recovery email, if one was set in Settings → Account.
         </p>
       </div>
 
@@ -75,10 +76,9 @@ export function ForgotPasswordForm() {
           aria-live="polite"
           className="rounded-2xl border border-[var(--quant-success)]/30 bg-[var(--quant-success)]/10 p-5"
         >
-          <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">Check your inbox</h2>
+          <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">Check your email</h2>
           <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
-            If an eligible account matches that address, password reset instructions will be sent.
-            We do not confirm whether an account exists.
+            If an eligible account matches that address, password reset instructions were sent to its email — and to its recovery email, if one was set. We do not confirm whether an account exists.
           </p>
           <Link
             href="/login"
