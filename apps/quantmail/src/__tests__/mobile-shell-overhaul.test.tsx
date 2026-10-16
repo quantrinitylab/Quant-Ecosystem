@@ -196,9 +196,9 @@ describe('Mobile Shell Overhaul — Worker A', () => {
       for (const id of ['mail', 'calendar', 'drive', 'contacts', 'quantgit']) {
         expect(html).toContain(`/mascots/${id}-`);
       }
-
       const mascotCount = (html.match(/<picture/g) || []).length;
       expect(mascotCount).toBeGreaterThanOrEqual(5);
+
       // The old generic mail glyph is gone from the tiles.
       expect(html).not.toContain('m22 7-8.97 5.7');
     });
