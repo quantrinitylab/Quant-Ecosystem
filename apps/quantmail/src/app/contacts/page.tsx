@@ -668,9 +668,29 @@ export default function ContactsPage() {
   const lastJumpRef = useRef<string | null>(null);
   const [scrub, setScrub] = useState<{ letter: string; y: number } | null>(null);
 
-  const availableLetters = useMemo(
-    () => new Set(groupedContacts.map((g) => g.letter)),
+  const letterGroups = useMemo(
+    () => groupedContacts.map((group) => ({ letter: group.letter, count: group.contacts.length })),
     [groupedContacts],
+  );
+
+  // Sidebar index + header counts: the server's true per-letter totals once
+  // loaded (the address book's real shape, not just this page's), falling
+  // back to the page's own groups while loading or in the contact-group view.
+  // Hoisted above `availableLetters`/`resolveLetter` so the scrub rail's
+  // "has contacts" highlight uses the same address-book truth as the sidebar.
+  const letterIndexGroups = useMemo(
+    () => buildLetterIndexGroups(letterGroups, letterTotals),
+    [letterGroups, letterTotals],
+  );
+
+  // Which letters have contacts anywhere in the address book: the server's
+  // totals (page-scoped fallback while loading / in the contact-group view).
+  // Deriving this from the paginated `groupedContacts` greyed out every
+  // letter whose contacts all sit on other pages — the same page-as-total
+  // lie, contradicting the sidebar index that shows those letters lit.
+  const availableLetters = useMemo(
+    () => new Set(letterIndexGroups.map((g) => g.letter)),
+    [letterIndexGroups],
   );
 
   const jumpToLetter = useCallback((letter: string, smooth: boolean) => {
@@ -780,19 +800,6 @@ export default function ContactsPage() {
       jumpToLetter(resolveLetter(letter) ?? letter, true);
     },
     [jumpToLetter, resolveLetter],
-  );
-
-  const letterGroups = useMemo(
-    () => groupedContacts.map((group) => ({ letter: group.letter, count: group.contacts.length })),
-    [groupedContacts],
-  );
-
-  // Sidebar index + header counts: the server's true per-letter totals once
-  // loaded (the address book's real shape, not just this page's), falling
-  // back to the page's own groups while loading or in the contact-group view.
-  const letterIndexGroups = useMemo(
-    () => buildLetterIndexGroups(letterGroups, letterTotals),
-    [letterGroups, letterTotals],
   );
 
   const hasContacts = (contacts?.length ?? 0) > 0;
