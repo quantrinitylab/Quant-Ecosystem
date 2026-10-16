@@ -505,17 +505,28 @@ export default async function emailsRoutes(
 
   // POST /emails - Compose or send an email
   // WR-MAIL-104: mail.draft.create is an active catalog command — key required.
+  // fix/qm-idempotency-ttl-3: large compose payloads (up to ~34 MB JSON with
+  // attachments) plus the SES roundtrip can run long; declare an honest
+  // 15-minute in-flight claim window. The generic path still heartbeats the
+  // claim while the handler runs.
   fastify.post(
     '/',
-    { config: { idempotencyRequired: true }, bodyLimit: COMPOSE_BODY_LIMIT_BYTES },
+    {
+      config: { idempotencyRequired: true, idempotencyProcessingTtlSeconds: 900 },
+      bodyLimit: COMPOSE_BODY_LIMIT_BYTES,
+    },
     handleComposeOrSend,
   );
 
   // POST /emails/compose - Unified composer contract (M07)
   // WR-MAIL-104: mail.draft.create is an active catalog command — key required.
+  // fix/qm-idempotency-ttl-3: same honest 15-minute claim window as POST /emails.
   fastify.post(
     '/compose',
-    { config: { idempotencyRequired: true }, bodyLimit: COMPOSE_BODY_LIMIT_BYTES },
+    {
+      config: { idempotencyRequired: true, idempotencyProcessingTtlSeconds: 900 },
+      bodyLimit: COMPOSE_BODY_LIMIT_BYTES,
+    },
     handleComposeOrSend,
   );
 

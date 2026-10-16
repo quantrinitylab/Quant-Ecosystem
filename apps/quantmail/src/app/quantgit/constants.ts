@@ -54,7 +54,7 @@ export const INITIAL_REPOS: Repo[] = [
     name: 'quantmail-core',
     fullName: 'quantmail-core',
     description:
-      'Ultra-fast sovereign mail client with inline triage lenses & local ONNX semantic search.',
+      'Ultra-fast sovereign mail client with inline triage lenses & full-text search.',
     visibility: 'private',
     language: 'TypeScript',
     stars: 0,
@@ -68,7 +68,7 @@ export const INITIAL_REPOS: Repo[] = [
     checksStatus: 'passing',
     license: 'Proprietary',
     website: 'https://quantmail.in',
-    topics: ['email', 'privacy', 'onnx', 'rust-worker'],
+    topics: ['email', 'privacy', 'rust-worker'],
     branchCount: 42,
     commitCount: 846,
     branches: ['main', 'feat/offline-sync', 'fix/ses-deliverability'],
@@ -461,7 +461,7 @@ class MainActivity : ComponentActivity() {
     name: 'quantai',
     path: 'apps/quantai',
     type: 'dir',
-    lastCommit: 'feat(swarm): local ONNX inference and model registry',
+    lastCommit: 'feat(swarm): swarm task queue and retry helpers',
     lastCommitDate: '1 day ago',
   },
   {
@@ -469,14 +469,14 @@ class MainActivity : ComponentActivity() {
     path: 'apps/quantai/package.json',
     type: 'file',
     size: '2.1 KB',
-    lastCommit: 'deps: onnxruntime-node and vector embeddings',
+    lastCommit: 'deps: dependency refresh and lockfile sync',
     lastCommitDate: '1 day ago',
   },
   {
     name: 'src',
     path: 'apps/quantai/src',
     type: 'dir',
-    lastCommit: 'feat(swarm): local ONNX inference and model registry',
+    lastCommit: 'feat(swarm): swarm task queue and retry helpers',
     lastCommitDate: '1 day ago',
   },
   {
@@ -484,7 +484,7 @@ class MainActivity : ComponentActivity() {
     path: 'apps/quantai/src/index.ts',
     type: 'file',
     size: '5.1 KB',
-    lastCommit: 'feat(swarm): local ONNX inference and model registry',
+    lastCommit: 'feat(swarm): swarm task queue and retry helpers',
     lastCommitDate: '1 day ago',
   },
   {
@@ -951,13 +951,13 @@ export const INITIAL_DISCUSSIONS: DiscussionItem[] = [
   },
   {
     id: 3,
-    title: '🙏 Best practices for configuring local ONNX runtime embeddings in QuantMail',
+    title: '🙏 Best practices for configuring search in QuantMail',
     category: 'Q&A',
     author: 'scout',
     upvotes: 19,
     commentsCount: 5,
     createdAt: '3 days ago',
-    body: 'What is the optimal model size and quantization format (int8 vs fp16) for client-side web worker embeddings without burning laptop battery?',
+    body: 'How should full-text search indexing in QuantMail stay fast on a laptop without draining the battery?',
   },
 ];
 
