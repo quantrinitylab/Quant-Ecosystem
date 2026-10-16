@@ -37,6 +37,7 @@ import type {
   Contact,
   ContactGroup,
   CompanyGroup,
+  LetterGroup,
   GroupInviteLink,
   GroupInvitePreview,
   AIComposeRequest,
@@ -1684,6 +1685,30 @@ export class QuantMailApiClient {
     return this.get('/contacts/companies', {
       params: options as Record<string, string | number | boolean | undefined>,
     }) as Promise<ApiResponse<CompanyGroup[]>>;
+  }
+
+  /**
+   * Per-letter contact totals aggregated server-side across ALL of the user's
+   * contacts. `getContacts` is paginated (20/page, capped at 100), so the
+   * contacts page's A–Z headers and sidebar index counted only the loaded
+   * page — "A (7)" on page 2 of 5 meant page 2's A-contacts, and letters whose
+   * contacts all sat on other pages vanished from the index. This endpoint is
+   * the fix. The list's `q`/`favorites` filters are honoured so a search still
+   * narrows the index.
+   *
+   * Through the Next proxy this is `/api/contacts/letters` — a dedicated
+   * route file (app/api/contacts/letters/route.ts) forwards `/contacts/letters`
+   * to the backend verbatim. App Router static segments take precedence over
+   * the `[id]` dynamic route, so it never lands in `[id]`; the same is true of
+   * `/contacts/search`, `/contacts/frequent` and `/contacts/directory`.
+   */
+  async getLetterGroups(options?: {
+    q?: string;
+    favorites?: boolean;
+  }): Promise<ApiResponse<LetterGroup[]>> {
+    return this.get('/contacts/letters', {
+      params: options as Record<string, string | number | boolean | undefined>,
+    }) as Promise<ApiResponse<LetterGroup[]>>;
   }
 
   async mergeContacts(primaryId: string, duplicateIds: string[]): Promise<ApiResponse<Contact>> {

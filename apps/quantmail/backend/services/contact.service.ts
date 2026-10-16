@@ -91,6 +91,21 @@ export interface CompanyGroup {
 /** Filters the companies aggregation honours: the list's search + favorites. */
 export type CompanyGroupOptions = Pick<ContactListOptions, 'q' | 'favorites'>;
 
+/**
+ * One letter bucket for the contacts A–Z index: how many of the caller's
+ * contacts (under the list's filters) start with this letter. Aggregated
+ * server-side across ALL matching contacts — the page used to count from the
+ * paginated list page, so a header reading "A (7)" on page 2 of 5 counted
+ * only page 2's A-contacts while reading as a total.
+ */
+export interface LetterGroup {
+  letter: string;
+  count: number;
+}
+
+/** Filters the letter aggregation honours: the list's search + favorites. */
+export type LetterGroupOptions = Pick<ContactListOptions, 'q' | 'favorites'>;
+
 export interface ImportResult {
   imported: number;
   duplicates: number;
@@ -282,6 +297,59 @@ export class ContactService {
         return { ...g, subtitle: commonDomain ? `@${commonDomain}` : undefined };
       })
       .sort((a, b) => b.members.length - a.members.length || a.name.localeCompare(b.name));
+  }
+
+  /**
+   * The address book's first letter for one contact. This MUST stay identical
+   * to the grouping in `apps/quantmail/src/app/contacts/page.tsx`
+   * (`groupedContacts`): first character of `name`, else first character of
+   * `email`, uppercased; anything that is not A–Z (digits, symbols, CJK, a
+   * missing name AND email on a phone-only record) buckets into '#'. If the
+   * two ever disagree, the rail index and the list sections describe different
+   * address books.
+   */
+  private static letterKey(name?: string | null, email?: string | null): string {
+    const letter = (name?.[0] || email?.[0] || '#').toUpperCase();
+    return /^[A-Z]$/.test(letter) ? letter : '#';
+  }
+
+  /**
+   * Per-letter contact totals for the A–Z index, aggregated across ALL of the
+   * caller's contacts.
+   *
+   * Deliberately UNPAGINATED: the contacts page used to render `{letter}
+   * ({group.contacts.length})` from the paginated list page (`GET /contacts`
+   * is 20/page, capped at 100), so a header reading "A (7)" on page 2 of 5
+   * counted only page 2's A-contacts while reading as a total — and letters
+   * whose contacts all sat on other pages vanished from the sidebar index
+   * entirely. The list's filters (search `q`, `favorites`) still apply via the
+   * shared `listWhere` so the index stays consistent with the list under the
+   * same filters.
+   *
+   * Only `name`/`email` are selected — the index needs nothing else, and the
+   * rows themselves keep coming from the paginated list query. Unlike company
+   * groups, rows are NOT deduped by address here: the list renders every row
+   * including duplicate imports, so the totals must count what the list shows.
+   */
+  async getLetterCounts(
+    userId: string,
+    options: LetterGroupOptions = {},
+  ): Promise<LetterGroup[]> {
+    const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
+    const contacts = await contactModel.findMany({
+      where: this.listWhere(userId, options),
+      select: { name: true, email: true },
+    });
+
+    const counts = new Map<string, number>();
+    for (const c of contacts) {
+      const key = ContactService.letterKey(c.name, c.email);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    return [...counts.entries()]
+      .map(([letter, count]) => ({ letter, count }))
+      .sort((a, b) => (a.letter === '#' ? 1 : b.letter === '#' ? -1 : a.letter.localeCompare(b.letter)));
   }
 
   /**
@@ -1228,6 +1296,10 @@ interface ContactModel {
    * the signature below it.
    */
   findMany(args: { where: unknown; select: { email: true } }): Promise<Array<{ email: string }>>;
+  findMany(args: {
+    where: unknown;
+    select: { name: true; email: true };
+  }): Promise<Array<{ name: string; email: string }>>;
   findMany(args: unknown): Promise<Contact[]>;
   count(args: unknown): Promise<number>;
   create(args: unknown): Promise<Contact>;

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/api-client';
 import { createContactsPageQuery, type ContactsPageOptions } from '../lib/contacts-pagination';
-import type { Contact, CompanyGroup } from '../types';
+import type { Contact, CompanyGroup, LetterGroup } from '../types';
 
 export function useContacts(options?: {
   q?: string;
@@ -121,6 +121,41 @@ export function useCompanyGroups(options?: {
       });
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to load companies');
+      }
+      return response.data ?? [];
+    },
+    enabled: options?.enabled ?? true,
+    // An address book changes on a human timescale, and every mutation that
+    // can change it invalidates this key anyway.
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Per-letter contact totals for the A–Z index, aggregated server-side across
+ * ALL of the user's contacts. The page's headers and sidebar index used to
+ * count from the paginated list page, so "A (7)" on page 2 of 5 counted only
+ * page 2's A-contacts while reading as a total — `GET /contacts/letters` is
+ * unpaginated, which is the fix.
+ *
+ * The key sits under `['contacts']` so the create/update/delete mutations,
+ * which invalidate that prefix, refresh the index too: add a contact and the
+ * letter totals regroup without any extra wiring.
+ */
+export function useLetterGroups(options?: {
+  q?: string;
+  favorites?: boolean;
+  enabled?: boolean;
+}) {
+  return useQuery({
+    queryKey: ['contacts', 'letters', { q: options?.q, favorites: options?.favorites }] as const,
+    queryFn: async (): Promise<LetterGroup[]> => {
+      const response = await apiClient.getLetterGroups({
+        q: options?.q,
+        favorites: options?.favorites,
+      });
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to load letter index');
       }
       return response.data ?? [];
     },

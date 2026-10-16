@@ -459,3 +459,89 @@ describe('GET /contacts/companies', () => {
     expect(res.json().error.code).toBe('VALIDATION_ERROR');
   });
 });
+
+// ============================================================================
+// GET /contacts/letters — server-side per-letter totals across ALL contacts.
+// ============================================================================
+//
+// Regression: the contacts page rendered `{letter} ({group.contacts.length})`
+// from the paginated list page (`GET /contacts` is 20/page, capped at 100),
+// so a header reading "A (7)" on page 2 of 5 counted only page 2's
+// A-contacts while reading as a total — and letters whose contacts all sat on
+// other pages vanished from the sidebar index entirely. The endpoint is
+// deliberately UNPAGINATED; the test that matters asserts `findMany` runs
+// with no skip/take and selects only the columns the index needs.
+const LETTER_ROWS = [
+  { ...ROW, id: 'c1', name: 'Ada Lovelace', email: 'ada@example.com' },
+  // Lowercase initial still buckets into 'A', like the client's toUpperCase().
+  { ...ROW, id: 'c2', name: 'alan turing', email: 'alan@example.com' },
+  // Empty name falls back to the email's initial, like the client.
+  { ...ROW, id: 'c3', name: '', email: 'bob@example.com' },
+  // Digit initial is not A–Z: buckets into '#', like the client.
+  { ...ROW, id: 'c4', name: '123 Corp', email: 'info@123.example' },
+  { ...ROW, id: 'c5', name: 'Zoe Adams', email: 'zoe@example.com' },
+  // Phone-only record: no name AND no email — buckets into '#', like the client.
+  { ...ROW, id: 'c6', name: null, email: null },
+];
+
+describe('GET /contacts/letters', () => {
+  it('totals every letter across ALL contacts — the aggregation is not paginated', async () => {
+    const app = await buildApp();
+    prisma.contact.findMany.mockResolvedValue(LETTER_ROWS);
+    const res = await app.inject({ method: 'GET', url: '/contacts/letters' });
+
+    expect(res.statusCode).toBe(200);
+    const groups = res.json().data as Array<{ letter: string; count: number }>;
+
+    expect(groups).toEqual([
+      { letter: 'A', count: 2 },
+      { letter: 'B', count: 1 },
+      { letter: 'Z', count: 1 },
+      { letter: '#', count: 2 },
+    ]);
+
+    // THE regression assertion: no skip/take — every matching contact is
+    // counted, not just one list page of them — and only name/email are
+    // selected, the two columns the index groups by.
+    const findManyArg = prisma.contact.findMany.mock.calls[0]![0] as Record<string, unknown>;
+    expect(findManyArg.skip).toBeUndefined();
+    expect(findManyArg.take).toBeUndefined();
+    expect(findManyArg.select).toEqual({ name: true, email: true });
+    expect((findManyArg.where as Record<string, unknown>).userId).toBe('user-1');
+  });
+
+  it('honours ?q= with the same predicate the list tab uses', async () => {
+    const app = await buildApp();
+    prisma.contact.findMany.mockResolvedValue(LETTER_ROWS);
+    const res = await app.inject({ method: 'GET', url: '/contacts/letters?q=ada' });
+
+    expect(res.statusCode).toBe(200);
+    const where = prisma.contact.findMany.mock.calls[0]![0].where as Record<string, unknown>;
+    expect(where.OR).toBeDefined();
+  });
+
+  it('honours ?favorites=true', async () => {
+    const app = await buildApp();
+    prisma.contact.findMany.mockResolvedValue(LETTER_ROWS);
+    const res = await app.inject({ method: 'GET', url: '/contacts/letters?favorites=true' });
+
+    expect(res.statusCode).toBe(200);
+    const where = prisma.contact.findMany.mock.calls[0]![0].where as Record<string, unknown>;
+    expect(where.isFavorite).toBe(true);
+  });
+
+  it('401s an unauthenticated request', async () => {
+    const app = await buildApp(null);
+    const res = await app.inject({ method: 'GET', url: '/contacts/letters' });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('400s an unknown query key (strict schema)', async () => {
+    const app = await buildApp();
+    const res = await app.inject({ method: 'GET', url: '/contacts/letters?bogus=1' });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+  });
+});
