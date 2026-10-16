@@ -95,6 +95,78 @@ function getCloudflareAccountId(): string {
   return env('CLOUDFLARE_ACCOUNT_ID') ?? CLOUDFLARE_DEFAULT_ACCOUNT_ID;
 }
 
+/**
+ * Production model pin for the Cloudflare Workers AI transport.
+ * Mirrors the deployed contract: infra/helm/quant-platform/values-production-v2.yaml
+ * pins CLOUDFLARE_AI_MODEL (and AI_DEFAULT_MODEL) to this value, and the CODEX
+ * model router (packages/ai/src/core/model-router.ts) registers it as the
+ * production Cloudflare chat model.
+ */
+const CLOUDFLARE_PRODUCTION_MODEL_PIN = '@cf/meta/llama-3.2-1b-instruct';
+
+/**
+ * Cloudflare Workers AI model IDs known to be deprecated/removed. Sending live
+ * traffic to one of these is the silent-fallback failure the CODEX engine
+ * gates (PR #1119 / PR #1164) forbid — fail closed instead. (Cloudflare
+ * deprecated @cf/meta/llama-3.1-70b-instruct on 2026-05-30; the engine's
+ * registry removed it.)
+ */
+const DEPRECATED_CLOUDFLARE_MODELS: ReadonlySet<string> = new Set([
+  '@cf/meta/llama-3.1-70b-instruct',
+]);
+
+/**
+ * Thrown when a Cloudflare model pin resolves to a model that is unknown or
+ * deprecated. Mirrors the CODEX engine's UnknownModelError contract
+ * (packages/ai/src/core/errors.ts): stable machine-readable code
+ * 'UNKNOWN_MODEL', fail closed instead of silently substituting a different
+ * model. Callers map this to a clean 503 / honest error the same way they do
+ * other provider failures.
+ */
+export class UnknownAIModelError extends Error {
+  /** Stable, machine-readable error code — same contract as the engine's UnknownModelError. */
+  readonly code: string = 'UNKNOWN_MODEL';
+
+  constructor(modelId: string, source: string) {
+    super(
+      `Unknown or deprecated AI model "${modelId}" (from ${source}). ` +
+        'Refusing to silently substitute a different model.',
+    );
+    this.name = 'UnknownAIModelError';
+    Object.setPrototypeOf(this, UnknownAIModelError.prototype);
+  }
+}
+
+/**
+ * Resolve the Cloudflare model for a request.
+ *
+ * Precedence: per-call override (server-side only — never from a request body,
+ * see AIChatOptions.model) > CLOUDFLARE_AI_MODEL > AI_MODEL > the production
+ * pin (@cf/meta/llama-3.2-1b-instruct).
+ *
+ * The old terminal fallback was @cf/meta/llama-3.1-70b-instruct, which
+ * Cloudflare deprecated — any environment without an explicit pin silently
+ * sent live traffic to a deprecated model. That fallback is gone: unset pins
+ * resolve to the production pin (the same model production deploys), and an
+ * explicitly configured deprecated model throws UnknownAIModelError instead
+ * of being used. The legacy /ai/run REST fallback inherits the resolved model
+ * through the `model` variable, so it is covered by the same rule.
+ */
+function resolveCloudflareModel(requestedModel?: string): string {
+  const pinned = env('CLOUDFLARE_AI_MODEL') ?? env('AI_MODEL');
+  const source = requestedModel
+    ? 'per-call override'
+    : env('CLOUDFLARE_AI_MODEL')
+      ? 'CLOUDFLARE_AI_MODEL'
+      : 'AI_MODEL';
+  const model = requestedModel ?? pinned;
+  if (!model) return CLOUDFLARE_PRODUCTION_MODEL_PIN;
+  if (DEPRECATED_CLOUDFLARE_MODELS.has(model)) {
+    throw new UnknownAIModelError(model, source);
+  }
+  return model;
+}
+
 /** Which provider is configured right now (env is read per call, never cached). */
 export function activeProvider(): AIProviderName {
   const configured = env('AI_PROVIDER')?.toLowerCase();
@@ -173,11 +245,7 @@ async function postJson(
 async function chatViaCloudflare(messages: AIMessage[], options: AIChatOptions): Promise<string> {
   const accountId = getCloudflareAccountId();
   const apiToken = getCloudflareToken()!;
-  const model =
-    options.model ??
-    env('CLOUDFLARE_AI_MODEL') ??
-    env('AI_MODEL') ??
-    '@cf/meta/llama-3.1-70b-instruct';
+  const model = resolveCloudflareModel(options.model);
   const baseUrl = env('CLOUDFLARE_AI_BASE_URL') ?? 'https://api.cloudflare.com/client/v4/accounts';
 
   // Primary: OpenAI-compatible /ai/v1/chat/completions endpoint
@@ -367,11 +435,7 @@ async function chatWithToolsViaCloudflare(
 ): Promise<AIChatWithToolsResult> {
   const accountId = getCloudflareAccountId();
   const apiToken = getCloudflareToken()!;
-  const model =
-    options.model ??
-    env('CLOUDFLARE_AI_MODEL') ??
-    env('AI_MODEL') ??
-    '@cf/meta/llama-3.1-70b-instruct';
+  const model = resolveCloudflareModel(options.model);
   const baseUrl = env('CLOUDFLARE_AI_BASE_URL') ?? 'https://api.cloudflare.com/client/v4/accounts';
 
   // Cloudflare's OpenAI-compatible endpoint supports native `tools`. The
