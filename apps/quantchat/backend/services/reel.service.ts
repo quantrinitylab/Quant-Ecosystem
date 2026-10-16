@@ -13,6 +13,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { assertMediaUrlAllowed } from '../lib/media-url';
+import { getPrivacyService, type PrivacyService } from './privacy.service';
 import type { SpotlightSourceReel } from './spotlight.service';
 
 /** Reel shape returned to clients (matches the established feed contract). */
@@ -50,6 +51,16 @@ export interface CreateReelInput {
 
 const DEFAULT_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=quant';
 
+/**
+ * QC-F-447: fetch window for the viewer-filtered feed — filtering happens
+ * inside the window (stories feed precedent, routes/stories.ts take: 500),
+ * so a page is exact as long as fewer than (window − limit) rows in it are
+ * block-hidden; beyond that the cursor still advances past hidden rows on
+ * the next fetch, so nothing hidden ever leaks and nothing visible is
+ * skipped permanently.
+ */
+const REEL_FEED_WINDOW = 500;
+
 /** A Reel row joined with the minimal creator fields the feed renders. */
 interface ReelRowWithCreator {
   id: string;
@@ -67,7 +78,45 @@ interface ReelRowWithCreator {
 }
 
 export class ReelService {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly privacy: PrivacyService;
+
+  /**
+   * @param privacy Block-pair resolver for the QC-F-447 gates. Defaults to
+   *   the shared {@link getPrivacyService} instance bound to the same
+   *   Prisma client (the MessageService pattern), so existing callers
+   *   (`new ReelService(prisma)`) keep working unchanged.
+   */
+  constructor(
+    private readonly prisma: PrismaClient,
+    privacy?: PrivacyService,
+  ) {
+    this.privacy = privacy ?? getPrivacyService(prisma);
+  }
+
+  /**
+   * QC-F-447 action gate for like/comment/share: a blocked pair (either
+   * direction) gets the reel's own 404 — the feed already hides the reel
+   * from this actor, so a 403 would leak both its existence and the
+   * block. An unreadable pair (malformed prefs / failed read) fails
+   * closed with the QC-F-359 503 shape. Runs BEFORE any row or counter
+   * write. The actor's own reel passes (pair self-check = 'clear').
+   */
+  private async assertReelNotBlockedPair(
+    actorId: string,
+    creatorId: string,
+  ): Promise<void> {
+    const verdict = await this.privacy.checkBlockedPair(actorId, creatorId);
+    if (verdict === 'blocked') {
+      throw createAppError('Reel not found', 404, 'REEL_NOT_FOUND');
+    }
+    if (verdict === 'unavailable') {
+      throw createAppError(
+        'Privacy preferences are temporarily unavailable',
+        503,
+        'UPSTREAM_UNAVAILABLE',
+      );
+    }
+  }
 
   private toFeedItem(row: ReelRowWithCreator, isLikedByUser: boolean): ReelFeedItem {
     return {
@@ -111,15 +160,38 @@ export class ReelService {
       if (cursorReel) createdBefore = cursorReel.createdAt;
     }
 
+    // QC-F-447: with a viewer, the feed is a leak surface — reels whose
+    // creator is in a blocked pair with the viewer (either direction, or
+    // unproven) are cut. Filtering must happen BEFORE paging, so the
+    // fetch widens to a bounded window (the stories feed's take:500
+    // precedent) and the page/hasMore/total are computed on the filtered
+    // window: hasMore means "more VISIBLE reels beyond this page", and
+    // totalAvailable stops counting creators this viewer may not see
+    // (the old global reel.count() counted blocked creators too).
+    // Without a viewer (service-contract callers) the historic path is
+    // byte-for-byte unchanged.
+    const windowed = Boolean(opts.userId);
     const rows = (await this.prisma.reel.findMany({
       where: createdBefore ? { createdAt: { lt: createdBefore } } : {},
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: limit + 1,
+      take: windowed ? REEL_FEED_WINDOW : limit + 1,
       include: { creator: { select: { username: true, avatarUrl: true } } },
     })) as unknown as ReelRowWithCreator[];
 
-    const hasMore = rows.length > limit;
-    const page = rows.slice(0, limit);
+    let visible = rows;
+    if (opts.userId) {
+      const { excluded, uncertain } = await this.privacy.blockedExclusionsFor(
+        opts.userId,
+        rows.map((r) => r.creatorId),
+      );
+      if (excluded.size > 0 || uncertain.size > 0) {
+        const hidden = new Set([...excluded, ...uncertain]);
+        visible = rows.filter((r) => !hidden.has(r.creatorId));
+      }
+    }
+
+    const hasMore = visible.length > limit;
+    const page = visible.slice(0, limit);
 
     let likedSet = new Set<string>();
     if (opts.userId && page.length > 0) {
@@ -130,7 +202,9 @@ export class ReelService {
       likedSet = new Set(likes.map((l: { reelId: string }) => l.reelId));
     }
 
-    const totalAvailable = await this.prisma.reel.count();
+    const totalAvailable = windowed
+      ? visible.length
+      : await this.prisma.reel.count();
 
     return {
       reels: page.map((row) => this.toFeedItem(row, likedSet.has(row.id))),
@@ -140,11 +214,17 @@ export class ReelService {
     };
   }
 
-  private async requireReel(reelId: string): Promise<void> {
-    const reel = await this.prisma.reel.findUnique({ where: { id: reelId }, select: { id: true } });
+  private async requireReel(
+    reelId: string,
+  ): Promise<{ id: string; creatorId: string }> {
+    const reel = await this.prisma.reel.findUnique({
+      where: { id: reelId },
+      select: { id: true, creatorId: true },
+    });
     if (!reel) {
       throw createAppError('Reel not found', 404, 'REEL_NOT_FOUND');
     }
+    return reel;
   }
 
   /**
@@ -156,7 +236,8 @@ export class ReelService {
     reelId: string,
     userId: string,
   ): Promise<{ id: string; likeCount: number; liked: boolean }> {
-    await this.requireReel(reelId);
+    const reelRow = await this.requireReel(reelId);
+    await this.assertReelNotBlockedPair(userId, reelRow.creatorId);
 
     const existing = await this.prisma.reelLike.findUnique({
       where: { reelId_userId: { reelId, userId } },
@@ -191,7 +272,10 @@ export class ReelService {
     userId: string,
     content: string,
   ): Promise<{ id: string; reelId: string; userId: string; content: string; createdAt: string }> {
-    await this.requireReel(reelId);
+    const reelRow = await this.requireReel(reelId);
+    // QC-F-447: the gate runs before the transaction — a blocked comment
+    // leaves no row and no counter change (QC-F-359's rule).
+    await this.assertReelNotBlockedPair(userId, reelRow.creatorId);
 
     const comment = await this.prisma.$transaction(async (tx) => {
       const created = await tx.reelComment.create({
@@ -210,9 +294,18 @@ export class ReelService {
     };
   }
 
-  /** Increment the share counter. */
-  async shareReel(reelId: string): Promise<{ id: string; shareCount: number }> {
-    await this.requireReel(reelId);
+  /**
+   * Increment the share counter. QC-F-447: the actor is now a real
+   * parameter (the route used to authenticate and then DISCARD the user
+   * id, so no pair gate was even possible); the per-user share record
+   * itself is QC-F-057's slice, which builds on this signature.
+   */
+  async shareReel(
+    reelId: string,
+    userId: string,
+  ): Promise<{ id: string; shareCount: number }> {
+    const reelRow = await this.requireReel(reelId);
+    await this.assertReelNotBlockedPair(userId, reelRow.creatorId);
     const reel = await this.prisma.reel.update({
       where: { id: reelId },
       data: { shareCount: { increment: 1 } },

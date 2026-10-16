@@ -449,6 +449,91 @@ export class PrivacyService {
   }
 
   /**
+   * Both-directions pair verdict (QC-F-447): is either side of the pair
+   * blocking the other? Block is a PAIR property for visibility/action
+   * surfaces beyond message-send (stories, reels, Snap Map location):
+   * the blocked user must not reach the blocker, and the blocker has
+   * declared no contact with the blocked user either. Semantics are
+   * QC-F-359's, exactly: 'blocked' in either direction beats an
+   * 'unavailable' in the other; 'unavailable' only surfaces when neither
+   * direction is blocked. Never throws (checkBlockedBy never throws).
+   */
+  async checkBlockedPair(aId: string, bId: string): Promise<BlockedVerdict> {
+    if (aId === bId) return 'clear';
+    const [ab, ba] = await Promise.all([
+      this.checkBlockedBy(aId, bId),
+      this.checkBlockedBy(bId, aId),
+    ]);
+    if (ab === 'blocked' || ba === 'blocked') return 'blocked';
+    if (ab === 'unavailable' || ba === 'unavailable') return 'unavailable';
+    return 'clear';
+  }
+
+  /**
+   * Batch pair exclusions for list/leak surfaces (QC-F-447). A per-item
+   * checkBlockedBy would be a findUnique per row — N+1 on a 500-story
+   * feed or a 200-reel ranking — so this resolves the whole candidate
+   * set with ONE findMany over [viewerId, ...candidateIds]:
+   *   - `excluded`: a block exists in either direction (the candidate's
+   *     own list names the viewer, or the viewer's list names them);
+   *   - `uncertain`: no block was proven, but one direction's list could
+   *     not be read (malformed stored prefs). List surfaces hide
+   *     excluded ∪ uncertain alike (fail-closed: unproven = not shown);
+   *     the split exists so callers/tests can tell a proven block from
+   *     an unreadable list.
+   * A missing row means that side HAS no list (the list lives on the
+   * row — checkBlockedBy's missing = 'clear' rule), never uncertainty:
+   * a missing candidate has no content surface in the caller's hands,
+   * and a missing viewer row simply means the viewer blocked nobody.
+   * Never throws: a failed batch read marks every candidate uncertain.
+   */
+  async blockedExclusionsFor(
+    viewerId: string,
+    candidateIds: string[],
+  ): Promise<{ excluded: Set<string>; uncertain: Set<string> }> {
+    const excluded = new Set<string>();
+    const uncertain = new Set<string>();
+    const candidates = [...new Set(candidateIds)].filter((id) => id !== viewerId);
+    if (candidates.length === 0) return { excluded, uncertain };
+
+    const findMany = this.prisma.user?.findMany;
+    if (typeof findMany !== 'function') {
+      for (const id of candidates) uncertain.add(id);
+      return { excluded, uncertain };
+    }
+    let rows: Array<{ id: string; preferences: unknown }>;
+    try {
+      rows = await findMany.call(this.prisma.user, {
+        where: { id: { in: [viewerId, ...candidates] } },
+        select: { id: true, preferences: true },
+      });
+    } catch {
+      for (const id of candidates) uncertain.add(id);
+      return { excluded, uncertain };
+    }
+    const byId = new Map(rows.map((r) => [r.id, r.preferences]));
+    // The viewer's own list, read once: absent row -> readable empty
+    // list; present-but-malformed -> null (unreadable, fail-closed).
+    const viewerBlocked: string[] | null = byId.has(viewerId)
+      ? extractBlockedUserIds(byId.get(viewerId))
+      : [];
+    for (const id of candidates) {
+      let blocked = false;
+      let unsure = false;
+      if (viewerBlocked === null) unsure = true;
+      else if (viewerBlocked.includes(id)) blocked = true;
+      if (byId.has(id)) {
+        const candidateBlocked = extractBlockedUserIds(byId.get(id));
+        if (candidateBlocked === null) unsure = true;
+        else if (candidateBlocked.includes(viewerId)) blocked = true;
+      }
+      if (blocked) excluded.add(id);
+      else if (unsure) uncertain.add(id);
+    }
+    return { excluded, uncertain };
+  }
+
+  /**
    * whoCanMessage verdict for starting a NEW direct conversation with
    * `targetId`. Existing conversations are never gated by this (the toggle
    * guards initiation only — membership remains the authority inside a

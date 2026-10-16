@@ -39,6 +39,7 @@
 // ============================================================================
 
 import { ChannelService } from './channel.service';
+import { PrivacyService, type PrivacyPrismaLike } from './privacy.service';
 import { ENGAGEMENT_WEIGHTS } from './spotlight.service';
 
 /**
@@ -230,8 +231,59 @@ function firstLineTitle(content: string | null, fallback: string): string {
   return title.length > TITLE_MAX ? `${title.slice(0, TITLE_MAX - 1)}…` : title;
 }
 
+/**
+ * QC-F-447: a PrivacyService over this service's narrow Prisma slice.
+ * DiscoverPrisma's user.findMany is typed for publisher rows (no
+ * `preferences` in its UserRow), but the real client returns the full
+ * row; the adapter widens each row to the {id, preferences} shape the
+ * blocked-pair resolver reads. A harness whose rows carry no preferences
+ * resolves every pair 'clear' (absent list = empty list), never a crash.
+ */
+function privacyFromDiscoverPrisma(prisma: DiscoverPrisma): PrivacyService {
+  const like: PrivacyPrismaLike = {
+    user: {
+      findMany: async (args: unknown) => {
+        const rows = await prisma.user.findMany(
+          args as { where: Record<string, unknown> },
+        );
+        return rows.map((r) => ({
+          id: r.id,
+          preferences: (r as { preferences?: unknown }).preferences,
+        }));
+      },
+    },
+  };
+  return new PrivacyService(like);
+}
+
 export class DiscoverService {
-  constructor(private readonly prisma: DiscoverPrisma) {}
+  private readonly privacy: PrivacyService;
+
+  constructor(
+    private readonly prisma: DiscoverPrisma,
+    privacy?: PrivacyService,
+  ) {
+    this.privacy = privacy ?? privacyFromDiscoverPrisma(prisma);
+  }
+
+  /**
+   * QC-F-447: creators whose Reels this caller must not see — a blocked
+   * pair in either direction, or a pair that could not be proven clear
+   * (Discover is a leak surface: unproven = hidden). Channel posts are
+   * deliberately NOT cut here: a channel is a public publisher surface
+   * whose block semantics belong to the QC-F-224/255 moderation scope.
+   */
+  private async blockedCreatorIds(
+    callerId: string,
+    reels: ReelRow[],
+  ): Promise<Set<string>> {
+    if (reels.length === 0) return new Set<string>();
+    const { excluded, uncertain } = await this.privacy.blockedExclusionsFor(
+      callerId,
+      reels.map((r) => r.creatorId),
+    );
+    return new Set([...excluded, ...uncertain]);
+  }
 
   /** All broadcast channels = Discover publishers, most-subscribed first. */
   async listPublishers(callerId: string): Promise<PublisherView[]> {
@@ -349,7 +401,10 @@ export class DiscoverService {
       take: MAX_FEED_SOURCE,
       include: { creator: { select: { username: true, displayName: true, avatarUrl: true } } },
     });
+    // QC-F-447: blocked-pair creators' reels never enter the feed.
+    const hiddenCreators = await this.blockedCreatorIds(callerId, reels);
     for (const reel of reels) {
+      if (hiddenCreators.has(reel.creatorId)) continue;
       // Reels carry no category metadata anywhere in the schema; a category
       // filter therefore honestly excludes them.
       if (category) continue;
@@ -389,13 +444,18 @@ export class DiscoverService {
    * carries (likeCount/commentCount/shareCount) — no invented view counts.
    */
   async getTrending(callerId: string): Promise<DiscoverItemView[]> {
-    void callerId; // Ranking is global today; the caller is authenticated by the route.
+    // The ranking FORMULA is global (real engagement counters), but the
+    // caller is no longer ignored: QC-F-447 cuts blocked-pair creators
+    // (either direction, or unproven) before ranking, so a blocked
+    // creator's reel cannot trend into the blocker's Discover either.
     const reels = await this.prisma.reel.findMany({
       orderBy: { createdAt: 'desc' },
       take: MAX_TRENDING_SOURCE,
       include: { creator: { select: { username: true, displayName: true, avatarUrl: true } } },
     });
+    const hiddenCreators = await this.blockedCreatorIds(callerId, reels);
     const ranked = reels
+      .filter((reel) => !hiddenCreators.has(reel.creatorId))
       .map((reel) => ({ reel, score: engagementOf(reel) }))
       .sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;

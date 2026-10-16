@@ -554,7 +554,7 @@ describe('QC-F-359 B12 — story-reply route inherits the gate', () => {
     app = null;
   });
 
-  it('B12: replying to a story whose author blocked you (existing DIRECT) → 403 USER_BLOCKED; no message delivered', async () => {
+  it('B12: replying to a story whose author blocked you (existing DIRECT) → no message delivered (QC-F-447: 404 NOT_FOUND at Gate 0, supersedes the 403 surface shape)', async () => {
     const world = makeStoryWorld();
     app = Fastify({ logger: false });
     app.setErrorHandler((err, _request, reply) => {
@@ -588,9 +588,19 @@ describe('QC-F-359 B12 — story-reply route inherits the gate', () => {
       url: '/stories/story-1/reply',
       payload: { message: 'nice story' },
     });
-    expect(res.statusCode).toBe(403);
+    // QC-F-447 amendment (specialist-qc-f-447-buildprep.md §3 + §6.1):
+    // the blocked pair now fails EARLIER, at stories Gate 0 — the story
+    // is invisible to the blocked replier, so the reply answers the
+    // story surface's own 404 (a 403 USER_BLOCKED here would be an
+    // existence/block oracle: it would confirm the story exists AND
+    // that a block is in force). The QC-F-359 security property this
+    // case exists to pin is unchanged and still asserted below: NO
+    // message is delivered. MessageService's send gate remains the
+    // second wall behind Gate 0 and is still pinned directly by
+    // B1–B11/B13.
+    expect(res.statusCode).toBe(404);
     const body = res.json() as { error?: { code?: string } };
-    expect(body.error?.code).toBe('USER_BLOCKED');
+    expect(body.error?.code).toBe('NOT_FOUND');
     expect(world.messages).toHaveLength(0);
   });
 });

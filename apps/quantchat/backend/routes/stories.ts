@@ -19,6 +19,7 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { ConversationService } from '../services/conversation.service';
 import { MessageService } from '../services/message.service';
+import { getPrivacyService } from '../services/privacy.service';
 import { publishConversationEvent } from '../services/realtime-publisher';
 import { assertMediaUrlAllowed } from '../lib/media-url';
 
@@ -74,6 +75,16 @@ interface StoryWithAuthor {
 
 // --- Story audience gate (QC-F-021) ---------------------------------------
 //
+// QC-F-447 adds Gate 0 in front of the two gates below: a BLOCKED pair —
+// either direction (PrivacyService.checkBlockedBy semantics, resolved in
+// batch by blockedExclusionsFor) — never views, whatever the audience or
+// the pref says. Block used to be only a preferences list that message
+// SEND consulted (QC-F-359); a blocked user could still watch the
+// blocker's stories and leave their name in the owner's viewers list.
+// Stories are a leak surface, so an UNPROVEN pair (either side's stored
+// block list unreadable) is hidden too — same fail-closed direction as
+// every gate below.
+//
 // A story is visible only when BOTH gates pass (QC-F-042 §3.3a AND rule):
 //   1. Per-story audience: 'ALL' passes for anyone; 'CLOSE_FRIENDS' only
 //      for viewers the AUTHOR listed as a close friend (CloseFriend edge
@@ -100,6 +111,12 @@ interface FriendContext {
   directChatAuthors: Set<string>;
   /** Author id -> whoCanSeeStory pref (absent = default 'friends'). */
   prefByAuthor: Map<string, WhoCanSeeStory>;
+  /**
+   * QC-F-447 Gate 0: authors in a blocked pair with the viewer — proven
+   * blocked in either direction OR unproven (unreadable block list).
+   * Stories fail closed, so both kinds are hidden alike.
+   */
+  blockedAuthors: Set<string>;
 }
 
 function readWhoCanSeeStory(preferences: unknown): WhoCanSeeStory {
@@ -123,6 +140,7 @@ async function loadFriendContext(
     closeFriendAuthors: new Set<string>(),
     directChatAuthors: new Set<string>(),
     prefByAuthor: new Map<string, WhoCanSeeStory>(),
+    blockedAuthors: new Set<string>(),
   };
   const authors = [...new Set(authorIds)].filter((id) => id !== viewerId);
   if (authors.length === 0) return ctx;
@@ -182,6 +200,17 @@ async function loadFriendContext(
     // Fail-closed: no direct-chat relationships are assumed on error.
   }
 
+  // QC-F-447 Gate 0 data: one batched blocked-pair resolution for all
+  // authors (blockedExclusionsFor does a single findMany and never
+  // throws). Excluded (proven block, either direction) and uncertain
+  // (a block list could not be read) both hide the author here — this
+  // is a leak surface, so unproven means not shown.
+  const { excluded, uncertain } = await getPrivacyService(
+    prisma,
+  ).blockedExclusionsFor(viewerId, authors);
+  for (const id of excluded) ctx.blockedAuthors.add(id);
+  for (const id of uncertain) ctx.blockedAuthors.add(id);
+
   return ctx;
 }
 
@@ -191,6 +220,10 @@ function canViewStory(
   ctx: FriendContext,
 ): boolean {
   if (story.userId === viewerId) return true;
+  // Gate 0 (QC-F-447): a blocked pair — either direction — never views,
+  // ahead of every audience/pref gate (a close-friend edge or an
+  // 'everyone' pref must not resurrect access a block has cut).
+  if (ctx.blockedAuthors.has(story.userId)) return false;
   // Gate 1: per-story audience.
   if (
     story.audience === 'CLOSE_FRIENDS' &&
@@ -477,8 +510,20 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
     });
     const userById = new Map(users.map((u) => [u.id, u]));
 
+    // QC-F-447: a viewer who is NOW in a blocked pair with the owner
+    // (either direction, or unproven) is filtered out of the list — a
+    // blocked user must not keep leaving their name in front of the
+    // person who blocked them. The StoryView rows themselves are
+    // history and are NOT deleted: unblocking restores the honest
+    // record; only the current exposure is gated.
+    const { excluded, uncertain } = await getPrivacyService(
+      prisma,
+    ).blockedExclusionsFor(userId, viewerIds);
+    const hiddenViewers = new Set([...excluded, ...uncertain]);
+    const visibleViews = views.filter((v) => !hiddenViewers.has(v.viewerId));
+
     return reply.send({
-      viewers: views.map((v) => ({
+      viewers: visibleViews.map((v) => ({
         userId: v.viewerId,
         name: userById.get(v.viewerId)?.displayName ?? 'Unknown',
         avatar: userById.get(v.viewerId)?.avatarUrl ?? '',
