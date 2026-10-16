@@ -1152,7 +1152,7 @@ export function QuantPillarTopBar({
         >
           <div
             data-testid="pillar-switcher-liquid"
-            className="absolute inset-0 rounded-2xl bg-[var(--quant-surface)] border border-[#20242D] shadow-inner overflow-hidden pointer-events-none"
+            className="absolute inset-0 rounded-2xl bg-[var(--qt-surface-1)] border border-[#20242D] shadow-inner overflow-hidden pointer-events-none"
           >
             <div
               className="absolute top-1 bottom-1 rounded-xl bg-[#1B1E26] border border-[#2C3240] transition-all duration-300 ease-out"

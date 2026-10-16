@@ -1271,7 +1271,7 @@ export function ContextBottomNavBar({
 
   return (
     <div
-      className={`md:hidden flex-none bg-[var(--quant-surface)] border-t border-[var(--quant-border-subtle)] pb-[env(safe-area-inset-bottom,0px)] ${className}`}
+      className={`md:hidden flex-none bg-[var(--qt-surface-1)] border-t border-[#20242D] pb-[env(safe-area-inset-bottom,0px)] ${className}`}
     >
       <nav
         key={pillar}
