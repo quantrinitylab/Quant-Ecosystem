@@ -103,8 +103,10 @@ export default async function reelsRoutes(fastify: FastifyInstance) {
   // POST /reels/:id/share - Increments share count
   fastify.post('/:id/share', async (request, reply) => {
     const { id } = request.params as { id: string };
-    getUserId(request);
-    const result = await service.shareReel(id);
+    // QC-F-447: the authenticated id is now PASSED to the service (it used
+    // to be checked and thrown away) so the blocked-pair gate can run.
+    const userId = getUserId(request);
+    const result = await service.shareReel(id, userId);
     return reply.send({ success: true, data: result });
   });
 

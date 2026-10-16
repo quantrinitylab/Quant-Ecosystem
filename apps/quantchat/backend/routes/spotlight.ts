@@ -12,6 +12,7 @@ import type { FastifyInstance } from 'fastify';
 import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { ReelService } from '../services/reel.service';
+import { getPrivacyService } from '../services/privacy.service';
 import {
   SpotlightService,
   applyPersonalization,
@@ -57,7 +58,8 @@ function serializeReel(reel: RankedSpotlightReel) {
 export default async function spotlightRoutes(fastify: FastifyInstance) {
   // One ranking cache per backend instance (15-minute TTL — Task 13.6).
   const spotlight = new SpotlightService();
-  const reelService = new ReelService((fastify as unknown as { prisma: PrismaClient }).prisma);
+  const prisma = (fastify as unknown as { prisma: PrismaClient }).prisma;
+  const reelService = new ReelService(prisma);
 
   fastify.get('/', async (request, reply) => {
     const parsed = spotlightQuerySchema.safeParse(request.query);
@@ -80,10 +82,30 @@ export default async function spotlightRoutes(fastify: FastifyInstance) {
     // belongs in the Prisma `Notification` path the other apps use
     // (see QuantMail QM-UIUX-052), not a routing-decision calculator.
 
-    // Task 13.8: personalize per viewer when possible (graceful fallback).
-    let ordered = ranking.reels;
+    // QC-F-447: Spotlight is a leak surface — the global ranking itself
+    // stays cached/global (SpotlightService is untouched), but for an
+    // identified viewer the ranked list is cut per-viewer BEFORE
+    // personalization: creators in a blocked pair with the viewer
+    // (either direction, or unproven) never reach the response, and
+    // `total` below reports the filtered count.
+    let visible = ranking.reels;
     if (userId) {
-      ordered = await applyPersonalization(userId, ranking.reels);
+      const { excluded, uncertain } = await getPrivacyService(
+        prisma,
+      ).blockedExclusionsFor(
+        userId,
+        ranking.reels.map((r) => r.creatorId),
+      );
+      if (excluded.size > 0 || uncertain.size > 0) {
+        const hidden = new Set([...excluded, ...uncertain]);
+        visible = ranking.reels.filter((r) => !hidden.has(r.creatorId));
+      }
+    }
+
+    // Task 13.8: personalize per viewer when possible (graceful fallback).
+    let ordered = visible;
+    if (userId) {
+      ordered = await applyPersonalization(userId, visible);
     }
 
     const limit = parsed.data.limit ?? ordered.length;

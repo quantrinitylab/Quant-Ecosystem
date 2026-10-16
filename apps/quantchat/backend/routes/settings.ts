@@ -255,6 +255,39 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
         },
       );
       if (!outcome) throw createAppError('User not found', 404, 'USER_NOT_FOUND');
+      // QC-F-447: sever CloseFriend edges in BOTH directions now that the
+      // block itself is durably written. This is defense-in-depth, not the
+      // authority — every read gate (stories Gate 0, Snap Map pair cut,
+      // reels) re-checks the block list itself, so a sever failure can
+      // never resurrect access; it only keeps a stale edge from being
+      // trusted by any future reader that consults edges alone. It runs on
+      // the idempotent already-blocked path too, so blocks written before
+      // this sever existed are cleaned up by a repeat block. Best-effort:
+      // a failure is logged, never un-blocks (the block write above has
+      // already committed). Unblock (DELETE below) deliberately does NOT
+      // restore edges — re-adding a close friend is an explicit act.
+      try {
+        const closeFriend = (
+          prisma as unknown as {
+            closeFriend?: {
+              deleteMany?: (args: unknown) => Promise<unknown>;
+            };
+          }
+        ).closeFriend;
+        if (typeof closeFriend?.deleteMany === 'function') {
+          await closeFriend.deleteMany({
+            where: { userId, friendId: blockedId },
+          });
+          await closeFriend.deleteMany({
+            where: { userId: blockedId, friendId: userId },
+          });
+        }
+      } catch (err) {
+        fastify.log.error(
+          { err, userId, blockedId },
+          'QC-F-447: CloseFriend sever after block failed (block itself is in force; read gates re-check the block list)',
+        );
+      }
       return reply.send({ success: true, data: outcome });
     },
   );
