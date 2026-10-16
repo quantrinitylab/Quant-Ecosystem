@@ -197,17 +197,26 @@ export class LogStreamer {
   }
 
   /**
-   * Ends streaming for a job, flushes final logs with isEnd = true,
-   * clears timers, and frees buffer memory.
+   * Ends streaming for a job, flushes final logs with isEnd = true (unless
+   * opts.terminal is false — used for non-final jobs of a multi-job build so
+   * the live stream isn't terminated before the last job finishes), clears
+   * timers, and frees buffer memory.
    */
-  endStreaming(jobId: string): { stdout: string; stderr: string; totalLines: number } {
+  endStreaming(
+    jobId: string,
+    opts?: { terminal?: boolean },
+  ): { stdout: string; stderr: string; totalLines: number } {
     const state = this.streams.get(jobId);
     if (!state) {
       throw new Error(`No stream found for job ${jobId}`);
     }
 
-    // Flush any pending logs and publish terminal payload
-    void this.flushBatch(state, true);
+    const terminal = opts?.terminal ?? true;
+
+    // Flush any pending logs and publish the terminal payload when requested.
+    // Fire-and-forget: the worker process is long-lived, so the publish
+    // completes; callers that need a guarantee should use publishTerminal().
+    void this.flushBatch(state, terminal);
 
     const result = this.getFullLog(jobId);
     const totalLines = state.buffer.length;
@@ -216,6 +225,29 @@ export class LogStreamer {
     this.streams.delete(jobId);
 
     return { ...result, totalLines };
+  }
+
+  /**
+   * Publishes a build-level terminal marker on channel:ci:build:<buildId>:logs
+   * (entries: [], isEnd: true) so SSE subscribers terminate the live stream
+   * even when a build fails before its last job ends. Awaited — the caller
+   * needs the guarantee. No-op when no redisPublisher is configured.
+   */
+  async publishTerminal(buildId: string): Promise<void> {
+    if (!this.options.redisPublisher) return;
+    const channel = `channel:ci:build:${buildId}:logs`;
+    const payload = {
+      buildId,
+      jobId: '',
+      seq: 0,
+      entries: [],
+      isEnd: true,
+    };
+    try {
+      await this.options.redisPublisher.publish(channel, JSON.stringify(payload));
+    } catch {
+      // Non-blocking log publication failure
+    }
   }
 
   /**
