@@ -1497,6 +1497,9 @@ PASSING (code): voice genuinely wired to Web Speech API with honest per-failure 
 - R4 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2. Rotation -> QM-SCREEN-015 R4.
 
 ## QM-SCREEN-015 — Notifications / activity / reminders
+Status: [~] IN_PROGRESS — LANE-1, branch lane1-audit-015r14 (2026-10-17 ~02:35 IST). R14 REGRESSION AUDIT STARTED.
+
+R14-PLAN: (a) net-effect diff 12b29e274 (R13 base)..origin/main HEAD on notification-path files, full-diff review any in-scope commits; (b) byte-verify all prior-fix checks intact on origin/main tree (git show/git grep only — working tree stale); (c) fresh hunt: token-in-URL, fake/mock copy, hairlines, toast-theater, accent drift; (d) live logged-out /notifications desktop+mobile + /api/notifications* 401s; (e) signed-in flows needs-auth.
 Status: [x] DONE — LANE-1, branch lane1-audit-015r13 (2026-10-16 ~15:35–15:55 IST). R13 REGRESSION AUDIT COMPLETE.
 
 R13 REGRESSION AUDIT COMPLETE: NET-EFFECT DIFF 1e050c9e2d (R12 base)..origin/main 12b29e274032e78be31ee0db09c89e48cc6c407b (fresh fetch, 8 first-parent merges). 1 SHELL-ADJACENT COMMIT IN WINDOW: 12b29e274 (#1243 "obsidian shell overhaul") touches AppShell.tsx — removes DesktopAppRail import+usage and simplifies the app-switch transition to an opacity-only fade; useNewMailDesktopAlerts import+call INTACT (AppShell.tsx:42/:129) — diff-reviewed VERIFIED SOUND for notification behavior (no alert logic changed; DesktopAppRail removal is a nav-surface change, carries no unread/badge plumbing). Notification path-filtered log EMPTY (window = #1243, #1242, #1226, #1240, #1241, #1239, #1238, #1237) → effectively re-verification pass. Working tree ignored per stale-tree lesson; all reads from origin/main tree only.
