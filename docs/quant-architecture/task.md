@@ -1588,7 +1588,7 @@ R11 REGRESSION AUDIT COMPLETE: [x] DONE — LANE-1, branch lane1-audit-016r11 (2
 - Live (proxy 127.0.0.1:8888 healthy, proxied /login 200): /settings desktop 1440x900 -> honest sign-in gate (pure black, mail-orange accent, "Encrypted in transit — Your mail is encrypted between your device and our servers"); /security mobile 390x844 iPhone 14 -> sign-in page with transient "Authenticating..." session-restore button state (known R4–R10 behavior, settles to Sign in); GET /api/settings/tokens, /api/auth/sessions, /api/oauth/grants, /api/oauth/userinfo -> honest 401 {"code":"UNAUTHORIZED"} 4/4. Signed-in = needs-auth (as R1–R10). Shots: /tmp/lane1-016r11-desktop-settings.png + /tmp/lane1-016r11-mobile-security.png (reviewed, deleted); chrome orphans cleaned.
 - Ledger: R11 DONE pushed to architecture/quant-company-system-v1. Rotation -> QM-SCREEN-017 (admin) ROUND 11 regression, queued.
 
-Status: [x] DONE (R12 regression audit complete 2026-10-16 ~06:40–07:05 IST — Owner: LANE-1, Branch: lane1-audit-016r12; 0 new findings, window clean, prior fixes intact, live sign-in gates + 401s verified).
+Status: [~] IN PROGRESS (R13 regression audit — Owner: LANE-1, Branch: lane1-audit-016r13, started 2026-10-16 ~16:40 IST; R12 base 99b2f83ef -> origin/main 4d2264c0)
 
 ## QM-SCREEN-016 — Settings / profile / identity / devices / sessions / security
 Status: [x] DONE (R9 regression audit complete 2026-10-14 ~22:35–22:55 IST — Owner: LANE-1, Branch: lane1-audit-016r9; 0 new findings, 5 window commits all diff-verified sound, carryovers confirmed, fixes tracked via their PRs separately).
@@ -3846,3 +3846,7 @@ Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-013r13, started 2026
 - Live (proxy 127.0.0.1:8888 healthy): /quantgit desktop 1440x900 -> honest 'Sovereign Repositories / 0 ACTIVE', 'No repositories yet — Your real repositories will appear here' + '+ Create a new repository', bare 'Copilot' pill (#1165 intact), 'Astra Swarm' pill (carryover), pure black + purple, zero old-logo flash; /quantgit?tab=prs -> 'Pull Requests Dashboard', Open(0)/Merged(0)/Closed(0), 'No pull requests yet' (no 3-WAY-MERGE pill); mobile 390x844 iPhone 14 settled -> per-app clay switcher icons correct, 'Search in QuantGit', All Repos/Open PRs/Issues/CI Runs pills, honest empty state, '+ Create User ID' FAB, bottom nav Overview-highlight mismatch (R6-NEW-2 live-confirmed); GET /api/repos, GET /api/code/repos/x/security/alerts, POST /api/repos/import -> honest 401 3/3. Signed-in QuantGit flows = needs-auth. Screenshots reviewed + deleted; chrome orphans cleaned.
 - Rotation -> QM-SCREEN-014 (Quanty workspace) ROUND 13 regression, queued.
 Status: [x] DONE (R13 regression audit complete 2026-10-16 ~13:55 IST; window clean, prior fixes intact, 0 new findings, 8 opens carried; fixes tracked via their PRs)
+
+## QM-SCREEN-016 R13 — Settings regression (ROUND 13)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-016r13, started 2026-10-16 ~16:40 IST; R12 base 99b2f83ef -> origin/main 4d2264c0, fresh fetch)
+- Base: R12 @ 99b2f83ef -> origin/main 4d2264c0 (43 commits, fresh fetch; working tree ignored per stale-tree lesson; ledger work in ~/workspace/worktrees/ledger-lane-1, merge-only commits; remote tip synced before writing).
