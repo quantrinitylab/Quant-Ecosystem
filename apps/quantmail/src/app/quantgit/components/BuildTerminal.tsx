@@ -145,6 +145,53 @@ export function BuildTerminal({
         const es = new EventSource(url);
         eventSourceRef.current = es;
 
+        // Guard so completion/failure banners fire exactly once even when the
+        // backend sends both a `log` frame with isEnd AND an `event: end` frame.
+        let streamFinished = false;
+
+        const appendLogLine = (line: string) => {
+          if (terminalRef.current) {
+            terminalRef.current.writeln(line);
+            if (autoScroll) {
+              terminalRef.current.scrollToBottom();
+            }
+          }
+          setLogBuffer((prev) => [...prev, line]);
+        };
+
+        const finishStream = (status: 'completed' | 'failed', banner: string) => {
+          if (streamFinished) return;
+          streamFinished = true;
+          setStatus(status);
+          if (terminalRef.current) {
+            terminalRef.current.writeln(banner);
+          }
+          es.close();
+        };
+
+        const handleLogMessage = (event: Event) => {
+          const rawData = (event as MessageEvent).data;
+          try {
+            const data = JSON.parse(rawData);
+            const line = data.line ?? data.message ?? rawData;
+            appendLogLine(line);
+
+            if (data.isEnd || data.status === 'completed') {
+              finishStream(
+                'completed',
+                '\x1b[32m[CI] Build finished with status: SUCCESS\x1b[0m',
+              );
+            } else if (data.status === 'failed') {
+              finishStream(
+                'failed',
+                '\x1b[31m[CI] Build finished with status: FAILED\x1b[0m',
+              );
+            }
+          } catch {
+            appendLogLine(rawData);
+          }
+        };
+
         es.onopen = () => {
           setStatus('live');
           if (terminalRef.current) {
@@ -152,42 +199,26 @@ export function BuildTerminal({
           }
         };
 
-        es.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            const line = data.line ?? data.message ?? event.data;
-            if (terminalRef.current) {
-              terminalRef.current.writeln(line);
-              if (autoScroll) {
-                terminalRef.current.scrollToBottom();
-              }
-            }
-            setLogBuffer((prev) => [...prev, line]);
+        // Named SSE events emitted by the backend (backend/routes/ci-logs.ts):
+        // `event: connected`, `event: log`, `event: end`. Per the SSE spec,
+        // onmessage fires ONLY for unnamed (default) events, so without these
+        // addEventListener calls every live log line is silently dropped.
+        es.addEventListener('connected', () => {
+          setStatus('live');
+        });
 
-            if (data.isEnd || data.status === 'completed') {
-              setStatus('completed');
-              if (terminalRef.current) {
-                terminalRef.current.writeln(
-                  '\x1b[32m[CI] Build finished with status: SUCCESS\x1b[0m',
-                );
-              }
-              es.close();
-            } else if (data.status === 'failed') {
-              setStatus('failed');
-              if (terminalRef.current) {
-                terminalRef.current.writeln(
-                  '\x1b[31m[CI] Build finished with status: FAILED\x1b[0m',
-                );
-              }
-              es.close();
-            }
-          } catch {
-            if (terminalRef.current) {
-              terminalRef.current.writeln(event.data);
-            }
-            setLogBuffer((prev) => [...prev, event.data]);
-          }
-        };
+        es.addEventListener('log', handleLogMessage);
+
+        es.addEventListener('end', () => {
+          // Honest banner: the `end` frame carries no build status, so it
+          // never claims SUCCESS/FAILED here — the status-bearing `log`
+          // frame (isEnd/status) prints the real result when present.
+          finishStream('completed', '\x1b[32m[CI] Build stream ended.\x1b[0m');
+        });
+
+        // Fallback for unnamed (default) SSE messages — some proxies/edge
+        // layers strip the `event:` field from frames in transit.
+        es.onmessage = handleLogMessage;
 
         es.onerror = () => {
           setStatus('disconnected');
