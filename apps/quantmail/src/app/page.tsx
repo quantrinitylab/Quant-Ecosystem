@@ -492,14 +492,14 @@ function EmailRow({
    * the thread view, always behind a confirmation dialog. Both fire the row's
    * existing callbacks in the same frame as the visual commit.
    *
-   * Off while the row is selected or its snooze menu is open: a selected row
-   * belongs to the selection header's batch actions, and a row sliding out from
-   * under an anchored menu would leave the menu pointing at nothing.
+   * Off while the row is selected or either anchored menu is open: a selected
+   * row belongs to the selection header's batch actions, and a row sliding out
+   * from under an anchored menu would leave the menu pointing at nothing.
    */
   const swipe = useTouchSwipe({
     onArchive,
     onSnooze: () => setShowSnoozeMenu(true),
-    disabled: isChecked || showSnoozeMenu,
+    disabled: isChecked || showSnoozeMenu || showRowMenu,
     reducedMotion,
   });
 
