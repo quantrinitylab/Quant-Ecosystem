@@ -1126,6 +1126,12 @@ body {
 .mail-row { border-bottom-color: transparent; }
 .mail-row:hover { border-color: transparent; background: var(--quant-surface); }
 /*
+ * The row is a keyboard tab stop (Enter/Space opens the conversation), so it
+ * needs a visible focus indicator — the j/k cursor's `is-focused` class is a
+ * separate signal and does not cover DOM focus.
+ */
+.mail-row:focus-visible { outline: 2px solid var(--quant-primary); outline-offset: 2px; }
+/*
  * Desktop (md+, 768px): deep black, no divider lines (explicit user requirement).
  * Row separation comes from list spacing, not hairlines. Unread/active keep a
  * near-black lift so their functional signals survive on the black surface.

@@ -557,7 +557,15 @@ function EmailRow({
         </div>
       )}
       <article
-        role="button"
+        /*
+         * A11y (nested interactives): this row used to carry role=button
+         * semantics, which nested real buttons — the checkbox, hover-bar
+         * actions, the … menu trigger, pin/star badges — inside a button, so
+         * AT announced one button containing buttons. The row is a plain
+         * article now; articles may contain interactive descendants. It stays
+         * a tab stop with Enter/Space handling (and the j/k cursor + Enter/o
+         * shortcut system still opens rows), so keyboard users lose nothing.
+         */
         tabIndex={0}
         aria-label={`Open email: ${thread.subject}`}
         onKeyDown={(event) => {
