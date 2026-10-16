@@ -21,6 +21,20 @@ import type { Email } from '../types';
 
 const routerReplace = vi.hoisted(() => vi.fn());
 
+// Next's real useRouter() returns a STABLE router object across renders.
+// Returning a fresh object literal per call (the old mock) recreates the
+// page's runSearchString useCallback on every render, which re-fires the
+// ?q= seed effect on every render — and that effect calls
+// setRecentSearches(getRecentSearches()), a brand-new array each time, so
+// React never bails out: render -> effect -> setState -> render, forever.
+// The test worker hung/OOMed in CI (gate + full-sweep) without a single
+// assertion failing. Hoist one stable router, exactly like the real router.
+const stableRouter = vi.hoisted(() => ({
+  replace: (...args: unknown[]) => routerReplace(...args),
+  push: vi.fn(),
+  prefetch: vi.fn(),
+}));
+
 const mailSearchState = vi.hoisted(() => ({
   data: undefined as Email[] | undefined,
   isLoading: false,
@@ -30,7 +44,7 @@ const mailSearchState = vi.hoisted(() => ({
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: routerReplace, push: vi.fn(), prefetch: vi.fn() }),
+  useRouter: () => stableRouter,
 }));
 
 vi.mock('../hooks/useSearchEmails', () => ({
@@ -106,6 +120,18 @@ vi.mock('framer-motion', () => ({
     div: ({ children, ...rest }: { children?: React.ReactNode }) => (
       <div {...(rest as Record<string, unknown>)}>{children}</div>
     ),
+    // The page renders each result row as <motion.button>; the mock used to
+    // define only motion.div, so any test with visible results crashed with
+    // "Element type is invalid: ... got: undefined" once the render loop
+    // above was fixed and the tests could actually reach the results branch.
+    button: ({
+      children,
+      variants: _variants,
+      ...rest
+    }: {
+      children?: React.ReactNode;
+      variants?: unknown;
+    }) => <button {...(rest as Record<string, unknown>)}>{children}</button>,
   },
   AnimatePresence: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
 }));
