@@ -1361,6 +1361,8 @@ FOLLOW-UP P1 VERDICT: handleMergePR FIXED/INTACT (interpretMergeResult, merged o
 R2 NEW-FINDINGS COUNT: 1 P0 + 8 P1 + 7 P2. FIX AGENTS (PR-only, tracked separately, reconcile when they return): lane1-fix-013r2-review-theater (P0 fabricated review + 2 P1 fabricated comments + 2 P1 toast-only review/inline-comment submits + P1 Fork toast-only); lane1-fix-013r2-ux-theater (P1 SECURITY.md + P1 Watch sidebar + P1 MCP + P1 invented Copilot models + 6 P2 toast/theater/template/branchRules). Rotation -> QM-SCREEN-014 R2.
 
 ## QM-SCREEN-014 — Quanty workspace / inline / voice / cross-app task graph
+### R14 AUDIT STARTED
+[~] IN_PROGRESS — LANE-1, branch lane1-audit-014r14. R14 REGRESSION STARTED (2026-10-17 ~01:40 IST). Base: R13 end (2026-10-16 ~15:00 IST — R13's recorded base SHA 5ad9b8a25 is NOT resolvable in the qe-main clone; using time-window 2026-10-16 15:00 IST as the window start) -> origin/main ba3309330 (fresh fetch, 17 first-parent merges in window). Auditing Quanty workspace / inline / voice / cross-app task graph.
 ### R13 DONE
 [x] DONE — LANE-1, branch lane1-audit-014r13. R13 REGRESSION AUDIT COMPLETE (2026-10-16 ~14:35–15:00 IST). Base: R12 @ 90bd9b4bc -> origin/main 5ad9b8a25 (fresh fetch, 43 commits). Code read from origin/main tree only (qe-main working tree never read).
 - WINDOW CLEAN: ZERO quanty-path commits (path-filters on components/QuantyLiveAgent/**, components/Quanty*.tsx, app/api/quanty/**, backend services/quanty-agent/** + routes/quanty-{mcp,agent}.ts, drive QuantyFileWorkspace.tsx, quantgit QuantyCopilotView.tsx, QuantyLauncher.tsx, tabs/QuantyIdentityTab.tsx = EMPTY; name/title grep quanty/voice/copilot/ai-agent = EMPTY) — pure re-verification pass.
