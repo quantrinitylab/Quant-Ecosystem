@@ -1,5 +1,11 @@
 'use client';
 
+import type { LetterGroup } from '../types';
+
+// Re-exported so existing importers of the component file keep working; the
+// canonical definition lives in `src/types` next to `CompanyGroup`.
+export type { LetterGroup };
+
 /**
  * The address book's shape, in the sidebar.
  *
@@ -19,11 +25,6 @@
 
 const CHIP =
   'flex aspect-square items-center justify-center rounded-lg text-[11px] font-bold leading-none tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]';
-
-export interface LetterGroup {
-  letter: string;
-  count: number;
-}
 
 export interface ContactsLetterIndexProps {
   groups: LetterGroup[];

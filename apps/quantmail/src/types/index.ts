@@ -554,6 +554,17 @@ export interface CompanyGroup {
   members: Contact[];
 }
 
+/**
+ * One letter bucket of the contacts A–Z index, aggregated server-side across
+ * ALL of the user's contacts (not just the loaded list page) via
+ * GET /contacts/letters. The page used to count from the paginated list page,
+ * so "A (7)" on page 2 of 5 counted only page 2's A-contacts.
+ */
+export interface LetterGroup {
+  letter: string;
+  count: number;
+}
+
 export interface ContactAddress {
   type: 'home' | 'work' | 'other';
   street: string;

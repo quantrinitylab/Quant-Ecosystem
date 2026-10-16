@@ -111,6 +111,18 @@ describe('Contacts pagination controls', () => {
     expect(html).toContain('aria-label="Next contacts page"');
     expect(html).toContain('role="status"');
     expect(html).toContain('Page 1 of 2 · 21 contacts');
-    expect(html).toContain('Letter index and export cover this page.');
+    expect(html).toContain('Letter counts and export cover all contacts.');
+  });
+
+  it('notes page-scoped letter counts when the index falls back to the loaded page', () => {
+    const html = renderToStaticMarkup(
+      createElement(ContactsPagination, {
+        ...defaults,
+        page: 1,
+        pagination: pagination(1),
+        letterScope: 'page',
+      }),
+    );
+    expect(html).toContain('Letter index covers this page · export covers all contacts.');
   });
 });

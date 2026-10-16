@@ -9,8 +9,14 @@ import { ContactsLetterIndex } from '../../components/ContactsLetterIndex';
 import { ContactsPagination } from '../../components/ContactsPagination';
 import { getContactPageCorrection } from '../../lib/contacts-pagination';
 import {
+  buildLetterIndexGroups,
+  indexLetterTotals,
+  letterHeaderCount,
+} from '../../lib/contacts-letters';
+import {
   useContactsPage,
   useCompanyGroups,
+  useLetterGroups,
   useCreateContact,
   useUpdateContact,
   useDeleteContact,
@@ -172,6 +178,23 @@ export default function ContactsPage() {
     enabled: activeTab === 'companies',
   });
 
+  // A–Z index totals, aggregated SERVER-SIDE across ALL contacts
+  // (GET /contacts/letters). The headers and sidebar index used to count from
+  // the paginated list page, so "A (7)" on page 2 of 5 counted only page 2's
+  // A-contacts while reading as a total. Disabled while a contact group is
+  // selected: the group filter is applied client-side and the endpoint does
+  // not honour it, so server totals would be wrong there — the page falls back
+  // to page-scoped counts and the pagination note says so. (Gated on
+  // selectedGroupId rather than activeGroup: the state is declared above, and
+  // the two agree in every reachable case — deleting a group clears the id.)
+  const { data: letterTotals, refetch: refetchLetterTotals } = useLetterGroups({
+    q: debouncedQuery || undefined,
+    favorites: activeTab === 'favorites' || undefined,
+    enabled: !selectedGroupId,
+  });
+  const letterTotalsEnabled = !selectedGroupId;
+  const serverTotalsByLetter = useMemo(() => indexLetterTotals(letterTotals), [letterTotals]);
+
   useEffect(() => {
     if (pageCorrection !== null) {
       setPage(pageCorrection);
@@ -183,10 +206,11 @@ export default function ContactsPage() {
     const handleRefresh = () => {
       void refetch();
       if (activeTab === 'companies') void refetchCompanyGroups();
+      if (!selectedGroupId) void refetchLetterTotals();
     };
     window.addEventListener('quant:refresh', handleRefresh);
     return () => window.removeEventListener('quant:refresh', handleRefresh);
-  }, [refetch, refetchCompanyGroups, activeTab]);
+  }, [refetch, refetchCompanyGroups, refetchLetterTotals, activeTab, selectedGroupId]);
 
   const handleTabChange = useCallback((tab: 'all' | 'favorites' | 'groups' | 'companies' | 'dedup') => {
     setActiveTab(tab);
@@ -555,7 +579,8 @@ export default function ContactsPage() {
     [threadCounts],
   );
 
-  // Export current page contacts as vCard
+  // Export ALL contacts as vCard — the backend exports the whole address book
+  // server-side (unpaginated, unfiltered), not just the loaded page.
   const downloadBlobResponse = useCallback(async (response: Response, filename: string, emptyText: string) => {
     if (!response.ok) {
       showToast({ text: emptyText, type: 'error' });
@@ -643,9 +668,29 @@ export default function ContactsPage() {
   const lastJumpRef = useRef<string | null>(null);
   const [scrub, setScrub] = useState<{ letter: string; y: number } | null>(null);
 
-  const availableLetters = useMemo(
-    () => new Set(groupedContacts.map((g) => g.letter)),
+  const letterGroups = useMemo(
+    () => groupedContacts.map((group) => ({ letter: group.letter, count: group.contacts.length })),
     [groupedContacts],
+  );
+
+  // Sidebar index + header counts: the server's true per-letter totals once
+  // loaded (the address book's real shape, not just this page's), falling
+  // back to the page's own groups while loading or in the contact-group view.
+  // Hoisted above `availableLetters`/`resolveLetter` so the scrub rail's
+  // "has contacts" highlight uses the same address-book truth as the sidebar.
+  const letterIndexGroups = useMemo(
+    () => buildLetterIndexGroups(letterGroups, letterTotals),
+    [letterGroups, letterTotals],
+  );
+
+  // Which letters have contacts anywhere in the address book: the server's
+  // totals (page-scoped fallback while loading / in the contact-group view).
+  // Deriving this from the paginated `groupedContacts` greyed out every
+  // letter whose contacts all sit on other pages — the same page-as-total
+  // lie, contradicting the sidebar index that shows those letters lit.
+  const availableLetters = useMemo(
+    () => new Set(letterIndexGroups.map((g) => g.letter)),
+    [letterIndexGroups],
   );
 
   const jumpToLetter = useCallback((letter: string, smooth: boolean) => {
@@ -747,14 +792,14 @@ export default function ContactsPage() {
   const jumpFromSidebar = useCallback(
     (letter: string) => {
       window.dispatchEvent(new CustomEvent('quant:sidebar:close'));
-      jumpToLetter(letter, true);
+      // The sidebar index now shows the whole address book's letters (server
+      // totals), but the stream only renders the current page's sections — a
+      // chip's letter may have no section on this page. Resolve to the nearest
+      // page letter exactly like the scrub rail does, so every chip lands
+      // somewhere real instead of silently doing nothing.
+      jumpToLetter(resolveLetter(letter) ?? letter, true);
     },
-    [jumpToLetter],
-  );
-
-  const letterGroups = useMemo(
-    () => groupedContacts.map((group) => ({ letter: group.letter, count: group.contacts.length })),
-    [groupedContacts],
+    [jumpToLetter, resolveLetter],
   );
 
   const hasContacts = (contacts?.length ?? 0) > 0;
@@ -767,7 +812,7 @@ export default function ContactsPage() {
         <AppSidebar
           extra={
             <ContactsLetterIndex
-              groups={letterGroups}
+              groups={letterIndexGroups}
               activeLetter={activeLetter}
               onJump={jumpFromSidebar}
             />
@@ -1074,6 +1119,7 @@ export default function ContactsPage() {
                   pagination={pagination}
                   isFetching={isFetching || pageCorrection !== null || searchQuery.trim() !== debouncedQuery}
                   hasError={!!error}
+                  letterScope={letterTotalsEnabled ? 'all' : 'page'}
                   onPageChange={(nextPage) => {
                     setPage(nextPage);
                     streamRef.current?.scrollTo({ top: 0, behavior: 'auto' });
@@ -1120,10 +1166,22 @@ export default function ContactsPage() {
 
                   {!isLoading && !error && groupedContacts.length > 0 && (
                     <div className="space-y-4">
-                      {groupedContacts.map((group) => (
+                      {groupedContacts.map((group) => {
+                        // True per-letter total from the server once loaded
+                        // (the list is paginated; the sections show the current
+                        // page's rows). While the totals load the bare letter
+                        // renders — a page count here would replay the original
+                        // lie of a page count reading as a total.
+                        const headerCount = letterHeaderCount(
+                          group.letter,
+                          group.contacts.length,
+                          serverTotalsByLetter,
+                          letterTotalsEnabled,
+                        );
+                        return (
                         <div key={group.letter} id={`letter-${group.letter}`} className="space-y-1">
                           <div className="sticky top-0 z-10 bg-black/95 backdrop-blur-sm px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--app-accent)] border-b border-[#1E2536]">
-                            {group.letter} ({group.contacts.length})
+                            {headerCount === null ? group.letter : `${group.letter} (${headerCount})`}
                           </div>
 
                           <div className="space-y-1">
@@ -1176,7 +1234,8 @@ export default function ContactsPage() {
                             })}
                           </div>
                         </div>
-                      ))}
+                      );
+                      })}
                     </div>
                   )}
                 </div>
