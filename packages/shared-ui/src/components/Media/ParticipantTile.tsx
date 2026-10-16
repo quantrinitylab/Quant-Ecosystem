@@ -41,23 +41,41 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [volume, setVolume] = useState(100);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isCameraOff, setIsCameraOff] = useState(false);
 
+  // QC-F-443: camera/mic state is DERIVED from the participant on every
+  // render — never copied into useState. The LiveKit participant object is
+  // stable across mute/publish changes (the page re-renders the tile with
+  // the same object on every track event), so the old effect-copied state
+  // froze at first render: camera-on never showed video, camera-off never
+  // showed the avatar, and the muted badge never moved. Deriving here is
+  // the same pattern that keeps the QC-F-263 hand badge fresh.
+  const cameraPublication = participant.getTrackPublication(Track.Source.Camera);
+  const videoTrack = cameraPublication?.track ?? null;
+  const isCameraOff = !participant.isCameraEnabled;
+  // No real track yet → honest avatar, never a blank black <video>.
+  const showVideo = !isCameraOff && videoTrack !== null;
+  const isMuted = !participant.isMicrophoneEnabled;
+
+  // Attach/detach ONLY. Deps are the track identity + showVideo (not the
+  // stable participant): a mute/unmute keeps the same track object, so
+  // showVideo flipping is what re-attaches it to the remounted <video>.
+  // Element and track are captured in the closure — cleanup must detach
+  // exactly what was attached, never re-read videoRef.current (the ref
+  // has already moved on by the time cleanup runs on an avatar swap).
   useEffect(() => {
-    const videoTrack = participant.getTrackPublication(Track.Source.Camera);
-    if (videoTrack?.track && videoRef.current) {
-      videoTrack.track.attach(videoRef.current);
+    if (!showVideo || !videoTrack) {
+      return;
     }
-    setIsCameraOff(!participant.isCameraEnabled);
-    setIsMuted(!participant.isMicrophoneEnabled);
-
+    const el = videoRef.current;
+    if (!el) {
+      return;
+    }
+    const track = videoTrack;
+    track.attach(el);
     return () => {
-      if (videoTrack?.track && videoRef.current) {
-        videoTrack.track.detach(videoRef.current);
-      }
+      track.detach(el);
     };
-  }, [participant]);
+  }, [videoTrack, showVideo]);
 
   useEffect(() => {
     if (!isLocal) {
@@ -89,7 +107,7 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
       className={`relative bg-gray-800 rounded-lg overflow-hidden ${isSpeaking ? 'ring-2 ring-green-400' : ''} ${className}`}
       data-testid="participant-tile"
     >
-      {!isCameraOff ? (
+      {showVideo ? (
         <video
           ref={videoRef}
           autoPlay
@@ -141,8 +159,9 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
             max="100"
             value={volume}
             onChange={handleVolumeChange}
-            className="w-16 h-1 appearance-none bg-white/30 rounded-full"
+            className="w-16 h-4 appearance-none bg-white/30 rounded-full"
             title={`Volume: ${volume}%`}
+            aria-label={`Volume for ${name}`}
             data-testid="volume-slider"
           />
         </div>
