@@ -162,6 +162,7 @@ export function DesktopContextSidebar({
     setActiveTabState(tab.id);
     executeContextTabClick(tab, pillar, {
       pathname,
+      search: searchParams?.toString() ? `?${searchParams.toString()}` : undefined,
       router,
       onTabChange,
       onQuantyOpen,

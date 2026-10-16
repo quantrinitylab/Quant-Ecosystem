@@ -1109,6 +1109,8 @@ export function executeContextTabClick(
   pillar: ProductivityPillar,
   options: {
     pathname: string;
+    /** Current query string WITH the leading `?` (e.g. `?lens=spam`), or ''/omitted when unknown. */
+    search?: string;
     router: { push: (path: string) => void };
     onTabChange?: (tabId: string, pillar: ProductivityPillar) => void;
     /** Opens the Quanty AI cockpit (AppShell's live-agent surface). */
@@ -1158,7 +1160,16 @@ export function executeContextTabClick(
     targetUrl = `${targetUrl}${sep}${tab.queryParam.key}=${tab.queryParam.value}`;
   }
 
-  if (options.pathname !== targetBase || tab.queryParam) {
+  // QM-DEAD-INBOX-TAB-SPAM-LENS (2026-10-16): compare the FULL current URL
+  // (path + query) against the target URL, not just the pathname.
+  // `usePathname()` strips the query, so on `/?lens=spam` a queryParam-less
+  // tab like Inbox compared pathname ('/') === targetBase ('/') and skipped
+  // navigation — the bar stayed on the spam view and lied about the active
+  // view. With the search string, Inbox's target '/' differs from
+  // '/?lens=spam', so it pushes; re-tapping the actually-active tab still
+  // reaches the scroll-to-top + refresh branch.
+  const currentUrl = options.pathname + (options.search ?? '');
+  if (currentUrl !== targetUrl) {
     options.router.push(targetUrl);
   } else {
     // Re-tap on the ACTIVE sub-tab (Instagram-style): smooth-scroll to top,
@@ -1254,6 +1265,7 @@ export function ContextBottomNavBar({
     if (!tab.opensQuanty) setActiveTabState(tab.id);
     executeContextTabClick(tab, pillar, {
       pathname,
+      search: searchParams?.toString() ? `?${searchParams.toString()}` : undefined,
       router,
       onTabChange,
       onQuantyOpen,

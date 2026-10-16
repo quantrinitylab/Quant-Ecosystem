@@ -27,6 +27,7 @@ import { QuantFab, type FabAction } from './QuantFab';
 import { ShellChromeProvider } from './ShellChromeContext';
 import { QuantyDrawerHost } from './QuantyLauncher';
 import { DesktopContextSidebar } from './DesktopContextSidebar';
+import { DesktopAppRail } from './DesktopAppRail';
 import type { QuantyLiveAgentHandle } from './QuantyLiveAgent';
 
 /**
