@@ -26,28 +26,34 @@ const SIZE_MAP: Record<MascotSize, { px: number; assetSuffix: string; className:
   hero: { px: 140, assetSuffix: 'hero', className: 'size-[140px]' },
 };
 
+// `label` is the mark's ACCESSIBLE NAME: it is rendered as the wrapper's
+// aria-label, the img alt text and the title fallback. It must stay the
+// exact product name — the same names the previous approved marks used
+// (QuantDriveLogo/QuantContactsLogo/QuantGitLogo carried
+// aria-label="QuantDrive"/"QuantContacts"/"QuantGit"). Descriptive phrases
+// here break screen-reader naming and the mobile-shell-overhaul contract.
 const PILLAR_META: Record<
   MascotPillar,
   { label: string; glowColor: string }
 > = {
   mail: {
-    label: 'QuantMail Envelope',
+    label: 'QuantMail',
     glowColor: 'rgba(255, 107, 53, 0.45)',
   },
   calendar: {
-    label: 'QuantCalendar Mascot',
+    label: 'QuantCalendar',
     glowColor: 'rgba(66, 133, 244, 0.45)',
   },
   drive: {
-    label: 'QuantDrive Cloud Folder',
+    label: 'QuantDrive',
     glowColor: 'rgba(52, 168, 83, 0.45)',
   },
   contacts: {
-    label: 'QuantContacts Address Book',
+    label: 'QuantContacts',
     glowColor: 'rgba(245, 158, 11, 0.45)',
   },
   quantgit: {
-    label: 'QuantGit Repo Cube',
+    label: 'QuantGit',
     glowColor: 'rgba(139, 92, 246, 0.45)',
   },
 };
