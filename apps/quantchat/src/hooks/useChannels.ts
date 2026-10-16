@@ -1,4 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { apiClient } from '../services/api-client';
 import type { SubscribedChannelView, ChannelMessageView } from '../types';
 
@@ -28,21 +33,70 @@ export function useChannels() {
   };
 }
 
-/** Feed for a single channel (subscribers only; backend 403 for non-members). */
+interface ChannelFeedPage {
+  messages: ChannelMessageView[];
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
+/**
+ * Feed for a single channel (subscribers only; backend 403 for non-members).
+ *
+ * QC-F-449: an infinite query over the backend's composite `before` cursor —
+ * page 1 is the newest page, `loadOlder` walks the archive upward until the
+ * server says there is no older page. The flattened list is chronological
+ * and deduped by id (a refetch replays the same cursor-anchored pages, so
+ * no post is ever shown twice). A backend that predates the cursor API
+ * sends no `pagination` sibling: `hasMore` then reads false, so the UI
+ * honestly shows no Load-older control rather than inventing one.
+ * `refetchInterval` (30s, the house presence cadence) keeps an open feed
+ * fresh; cursor anchoring means refreshed pages cannot shift or duplicate.
+ * `error` is the first-page failure; a failed OLDER page is reported
+ * separately as `olderError` so the loaded posts stay on screen.
+ */
 export function useChannelFeed(channelId: string | null) {
-  const query = useQuery<ChannelMessageView[], Error>({
+  const query = useInfiniteQuery<ChannelFeedPage, Error>({
     queryKey: ['channel-feed', channelId],
     enabled: !!channelId,
-    queryFn: async () => {
-      const res = await apiClient.getChannelMessages(channelId as string);
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const res = await apiClient.getChannelMessages(channelId as string, {
+        before: pageParam as string | undefined,
+      });
       if (!res.success) throw new Error(res.error?.message || 'Failed to load channel feed');
-      return res.data ?? [];
+      return {
+        messages: res.data ?? [],
+        hasMore: res.pagination?.hasMore ?? false,
+        nextCursor: res.pagination?.nextCursor ?? null,
+      };
     },
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
+    refetchInterval: 30_000,
   });
 
+  const seen = new Set<string>();
+  const messages: ChannelMessageView[] = [];
+  const pages = query.data?.pages ?? [];
+  // pages[0] is the newest page; display order is oldest page first, each
+  // page internally chronological.
+  for (const page of [...pages].reverse()) {
+    for (const m of page.messages) {
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      messages.push(m);
+    }
+  }
+
   return {
-    messages: query.data ?? [],
+    messages,
+    hasMore: query.hasNextPage ?? false,
     isLoading: query.isLoading,
+    isLoadingOlder: query.isFetchingNextPage,
+    olderError: query.isFetchNextPageError ? query.error : null,
+    loadOlder: () => {
+      if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
+    },
     error: query.error,
     refetch: query.refetch,
   };
