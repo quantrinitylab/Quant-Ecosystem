@@ -111,7 +111,10 @@ describe('QC-F-042 location: owner whoCanSeeLocation gate', () => {
               userId: OWNER.userId,
               latitude: 10,
               longitude: 20,
-              updatedAt: new Date('2024-01-01T00:00:00.000Z'),
+              // QC-F-437 fixture clock: fresh (inside the 8h staleness
+              // window) so the 'friends'-pref cases exercise the QC-F-042
+              // gate itself, not the staleness filter. Assertions unchanged.
+              updatedAt: new Date(),
             },
           ];
         },
