@@ -2,11 +2,11 @@
 
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { QuantMailLogo } from './QuantMailLogo';
+import { PillarMascotMark } from './mascots/PillarMascotMark';
 
 /**
- * Empty-inbox state — Outlook-inspired (user reference, msg#30):
- * the official QuantMail logo front and centre with a calm caption.
+ * Empty-inbox state — Outlook-inspired:
+ * the 3D QuantMail cute envelope mascot front and centre with a calm caption.
  * Fills the whole list area in ONE background colour — no split panels,
  * no dead blank space below.
  */
@@ -25,9 +25,7 @@ export function InboxZeroState({ query }: { query?: string }) {
         animate={{ y: [0, -6, 0] }}
         transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
       >
-        {/* Decoration, not a control: it floats on a 4.2s loop, and the only
-            thing a click did was re-navigate to the inbox you are already on. */}
-        <QuantMailLogo size={96} interactive={false} />
+        <PillarMascotMark pillar="mail" size="hero" interactive={false} />
       </motion.div>
       {query ? (
         <>
