@@ -30,6 +30,12 @@
  *   the fresh committed state — exactly like DELETE ... WHERE under a row
  *   lock. That re-evaluation is what turns the loser into count 0 and rolls
  *   it back with no email sent.
+ * - `create` emulates the partial unique index
+ *   password_reset_tokens_user_live_unique (migration 0097): a create whose
+ *   user already has a committed live row fails P2002 at once, and a create
+ *   racing a sibling's staged create WAITS for the sibling (speculative-
+ *   insertion wait) and re-checks — this is what closes the empty-empty
+ *   race (CODEX-REVIEW 6167000384 on #1151).
  *
  * Negative control: against the pre-fix handler (sequential awaits, no
  * transaction) the concurrent test below has no linearization point — both
@@ -113,6 +119,7 @@ const fakes = vi.hoisted(() => {
     beforeTransaction: (slotId: number) => Promise<void>;
     beforeCommit: (slotId: number) => Promise<void>;
     onBlocked: (() => void) | null;
+    onCreateBlocked: (() => void) | null;
     beforeTopDelete: () => Promise<void>;
     afterTopDelete: () => Promise<void>;
     afterTopCreate: () => Promise<void>;
@@ -120,9 +127,22 @@ const fakes = vi.hoisted(() => {
     beforeTransaction: async () => {},
     beforeCommit: async () => {},
     onBlocked: null,
+    onCreateBlocked: null,
     beforeTopDelete: async () => {},
     afterTopDelete: async () => {},
     afterTopCreate: async () => {},
+  };
+
+  // Prisma P2002 shape for the partial unique index
+  // password_reset_tokens_user_live_unique (migration 0097). The route
+  // duck-types on `code`, like routes/auth.ts does for register.
+  const uniqueViolation = () => {
+    const err = new Error(
+      'Unique constraint failed on the constraint: "password_reset_tokens_user_live_unique"',
+    ) as Error & { code: string; meta: { target: string[] } };
+    err.code = 'P2002';
+    err.meta = { target: ['password_reset_tokens_user_live_unique'] };
+    return err;
   };
 
   const $transaction = async (cb: (tx: any) => Promise<any>) => {
@@ -155,6 +175,35 @@ const fakes = vi.hoisted(() => {
           return { count: matched.length };
         },
         create: async ({ data }: any) => {
+          // Emulates the partial unique index
+          // password_reset_tokens_user_live_unique(userId) WHERE usedAt IS
+          // NULL (migration 0097), which closes the empty-empty race
+          // (CODEX-REVIEW 6167000384 on #1151): a create conflicts with a
+          // committed live row for the user (visible immediately) or with a
+          // sibling's staged (uncommitted) create — in the latter case it
+          // WAITS for the sibling (Postgres speculative-insertion wait) and
+          // re-checks afterwards, raising P2002 only if the row survived.
+          // The transaction's own staged deletes free the slot first, so
+          // the burn-then-create sequence never self-conflicts.
+          const effUsedAt = data.usedAt ?? null;
+          if (effUsedAt === null && typeof data.userId === 'string') {
+            const liveConflict = (rows: any[]) =>
+              rows.some((r) => r.userId === data.userId && r.usedAt === null);
+            const committedLive = () =>
+              state.tokens.filter((r) => !slot.stagedDeletes.has(r.id));
+            if (liveConflict(committedLive())) throw uniqueViolation();
+            let blockers = inflight.filter(
+              (s) => s !== slot && !s.done && liveConflict(s.stagedCreates),
+            );
+            while (blockers.length > 0) {
+              testHooks.onCreateBlocked?.();
+              for (const b of blockers) await b.committed.promise;
+              if (liveConflict(committedLive())) throw uniqueViolation();
+              blockers = inflight.filter(
+                (s) => s !== slot && !s.done && liveConflict(s.stagedCreates),
+              );
+            }
+          }
           const row = { id: `prt-${++tokenSeq}`, usedAt: null, createdAt: new Date(), ...data };
           slot.stagedCreates.push(row);
           return { ...row };
@@ -318,6 +367,7 @@ beforeEach(() => {
   fakes.testHooks.beforeTransaction = async () => {};
   fakes.testHooks.beforeCommit = async () => {};
   fakes.testHooks.onBlocked = null;
+  fakes.testHooks.onCreateBlocked = null;
   fakes.testHooks.beforeTopDelete = async () => {};
   fakes.testHooks.afterTopDelete = async () => {};
   fakes.testHooks.afterTopCreate = async () => {};
@@ -393,6 +443,78 @@ describe('POST /auth/password-reset — concurrent-issuance race', () => {
 
     // The old link is gone; the loser created nothing (rolled back).
     expect(fakes.state.tokens.find((r: any) => r.id === 'prt-old')).toBeUndefined();
+    expect(fakes.state.tokens).toHaveLength(1);
+  });
+
+  it('two concurrent requests against an EMPTY snapshot: one live token, one email; the loser hits the unique index and mails nothing', async () => {
+    // The empty-snapshot case the compare-and-set alone cannot serialize
+    // (CODEX-REVIEW 6167000384 corrective on #1151, reproduction
+    // 6166994061): both findMany calls return [], both deleteMany calls
+    // return 0, both pass 0===0. The partial unique index
+    // password_reset_tokens_user_live_unique (migration 0097) is the second
+    // layer — the loser's create blocks on the winner's uncommitted row
+    // (Postgres speculative-insertion wait, emulated by the fake) and fails
+    // P2002 once the winner commits.
+    fakes.state.tokens = [];
+
+    // Park A after its create is staged but before commit, so B's create
+    // genuinely overlaps it at the unique index.
+    const gateA = deferred();
+    let parked = 0;
+    let createBlocked = false;
+    fakes.testHooks.beforeCommit = async () => {
+      parked += 1;
+      if (parked === 1) await gateA.promise;
+    };
+    fakes.testHooks.onCreateBlocked = () => {
+      createBlocked = true;
+    };
+
+    const pA = requestLink(USER.email);
+    // Wait until A is genuinely parked at its commit gate before B starts.
+    for (let i = 0; i < 200 && parked < 1; i++) await tick();
+    expect(parked).toBe(1);
+
+    const pB = requestLink(USER.email);
+    // Let B reach its create and block on A's uncommitted row, like Postgres.
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error('B never blocked on the unique index — no genuine overlap')),
+        5000,
+      );
+      const poll = () => {
+        if (createBlocked) {
+          clearTimeout(timer);
+          resolve();
+        } else setTimeout(poll, 10);
+      };
+      poll();
+    });
+    await tick();
+    gateA.resolve();
+
+    const [replyA, replyB] = await Promise.all([pA, pB]);
+
+    // B really did overlap A: its create waited on A's uncommitted row at
+    // the partial unique index.
+    expect(createBlocked).toBe(true);
+
+    // Identical non-committal answers. The P2002 loser is NOT 409'd: only an
+    // existing address can lose a race, so a distinct status would be an
+    // enumeration oracle.
+    expect(replyA.statusCode).toBe(200);
+    expect(replyB.statusCode).toBe(200);
+    expect(replyA.body).toEqual(replyB.body);
+    expect(replyA.body).toEqual({ success: true, data: { message: SENT_MESSAGE } });
+
+    // Exactly one email went out, and its link is the one live token — no
+    // second token was created, so no inbox receives a link that is already
+    // dead.
+    expect(mailControl.sent).toHaveLength(1);
+    expect(mailControl.sent[0]!.to).toBe(USER.email);
+    const liveRows = fakes.state.tokens.filter((r: any) => r.usedAt === null);
+    expect(liveRows).toHaveLength(1);
+    expect(liveRows[0]!.tokenHash).toBe(hashResetToken(mailControl.sent[0]!.token));
     expect(fakes.state.tokens).toHaveLength(1);
   });
 

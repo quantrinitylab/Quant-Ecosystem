@@ -10,7 +10,9 @@
  *
  * What is here instead: a 256-bit link stored only as a digest, single-use under
  * concurrency (issuance is linearized — burn+create in one transaction, so a
- * concurrent request cannot kill another's just-mailed link), hour-bounded,
+ * concurrent request cannot kill another's just-mailed link; plus a partial
+ * unique index on live tokens per user, migration 0097, which closes the
+ * empty-snapshot race the transaction alone cannot), hour-bounded,
  * mailed through SES, and a confirm that revokes every live session on
  * success.
  *
@@ -54,6 +56,29 @@ const NON_COMMITTAL = {
 // address can lose a race, so a distinct status here would be an
 // enumeration oracle).
 const RESET_REQUEST_SUPERSEDED = Symbol('reset-request-superseded');
+
+/**
+ * Prisma unique-constraint violation (P2002), duck-typed on `code` — the
+ * convention used by routes/auth.ts (register) and booking-link.service.ts,
+ * so this works without importing the generated client.
+ *
+ * CODEX-REVIEW 6167000384 corrective on merged PR #1151: the
+ * in-transaction compare-and-set closes the issuance race only when the
+ * snapshot is non-empty. Two concurrent requests with EMPTY snapshots both
+ * pass 0===0 and both reach the create under READ COMMITTED. Migration 0097
+ * adds the partial unique index
+ * password_reset_tokens_user_live_unique(userId) WHERE usedAt IS NULL, so
+ * the loser's create blocks on the index until the winner commits and then
+ * fails P2002. Mapping it onto the superseded-loser path keeps the
+ * invariant — one winner, one live link, one email.
+ *
+ * The only other unique constraint on this table is tokenHash (256-bit);
+ * a collision there is not a plausible P2002 source, and answering
+ * non-committally is still the safe, non-enumerating response.
+ */
+function isUniqueConstraintViolation(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === 'P2002';
+}
 
 export async function passwordResetRoutes(fastify: FastifyInstance) {
   // ─── Request a link ───────────────────────────────────────────────────────
@@ -103,6 +128,15 @@ export async function passwordResetRoutes(fastify: FastifyInstance) {
         // can never delete a link whose email is still being sent. A loser
         // fails BEFORE any email goes out: one winner, one live link, one
         // email — a just-mailed link never arrives dead.
+        //
+        // Second layer (CODEX-REVIEW 6167000384 corrective on #1151): the
+        // compare-and-set only serializes when the snapshot is NON-empty.
+        // Two concurrent requests with EMPTY snapshots both pass 0===0 and
+        // both reach the create under READ COMMITTED. Migration 0097's
+        // partial unique index (userId) WHERE usedAt IS NULL closes that
+        // hole: the loser's create blocks on the index until the winner
+        // commits, then fails P2002, which is mapped to the same
+        // superseded-loser path below.
         const token = generateResetToken();
         try {
           await prisma.$transaction(async (tx: any) => {
@@ -126,10 +160,13 @@ export async function passwordResetRoutes(fastify: FastifyInstance) {
             });
           });
         } catch (err) {
-          if (err === RESET_REQUEST_SUPERSEDED) {
-            // A sibling request won the race; its email carries the live
-            // link. Answering "sent" is honest — the account's mailbox did
-            // get a working link from this burst of requests.
+          // A sibling won the race — either it burned one of this request's
+          // snapshot rows (RESET_REQUEST_SUPERSEDED) or both snapshots were
+          // empty and this request's create lost on the partial unique index
+          // (P2002; CODEX-REVIEW 6167000384 on #1151). Its email carries the
+          // live link. Answering "sent" is honest — the account's mailbox did
+          // get a working link from this burst of requests.
+          if (err === RESET_REQUEST_SUPERSEDED || isUniqueConstraintViolation(err)) {
             return reply.send(NON_COMMITTAL);
           }
           throw err;
