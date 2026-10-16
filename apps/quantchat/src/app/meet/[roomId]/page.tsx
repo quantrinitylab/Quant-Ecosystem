@@ -57,6 +57,35 @@ function formatWait(raisedAt: string | null): string | null {
   return `${Math.floor(ms / 60_000)}m`;
 }
 
+/**
+ * QC-F-444: participant-grid layout is DERIVED from the real participant
+ * count — never a fixed 2-column grid. A fixed grid-cols-2 left a phantom
+ * empty black column beside a lone participant and squeezed 1:1 tiles into
+ * narrow full-height cells where object-cover cropped most of the 16:9
+ * video. Column count always follows the tiles that actually exist, rows
+ * are content-centered (no stretch to the container's full height) until
+ * the grid genuinely overflows (5+, where it scrolls instead).
+ */
+function participantGridClass(count: number): string {
+  const base = 'grid flex-1 gap-2 overflow-y-auto p-3';
+  if (count <= 1) return `${base} grid-cols-1 place-items-center content-center`;
+  if (count === 2) return `${base} grid-cols-1 content-center sm:grid-cols-2`;
+  if (count <= 4) return `${base} grid-cols-2 content-center`;
+  return `${base} grid-cols-2 content-start md:grid-cols-3 2xl:grid-cols-4`;
+}
+
+/**
+ * QC-F-444: every tile carries an aspect-video bound (the same token this
+ * page's studio preview uses) so object-cover crops a 16:9 frame, not a
+ * stretched cell. max-h-full keeps a tile inside a short viewport; the 1-
+ * and 2-person caps keep a single face from ballooning on wide screens.
+ */
+function participantTileClass(count: number): string {
+  if (count <= 1) return 'aspect-video w-full max-w-4xl max-h-full';
+  if (count === 2) return 'aspect-video w-full max-w-3xl max-h-full';
+  return 'aspect-video w-full max-h-full';
+}
+
 type Phase = 'loading' | 'gate' | 'studio' | 'joining' | 'meeting';
 type DeviceCheck = 'unchecked' | 'checking' | 'ok' | 'denied' | 'unavailable';
 
@@ -680,7 +709,7 @@ export default function MeetRoomPage() {
             )}
             {/* Participant grid — one tile per REAL participant, real tracks */}
             <div
-              className="grid flex-1 grid-cols-2 gap-2 overflow-y-auto p-3"
+              className={participantGridClass(participants.length)}
               data-testid="participant-grid"
             >
               {participants.map((p) => (
@@ -690,6 +719,7 @@ export default function MeetRoomPage() {
                   isLocal={p === room.localParticipant}
                   isSpeaking={speaking.has(p.identity)}
                   handRaised={readHandState(p).raised}
+                  className={participantTileClass(participants.length)}
                 />
               ))}
             </div>
