@@ -54,7 +54,7 @@ function fakePrisma() {
   const event = {
     findUnique: vi.fn().mockResolvedValue(ROW),
     findMany: vi.fn().mockResolvedValue([ROW]),
-    create: vi.fn().mockResolvedValue(ROW),
+    create: vi.fn().mockImplementation(async ({ data }: any) => ({ ...ROW, ...data })),
     // Echo the write back into the returned row (minus the where clause), the
     // way a real Prisma update does — tests that write attendees: [] must see
     // a row with no attendees afterwards.
@@ -195,6 +195,89 @@ describe('DELETE /events/:id guest cancellation notification', () => {
     const app = await buildApp();
     const res = await app.inject({ method: 'DELETE', url: '/events/e1' });
     expect(res.statusCode).toBe(200);
+    expect(sendViaSes).not.toHaveBeenCalled();
+    expect(res.json().data.guestNotification).toMatchObject({
+      notified: false,
+      reason: 'mail-not-configured',
+    });
+  });
+});
+
+describe('POST /events guest invitation notification (fix/qm-calendar-event-invites)', () => {
+  const createPayload = {
+    title: 'Design review',
+    start: '2026-10-20T09:00:00.000Z',
+    end: '2026-10-20T10:00:00.000Z',
+    attendees: [
+      { email: GUEST_EMAIL, name: 'Guest' },
+      { email: ORGANIZER_EMAIL, name: 'Org' },
+    ],
+  };
+
+  it('sends a METHOD:REQUEST invitation email to guests (organizer excluded) on create', async () => {
+    const app = await buildApp();
+    const res = await app.inject({ method: 'POST', url: '/events', payload: createPayload });
+    expect(res.statusCode).toBe(201);
+    expect(sendViaSes).toHaveBeenCalledTimes(1);
+    const opts = sendViaSes.mock.calls[0]![0];
+    expect(opts.to).toEqual([GUEST_EMAIL]);
+    expect(opts.subject).toContain('Invitation');
+    expect(opts.subject).toContain('Design review');
+    expect(opts.attachments).toHaveLength(1);
+    expect(opts.attachments[0].contentType).toContain('text/calendar');
+    expect(String(opts.attachments[0].content)).toContain('METHOD:REQUEST');
+    expect(String(opts.attachments[0].content)).toContain(GUEST_EMAIL);
+    const body = res.json();
+    expect(body.data.guestNotification).toMatchObject({ notified: true, count: 1, reason: 'sent' });
+  });
+
+  it('does not email anyone when the event has no guests, reporting no-guests', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/events',
+      payload: { ...createPayload, attendees: [] },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(sendViaSes).not.toHaveBeenCalled();
+    expect(res.json().data.guestNotification).toMatchObject({
+      notified: false,
+      reason: 'no-guests',
+    });
+  });
+
+  it('skips the invite email when sendInvites=false (create still succeeds, reporting declined)', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/events',
+      payload: { ...createPayload, sendInvites: false },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(sendViaSes).not.toHaveBeenCalled();
+    expect(res.json().data.guestNotification).toMatchObject({
+      notified: false,
+      reason: 'declined',
+    });
+  });
+
+  it('still creates the event when the invite email throws, reporting send-failed', async () => {
+    sendViaSes.mockRejectedValueOnce(new Error('SES outage'));
+    const app = await buildApp();
+    const res = await app.inject({ method: 'POST', url: '/events', payload: createPayload });
+    expect(res.statusCode).toBe(201);
+    expect(sendViaSes).toHaveBeenCalledTimes(1);
+    expect(res.json().data.guestNotification).toMatchObject({
+      notified: false,
+      reason: 'send-failed',
+    });
+  });
+
+  it('reports mail-not-configured honestly when SES is unavailable', async () => {
+    isSesConfigured.mockReturnValue(false);
+    const app = await buildApp();
+    const res = await app.inject({ method: 'POST', url: '/events', payload: createPayload });
+    expect(res.statusCode).toBe(201);
     expect(sendViaSes).not.toHaveBeenCalled();
     expect(res.json().data.guestNotification).toMatchObject({
       notified: false,

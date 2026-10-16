@@ -63,6 +63,13 @@ const eventCreateSchema = z.object({
   location: z.string().max(500).optional(),
   checkConflicts: z.boolean().optional(),
   force: z.boolean().optional(),
+  // fix/qm-calendar-event-invites — Gmail parity: creating an event with
+  // guests emails them a real METHOD:REQUEST invitation through SES, the same
+  // helper the edit/delete paths use. `sendInvites: false` opts out (the UI
+  // does not offer this today — it always sends). Defaults to true so guests
+  // learn about a new meeting on create, not only when the organizer tells
+  // them another way.
+  sendInvites: z.boolean().optional(),
   ...eventCollectionFields,
 });
 const eventUpdateSchema = z.object({
@@ -1569,10 +1576,10 @@ export default async function calendarRoutes(
   //
   // Editing or deleting an event used to touch only prisma + the call-alert
   // service — invitees silently missed moved/cancelled meetings. This helper
-  // is the honest mail path: it sends a real METHOD:REQUEST (update) or
-  // METHOD:CANCEL (cancellation) ICS email to the event's guests through SES,
-  // and reports exactly what happened so the UI can tell the truth instead
-  // of faking a confirmation.
+  // is the honest mail path: it sends a real METHOD:REQUEST (creation or
+  // update) or METHOD:CANCEL (cancellation) ICS email to the event's guests
+  // through SES, and reports exactly what happened so the UI can tell the
+  // truth instead of faking a confirmation.
   //
   // It never throws: the event write already succeeded before this runs, so
   // a mail outage must not fail the save/delete. Failure is reported in the
@@ -1611,7 +1618,7 @@ export default async function calendarRoutes(
   const notifyEventGuests = async (
     event: EventRow,
     organizer: { name?: string; email: string } | undefined,
-    kind: 'update' | 'cancellation',
+    kind: 'creation' | 'update' | 'cancellation',
     request: unknown,
   ): Promise<GuestNotificationStatus> => {
     const log = (request as { log?: { warn: (...args: unknown[]) => void } })?.log;
@@ -1643,25 +1650,36 @@ export default async function calendarRoutes(
     const subject =
       kind === 'cancellation'
         ? `Cancelled: ${event.title}`
-        : `Updated invitation: ${event.title}`;
+        : kind === 'creation'
+          ? `Invitation: ${event.title}`
+          : `Updated invitation: ${event.title}`;
     const bodyText =
       kind === 'cancellation'
         ? `${organizerName} has cancelled "${event.title}".\n\nWhen: ${when}\n${
             event.location ? `Where: ${event.location}\n` : ''
           }\nThis meeting has been cancelled and removed from the organizer's calendar.`
-        : `${organizerName} has updated "${event.title}".\n\nWhen: ${when}\n${
-            event.location ? `Where: ${event.location}\n` : ''
-          }\nThe updated invitation is attached as an .ics file — add it to your calendar to stay in sync.`;
+        : kind === 'creation'
+          ? `${organizerName} has invited you to "${event.title}".\n\nWhen: ${when}\n${
+              event.location ? `Where: ${event.location}\n` : ''
+            }\nThe invitation is attached as an .ics file — add it to your calendar to stay in sync.`
+          : `${organizerName} has updated "${event.title}".\n\nWhen: ${when}\n${
+              event.location ? `Where: ${event.location}\n` : ''
+            }\nThe updated invitation is attached as an .ics file — add it to your calendar to stay in sync.`;
     const bodyHtml =
       kind === 'cancellation'
         ? `<p><strong>${escapeHtml(organizerName)}</strong> has cancelled ` +
           `<strong>${escapeHtml(event.title)}</strong>.</p>` +
           `<p>When: ${escapeHtml(when)}${event.location ? `<br>Where: ${escapeHtml(event.location)}` : ''}</p>` +
           `<p>This meeting has been cancelled and removed from the organizer's calendar.</p>`
-        : `<p><strong>${escapeHtml(organizerName)}</strong> has updated ` +
-          `<strong>${escapeHtml(event.title)}</strong>.</p>` +
-          `<p>When: ${escapeHtml(when)}${event.location ? `<br>Where: ${escapeHtml(event.location)}` : ''}</p>` +
-          `<p>The updated invitation is attached as an .ics file — add it to your calendar to stay in sync.</p>`;
+        : kind === 'creation'
+          ? `<p><strong>${escapeHtml(organizerName)}</strong> has invited you to ` +
+            `<strong>${escapeHtml(event.title)}</strong>.</p>` +
+            `<p>When: ${escapeHtml(when)}${event.location ? `<br>Where: ${escapeHtml(event.location)}` : ''}</p>` +
+            `<p>The invitation is attached as an .ics file — add it to your calendar to stay in sync.</p>`
+          : `<p><strong>${escapeHtml(organizerName)}</strong> has updated ` +
+            `<strong>${escapeHtml(event.title)}</strong>.</p>` +
+            `<p>When: ${escapeHtml(when)}${event.location ? `<br>Where: ${escapeHtml(event.location)}` : ''}</p>` +
+            `<p>The updated invitation is attached as an .ics file — add it to your calendar to stay in sync.</p>`;
     try {
       await sendViaSes({
         from: `${organizerName} <${organizer.email}>`,
@@ -1849,7 +1867,15 @@ export default async function calendarRoutes(
       .catch((err) => {
         request.log.warn({ err }, 'Failed to schedule event call alert');
       });
-    return reply.status(201).send({ success: true, data: toEventDto(created) });
+    // fix/qm-calendar-event-invites — Gmail parity: the event is persisted
+    // above, so guest notification happens OUTSIDE the write. A mail failure
+    // must never fail the create; the honest outcome rides the response.
+    const organizer = await getOrganizerInfo(prisma, userId);
+    const guestNotification =
+      parsed.data.sendInvites === false
+        ? { notified: false, count: 0, reason: 'declined' as const }
+        : await notifyEventGuests(created, organizer, 'creation', request);
+    return reply.status(201).send({ success: true, data: { ...toEventDto(created), guestNotification } });
   });
 
   const handleIcsImport = async (request: any, reply: any) => {
