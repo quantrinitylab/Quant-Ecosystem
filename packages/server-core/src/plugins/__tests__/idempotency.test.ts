@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
 import idempotencyPlugin, {
@@ -510,5 +510,149 @@ describe('RedisIdempotencyStore', () => {
       Array.from({ length: 10 }, () => store.claimProcessing('race-key', 'fp', 60_000)),
     );
     expect(results.filter(Boolean)).toHaveLength(1);
+  });
+});
+
+describe('idempotency plugin per-route processing TTL (fix/qm-idempotency-ttl-3)', () => {
+  /**
+   * Recording store: captures the TTL each claim/heartbeat extension is
+   * issued with so the test can prove which TTL the plugin chose, without
+   * depending on wall-clock expiry.
+   */
+  function recordingStore() {
+    const claims: Array<{ key: string; ttlMs: number }> = [];
+    const extensions: Array<{ key: string; fingerprint: string; ttlMs: number }> = [];
+    const store: IdempotencyStore = {
+      get: async () => null,
+      claimProcessing: async (key, _fingerprint, ttlMs) => {
+        claims.push({ key, ttlMs });
+        return true;
+      },
+      setCompleted: async () => {},
+      release: async () => {},
+      extendProcessing: async (key, fingerprint, ttlMs) => {
+        extensions.push({ key, fingerprint, ttlMs });
+        return true;
+      },
+    };
+    return { store, claims, extensions };
+  }
+
+  function postKey(app: FastifyInstance, url: string, key: string) {
+    return app.inject({
+      method: 'POST',
+      url,
+      headers: { 'idempotency-key': key },
+      payload: {},
+    });
+  }
+
+  it('claims with the per-route TTL when idempotencyProcessingTtlSeconds is set', async () => {
+    const rec = recordingStore();
+    const app = Fastify({ logger: false });
+    await app.register(idempotencyPlugin, { store: rec.store });
+    await app.register(async (instance: FastifyInstance) => {
+      // Slow AI-style route: honest 15-minute claim window.
+      instance.post(
+        '/slow',
+        { config: { idempotencyRequired: true, idempotencyProcessingTtlSeconds: 900 } },
+        async (_request, reply) => reply.send({ ok: true }),
+      );
+    });
+
+    const res = await postKey(app, '/slow', 'k-route-ttl');
+    expect(res.statusCode).toBe(200);
+    expect(rec.claims).toHaveLength(1);
+    expect(rec.claims[0]?.ttlMs).toBe(900_000);
+    await app.close();
+  });
+
+  it('falls back to the 5-minute built-in when the route sets no override', async () => {
+    const rec = recordingStore();
+    const app = Fastify({ logger: false });
+    await app.register(idempotencyPlugin, { store: rec.store });
+    await app.register(async (instance: FastifyInstance) => {
+      instance.post(
+        '/default',
+        { config: { idempotencyRequired: true } },
+        async (_request, reply) => reply.send({ ok: true }),
+      );
+    });
+
+    const res = await postKey(app, '/default', 'k-default-ttl');
+    expect(res.statusCode).toBe(200);
+    expect(rec.claims).toHaveLength(1);
+    expect(rec.claims[0]?.ttlMs).toBe(300_000);
+    await app.close();
+  });
+
+  it('prefers the route override over the plugin-level processingTtlSeconds', async () => {
+    const rec = recordingStore();
+    const app = Fastify({ logger: false });
+    await app.register(idempotencyPlugin, { store: rec.store, processingTtlSeconds: 600 });
+    await app.register(async (instance: FastifyInstance) => {
+      instance.post(
+        '/slow',
+        { config: { idempotencyRequired: true, idempotencyProcessingTtlSeconds: 900 } },
+        async (_request, reply) => reply.send({ ok: true }),
+      );
+      instance.post(
+        '/plain-default',
+        { config: { idempotencyRequired: true } },
+        async (_request, reply) => reply.send({ ok: true }),
+      );
+    });
+
+    await postKey(app, '/slow', 'k-route-wins');
+    await postKey(app, '/plain-default', 'k-plugin-wins');
+    expect(rec.claims).toHaveLength(2);
+    expect(rec.claims[0]?.ttlMs).toBe(900_000);
+    expect(rec.claims[1]?.ttlMs).toBe(600_000);
+    await app.close();
+  });
+
+  it('heartbeats the claim with the per-route TTL and stops when the handler finishes', async () => {
+    vi.useFakeTimers();
+    try {
+      const rec = recordingStore();
+      const app = Fastify({ logger: false });
+      await app.register(idempotencyPlugin, { store: rec.store });
+      let release!: () => void;
+      await app.register(async (instance: FastifyInstance) => {
+        instance.post(
+          '/slow',
+          { config: { idempotencyRequired: true, idempotencyProcessingTtlSeconds: 900 } },
+          async (_request, reply) => {
+            await new Promise<void>((resolve) => {
+              release = resolve;
+            });
+            return reply.send({ ok: true });
+          },
+        );
+      });
+
+      const resP = postKey(app, '/slow', 'k-heartbeat');
+      // Let the preHandler claim and the handler block mid-flight.
+      await vi.advanceTimersByTimeAsync(100);
+      expect(rec.claims).toHaveLength(1);
+      expect(rec.claims[0]?.ttlMs).toBe(900_000);
+
+      // Heartbeat interval = min(60s, TTL/3) = 60s for a 900s TTL.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(rec.extensions.length).toBeGreaterThanOrEqual(1);
+      expect(rec.extensions[0]?.ttlMs).toBe(900_000);
+
+      release();
+      const res = await resP;
+      expect(res.statusCode).toBe(200);
+
+      // onSend stops the heartbeat: no further extensions after the response.
+      const after = rec.extensions.length;
+      await vi.advanceTimersByTimeAsync(180_000);
+      expect(rec.extensions.length).toBe(after);
+      await app.close();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
