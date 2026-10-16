@@ -1019,6 +1019,13 @@ export class ContactService {
       groups.set(root, list);
     }
 
+    // A pair the user explicitly marked "keep separate" must never be
+    // union-merged by the bulk path either. findDuplicates filters dismissed
+    // pairs via getDismissedPairKeys; deduplicateContacts must apply the same
+    // filter, otherwise "Auto-Merge All" silently overrides the user's
+    // explicit keep-separate decision and deletes those records anyway.
+    const dismissed = await this.getDismissedPairKeys(userId);
+
     let mergedCount = 0;
     for (const [, list] of groups) {
       if (list.length > 1) {
@@ -1030,10 +1037,25 @@ export class ContactService {
           return timeA - timeB;
         });
 
-        const primary = list[0]!;
-        const duplicateIds = list.slice(1).map((c) => c.id);
-        await this.mergeContacts(userId, primary.id, duplicateIds);
-        mergedCount += duplicateIds.length;
+        // Greedily keep only contacts with no dismissed "keep separate" pair
+        // against any already-kept contact. findDuplicates filters per-pair
+        // against the primary; the bulk path must go one step further because
+        // union-find chains can pull a dismissed pair into one group via a
+        // shared email/phone (e.g. A keeps-separate-from B, both share an
+        // email with C). Merging both A and B into C would still collapse the
+        // dismissed pair into one contact, so they must not all merge.
+        const kept: Contact[] = [];
+        for (const c of list) {
+          const conflicts = kept.some((k) => dismissed.has(duplicatePairKey(k.id, c.id)));
+          if (!conflicts) kept.push(c);
+        }
+
+        const primary = kept[0]!;
+        const duplicateIds = kept.slice(1).map((c) => c.id);
+        if (duplicateIds.length > 0) {
+          await this.mergeContacts(userId, primary.id, duplicateIds);
+          mergedCount += duplicateIds.length;
+        }
       }
     }
 
