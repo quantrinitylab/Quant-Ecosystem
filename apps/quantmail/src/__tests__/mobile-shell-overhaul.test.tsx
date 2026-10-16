@@ -184,16 +184,20 @@ describe('Mobile Shell Overhaul — Worker A', () => {
         expect(html).toContain(`data-testid="pillar-tile-${id}"`);
       }
 
-      // Real marks: the three remaining canvas marks carry role="img" labels…
-      expect(html).toContain('aria-label="QuantDrive"');
-      expect(html).toContain('aria-label="QuantContacts"');
-      expect(html).toContain('aria-label="QuantGit"');
-      // …Calendar now paints the dynamic 3D canvas mark. Its accessible name
-      // carries the current localized date for screen readers…
-      expect(html).toContain('aria-label="QuantCalendar —');
-      // …and all five tiles keep their canvas marks (mail's decorative mark too).
-      const canvasCount = (html.match(/<canvas/g) || []).length;
-      expect(canvasCount).toBeGreaterThanOrEqual(5);
+      // Real marks (#1259): each tile mounts its approved 3D mascot mark —
+      // a role="img" with the pillar's accessible name and the sized
+      // webp/png asset (canvas marks are gone from the dock).
+      for (const [pillar, label] of [
+        ['mail', 'QuantMail Envelope'],
+        ['calendar', 'QuantCalendar Mascot'],
+        ['drive', 'QuantDrive Cloud Folder'],
+        ['contacts', 'QuantContacts Address Book'],
+        ['quantgit', 'QuantGit Repo Cube'],
+      ] as const) {
+        expect(html).toContain(`aria-label="${label}"`);
+        expect(html).toContain(`/mascots/${pillar}-sm.webp`);
+        expect(html).toContain(`/mascots/${pillar}-sm.png`);
+      }
 
       // The old generic mail glyph is gone from the tiles.
       expect(html).not.toContain('m22 7-8.97 5.7');
