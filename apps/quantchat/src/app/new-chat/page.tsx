@@ -16,13 +16,21 @@ import { apiClient } from '../../services/api-client';
 import type { ChatContact } from '../../types';
 import { navItems, routes } from '../../lib/navigation';
 
-function ContactAvatar({ contact }: { contact: ChatContact }) {
+function ContactAvatar({
+  contact,
+  size = 'md',
+}: {
+  contact: ChatContact;
+  size?: 'md' | 'sm';
+}) {
+  const sizeClass =
+    size === 'sm' ? 'w-7 h-7 text-xs' : 'w-12 h-12 text-lg';
   if (contact.avatarUrl) {
     return (
       <img
         src={contact.avatarUrl}
         alt=""
-        className="w-12 h-12 rounded-full object-cover"
+        className={`${sizeClass} rounded-full object-cover`}
         loading="lazy"
       />
     );
@@ -30,7 +38,7 @@ function ContactAvatar({ contact }: { contact: ChatContact }) {
   return (
     <div
       aria-hidden
-      className="w-12 h-12 rounded-full bg-indigo-500 text-white flex items-center justify-center font-semibold text-lg"
+      className={`${sizeClass} rounded-full bg-indigo-500 text-white flex items-center justify-center font-semibold`}
     >
       {(contact.displayName || contact.username || '?').charAt(0).toUpperCase()}
     </div>
@@ -91,14 +99,29 @@ export default function NewChatPage() {
   // Group creation (WhatsApp standard): pick members, name the group, create.
   const [groupMode, setGroupMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // QC-F-448: chunav ke pal ka contact snapshot — chips-row isi se render
+  // hoti hai taaki dusri khoj ke results aane par bhi pehle chune hue log
+  // dikhte rahein. Invariant: is Map ki keys hamesha selectedIds ke barabar.
+  const [selectedContacts, setSelectedContacts] = useState<
+    Map<string, ChatContact>
+  >(new Map());
   const [groupName, setGroupName] = useState('');
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
-  const toggleSelect = (id: string) => {
+  const toggleSelect = (contact: ChatContact) => {
+    const id = contact.id;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+    // QC-F-448: Set aur snapshot Map ek hi handler me badalte hain — row
+    // toggle aur chip-remove kabhi alag NAHI ho sakte.
+    setSelectedContacts((prev) => {
+      const next = new Map(prev);
+      if (next.has(id)) next.delete(id);
+      else next.set(id, contact);
       return next;
     });
   };
@@ -355,6 +378,44 @@ export default function NewChatPage() {
           </div>
         </div>
 
+        {/* QC-F-448: chune hue members ki barkarar chips-row — snapshot
+            Map se render hoti hai, isiliye nayi khoj / search-fail / khaali
+            query par bhi chunav dikhta rehta hai aur yahin se hataya bhi
+            ja sakta hai. */}
+        {groupMode && selectedIds.size > 0 && (
+          <div
+            data-testid="selected-members"
+            role="list"
+            aria-label="Selected members"
+            className="flex flex-wrap gap-2 px-4 py-2"
+          >
+            {[...selectedContacts.values()].map((contact) => (
+              <span
+                key={contact.id}
+                role="listitem"
+                data-testid="selected-member-chip"
+                data-user-id={contact.id}
+                className="inline-flex items-center gap-2 rounded-full bg-indigo-50 py-1 pl-1 pr-2"
+              >
+                <ContactAvatar contact={contact} size="sm" />
+                <span className="truncate max-w-[10rem] text-sm font-medium text-[var(--quant-foreground)]">
+                  {contact.displayName}
+                </span>
+                <span className="text-xs text-gray-500">@{contact.username}</span>
+                <button
+                  type="button"
+                  data-testid="selected-member-remove"
+                  aria-label={`Remove ${contact.displayName} (@${contact.username}) from group`}
+                  onClick={() => toggleSelect(contact)}
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-indigo-100"
+                >
+                  <span aria-hidden>✕</span>
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* QC-F-321: honest request-state notice (sent / pending / declined) */}
         {!groupMode && requestNotice && (
           <div className="px-4 py-2" role="status">
@@ -403,7 +464,7 @@ export default function NewChatPage() {
                   key={contact.id}
                   role="listitem"
                   onClick={() =>
-                    groupMode ? toggleSelect(contact.id) : void startChat(contact)
+                    groupMode ? toggleSelect(contact) : void startChat(contact)
                   }
                   disabled={isCreating !== null}
                   aria-pressed={groupMode ? selected : undefined}
