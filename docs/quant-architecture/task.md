@@ -1673,9 +1673,9 @@ STILL-UNVERIFIED: signed-in sessions/grants/PAT/2FA flows live.
 R3 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 1 P2 (R3-NEW-1; R2-NEW-1/R2-NEW-2 confirmed still present, not re-counted). No fix agents spawned (no P0/P1). Rotation -> QM-SCREEN-017 R3.
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
-Status: [x] DONE (R12 regression audit complete 2026-10-16 ~07:50 IST — Owner: LANE-1, Branch: lane1-audit-017r12; #855 fixes verified intact on origin/main c10a0673755; window 35 commits, zero admin-path changes; 0 new findings; carryovers: 2 P1 + 2 P2 still present, green-dot resolved; fixes tracked via their PRs)
+Status: [~] R13 regression audit IN PROGRESS (2026-10-16 ~17:35 IST — Owner: LANE-1, Branch: lane1-audit-017r13)
 Owner: LANE-1
-Branch: lane1-audit-017r12
+Branch: lane1-audit-017r13
 Required: capability RBAC, tenant isolation, domain verification, DLP, audit explorer, legal hold, retention, export/deletion, incident visibility, break-glass controls.
 Dependencies: QM-WORK-011; backend integrity tasks.
 - [x] FINDING P0: retention/legal-hold API is any-auth, not staff-gated — any signed-in user can create PERMANENT_DELETE retention policies, place legal holds on any custodian, and RELEASE legal holds. | expected: staff-only (requireStaff like routes/admin.ts) | actual: requireUserId only in routes/retention.ts | evidence: POST /retention/policies, POST /retention/legal-holds, DELETE /retention/legal-holds/:id all call requireUserId; no role check. Logged-out probe → honest 401s. FIXED: PR #855 (merge b72a98b4, commit a05f5fc9) staff-gated all six retention routes (requireStaff, STAFF_ROLES ADMIN+MODERATOR, 401/403 semantics); diff scope CLEAN (retention.ts, audit-logs.ts + 3 test files only). Verified intact on origin/main 6757f022 (2026-10-12 R2: git-grep requireStaff on all six routes). CORRECTION 2026-10-12 R3: an R3 "regression" claim (PR #756 silently reverted #855) was a FALSE ALARM — the R3 auditor read the stale local working tree (local main 162e30535) instead of origin/main. Verified on origin/main 01b700aee's actual tree: retention.ts has 8 requireStaff — fix INTACT. #756's merge is not on origin/main.
