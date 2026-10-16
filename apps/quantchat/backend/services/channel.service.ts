@@ -13,6 +13,14 @@
 
 import { createAppError } from '@quant/server-core';
 
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { code?: unknown }).code === 'P2002'
+  );
+}
+
 const POSTING_ROLES = new Set(['OWNER', 'ADMIN']);
 const MAX_NAME = 200;
 const MAX_CONTENT = 20000;
@@ -139,21 +147,47 @@ export class ChannelService {
     });
   }
 
-  /** Subscribe a user to a channel (idempotent) as a read-only MEMBER. */
+  /**
+   * Subscribe a user to a channel (idempotent) as a read-only MEMBER.
+   * A user who previously unsubscribed still has their membership row
+   * (unsubscribe only stamps `leftAt`); that row is REVIVED in place —
+   * creating a second row would violate @@unique([conversationId, userId])
+   * and surface as P2002 → 500 (QC-F-255). Revive resets `joinedAt` (the
+   * member's history bound starts at the rejoin), `isMuted` and
+   * `lastReadAt` to the same values a fresh subscribe writes, and
+   * deliberately does NOT touch `role`: the role on the row was granted
+   * by the channel (OWNER at create) and was never revoked by leaving,
+   * so an OWNER/ADMIN who left returns with their role intact instead of
+   * orphaning the channel.
+   */
   async subscribe(channelId: string, userId: string): Promise<{ subscribed: true }> {
     await this.requireChannel(channelId);
     const existing = await this.activeMember(channelId, userId);
     if (existing) return { subscribed: true };
-    await this.prisma.conversationMember.create({
-      data: {
-        conversationId: channelId,
-        userId,
-        role: 'MEMBER',
-        joinedAt: new Date(),
-        isMuted: false,
-        lastReadAt: null,
-      },
+    const revived = await this.prisma.conversationMember.updateMany({
+      where: { conversationId: channelId, userId },
+      data: { leftAt: null, joinedAt: new Date(), isMuted: false, lastReadAt: null },
     });
+    if (revived.count > 0) return { subscribed: true };
+    try {
+      await this.prisma.conversationMember.create({
+        data: {
+          conversationId: channelId,
+          userId,
+          role: 'MEMBER',
+          joinedAt: new Date(),
+          isMuted: false,
+          lastReadAt: null,
+        },
+      });
+    } catch (err) {
+      // A concurrent subscribe won the create race: if an active row now
+      // exists, this call is idempotently successful; otherwise the
+      // failure is real and must propagate unchanged.
+      if (!isUniqueViolation(err)) throw err;
+      const winner = await this.activeMember(channelId, userId);
+      if (!winner) throw err;
+    }
     return { subscribed: true };
   }
 
