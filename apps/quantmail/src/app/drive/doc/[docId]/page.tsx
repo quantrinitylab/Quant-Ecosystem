@@ -375,46 +375,6 @@ export default function DocumentPage() {
               />
             </div>
           )}
-
-          {/* Floating Auto-save / Sync Status Pill — clears the single h-16
-              bottom bar + safe-area on mobile, sits bottom-4 on desktop */}
-          <div className="fixed right-6 z-30 flex items-center gap-2 rounded-full border border-[#30363D] bg-[var(--quant-surface-elevated)]/90 px-3 py-1.5 text-xs text-[#8B949E] shadow-xl backdrop-blur-md bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)] md:bottom-4">
-            {syncStatus === 'connected' && (
-              <>
-                <span className="h-2 w-2 rounded-full bg-[#3FB950] animate-pulse" />
-                <span>Live Multiplayer CRDT</span>
-              </>
-            )}
-            {syncStatus === 'saving' && (
-              <>
-                <span className="h-2 w-2 rounded-full bg-[#D29922]" />
-                <span>Auto-saving changes...</span>
-              </>
-            )}
-            {syncStatus === 'saved' && (
-              <>
-                <span className="h-2 w-2 rounded-full bg-[#3FB950]" />
-                <span>
-                  Saved{' '}
-                  {lastSaved
-                    ? lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    : 'just now'}
-                </span>
-              </>
-            )}
-            {syncStatus === 'offline' && (
-              <>
-                <span className="h-2 w-2 rounded-full bg-[#8B949E]" />
-                <span>Offline (Local Cache)</span>
-              </>
-            )}
-            {syncStatus === 'error' && (
-              <>
-                <span className="h-2 w-2 rounded-full bg-[#F85149]" />
-                <span>Save failed — kept locally</span>
-              </>
-            )}
-          </div>
         </main>
       </div>
 
