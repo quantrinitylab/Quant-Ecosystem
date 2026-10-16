@@ -1271,10 +1271,7 @@ export function ContextBottomNavBar({
 
   return (
     <div
-      className={`md:hidden flex-none bg-[#111318] border-t border-[#20242D] ${className}`}
-      style={{
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      }}
+      className={`md:hidden flex-none bg-[var(--quant-surface)] border-t border-[var(--quant-border-subtle)] pb-[env(safe-area-inset-bottom,0px)] ${className}`}
     >
       <nav
         key={pillar}
@@ -1323,7 +1320,7 @@ export function ContextBottomNavBar({
 
                   {/* Text Badge */}
                   {tab.badgeText && (
-                    <span className="absolute -top-1 -right-3.5 flex h-[12px] items-center justify-center rounded px-1 text-[9px] font-extrabold uppercase tracking-tight leading-none bg-[#20242D] text-[#94A3B8] border border-[#2D3340]">
+                    <span className="absolute -top-1 -right-3.5 flex h-[12px] items-center justify-center rounded px-1 text-[10px] font-extrabold uppercase tracking-tight leading-none bg-[#20242D] text-[#94A3B8] border border-[#2D3340]">
                       {tab.badgeText}
                     </span>
                   )}
