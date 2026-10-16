@@ -42,6 +42,7 @@ import { UndoSendProvider } from './UndoSendCountdownBar';
 import { useNewMailDesktopAlerts } from '../hooks/useNewMailDesktopAlerts';
 import { QuantPillarTopBar } from './QuantPillarTopBar';
 import { ContextBottomNavBar } from './ContextBottomNavBar';
+import { DesktopAppRail } from './DesktopAppRail';
 import { pillarForApp } from './desktopContextTabs';
 import { appThemeForPath } from '../lib/app-theme';
 import { QuantyAvatarPicker } from './workplace/QuantyAvatarPicker';
@@ -947,6 +948,27 @@ export function AppShell({
               />
             )}
           </div>
+
+          {/*
+            Desktop right app rail: slim 5-app switcher (Mail/Calendar/Drive/
+            Contacts/QuantGit), Gmail's Google-apps-rail style. Desktop only.
+          */}
+          {showSuiteNav && (
+            <DesktopAppRail
+              currentPillar={
+                currentApp === 'calendar'
+                  ? 'calendar'
+                  : currentApp === 'drive'
+                    ? 'drive'
+                    : currentApp === 'contacts'
+                      ? 'contacts'
+                      : currentApp === 'code'
+                        ? 'quantgit'
+                        : 'mail'
+              }
+              unreadCounts={{ mail: unreadCount }}
+            />
+          )}
 
           <QuantFab actions={fabActions} />
 
