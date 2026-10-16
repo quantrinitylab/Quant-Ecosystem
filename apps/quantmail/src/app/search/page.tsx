@@ -154,7 +154,7 @@ export default function SearchPage() {
         }
       : null;
 
-  const { data: results, isLoading, error } = useSearchEmails(searchParams);
+  const { data: results, isLoading, error, localHits, refetch } = useSearchEmails(searchParams);
 
   // Universal search fans out to the real per-source backends; the mail scope
   // keeps the dedicated Gmail-style search above (with its filters) untouched.
@@ -163,6 +163,14 @@ export default function SearchPage() {
     data: universalResults,
     isLoading: universalLoading,
   } = useUniversalSearch(universalQuery);
+
+  // Mail-scope failure handling: the hook's queryFn now throws on backend
+  // failure (it never did before, which made the ErrorState below dead
+  // code). With an empty local index the failure surfaces as an error; with
+  // local hits those hits render honestly labeled as offline/partial.
+  const mailSearchOffline = scope === 'mail' && hasSearched && !!error;
+  const offlineHits = mailSearchOffline ? (localHits ?? []) : [];
+  const visibleResults = mailSearchOffline ? offlineHits : results;
 
   const runSearchString = useCallback(
     (search: string) => {
@@ -188,6 +196,13 @@ export default function SearchPage() {
   const handleSearch = useCallback(() => {
     runSearchString(query);
   }, [query, runSearchString]);
+
+  // Error recovery goes straight through react-query's refetch: re-running
+  // the search string is a no-op when the query text is unchanged (identical
+  // state bails out), so the old ErrorState retry never actually retried.
+  const handleRetrySearch = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
   /**
    * Seed from `?q=` so other screens can deep-link a search.
@@ -609,7 +624,37 @@ export default function SearchPage() {
             </div>
           )}
 
-          {scope === 'mail' && hasSearched && error && <ErrorState message={error.message} onRetry={handleSearch} />}
+          {/* Backend search failed with an empty local index: surface the
+              failure instead of the false "No results" claim. This branch was
+              dead code while the hook's queryFn never threw. */}
+          {scope === 'mail' && hasSearched && !isLoading && error && offlineHits.length === 0 && (
+            <ErrorState
+              title="Search unavailable"
+              message={error.message}
+              onRetry={handleRetrySearch}
+            />
+          )}
+
+          {/* Backend search failed but the device has local hits: show them
+              honestly labeled as offline/partial, never as full results. */}
+          {scope === 'mail' && hasSearched && !isLoading && error && offlineHits.length > 0 && (
+            <div className="p-4 pb-0" role="alert">
+              <div className="flex items-start gap-3 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)]/60 p-3">
+                <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-orange-500" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-[var(--quant-foreground)]">
+                    Server search unavailable — showing offline results
+                  </p>
+                  <p className="mt-0.5 text-xs text-[var(--quant-muted-foreground)]">
+                    These come from this device’s offline index and may be incomplete.
+                  </p>
+                </div>
+                <Button variant="secondary" onClick={handleRetrySearch} className="shrink-0">
+                  Try again
+                </Button>
+              </div>
+            </div>
+          )}
 
           {scope === 'mail' && hasSearched && !isLoading && !error && (!results || results.length === 0) && (
             <EmptyState
@@ -621,7 +666,7 @@ export default function SearchPage() {
           )}
 
           {/* Results */}
-          {scope === 'mail' && hasSearched && !isLoading && !error && results && results.length > 0 && (
+          {scope === 'mail' && hasSearched && !isLoading && visibleResults && visibleResults.length > 0 && (
             <motion.div
               variants={listContainerVariants}
               initial="hidden"
@@ -629,10 +674,10 @@ export default function SearchPage() {
               className="p-4"
             >
               <p className="mb-2 px-1 text-xs text-[var(--quant-muted-foreground)]">
-                {results.length}{' '}result{results.length !== 1 ? 's' : ''}{' '}for “{query}”
+                {visibleResults.length}{' '}{mailSearchOffline ? 'offline ' : ''}result{visibleResults.length !== 1 ? 's' : ''}{' '}for “{query}”
               </p>
               <div className="overflow-hidden rounded-xl border border-[var(--quant-border)]">
-                {results.map((email) => {
+                {visibleResults.map((email) => {
                   const senderLabel = email.from?.name || email.from?.email || '?';
                   const hue = toneFor(email.from?.email || senderLabel);
                   return (
