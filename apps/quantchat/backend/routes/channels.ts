@@ -35,16 +35,23 @@ export default async function channelsRoutes(fastify: FastifyInstance) {
   });
 
   // GET /channels/:id/messages — the channel feed (subscribers only).
-  fastify.get<{ Params: { id: string }; Querystring: { limit?: string } }>(
+  // QC-F-449: `before` is the archive cursor (id of the oldest post of the
+  // previous page). `data` stays the bare array the shipped clients parse;
+  // pagination truth rides in the `pagination` sibling (QC-F-348 precedent).
+  fastify.get<{ Params: { id: string }; Querystring: { limit?: string; before?: string } }>(
     '/:id/messages',
     async (request, reply) => {
       const limit = request.query.limit ? Number(request.query.limit) : undefined;
-      const data = await service().getMessages(
-        request.params.id,
-        userId(request),
-        limit && Number.isFinite(limit) ? limit : undefined,
-      );
-      return reply.send({ success: true, data });
+      const before = request.query.before?.trim() || undefined;
+      const page = await service().getMessages(request.params.id, userId(request), {
+        limit: limit && Number.isFinite(limit) ? limit : undefined,
+        before,
+      });
+      return reply.send({
+        success: true,
+        data: page.messages,
+        pagination: { hasMore: page.hasMore, nextCursor: page.nextCursor },
+      });
     },
   );
 

@@ -66,9 +66,10 @@ export interface ChannelPrisma {
   };
   message: {
     create(args: { data: Record<string, unknown> }): Promise<MessageRow>;
+    findFirst(args: { where: Record<string, unknown> }): Promise<MessageRow | null>;
     findMany(args: {
       where: Record<string, unknown>;
-      orderBy?: Record<string, unknown>;
+      orderBy?: Record<string, unknown> | Array<Record<string, unknown>>;
       take?: number;
     }): Promise<MessageRow[]>;
   };
@@ -95,6 +96,17 @@ export interface ChannelMessageView {
   senderId: string;
   content: string | null;
   createdAt: Date | string;
+}
+
+/**
+ * One page of a channel feed (QC-F-449). `messages` is chronological;
+ * `nextCursor` is the id of the page's OLDEST message and is the `before`
+ * value for the next (older) page — null exactly when `hasMore` is false.
+ */
+export interface ChannelFeedPage {
+  messages: ChannelMessageView[];
+  hasMore: boolean;
+  nextCursor: string | null;
 }
 
 export class ChannelService {
@@ -284,20 +296,59 @@ export class ChannelService {
    * Read a channel's broadcast feed (most recent first, returned chronological).
    * A subscriber (any active member) may read; a non-member is rejected 403 so a
    * private channel's posts are not leaked.
+   *
+   * Archive paging (QC-F-449): `before` is the id of a message IN THIS
+   * channel (normally the oldest message of the previous page). The page is
+   * everything strictly older than that message under the single total
+   * order [{createdAt desc},{id desc}] — the composite (createdAt, id)
+   * filter means posts sharing a createdAt are never skipped or repeated,
+   * and posts published between pages never shift an anchored page (an
+   * offset/skip design would). The cursor is resolved AFTER the membership
+   * gate, and an id that does not resolve inside this channel (unknown, or
+   * a post from another channel) fails closed 400 INVALID_CURSOR — never a
+   * silent page-1 fallback. `take: capped + 1` probes whether an older
+   * page exists; the cap (100) is per page, the archive itself is unbounded.
    */
-  async getMessages(channelId: string, userId: string, limit = 50): Promise<ChannelMessageView[]> {
+  async getMessages(
+    channelId: string,
+    userId: string,
+    options: { limit?: number; before?: string } = {},
+  ): Promise<ChannelFeedPage> {
     await this.requireChannel(channelId);
     const member = await this.activeMember(channelId, userId);
     if (!member) {
       throw createAppError('Subscribe to view this channel', 403, 'NOT_A_MEMBER');
     }
+    const rawLimit = options.limit;
+    const limit =
+      typeof rawLimit === 'number' && Number.isFinite(rawLimit) ? rawLimit : 50;
     const capped = Math.min(Math.max(1, Math.floor(limit)), 100);
+
+    let where: Record<string, unknown> = { conversationId: channelId };
+    if (options.before) {
+      const cursor = await this.prisma.message.findFirst({
+        where: { id: options.before, conversationId: channelId },
+      });
+      if (!cursor) {
+        throw createAppError('Invalid cursor', 400, 'INVALID_CURSOR');
+      }
+      where = {
+        conversationId: channelId,
+        OR: [
+          { createdAt: { lt: cursor.createdAt } },
+          { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+        ],
+      };
+    }
+
     const rows = await this.prisma.message.findMany({
-      where: { conversationId: channelId },
-      orderBy: { createdAt: 'desc' },
-      take: capped,
+      where,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: capped + 1,
     });
-    return [...rows]
+    const hasMore = rows.length > capped;
+    const page = hasMore ? rows.slice(0, capped) : rows;
+    const messages = [...page]
       .map((r) => ({
         id: r.id,
         channelId: r.conversationId,
@@ -306,6 +357,11 @@ export class ChannelService {
         createdAt: r.createdAt,
       }))
       .reverse();
+    return {
+      messages,
+      hasMore,
+      nextCursor: hasMore ? messages[0]!.id : null,
+    };
   }
 
   private toView(channel: ConversationRow, subscriberCount: number): ChannelView {

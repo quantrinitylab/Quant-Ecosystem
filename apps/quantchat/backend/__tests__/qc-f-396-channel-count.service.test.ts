@@ -130,6 +130,13 @@ function createFakePrisma() {
         messages.push(msg);
         return msg;
       },
+      async findFirst({ where }) {
+        return (
+          messages.find(
+            (m) => m.conversationId === where['conversationId'] && m.id === where['id'],
+          ) ?? null
+        );
+      },
       async findMany({ where, take }) {
         const rows = messages
           .filter((m) => m.conversationId === where['conversationId'])

@@ -66,6 +66,8 @@ interface ApiResponse<T> {
   data?: T;
   error?: { code: string; message: string; statusCode: number };
   metadata?: Record<string, unknown>;
+  /** Cursor-paging truth on list endpoints that support it (QC-F-449). */
+  pagination?: { hasMore: boolean; nextCursor: string | null };
 }
 
 interface RequestOptions {
@@ -381,12 +383,19 @@ export class QuantChatApiClient {
     return this.post('/channels', { name, ...(description ? { description } : {}) });
   }
 
-  /** A channel's broadcast feed (subscribers only; chronological). */
+  /**
+   * A channel's broadcast feed (subscribers only; chronological).
+   * QC-F-449: `options.before` is the archive cursor (id of the oldest
+   * post already held); the response `pagination` sibling says whether an
+   * older page exists and what its cursor is.
+   */
   async getChannelMessages(
     channelId: string,
-    limit?: number,
+    options?: { limit?: number; before?: string },
   ): Promise<ApiResponse<ChannelMessageView[]>> {
-    return this.get(`/channels/${channelId}/messages`, { params: { limit } });
+    return this.get(`/channels/${channelId}/messages`, {
+      params: { limit: options?.limit, before: options?.before },
+    });
   }
 
   async subscribeChannel(channelId: string): Promise<ApiResponse<{ subscribed: true }>> {

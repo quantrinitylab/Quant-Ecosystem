@@ -114,6 +114,13 @@ function createFakePrisma() {
         messages.push(msg);
         return msg;
       },
+      async findFirst({ where }) {
+        return (
+          messages.find(
+            (m) => m.conversationId === where['conversationId'] && m.id === where['id'],
+          ) ?? null
+        );
+      },
       async findMany({ where, take }) {
         const rows = messages
           .filter((m) => m.conversationId === where['conversationId'])
@@ -219,7 +226,9 @@ describe('ChannelService', () => {
     await svc.publish(ch.id, 'owner-1', 'second');
 
     const feed = await svc.getMessages(ch.id, 'reader-1');
-    expect(feed.map((m) => m.content)).toEqual(['first', 'second']);
+    expect(feed.messages.map((m) => m.content)).toEqual(['first', 'second']);
+    expect(feed.hasMore).toBe(false);
+    expect(feed.nextCursor).toBeNull();
   });
 
   it('forbids a non-member from reading the feed (403)', async () => {

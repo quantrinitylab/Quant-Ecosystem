@@ -244,7 +244,8 @@ function ChannelDetail({
   onBack: () => void;
   onChanged: () => void;
 }) {
-  const { messages, isLoading, error, refetch } = useChannelFeed(channel.id);
+  const { messages, isLoading, error, refetch, hasMore, isLoadingOlder, olderError, loadOlder } =
+    useChannelFeed(channel.id);
   const unsubscribe = useUnsubscribeChannel();
   const publish = usePublishToChannel(channel.id);
   const [draft, setDraft] = useState('');
@@ -301,24 +302,60 @@ function ChannelDetail({
       <div className="flex-1 space-y-2 overflow-y-auto">
         {isLoading ? (
           <LoadingState variant="skeleton" text="Loading feed..." />
-        ) : error ? (
+        ) : error && messages.length === 0 ? (
           <ErrorState message={error.message} onRetry={() => void refetch()} />
         ) : messages.length === 0 ? (
           <EmptyState title="No posts yet" description="Broadcasts will appear here" />
         ) : (
-          messages.map((m) => (
-            <div
-              key={m.id}
-              className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-background)] p-3"
-            >
-              <p className="whitespace-pre-wrap break-words text-sm text-[var(--quant-foreground)]">
-                {m.content}
+          <>
+            {/* QC-F-449: archive paging lives at the TOP of the feed — posts
+                are chronological top-to-bottom, so older pages prepend here.
+                hasMore → Load-older button; the true start → an honest
+                "Beginning of channel" strip; an older-page failure stays
+                inline (loaded posts are never replaced by an ErrorState). */}
+            {hasMore ? (
+              <button
+                type="button"
+                onClick={loadOlder}
+                disabled={isLoadingOlder}
+                className="w-full rounded-lg border border-[var(--quant-border)] px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] disabled:opacity-50"
+              >
+                {isLoadingOlder ? 'Loading older posts…' : 'Load older posts'}
+              </button>
+            ) : (
+              <p className="py-1 text-center text-[10px] text-[var(--quant-muted-foreground)]">
+                Beginning of channel
               </p>
-              <span className="mt-1 block text-[10px] text-[var(--quant-muted-foreground)]">
-                {formatTime(String(m.createdAt))}
-              </span>
-            </div>
-          ))
+            )}
+            {olderError && (
+              <div
+                role="alert"
+                className="flex items-center justify-between gap-2 rounded-lg border border-[var(--quant-border)] px-3 py-2 text-xs text-red-500"
+              >
+                <span>{olderError.message}</span>
+                <button
+                  type="button"
+                  onClick={loadOlder}
+                  className="font-semibold text-[var(--quant-foreground)]"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {messages.map((m) => (
+              <div
+                key={m.id}
+                className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-background)] p-3"
+              >
+                <p className="whitespace-pre-wrap break-words text-sm text-[var(--quant-foreground)]">
+                  {m.content}
+                </p>
+                <span className="mt-1 block text-[10px] text-[var(--quant-muted-foreground)]">
+                  {formatTime(String(m.createdAt))}
+                </span>
+              </div>
+            ))}
+          </>
         )}
       </div>
 
