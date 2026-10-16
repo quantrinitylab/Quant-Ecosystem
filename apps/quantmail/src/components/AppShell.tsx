@@ -43,6 +43,7 @@ import { UndoSendProvider } from './UndoSendCountdownBar';
 import { useNewMailDesktopAlerts } from '../hooks/useNewMailDesktopAlerts';
 import { QuantPillarTopBar } from './QuantPillarTopBar';
 import { ContextBottomNavBar } from './ContextBottomNavBar';
+import { DesktopAppRail } from './DesktopAppRail';
 import { pillarForApp } from './desktopContextTabs';
 import { appThemeForPath } from '../lib/app-theme';
 import { QuantyAvatarPicker } from './workplace/QuantyAvatarPicker';

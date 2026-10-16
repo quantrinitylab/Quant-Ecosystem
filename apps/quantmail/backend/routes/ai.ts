@@ -31,10 +31,14 @@ export default async function aiRoutes(fastify: FastifyInstance) {
 
   // POST /emails/:id/summarize
   // WR-MAIL-104: mail.ai.summarize is an active catalog command (cached
-  // aiSummary write) — key required.
+  // aiSummary write) — key required. fix/qm-idempotency-ttl-3: this is the
+  // slowest mutating AI route (LLM call over a potentially large thread
+  // body), so it declares an honest 15-minute in-flight claim window. The
+  // generic path still heartbeats the claim while the handler runs — the TTL
+  // is a floor, not a wall-clock bound on handler duration.
   fastify.post<{ Params: { id: string } }>(
     '/:id/summarize',
-    { config: { idempotencyRequired: true } },
+    { config: { idempotencyRequired: true, idempotencyProcessingTtlSeconds: 900 } },
     async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) {
