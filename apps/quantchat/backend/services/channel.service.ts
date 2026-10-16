@@ -205,8 +205,18 @@ export class ChannelService {
     });
   }
 
-  /** Count of active subscribers (members who have not left). */
+  /**
+   * Count of active subscribers (members who have not left).
+   * The id MUST name a real CHANNEL: any other conversation (DIRECT/GROUP)
+   * or a missing id is 404 CHANNEL_NOT_FOUND, so this endpoint can never be
+   * used to size or probe a private conversation. For a real channel the
+   * count itself is public metadata — Discover publishes the same number to
+   * every authenticated caller (listPublishers) and shows it next to the
+   * Subscribe button — so no membership is required here. Membership gates
+   * CONTENT (getMessages), not this count.
+   */
   async subscriberCount(channelId: string): Promise<number> {
+    await this.requireChannel(channelId);
     return this.prisma.conversationMember.count({
       where: { conversationId: channelId, leftAt: null },
     });

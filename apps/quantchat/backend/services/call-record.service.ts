@@ -32,6 +32,40 @@ export type CallType = 'AUDIO' | 'VIDEO';
 /** Call lifecycle status — mirrors the Prisma `CallStatus` enum. */
 export type CallStatus = 'RINGING' | 'ACTIVE' | 'ENDED' | 'MISSED' | 'DECLINED';
 
+/**
+ * QC-F-400: client (wire) vocabulary for call history. Everywhere else in
+ * this codebase the public string API is the client's lowercase vocabulary
+ * (stories photo/video/text, message types, participant roles) while Prisma
+ * keeps its UPPERCASE enums — the translation lives at the backend DTO
+ * boundary. Call history was the one lane missing that translation: the
+ * wire carried the raw Prisma enums, so every enum comparison on the
+ * /calls page (Missed filter, missed styling, video-vs-voice) silently
+ * never matched.
+ */
+export type ClientCallType = 'voice' | 'video';
+
+/** Client (wire) call lifecycle status — see {@link ClientCallType}. */
+export type ClientCallStatus = 'ringing' | 'active' | 'ended' | 'missed' | 'declined';
+
+/**
+ * Exhaustive DB→wire maps. Typed as `Record<…>` so a future Prisma enum
+ * value fails compilation here instead of leaking raw onto the wire.
+ * Deliberately no runtime fallback: an unknown DB value cannot occur
+ * (Prisma enforces the enum), and inventing one would be dishonest.
+ */
+const CALL_TYPE_TO_CLIENT: Record<CallType, ClientCallType> = {
+  AUDIO: 'voice',
+  VIDEO: 'video',
+};
+
+const CALL_STATUS_TO_CLIENT: Record<CallStatus, ClientCallStatus> = {
+  RINGING: 'ringing',
+  ACTIVE: 'active',
+  ENDED: 'ended',
+  MISSED: 'missed',
+  DECLINED: 'declined',
+};
+
 /** A persisted `Call` row (the subset of columns this service reads/writes). */
 export interface CallRow {
   id: string;
@@ -103,8 +137,8 @@ export interface CallHistoryEntry {
   id: string;
   conversationId: string;
   initiatorId: string;
-  type: CallType;
-  status: CallStatus;
+  type: ClientCallType;
+  status: ClientCallStatus;
   startedAt: Date | null;
   endedAt: Date | null;
   duration: number | null;
@@ -301,8 +335,11 @@ export class CallRecordService {
       id: row.id,
       conversationId: row.conversationId,
       initiatorId: row.initiatorId,
-      type: row.type,
-      status: row.status,
+      // QC-F-400: translate the Prisma enums to the client wire vocabulary
+      // here — the persisted CallRow itself stays in DB form (QC-F-287's
+      // rehydrate path depends on it).
+      type: CALL_TYPE_TO_CLIENT[row.type],
+      status: CALL_STATUS_TO_CLIENT[row.status],
       startedAt: row.startedAt,
       endedAt: row.endedAt,
       duration: row.duration,

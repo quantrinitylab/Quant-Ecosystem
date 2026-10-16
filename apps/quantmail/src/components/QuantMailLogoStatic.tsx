@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 /**
  * Static inline SVG of the QuantMail mark — the signature "M" with eyes on the
  * ember plate. Use for non-interactive placements (splash loader, signed-out
@@ -34,6 +36,14 @@ const M_PATH =
   'L 77 67 A 7 7 0 0 1 70 74 Z';
 
 export function QuantMailLogoStatic({ size = 42, className, title }: QuantMailLogoStaticProps) {
+  // The ember-plate gradient id must be unique per instance. AuthShell renders
+  // this mark twice (mobile + desktop copies) and Chrome resolves `url(#…)`
+  // against the FIRST id in document order — with a static id the desktop
+  // copy's plate fill resolved to the `display:none` mobile copy's `<defs>`
+  // and rendered nothing (brand bug R12-NEW-1). Same pattern as AppMark /
+  // GraphiteMark: derive the id from `useId`, sanitized for `url(#…)`.
+  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  const plateId = `qm-static-plate-${uid}`;
   return (
     <svg
       width={size}
@@ -45,7 +55,7 @@ export function QuantMailLogoStatic({ size = 42, className, title }: QuantMailLo
     >
       {title ? <title>{title}</title> : null}
       <defs>
-        <radialGradient id="qm-static-plate" gradientUnits="userSpaceOnUse" cx="42" cy="40" r="82">
+        <radialGradient id={plateId} gradientUnits="userSpaceOnUse" cx="42" cy="40" r="82">
           <stop offset="0" stopColor="#FFC189" />
           <stop offset="0.3" stopColor="#FF9450" />
           <stop offset="0.5" stopColor="var(--quant-primary)" />
@@ -54,7 +64,7 @@ export function QuantMailLogoStatic({ size = 42, className, title }: QuantMailLo
         </radialGradient>
       </defs>
       {/* Ember plate */}
-      <rect x="5" y="5" width="90" height="90" rx="22" fill="url(#qm-static-plate)" />
+      <rect x="5" y="5" width="90" height="90" rx="22" fill={`url(#${plateId})`} />
       <rect
         x="5.5"
         y="5.5"

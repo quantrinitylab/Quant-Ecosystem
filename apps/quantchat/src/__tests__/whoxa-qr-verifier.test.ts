@@ -21,13 +21,17 @@ describe('Whoxa QR Code Contact Scanner & Peer Verification Engine', () => {
     userId: 'usr_alice_001',
     username: 'alice_crypt',
     displayName: 'Alice Sterling',
-    publicKey: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0alicePublicKeyExample',
+    // QC-F-398 fixture migration: real 32-byte base64 identity keys (the
+    // Flutter pinned cross-client vectors A/B) — the old fake RSA-shaped
+    // strings are not valid identity keys and the canonical fingerprint
+    // function now fail-closed throws on them.
+    publicKey: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
   };
   const bob = {
     userId: 'usr_bob_002',
     username: 'bob_protocol',
     displayName: 'Bob Henderson',
-    publicKey: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1bobPublicKeyExample',
+    publicKey: '//79/Pv6+fj39vX08/Lx8O/u7ezr6uno5+bl5OPi4eA=',
   };
 
   describe('1. Contact QR Code Generation & Verification', () => {
@@ -134,7 +138,7 @@ describe('Whoxa QR Code Contact Scanner & Peer Verification Engine', () => {
     });
 
     it('produces different safety numbers for different public key pairs', () => {
-      const evePublicKey = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3eveThirdPartyPublicKey';
+      const evePublicKey = 'QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=';
       const safetyAliceBob = computePeerSafetyNumber(alice.publicKey, bob.publicKey);
       const safetyAliceEve = computePeerSafetyNumber(alice.publicKey, evePublicKey);
 
@@ -171,7 +175,9 @@ describe('Whoxa QR Code Contact Scanner & Peer Verification Engine', () => {
       expect(result.verified).toBe(true);
       expect(result.fingerprintMatch).toBe(true);
       expect(result.status).toBe('VERIFIED');
-      expect(isValidSafetyNumberFormat(result.safetyNumber)).toBe(true);
+      // QC-F-398 (C1): with no identity keys supplied there is no safety
+      // number — honest-empty, never one fabricated from the fingerprints.
+      expect(result.safetyNumber).toBe('');
       expect(result.errorMessage).toBeUndefined();
     });
 

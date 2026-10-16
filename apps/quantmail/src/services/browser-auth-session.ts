@@ -31,6 +31,22 @@ async function purgeUnscopedThreadDrafts(): Promise<void> {
   }
 }
 
+// QM fix qm-drive-doc-cache-scope (P1, same leak class as the draft P0
+// above): logout must also drop legacy unscoped doc-content cache keys
+// (`quant_doc_<docId>`) — they are NOT attributable to any account, so the
+// next account on this browser could restore the previous account's cached
+// document content. Account-scoped v2 keys (`quant_doc.v2.<account>.<docId>`)
+// partition safely and survive logout for the account's own next sign-in.
+async function purgeUnscopedDocCaches(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const mod = await import('../lib/docContentCache');
+    mod.purgeLegacyDocCacheKeys(mod.windowDocCacheStorage());
+  } catch {
+    // Best effort: a storage failure must never strand a logout.
+  }
+}
+
 /**
  * Global ceiling for any single authenticated request (including one 401
  * refresh retry). Mirrors the PR #621 auth-check pattern: a hung backend must
@@ -250,6 +266,9 @@ export const browserAuthSession = {
       // end. Account-scoped v2 keys partition safely and survive for the
       // account's own next sign-in.
       await purgeUnscopedThreadDrafts();
+      // qm-drive-doc-cache-scope: legacy unscoped doc-content cache keys are
+      // the same leak class — purge them too. v2 account-scoped keys survive.
+      await purgeUnscopedDocCaches();
     }
   },
 

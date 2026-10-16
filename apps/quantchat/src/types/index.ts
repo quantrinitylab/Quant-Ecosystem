@@ -392,7 +392,12 @@ export interface SnapMemory extends BaseEntity {
 // ============================================================================
 
 export type CallType = 'voice' | 'video';
-export type CallStatus = 'ringing' | 'active' | 'ended' | 'missed' | 'declined' | 'busy';
+// QC-F-400: this lowercase vocabulary IS the canonical wire form — the
+// backend call-history DTO translates the Prisma UPPERCASE enums into it.
+// 'busy' was removed: no producer can ever emit it (the Prisma CallStatus
+// enum has exactly RINGING/ACTIVE/ENDED/MISSED/DECLINED), so keeping it in
+// the union promised a value that could never arrive.
+export type CallStatus = 'ringing' | 'active' | 'ended' | 'missed' | 'declined';
 
 export interface Call extends BaseEntity {
   callId: string;
