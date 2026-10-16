@@ -2147,7 +2147,7 @@ function InboxPageContent() {
       if (lens === 'promotions') return t.category === 'promotions';
       if (lens === 'forums') return t.category === 'forums';
       if (lens === 'unread') return !t.isRead;
-      if (lens === 'drafts') return isDraftOnlyConversation(t) || t.messages.some((m) => m.isDraft);
+      if (lens === 'drafts') return isDraftOnlyConversation(t.latestEmail, t.messages) || t.messages.some((m) => Boolean(m.isDraft));
       if (lens === 'important') return isImportantThread(t);
       if (lens === 'teams') return isGroupThread(t);
       if (lens === 'contacts') return isContactThread(t);
