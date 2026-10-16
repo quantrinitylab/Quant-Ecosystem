@@ -691,6 +691,23 @@ export class QuantMailApiClient {
     return this.post('/auth/password-reset', { email });
   }
 
+  /**
+   * Out-of-band account recovery (fix/qm-account-recovery-3). The recovery
+   * email is the address password-reset links are mailed to IN ADDITION to the
+   * account's own inbox, for when the inbox itself is unreachable (forgot
+   * password + no active session). Managed while signed in only — the backend
+   * requires an authenticated session for both calls.
+   */
+  async getRecoveryEmail(): Promise<ApiResponse<{ recoveryEmail: string | null }>> {
+    return this.get('/auth/account/recovery-email');
+  }
+
+  async setRecoveryEmail(
+    email: string | null,
+  ): Promise<ApiResponse<{ recoveryEmail: string | null }>> {
+    return this.put('/auth/account/recovery-email', { email });
+  }
+
   async resetPassword(
     token: string,
     newPassword: string,

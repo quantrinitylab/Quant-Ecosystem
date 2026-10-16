@@ -119,7 +119,8 @@ const USER = {
   passwordHash: 'hashed_old-password',
 };
 
-const SENT_MESSAGE = 'If an account exists with that address, reset instructions have been sent.';
+const SENT_MESSAGE =
+  "If an account exists with that address, reset instructions have been sent to the account's email — and to its recovery email, if one was set.";
 
 /** The token as it left the building, recovered from the mail we mocked. */
 const mailedToken = (): string => {

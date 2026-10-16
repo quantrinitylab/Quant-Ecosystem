@@ -1,0 +1,12 @@
+-- PR (fix/qm-account-recovery-3): out-of-band account recovery channel.
+--
+-- Before this migration the password-reset link was mailed to the user's own
+-- QuantMail inbox only — unreachable when locked out (forgot password, no
+-- active session), which made the lockout permanent. The new nullable
+-- recoveryEmail column is the out-of-band channel: reset links are mailed here
+-- too when set (see apps/quantmail/backend/routes/password-reset.ts), and the
+-- address is managed from Settings → Account while signed in.
+--
+-- Nullable, so pre-existing rows need no backfill. No unique index, so one
+-- shared family mailbox may back more than one account.
+ALTER TABLE "users" ADD COLUMN "recoveryEmail" TEXT;
