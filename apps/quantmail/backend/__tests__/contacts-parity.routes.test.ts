@@ -318,6 +318,17 @@ function createInMemoryPrisma() {
         return { ...row };
       }),
     },
+    // ContactService.deduplicateContacts consults the "keep separate"
+    // dismissed_pair table (migration 0088) before bulk-merging; the harness
+    // keeps no dismissed pairs.
+    dismissedDuplicatePair: {
+      findMany: vi.fn().mockResolvedValue([]),
+      upsert: vi.fn().mockImplementation(async ({ create }: any) => ({
+        ...create,
+        id: 'dismissed-1',
+        createdAt: new Date(),
+      })),
+    },
     $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
   db.$transaction = vi.fn().mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(db));

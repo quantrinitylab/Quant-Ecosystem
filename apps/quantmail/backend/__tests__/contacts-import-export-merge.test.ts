@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ContactService } from '../services/contact.service';
+import { ContactService, duplicatePairKey } from '../services/contact.service';
 
 describe('ContactService - Import/Export & Deduplication (Tasks QC-01, QC-02)', () => {
   let service: ContactService;
@@ -182,6 +182,85 @@ describe('ContactService - Import/Export & Deduplication (Tasks QC-01, QC-02)', 
       });
       expect(mockPrisma.contact.delete).toHaveBeenCalledWith({ where: { id: 'c2' } });
       expect(merged).toBeDefined();
+    });
+  });
+
+  describe('Task QC-02: deduplicateContacts respects "keep separate" dismissals', () => {
+    const makeContact = (id: string, overrides: Record<string, unknown> = {}) => ({
+      id,
+      userId: 'user-1',
+      name: 'John Doe',
+      email: 'john@example.com',
+      phone: null,
+      company: null,
+      tags: [],
+      frequency: 1,
+      lastContactedAt: null,
+      isFavorite: false,
+      createdAt: new Date(1000),
+      updatedAt: new Date(1000),
+      ...overrides,
+    });
+
+    const mockContactsForMerge = (contacts: any[]) => {
+      mockPrisma.contact.findMany.mockResolvedValue(contacts);
+      mockPrisma.contact.findUnique.mockImplementation((args: any) =>
+        Promise.resolve(contacts.find((c) => c.id === args.where.id) ?? null),
+      );
+      mockPrisma.contact.update.mockImplementation((args: any) =>
+        Promise.resolve({
+          ...contacts.find((c) => c.id === args.where.id),
+          ...args.data,
+        }),
+      );
+      mockPrisma.contact.delete.mockResolvedValue({});
+    };
+
+    it('merges email-sharing duplicates when no pair was dismissed', async () => {
+      mockContactsForMerge([makeContact('c1'), makeContact('c2')]);
+      mockPrisma.dismissedDuplicatePair.findMany.mockResolvedValue([]);
+
+      const result = await service.deduplicateContacts('user-1');
+
+      expect(result.mergedCount).toBe(1);
+      expect(mockPrisma.contact.delete).toHaveBeenCalledWith({ where: { id: 'c2' } });
+    });
+
+    it('skips a dismissed "keep separate" pair in the bulk Auto-Merge path', async () => {
+      // P1 regression: POST /contacts/deduplicate previously union-merged a
+      // pair the user had explicitly marked "keep separate" and deleted the
+      // record, because it never consulted dismissed_duplicate_pair.
+      mockContactsForMerge([makeContact('c1'), makeContact('c2')]);
+      mockPrisma.dismissedDuplicatePair.findMany.mockResolvedValue([
+        { userId: 'user-1', pairKey: duplicatePairKey('c1', 'c2') },
+      ]);
+
+      const result = await service.deduplicateContacts('user-1');
+
+      expect(result.mergedCount).toBe(0);
+      expect(mockPrisma.contact.update).not.toHaveBeenCalled();
+      expect(mockPrisma.contact.delete).not.toHaveBeenCalled();
+    });
+
+    it('never collapses a dismissed pair transitively through a shared third contact', async () => {
+      // A keeps-separate-from B; both share an email with C, so union-find
+      // puts all three in one group. Merging both A and B into C would still
+      // collapse the dismissed pair into one contact — B must survive.
+      mockContactsForMerge([makeContact('c1'), makeContact('c2'), makeContact('c3')]);
+      mockPrisma.dismissedDuplicatePair.findMany.mockResolvedValue([
+        { userId: 'user-1', pairKey: duplicatePairKey('c1', 'c2') },
+      ]);
+
+      const result = await service.deduplicateContacts('user-1');
+
+      expect(result.mergedCount).toBe(1);
+      const deletedIds = mockPrisma.contact.delete.mock.calls.map(
+        (call: any) => call[0].where.id,
+      );
+      // One of the three survives as a separate contact; the dismissed pair
+      // is never union-merged into a single record.
+      expect(deletedIds).toHaveLength(1);
+      expect(deletedIds[0]).not.toBe('c1');
     });
   });
 });
