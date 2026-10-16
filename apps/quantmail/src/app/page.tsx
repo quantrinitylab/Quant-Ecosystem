@@ -195,15 +195,9 @@ type InboxTurn = 'any' | 'needs_you' | 'waiting';
 type InboxFilter = 'starred' | 'attachment';
 
 const INBOX_LENSES: Array<{ key: InboxLens; label: string; hint: string }> = [
-  /*
-   * User-agreed filter pills (2026-10-07): exactly All, Unread, Contacts,
-   * Spam. The category lenses (Primary/Updates/Social/Promotions/Forums/
-   * Groups/Snoozed) were removed from the chip row per explicit user feedback
-   * — they stay valid `InboxLens` keys (deep links, filter popover, URL params
-   * keep working) but no longer render as pills.
-   */
   { key: 'all', label: 'All', hint: 'Every conversation, automated mail included' },
   { key: 'unread', label: 'Unread', hint: 'Conversations you have not opened yet' },
+  { key: 'drafts', label: 'Drafts', hint: 'Unsent draft messages you are working on' },
   { key: 'contacts', label: 'Contacts', hint: 'Conversations with someone in your address book' },
   { key: 'spam', label: 'Spam', hint: 'Junk and suspicious messages' },
 ];
@@ -2153,6 +2147,7 @@ function InboxPageContent() {
       if (lens === 'promotions') return t.category === 'promotions';
       if (lens === 'forums') return t.category === 'forums';
       if (lens === 'unread') return !t.isRead;
+      if (lens === 'drafts') return isDraftOnlyConversation(t.latestEmail, t.messages) || t.messages.some((m) => Boolean(m.isDraft));
       if (lens === 'important') return isImportantThread(t);
       if (lens === 'teams') return isGroupThread(t);
       if (lens === 'contacts') return isContactThread(t);

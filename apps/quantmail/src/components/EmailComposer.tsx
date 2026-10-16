@@ -3324,7 +3324,7 @@ export function EmailComposer({
             <ScheduleSendModal
               isOpen={showScheduleModal}
               onClose={() => setShowScheduleModal(false)}
-              onSchedule={(scheduledAt) => {
+              onSchedule={(scheduledAt: string) => {
                 void handleSend(scheduledAt);
               }}
             />
