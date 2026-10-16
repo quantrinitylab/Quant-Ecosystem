@@ -1673,7 +1673,7 @@ STILL-UNVERIFIED: signed-in sessions/grants/PAT/2FA flows live.
 R3 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 1 P2 (R3-NEW-1; R2-NEW-1/R2-NEW-2 confirmed still present, not re-counted). No fix agents spawned (no P0/P1). Rotation -> QM-SCREEN-017 R3.
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
-Status: [~] R13 regression audit IN PROGRESS (2026-10-16 ~17:35 IST — Owner: LANE-1, Branch: lane1-audit-017r13)
+Status: [x] DONE (R13 regression audit complete 2026-10-16 ~17:35–17:55 IST — Owner: LANE-1, Branch: lane1-audit-017r13; #855 fixes verified intact on origin/main abfc643ab; window 10 merges, zero admin-path changes; 0 new findings; carryovers: 2 P1 + 2 P2 still present, green-dot resolved; fixes tracked via their PRs)
 Owner: LANE-1
 Branch: lane1-audit-017r13
 Required: capability RBAC, tenant isolation, domain verification, DLP, audit explorer, legal hold, retention, export/deletion, incident visibility, break-glass controls.
@@ -1777,6 +1777,15 @@ VERDICT-LIVE: /admin logged-out → honest sign-in page (desktop 1440x900); /adm
 STILL-UNVERIFIED: signed-in staff/non-staff admin flows; whether staff-viewer cross-tenant audit returns real rows on staging.
 R4 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2 (2 P1 + 3 P2 carryovers confirmed still present, none re-counted). No fix agents spawned (no new P0/P1).
 Rotation → QM-SCREEN-018 (help) R4, queued.
+
+R13 REGRESSION AUDIT COMPLETE (2026-10-16 ~17:35–17:55 IST) — LANE-1, branch lane1-audit-017r13: R1 fix PR #855 VERIFIED INTACT on origin/main abfc643ab (fresh fetch; code read from origin/main tree only, qe-main working tree ignored per stale-tree lesson; ledger work in ~/workspace/worktrees/ledger-lane-1, merge-only, remote tip == local HEAD before writing). WINDOW c10a0673755..abfc643ab = 10 first-parent merges (#1240 swipe-row-menu-2, #1241 dedupe-automerge-dismissed, #1226 search-local-fallback, #1242, #1243 obsidian shell, #1244 design tokens, #1246 gate-1243-shell, #1247 dead-inbox-tab-spam-lens, #1248 quantgit-sse, #1245 idempotency-ttl-3) — path-filter over app/admin, components/admin, AdminGuard.tsx, backend/routes/{admin,audit-logs,retention}.ts, backend/services/retention.service.ts, packages/audit = EMPTY. Pure re-verification pass.
+R13 RE-CHECKS (byte-verified on abfc643ab, all intact): retention.ts 8 requireStaff; audit-logs.ts zero startsWith('admin') (authorizeTenantAccess, ADMIN cross-tenant only); admin.ts STAFF_ROLES ADMIN+MODERATOR, 14 requireStaff; AdminGuard wraps /admin layout.
+R13 CARRYOVERS (all still present, not re-filed): P1 no admin UI for legal holds/retention/org member-role mgmt + orgRole never assigned (no staff-minting product path, DB-level only); P1 incident visibility + break-glass absent repo-wide; P2 DLP empty-state "compliance API" copy (dlp-audit/page.tsx:179); P2 divider hairlines (net diff empty — no new hairlines possible). Green-dot P2 stays RESOLVED — re-grepped, zero "healthy" hits.
+FRESH HUNT CLEAN: zero ?token=, zero showToast in app/admin + components/admin, zero invented/coming-soon/dummy/lorem/mock copy, zero accent drift (#FF8C42), zero hairlines in admin paths.
+VERDICT-LIVE (proxy ~/workspace/tools/proxy_forward.py was DOWN at run start — earlier pgrep matched my own shell, the bracket-trick lesson; restarted via nohup, listening on 127.0.0.1:8888): /admin → honest sign-in gate desktop 1440x900 (pure black, mail-orange, current ember ghost-plate M-mark, "Encrypted in transit" provable copy, zero old-logo flash); /admin/dlp-audit → honest sign-in gate mobile 390x844 iPhone 14 (same brand mark, no old-logo flash); GET /api/admin/accounts/count, /api/audit-logs, /api/retention/legal-holds, /api/retention/policies → honest 401 x4. Signed-in staff/non-staff flows = needs-auth. Shots reviewed + deleted; chrome orphans cleaned (/tmp healthy).
+STILL-UNVERIFIED: signed-in staff/non-staff admin flows; whether staff-viewer cross-tenant audit returns real rows on staging.
+R13 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents spawned (P0/P1-only protocol; subagent.list 0 active). findings.md untouched.
+Rotation → QM-SCREEN-018 (help) ROUND 13 regression, queued.
 
 ## QM-SCREEN-018 — Help / privacy / terms / invite / groups / SSO / legacy route disposition
 Status: [x] DONE (ROUND 12 regression audit complete 2026-10-16 ~09:05 IST — Owner: LANE-1, Branch: lane1-audit-018r12; 0 new P0/P1/P2/P3; P1 R9-NEW-1 jwks-401-live persists, deploy-side, no code fix applicable)
