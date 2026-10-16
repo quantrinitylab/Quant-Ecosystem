@@ -248,7 +248,7 @@ describe('QC-F-255 ChannelService resubscribe (leave → rejoin)', () => {
     expect(rows[0]!.leftAt).toBeNull();
     expect(await svc.subscriberCount(ch.id)).toBe(2); // owner + lautne wala
     const feed = await svc.getMessages(ch.id, 'reader-1');
-    expect(feed.map((m) => m.content)).toEqual(['hello subscribers']);
+    expect(feed.messages.map((m) => m.content)).toEqual(['hello subscribers']);
   });
 
   it('A-2: revive par joinedAt reset hota hai aur create-parity fields laut-te hain', async () => {
