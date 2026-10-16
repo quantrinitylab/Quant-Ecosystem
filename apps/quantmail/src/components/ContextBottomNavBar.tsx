@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Quanty } from './Quanty';
+import { LiquidTrack } from './workplace/LiquidTrack';
 import { triggerHapticTap } from './QuantPillarTopBar';
 // QM-UIUX-037: single accent-color source of truth (mobile values canonical).
 // NOTE: Tailwind arbitrary-value classes below MUST stay literal strings so
@@ -1283,70 +1284,86 @@ export function ContextBottomNavBar({
 
   return (
     <div
-      className={`md:hidden flex-none bg-[var(--qt-surface-1)] border-t border-[#20242D] pb-[env(safe-area-inset-bottom,0px)] ${className}`}
+      className={`md:hidden flex-none ${className}`}
     >
       <nav
         key={pillar}
-        className="h-[56px] px-2 flex items-center justify-around"
+        className="h-full px-3 pt-2 pb-[env(safe-area-inset-bottom,0px)] bg-transparent"
         aria-label={`${pillarConfig.name} contextual navigation`}
         data-testid="context-bottom-nav"
       >
-        <div className="flex items-center justify-around w-full max-w-md mx-auto">
-          {visibleTabs.map((tab, idx) => {
-            const isActive = idx === activeIndex;
-            const IconComponent = tab.icon;
-            const currentBadgeCount = badgeOverrides?.[tab.id];
+        <div
+          className="qw-bar qw-bar-h mb-1.5"
+          style={{ height: 60, ['--lq-accent' as string]: pillarConfig.accentColor }}
+        >
+          <LiquidTrack
+            orient="h"
+            count={visibleTabs.length}
+            index={activeIndex}
+            thickness={60}
+            radius={22}
+            lift={6}
+            pad={6}
+            top={0.34}
+            flare={0.26}
+            flareMax={24}
+            testId="context-bottom-nav-liquid"
+          />
+          <div className="qw-segs qw-tabs-in">
+            {visibleTabs.map((tab, idx) => {
+              const isActive = idx === activeIndex;
+              const IconComponent = tab.icon;
+              const currentBadgeCount = badgeOverrides?.[tab.id];
 
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => handleTabClick(tab)}
-                data-testid={`context-tab-${tab.id}`}
-                className={`flex-1 flex flex-col items-center justify-center py-1 transition-colors select-none ${
-                  isActive ? 'text-[#FF7A00]' : 'text-[#8E95A3] hover:text-[#D1D5DB]'
-                }`}
-                aria-current={isActive ? 'page' : undefined}
-                aria-label={
-                  tab.ariaLabel ||
-                  `${tab.label}${currentBadgeCount ? ` (${currentBadgeCount} unread)` : ''}${
-                    tab.badgeText ? ` (${tab.badgeText})` : ''
-                  }`
-                }
-              >
-                <span className="relative flex items-center justify-center">
-                  {tab.logoOnly ? (
-                    <Quanty size={24} expression="idle" bob={false} />
-                  ) : (
-                    <IconComponent className="size-5" active={isActive} />
-                  )}
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabClick(tab)}
+                  data-testid={`context-tab-${tab.id}`}
+                  className="qw-tab select-none"
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-label={
+                    tab.ariaLabel ||
+                    `${tab.label}${
+                      currentBadgeCount ? `, ${currentBadgeCount} unread` : ''
+                    }`
+                  }
+                >
+                  <span className="qw-tab-ic relative">
+                    {tab.logoOnly ? (
+                      <Quanty size={26} expression="idle" bob={false} />
+                    ) : (
+                      <IconComponent className="size-[22px]" active={isActive} />
+                    )}
 
-                  {/* Number Badge */}
-                  {currentBadgeCount !== undefined && currentBadgeCount > 0 && (
-                    <span
-                      className="absolute -top-1 -right-2.5 flex min-w-[15px] h-[15px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none bg-[#FF7A00] text-black shadow"
-                    >
-                      {currentBadgeCount > 99 ? '99+' : currentBadgeCount}
-                    </span>
-                  )}
+                    {/* Number Badge */}
+                    {currentBadgeCount !== undefined && currentBadgeCount > 0 && (
+                      <span
+                        className={`absolute -top-1.5 -right-3.5 flex min-w-[16px] h-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none shadow-sm ${
+                          isActive
+                            ? pillarConfig.badgeStyle
+                            : 'bg-[var(--quant-surface-elevated)] text-[#E2E8F0] border border-[#3A404D]'
+                        }`}
+                      >
+                        {currentBadgeCount > 99 ? '99+' : currentBadgeCount}
+                      </span>
+                    )}
 
-                  {/* Text Badge */}
-                  {tab.badgeText && (
-                    <span className="absolute -top-1 -right-3.5 flex h-[12px] items-center justify-center rounded px-1 text-[10px] font-extrabold uppercase tracking-tight leading-none bg-[#20242D] text-[#94A3B8] border border-[#2D3340]">
-                      {tab.badgeText}
-                    </span>
-                  )}
-                </span>
-
-                {/* Tab Label */}
-                {!tab.logoOnly && (
-                  <span className={`text-[10px] mt-0.5 font-medium tracking-tight ${isActive ? 'font-semibold text-[#FF7A00]' : 'text-[#8E95A3]'}`}>
-                    {tab.label}
+                    {/* Text Badge (e.g. E2EE, CDC, CI/CD) */}
+                    {tab.badgeText && (
+                      <span className="absolute -top-1.5 -right-4 flex h-[13px] items-center justify-center rounded px-1 text-[10px] font-extrabold uppercase tracking-tight leading-none border bg-[var(--quant-surface)] text-[#94A3B8] border-[#232938]">
+                        {tab.badgeText}
+                      </span>
+                    )}
                   </span>
-                )}
-              </button>
-            );
-          })}
+
+                  {/* Tab Label (logo-only tabs show the mark alone, no text) */}
+                  {!tab.logoOnly && <span className="qw-tab-label">{tab.label}</span>}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </nav>
     </div>

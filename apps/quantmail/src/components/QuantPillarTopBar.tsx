@@ -18,6 +18,7 @@ import { QuantGitLogo } from './QuantGitLogo';
 import { QuantGitUserIdModal } from './QuantGitUserIdModal';
 import { Quanty } from './Quanty';
 import { AccountBadge } from './AccountBadge';
+import { LiquidTrack } from './workplace/LiquidTrack';
 import { useKeyboardSurfaces } from './KeyboardProvider';
 import { CommandIcon } from '../lib/keyboard/command-icons';
 
@@ -1150,19 +1151,18 @@ export function QuantPillarTopBar({
           className="qw-bar qw-bar-h flex-1 min-w-0"
           style={{ height: 56, ['--lq-accent' as string]: activeTile.accentColor }}
         >
-          <div
-            data-testid="pillar-switcher-liquid"
-            className="absolute inset-0 rounded-2xl bg-[var(--qt-surface-1)] border border-[#20242D] shadow-inner overflow-hidden pointer-events-none"
-          >
-            <div
-              className="absolute top-1 bottom-1 rounded-xl bg-[#1B1E26] border border-[#2C3240] transition-all duration-300 ease-out"
-              style={{
-                width: `calc(${100 / PILLAR_TILES.length}% - 8px)`,
-                left: `calc(${(activeIndex * 100) / PILLAR_TILES.length}% + 4px)`,
-                boxShadow: `0 0 12px ${activeTile.accentColor}26`,
-              }}
-            />
-          </div>
+          <LiquidTrack
+            orient="h"
+            count={PILLAR_TILES.length}
+            index={activeIndex}
+            thickness={56}
+            radius={20}
+            lift={5}
+            pad={6}
+            top={0.38}
+            flare={0.3}
+            testId="pillar-switcher-liquid"
+          />
           <div className="qw-segs">
           {PILLAR_TILES.map((tile, idx) => {
             const isActive = tile.id === currentPillar;
