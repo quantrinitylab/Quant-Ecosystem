@@ -42,7 +42,6 @@ import { UndoSendProvider } from './UndoSendCountdownBar';
 import { useNewMailDesktopAlerts } from '../hooks/useNewMailDesktopAlerts';
 import { QuantPillarTopBar } from './QuantPillarTopBar';
 import { ContextBottomNavBar } from './ContextBottomNavBar';
-import { DesktopAppRail } from './DesktopAppRail';
 import { pillarForApp } from './desktopContextTabs';
 import { appThemeForPath } from '../lib/app-theme';
 import { QuantyAvatarPicker } from './workplace/QuantyAvatarPicker';
@@ -924,17 +923,9 @@ export function AppShell({
             <main
               id="main-content"
               tabIndex={-1}
-              className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+              className="relative flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-150"
               style={{
-                // App-switch transition: brief scale+fade while the new pillar
-                // settles. transform + opacity are GPU-composited; a
-                // filter: blur() on the full <main> is NOT — it repaints the
-                // whole list every frame — so it stays off this element.
-                transform: isSwitching ? 'scale(0.985)' : 'scale(1)',
-                opacity: isSwitching ? 0.65 : 1,
-                transition: isSwitching
-                  ? 'transform 0.18s ease-out, opacity 0.18s ease-out'
-                  : 'transform 0.32s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.32s ease-out',
+                opacity: isSwitching ? 0.8 : 1,
               }}
             >
               {animated ? <PageTransition>{children}</PageTransition> : children}
@@ -956,27 +947,6 @@ export function AppShell({
               />
             )}
           </div>
-
-          {/*
-            Desktop right app rail: slim 5-app switcher (Mail/Calendar/Drive/
-            Contacts/QuantGit), Gmail's Google-apps-rail style. Desktop only.
-          */}
-          {showSuiteNav && (
-            <DesktopAppRail
-              currentPillar={
-                currentApp === 'calendar'
-                  ? 'calendar'
-                  : currentApp === 'drive'
-                    ? 'drive'
-                    : currentApp === 'contacts'
-                      ? 'contacts'
-                      : currentApp === 'code'
-                        ? 'quantgit'
-                        : 'mail'
-              }
-              unreadCounts={{ mail: unreadCount }}
-            />
-          )}
 
           <QuantFab actions={fabActions} />
 

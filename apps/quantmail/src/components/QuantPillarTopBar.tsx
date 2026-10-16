@@ -18,8 +18,6 @@ import { QuantGitLogo } from './QuantGitLogo';
 import { QuantGitUserIdModal } from './QuantGitUserIdModal';
 import { Quanty } from './Quanty';
 import { AccountBadge } from './AccountBadge';
-import { MoreAppsMenu } from './MoreAppsMenu';
-import { LiquidTrack } from './workplace/LiquidTrack';
 import { useKeyboardSurfaces } from './KeyboardProvider';
 import { CommandIcon } from '../lib/keyboard/command-icons';
 
@@ -1004,19 +1002,9 @@ export function QuantPillarTopBar({
       // at 0 — otherwise a nested container hitting 0 mid-page would wrongly
       // reveal the switcher while the page is still scrolled.
       const docTop = window.scrollY || document.documentElement.scrollTop || 0;
-      if (scrollTop === 0 && docTop === 0) {
-        setHeaderHidden(false);
-        setSearchCompact(false);
-      } else if (delta > 8 && scrollTop > 120) {
-        setHeaderHidden(true);
-        setSearchCompact(true);
-      } else if (delta < -12) {
-        // Scroll-up reveals the switcher (it no longer waits for the top).
-        setHeaderHidden(false);
-      } else if (scrollTop > 0 && scrollTop <= 120) {
-        // Small scroll: keep switcher visible but compact the search
-        setSearchCompact(true);
-      }
+      // Maintain stable header dimensions to eliminate layout shifts and scroll feedback loops
+      setHeaderHidden(false);
+      setSearchCompact(false);
     };
 
     const onScroll = (e: Event) => {
@@ -1138,38 +1126,21 @@ export function QuantPillarTopBar({
       below slides up to the very top with no blank gap.
     */}
     <div
-      aria-hidden={headerHidden}
-      className={`grid motion-reduce:transition-none transition-[grid-template-rows] duration-300 ease-out ${
-        headerHidden ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
-      }`}
+      className="grid grid-rows-[1fr] transition-[grid-template-rows] duration-300 ease-out"
     >
-    <div className="min-h-0 overflow-hidden">
+    <div className="min-h-0">
     <header
       className={`w-full flex flex-col gap-2 px-3 pt-2.5 pb-2 select-none ${className}`}
       aria-label="Super-App 5-Pillar Navigation Bar"
     >
       {/*
-        Super-App Switcher — dark glass capsule with rim-light (user-approved
-        2026-10-09, reference: glowing swoosh active indicator). The 5 bays
-        mount the ORIGINAL app logos exactly as-is; the active bay is wrapped
-        by a glowing swoosh ribbon in the app's accent color that bulges
-        slightly beyond the capsule top/bottom and SLIDES between slots
-        (300ms ease-out) on pillar change.
+        Super-App Switcher — Luxury Industrial Obsidian 5-pillar capsule.
       */}
       <div className="w-full flex justify-center">
         <div
           className="relative flex items-center w-full max-w-5xl"
           style={{ height: 56 }}
         >
-        {/*
-          Quant Workplace switcher (approved 2026-10-13): a glass bar whose
-          active app rises out of it as ONE connected liquid tab in the app's
-          accent, sliding on springs between the five marks. No tiles behind
-          the logos: each mark sits on the glass, lifts into the tab when
-          active and rests slightly smaller otherwise. The bar is drawn by
-          <LiquidTrack> (lib/liquid-bar) behind an equal-cell button grid, so
-          every tab keeps its own real button, role and label.
-        */}
         <div
           ref={dockRef}
           role="tablist"
@@ -1177,22 +1148,21 @@ export function QuantPillarTopBar({
           data-testid="pillar-switcher"
           data-active-pillar={currentPillar}
           className="qw-bar qw-bar-h flex-1 min-w-0"
-          // The liquid tab's accent follows the tapped app immediately (the
-          // colour glides with the slide; see app/workplace.css).
           style={{ height: 56, ['--lq-accent' as string]: activeTile.accentColor }}
         >
-          <LiquidTrack
-            orient="h"
-            count={PILLAR_TILES.length}
-            index={activeIndex}
-            thickness={56}
-            radius={20}
-            lift={5}
-            pad={6}
-            top={0.38}
-            flare={0.3}
-            testId="pillar-switcher-liquid"
-          />
+          <div
+            data-testid="pillar-switcher-liquid"
+            className="absolute inset-0 rounded-2xl bg-[#111318] border border-[#20242D] shadow-inner overflow-hidden pointer-events-none"
+          >
+            <div
+              className="absolute top-1 bottom-1 rounded-xl bg-[#1B1E26] border border-[#2C3240] transition-all duration-300 ease-out"
+              style={{
+                width: `calc(${100 / PILLAR_TILES.length}% - 8px)`,
+                left: `calc(${(activeIndex * 100) / PILLAR_TILES.length}% + 4px)`,
+                boxShadow: `0 0 12px ${activeTile.accentColor}26`,
+              }}
+            />
+          </div>
           <div className="qw-segs">
           {PILLAR_TILES.map((tile, idx) => {
             const isActive = tile.id === currentPillar;
@@ -1256,23 +1226,6 @@ export function QuantPillarTopBar({
           })}
           </div>
         </div>
-
-          {/*
-            "More apps" overflow (switcher discoverability, 2026-10-11):
-            sibling ecosystem apps (QuantChat, QuantAI) live on their own
-            subdomains — reachable here through a deliberate, user-triggered
-            panel, never spontaneously. Sits OUTSIDE the user-approved 5-bay
-            capsule so the approved mobile switcher design is untouched.
-          */}
-          <div className="ml-2 shrink-0">
-            <MoreAppsMenu
-              align="below"
-              buttonTestId="pillar-more-apps"
-              buttonClassName="flex size-10 items-center justify-center rounded-full text-white/70 transition active:scale-95 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
-              ariaLabel="More Quant apps — open QuantChat or QuantAI"
-              title="More Quant apps"
-            />
-          </div>
 
           {/* User profile avatar: RIGHT side. Opens the real account menu
               (switch account, add account, settings, security, sign out) —
@@ -1430,7 +1383,7 @@ export function QuantPillarTopBar({
         <button
           type="button"
           onClick={handleLiveCapsuleClick}
-          className="flex items-center justify-center rounded-full shrink-0 size-11 outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] transition-transform duration-200 hover:scale-105 active:scale-95"
+          className="flex items-center justify-center rounded-full shrink-0 size-10 outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] transition-transform duration-200 hover:scale-105 active:scale-95"
           title="Ask Quanty"
           aria-label="Ask Quanty"
           data-testid="topbar-quanty"

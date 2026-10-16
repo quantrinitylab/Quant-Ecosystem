@@ -17,24 +17,30 @@ import Link from 'next/link';
  */
 export function MailboxViewToggle({ isInbox }: { isInbox: boolean }) {
   const linkClass = (active: boolean) =>
-    // P1-3 (mobile): 44px minimum touch target (was 36px).
-    `min-h-[44px] px-3.5 inline-flex items-center rounded-full text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316] ${
-      active ? 'bg-[#F97316] text-black' : 'text-[#9BA0AA] hover:text-white'
+    `min-h-[44px] px-4 inline-flex items-center rounded-lg text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF7A00] ${
+      active
+        ? 'bg-[#FF7A00] text-black shadow-sm font-bold'
+        : 'text-[#94A3B8] hover:text-white hover:bg-white/[0.05]'
     }`;
+
   return (
     <nav
       aria-label="Mailbox view"
-      className="flex items-center gap-1 rounded-full bg-black/85 p-1 backdrop-blur"
+      className="flex items-center gap-1 rounded-xl bg-[#16181F] p-1 border border-[#232938]"
     >
-      <Link href="/" className={linkClass(!isInbox)} aria-current={!isInbox ? 'page' : undefined}>
-        People
-      </Link>
       <Link
         href="/?view=inbox"
         className={linkClass(isInbox)}
         aria-current={isInbox ? 'page' : undefined}
       >
         Inbox
+      </Link>
+      <Link
+        href="/"
+        className={linkClass(!isInbox)}
+        aria-current={!isInbox ? 'page' : undefined}
+      >
+        People
       </Link>
     </nav>
   );

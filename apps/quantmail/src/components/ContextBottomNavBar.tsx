@@ -3,9 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Quanty } from './Quanty';
-import { LiquidTrack } from './workplace/LiquidTrack';
 import { triggerHapticTap } from './QuantPillarTopBar';
-import { useChromeVisible } from './useScrollChrome';
 // QM-UIUX-037: single accent-color source of truth (mobile values canonical).
 // NOTE: Tailwind arbitrary-value classes below MUST stay literal strings so
 // the JIT compiler can detect them — do not interpolate PILLAR_ACCENTS here.
@@ -1216,12 +1214,6 @@ export function ContextBottomNavBar({
 
   const pillarConfig = PILLAR_SUB_CONFIGS[pillar];
 
-  // Shared chrome visibility: hides on deliberate scroll-down, reveals on
-  // scroll-up. The SAME store drives the FAB, so the two never drift apart.
-  // This bar is an in-flow flex child (NOT fixed): when it collapses to
-  // height 0 the <main> above expands to reclaim the space — no black void.
-  const isVisible = useChromeVisible();
-
   // Listen for external tab synchronization events
   const [activeTabState, setActiveTabState] = useState<string | null>(null);
 
@@ -1279,52 +1271,21 @@ export function ContextBottomNavBar({
 
   return (
     <div
-      aria-hidden={!isVisible}
-      className={`md:hidden flex-none overflow-hidden motion-reduce:transition-none ${className}`}
+      className={`md:hidden flex-none bg-[#111318] border-t border-[#20242D] ${className}`}
       style={{
-        // In-flow collapse: height animates (bar + gaps + safe-area) <-> 0,
-        // so <main> expands to fill the space. GPU-cheap (single height), no void.
-        height: isVisible ? 'calc(4.625rem + env(safe-area-inset-bottom, 0px))' : 0,
-        transition: 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
-    <nav
-      // key={pillar}: remounts on app switch so the tab set eases in with the
-      // top switcher's liquid slide — the bottom bar reads as the same app.
-      key={pillar}
-      className="h-full px-3 pt-2 pb-[env(safe-area-inset-bottom,0px)] bg-[var(--quant-background)]"
-      aria-label={`${pillarConfig.name} contextual navigation`}
-      data-testid="context-bottom-nav"
-    >
-      {/*
-        Quant Workplace bottom bar (approved 2026-10-13): a floating glass bar
-        whose active tab rises out of it as one connected liquid shape in the
-        app accent (<LiquidTrack>, lib/liquid-bar). The tabs are real buttons
-        in an equal-cell grid above the drawn layer.
-      */}
-      <div
-        className="qw-bar qw-bar-h mb-1.5"
-        style={{ height: 60, ['--lq-accent' as string]: pillarConfig.accentColor }}
+      <nav
+        key={pillar}
+        className="h-[56px] px-2 flex items-center justify-around"
+        aria-label={`${pillarConfig.name} contextual navigation`}
+        data-testid="context-bottom-nav"
       >
-        <LiquidTrack
-          orient="h"
-          count={visibleTabs.length}
-          index={activeIndex}
-          thickness={60}
-          radius={22}
-          lift={6}
-          pad={6}
-          top={0.34}
-          flare={0.26}
-          flareMax={24}
-          testId="context-bottom-nav-liquid"
-        />
-        <div className="qw-segs qw-tabs-in">
+        <div className="flex items-center justify-around w-full max-w-md mx-auto">
           {visibleTabs.map((tab, idx) => {
             const isActive = idx === activeIndex;
             const IconComponent = tab.icon;
-            // Badges are REAL counts only, wired via `badgeOverrides` from AppShell.
-            // No badge renders when the count is missing or zero.
             const currentBadgeCount = badgeOverrides?.[tab.id];
 
             return (
@@ -1333,7 +1294,9 @@ export function ContextBottomNavBar({
                 type="button"
                 onClick={() => handleTabClick(tab)}
                 data-testid={`context-tab-${tab.id}`}
-                className="qw-tab select-none"
+                className={`flex-1 flex flex-col items-center justify-center py-1 transition-colors select-none ${
+                  isActive ? 'text-[#FF7A00]' : 'text-[#8E95A3] hover:text-[#D1D5DB]'
+                }`}
                 aria-current={isActive ? 'page' : undefined}
                 aria-label={
                   tab.ariaLabel ||
@@ -1342,42 +1305,41 @@ export function ContextBottomNavBar({
                   }`
                 }
               >
-                <span className="qw-tab-ic relative">
+                <span className="relative flex items-center justify-center">
                   {tab.logoOnly ? (
-                    <Quanty size={26} expression="idle" bob={false} />
+                    <Quanty size={24} expression="idle" bob={false} />
                   ) : (
-                    <IconComponent className="size-[22px]" active={isActive} />
+                    <IconComponent className="size-5" active={isActive} />
                   )}
 
                   {/* Number Badge */}
                   {currentBadgeCount !== undefined && currentBadgeCount > 0 && (
                     <span
-                      className={`absolute -top-1.5 -right-3.5 flex min-w-[16px] h-4 items-center justify-center rounded-full px-1 text-[var(--q-type-xs)] font-bold leading-none shadow-sm ${
-                        isActive
-                          ? pillarConfig.badgeStyle
-                          : 'bg-[var(--quant-surface-elevated)] text-[#E2E8F0] border border-[#3A404D]'
-                      }`}
+                      className="absolute -top-1 -right-2.5 flex min-w-[15px] h-[15px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none bg-[#FF7A00] text-black shadow"
                     >
                       {currentBadgeCount > 99 ? '99+' : currentBadgeCount}
                     </span>
                   )}
 
-                  {/* Text Badge (e.g. E2EE, CDC, CI/CD) */}
+                  {/* Text Badge */}
                   {tab.badgeText && (
-                    <span className="absolute -top-1.5 -right-4 flex h-[13px] items-center justify-center rounded px-1 text-[var(--q-type-xs)] font-extrabold uppercase tracking-tight leading-none border bg-[#161922] text-[#94A3B8] border-[#232938]">
+                    <span className="absolute -top-1 -right-3.5 flex h-[12px] items-center justify-center rounded px-1 text-[9px] font-extrabold uppercase tracking-tight leading-none bg-[#20242D] text-[#94A3B8] border border-[#2D3340]">
                       {tab.badgeText}
                     </span>
                   )}
                 </span>
 
-                {/* Tab Label (logo-only tabs show the mark alone, no text) */}
-                {!tab.logoOnly && <span className="qw-tab-label">{tab.label}</span>}
+                {/* Tab Label */}
+                {!tab.logoOnly && (
+                  <span className={`text-[10px] mt-0.5 font-medium tracking-tight ${isActive ? 'font-semibold text-[#FF7A00]' : 'text-[#8E95A3]'}`}>
+                    {tab.label}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
-      </div>
-    </nav>
+      </nav>
     </div>
   );
 }

@@ -3798,7 +3798,7 @@ export function ConversationalThreadView({
           onClose={() => setIsQuantyOpen(false)}
           contextEmail={primaryMessage}
           contextThreadSubject={threadSubject}
-          onInsertReply={(text) => {
+          onInsertReply={(text: string) => {
             setQuickReplyText(text);
             setTimeout(() => {
               document.getElementById('chatbot-reply-input')?.focus();

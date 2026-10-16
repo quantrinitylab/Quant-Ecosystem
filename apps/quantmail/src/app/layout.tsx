@@ -118,44 +118,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             `useQueryClient()`, which is what lets the auth shell omit
             QueryClientProvider entirely. */}
         <AuthProvider skipSessionRestore={skipSessionRestore}>
-          {isAuthShell ? (
-            /* Lean auth shell: brand CSS + auth session only. No
-               QueryClientProvider, no theme/sidekick providers, no AuthGuard
-               (the middleware already guards server-side), no keyboard system,
-               no toasts, no offline bar. */
+          <QueryProvider>
             <BrandProvider>
-              {/* Layouts never re-render on a soft navigation: leaving the
-                  auth pages (e.g. sign-in → "/") must do a full load so the
-                  app gets the full provider stack below. */}
-              <AuthShellExitGate>{children}</AuthShellExitGate>
-            </BrandProvider>
-          ) : (
-            <>
-              <LazyOfflineBar />
-              <QueryProvider>
-                <BrandProvider>
+              {isAuthShell ? (
+                children
+              ) : (
+                <>
+                  <LazyOfflineBar />
                   <AppProviders>
                     <AuthGuard>
-                      {/* The palette and the shortcuts sheet read their open state
-                          from this provider, so both must live inside it. Both sit at
-                          the layout root rather than inside `AppShell`: `mod+k` is
-                          registered globally, and the palette used to render only on
-                          routes that happened to mount a shell — so on the others the
-                          shortcut set state nothing was listening to.
-
-                          `KeyboardSurfaces` is a client host that code-splits both of
-                          them out of the root chunk; it cannot be inlined here because
-                          this layout is a Server Component. */}
-                      {/* `children` is deliberately not wrapped in a landmark here.
-                          Every route already renders its own `<main>` — `AppShell` for
-                          the twenty-eight shell routes, `AuthShell` for the four auth
-                          screens, and its own for `/invite/[token]` and `/lab/marks` —
-                          so a wrapper here made two `<main>` elements on every page and
-                          handed `#main-content` to the outer one. The skip link then
-                          landed above the header, the drawer and the search field:
-                          four more tabbables to cross on `/`, three on `/drive`. The id
-                          lives on the innermost landmark instead, next to the content it
-                          names. */}
                       <KeyboardProvider>
                         {children}
                         <KeyboardSurfaces />
@@ -163,10 +134,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       <LazyInboxToasts />
                     </AuthGuard>
                   </AppProviders>
-                </BrandProvider>
-              </QueryProvider>
-            </>
-          )}
+                </>
+              )}
+            </BrandProvider>
+          </QueryProvider>
         </AuthProvider>
       </body>
     </html>
