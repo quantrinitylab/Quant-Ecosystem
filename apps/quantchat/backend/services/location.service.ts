@@ -18,6 +18,10 @@
 // time half: a row only counts as "currently sharing" while it is fresh —
 // see `FRIEND_LOCATION_MAX_AGE_MS` below; a stale row is omitted even for
 // close friends, so a once-published location cannot leak forever.
+// QC-F-447 adds the block half: a blocked pair — either direction — is
+// omitted even when a CloseFriend edge exists, because block used to cut
+// only message-send (QC-F-359) and left a blocked user's precise-location
+// window into the blocker wide open.
 //
 // The service is decoupled from the generated Prisma client types via the
 // `LocationPrismaClient` structural interface — mirroring the casting pattern
@@ -25,7 +29,7 @@
 // regardless of whether `prisma generate` has been run for these delegates.
 // ============================================================================
 import { createAppError } from '@quant/server-core';
-import { extractPrivacyPrefs } from './privacy.service';
+import { extractBlockedUserIds, extractPrivacyPrefs } from './privacy.service';
 
 /** Latitude/longitude bounds for WGS84 coordinates. */
 export const LATITUDE_MIN = -90;
@@ -176,6 +180,8 @@ export class LocationService {
    *   - only `CloseFriend` edges where `userId` = caller are considered;
    *   - only friends with a live `FriendLocation` row are included;
    *   - only rows fresh within the staleness window are included (QC-F-437);
+   *   - owners in a blocked pair with the caller (either direction, or
+   *     unproven) are omitted (QC-F-447);
    *   - non-close-friends are never returned.
    * Results are ordered most-recently-updated first.
    */
@@ -219,12 +225,45 @@ export class LocationService {
     });
     const userById = new Map(users.map((u) => [u.id, u]));
 
+    // QC-F-447: the caller's own block list — the caller→owner direction
+    // of the pair check. The owner→caller direction reads from the owner
+    // profiles already fetched above (preferences were already selected),
+    // so this one extra preferences-only lookup is the only added query.
+    // A missing caller row means the caller HAS no block list (the list
+    // lives on that row — PrivacyService.checkBlockedBy's missing =
+    // 'clear' rule), so the direction resolves to an empty list; a FAILED
+    // read resolves to null = unreadable, which omits every owner below
+    // (fail-closed: an unproven pair is never shown a precise location).
+    let callerBlockedIds: string[] | null = [];
+    try {
+      const callerRows = await this.prisma.user.findMany({
+        where: { id: { in: [userId] } },
+        select: { id: true, preferences: true },
+      });
+      const callerRow = callerRows.find((u) => u.id === userId);
+      callerBlockedIds = callerRow
+        ? extractBlockedUserIds(callerRow.preferences)
+        : [];
+    } catch {
+      callerBlockedIds = null;
+    }
+
     const onMap: FriendOnMap[] = [];
     for (const loc of freshLocations) {
       const profile = userById.get(loc.userId);
       // A location whose user record is missing (e.g. mid-deletion) is skipped
       // rather than exposed with placeholder identity.
       if (!profile) continue;
+      // QC-F-447: a blocked pair never sees each other's location — the
+      // owner blocked the caller (the stalking case: block must cut the
+      // map even though a CloseFriend edge exists), or the caller blocked
+      // the owner (the caller's own "no contact" declaration). Either
+      // side's block list being unreadable (null) omits the owner:
+      // a precise location is the most sensitive row on this surface.
+      const ownerBlockedIds = extractBlockedUserIds(profile.preferences);
+      if (callerBlockedIds === null || ownerBlockedIds === null) continue;
+      if (ownerBlockedIds.includes(userId)) continue;
+      if (callerBlockedIds.includes(loc.userId)) continue;
       // QC-F-042: the OWNER's own whoCanSeeLocation pref is the second gate.
       // The viewer-side close-friend rule above decides whose locations the
       // caller may ask for; this decides whether the owner agreed to be
