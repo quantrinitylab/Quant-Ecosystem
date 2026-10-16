@@ -85,6 +85,10 @@ function randMemory(rand: () => number, userId: string, idx: number): MemoryReco
     location: randLocation(rand),
     createdAt: randCreatedAt(rand),
     deletedAt: null,
+    // QC-F-450: generated rows are public — these properties exercise the
+    // public search path (buildMemoryWhere's default section), whose
+    // semantics are unchanged.
+    isPrivate: false,
   };
 }
 
