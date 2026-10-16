@@ -71,4 +71,30 @@ describe('apiClient channel methods', () => {
     expect(url).toBe('/api/channels/c1/subscribe');
     expect(init.method).toBe('POST');
   });
+
+  // QC-F-449: the archive cursor travels as query params, and the
+  // `pagination` sibling on the envelope reaches the caller untouched.
+  it('getChannelMessages sends before+limit params and surfaces pagination', async () => {
+    const fetchMock = stubFetch(200, {
+      success: true,
+      data: [{ id: 'm49' }],
+      pagination: { hasMore: true, nextCursor: 'm49' },
+    });
+    const res = await client.getChannelMessages('c1', { before: 'm50', limit: 50 });
+    const [url, init] = fetchMock.mock.calls[0]! as [string, RequestInit];
+    expect(init.method).toBe('GET');
+    const parsed = new URL(url, 'http://localhost');
+    expect(parsed.pathname).toBe('/api/channels/c1/messages');
+    expect(parsed.searchParams.get('before')).toBe('m50');
+    expect(parsed.searchParams.get('limit')).toBe('50');
+    expect(res.pagination).toEqual({ hasMore: true, nextCursor: 'm49' });
+  });
+
+  it('getChannelMessages without options sends no before param', async () => {
+    const fetchMock = stubFetch(200, { success: true, data: [] });
+    await client.getChannelMessages('c1');
+    const [url] = fetchMock.mock.calls[0]! as [string, RequestInit];
+    const parsed = new URL(url, 'http://localhost');
+    expect(parsed.searchParams.get('before')).toBeNull();
+  });
 });
