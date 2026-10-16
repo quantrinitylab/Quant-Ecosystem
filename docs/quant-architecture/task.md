@@ -1477,7 +1477,7 @@ PASSING (code): voice genuinely wired to Web Speech API with honest per-failure 
 - R4 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2. Rotation -> QM-SCREEN-015 R4.
 
 ## QM-SCREEN-015 — Notifications / activity / reminders
-Status: [x] DONE — LANE-1, branch lane1-audit-015r12 (2026-10-16 ~05:35–06:00 IST). R12 REGRESSION AUDIT COMPLETE.
+Status: [~] IN PROGRESS — Owner: LANE-1, Branch: lane1-audit-015r13. R13 regression audit started (2026-10-16 ~15:35 IST).
 
 R12 REGRESSION AUDIT COMPLETE: NET-EFFECT DIFF 4552e7da (R11 base)..origin/main 1e050c9e2d644ce6791f70e8db7d2bdc97ffc1a7 (fresh fetch, 25 commits). WINDOW CLEAN for QuantMail notification paths: zero changes in app/notifications, notification hooks, backend/routes/notifications.ts, call-reminder-notify.service.ts, push-delivery.service.ts, inbound-webhook.ts, overrides.css, follow-up-reminders.ts, EmailFollowUpReminder.tsx (path-limited git log false-flagged merge #1231 = fix/qcloop-qc-f-398, which touched only quantchat/quantgram/quantads/quantai/quantcooks notification files — out of lane-1 scope). → pure re-verification pass; working tree ignored per stale-tree lesson (qe-main HEAD sits on lane1-audit-008-009-r10).
 PRIOR-FIX CHECKS BYTE-VERIFIED INTACT on 1e050c9e2d: NotificationBell zero refs in src/backend (deleted); honest empty-state copy ("When new mail arrives, a notification will appear here." page.tsx:197); 0 hairlines (border-t/border-b/h-px/divide) in notifications/page.tsx; ConfirmDialog on mark-all-read (page.tsx:22 import, :137); useNewMailDesktopAlerts mounted in AppShell (import :42, call :130); #1223 muted-thread fix intact (inbound-webhook.ts:511-513: EmailThread isMuted read + ownership guard thread.userId === userId before silencing push).
