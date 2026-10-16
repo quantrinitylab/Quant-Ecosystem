@@ -300,6 +300,13 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+// One live (usedAt IS NULL) token per user is enforced by the PARTIAL unique
+// index password_reset_tokens_user_live_unique (migration 0097), which Prisma
+// schema syntax cannot express: it closes the empty-empty concurrent-issuance
+// race (CODEX-REVIEW 6167000384 on PR #1151) that the request transaction's
+// compare-and-set alone cannot — two concurrent requests with empty snapshots
+// both pass the delete-count check, and the loser's create then fails P2002.
+
 /**
  * Email address ownership proof for /auth/register.
  *
