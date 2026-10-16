@@ -7,13 +7,19 @@ import {
   type MapUserRecord,
 } from '../services/location.service';
 
+// QC-F-437 fixture clock: the default location row must be FRESH (inside the
+// 8-hour staleness window) — a hardcoded 2024 date is correctly stale now.
+// Shared const so the expected-shape assertion below compares the exact
+// same instant the factory produced. Assertions are unchanged.
+const FRESH_UPDATED_AT = new Date();
+
 function makeLocation(overrides: Partial<FriendLocationRecord> = {}): FriendLocationRecord {
   return {
     id: 'loc-1',
     userId: 'friend-1',
     latitude: 35.6762,
     longitude: 139.6503,
-    updatedAt: new Date('2024-01-01T00:00:00.000Z'),
+    updatedAt: FRESH_UPDATED_AT,
     ...overrides,
   };
 }
@@ -215,7 +221,7 @@ describe('LocationService.getFriendsOnMap (privacy)', () => {
         avatarUrl: null,
         latitude: 10,
         longitude: 20,
-        updatedAt: new Date('2024-01-01T00:00:00.000Z'),
+        updatedAt: FRESH_UPDATED_AT,
       },
     ]);
     // User profiles only fetched for the sharing friend id.
