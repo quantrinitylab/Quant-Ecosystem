@@ -14,7 +14,10 @@
 // Users who are not the caller's close friends are never exposed, and a close
 // friend who has stopped sharing (no row) is silently omitted. QC-F-042 adds
 // the owner-side half: an owner whose `whoCanSeeLocation` pref is 'nobody'
-// or 'ghost' is omitted even for their close friends.
+// or 'ghost' is omitted even for their close friends. QC-F-437 adds the
+// time half: a row only counts as "currently sharing" while it is fresh —
+// see `FRIEND_LOCATION_MAX_AGE_MS` below; a stale row is omitted even for
+// close friends, so a once-published location cannot leak forever.
 //
 // The service is decoupled from the generated Prisma client types via the
 // `LocationPrismaClient` structural interface — mirroring the casting pattern
@@ -29,6 +32,18 @@ export const LATITUDE_MIN = -90;
 export const LATITUDE_MAX = 90;
 export const LONGITUDE_MIN = -180;
 export const LONGITUDE_MAX = 180;
+
+/**
+ * QC-F-437: how long a published location stays visible on friends' maps
+ * after its last refresh — 8 hours, matching Snapchat's rule (a pin
+ * disappears 8 hours after the owner last opened/shared). `updatedAt` is
+ * Prisma-maintained (`@updatedAt`) and clients cannot supply it
+ * (`updateLocationSchema` accepts only latitude/longitude), so this window
+ * cannot be forged fresh. Rows older than this still exist in the DB (the
+ * periodic cleanup / `expiresAt` migration is a separate slice) — they are
+ * simply never returned by `getFriendsOnMap`.
+ */
+export const FRIEND_LOCATION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
 
 /** A persisted `FriendLocation` row. */
 export interface FriendLocationRecord {
@@ -156,9 +171,11 @@ export class LocationService {
 
   /**
    * Return the locations of the caller's CLOSE FRIENDS who are currently
-   * sharing, shaped for the map. Privacy invariants:
+   * sharing (updated within the last 8 hours — see
+   * `FRIEND_LOCATION_MAX_AGE_MS`), shaped for the map. Privacy invariants:
    *   - only `CloseFriend` edges where `userId` = caller are considered;
    *   - only friends with a live `FriendLocation` row are included;
+   *   - only rows fresh within the staleness window are included (QC-F-437);
    *   - non-close-friends are never returned.
    * Results are ordered most-recently-updated first.
    */
@@ -178,12 +195,18 @@ export class LocationService {
       where: { userId: { in: friendIds } },
       orderBy: { updatedAt: 'desc' },
     });
-    if (locations.length === 0) {
+    // QC-F-437: staleness window — a row counts as "currently sharing" only
+    // while it is fresh. Filtering here (service-side, before any profile
+    // fetch) means every present and future reader of this method is bound
+    // by the same window, and a stale friend's profile is never even read.
+    const cutoff = new Date(Date.now() - FRIEND_LOCATION_MAX_AGE_MS);
+    const freshLocations = locations.filter((loc) => loc.updatedAt.getTime() >= cutoff.getTime());
+    if (freshLocations.length === 0) {
       return [];
     }
 
     // 3. Shape with the friend's public profile fields.
-    const sharingIds = locations.map((loc) => loc.userId);
+    const sharingIds = freshLocations.map((loc) => loc.userId);
     const users = await this.prisma.user.findMany({
       where: { id: { in: sharingIds } },
       select: {
@@ -197,7 +220,7 @@ export class LocationService {
     const userById = new Map(users.map((u) => [u.id, u]));
 
     const onMap: FriendOnMap[] = [];
-    for (const loc of locations) {
+    for (const loc of freshLocations) {
       const profile = userById.get(loc.userId);
       // A location whose user record is missing (e.g. mid-deletion) is skipped
       // rather than exposed with placeholder identity.
