@@ -50,4 +50,29 @@ describe('guestNotificationToastText', () => {
       ),
     ).toContain('not wired yet');
   });
+
+  it('invitation kind tells the truth about the create-path invite email', () => {
+    expect(
+      guestNotificationToastText({ notified: true, count: 3, reason: 'sent' }, 'invitation'),
+    ).toBe('Invitation emailed to 3 guests.');
+    expect(
+      guestNotificationToastText({ notified: true, count: 1, reason: 'sent' }, 'invitation'),
+    ).toBe('Invitation emailed to 1 guest.');
+    expect(
+      guestNotificationToastText(
+        { notified: false, count: 0, reason: 'send-failed' },
+        'invitation',
+      )!,
+    ).toContain('invitation email failed to send');
+    expect(
+      guestNotificationToastText(
+        { notified: false, count: 0, reason: 'mail-not-configured' },
+        'invitation',
+      )!,
+    ).toContain('invitation email was not sent');
+    // 'declined' (sendInvites: false) stays silent — the user opted out.
+    expect(
+      guestNotificationToastText({ notified: false, count: 0, reason: 'declined' }, 'invitation'),
+    ).toBeNull();
+  });
 });

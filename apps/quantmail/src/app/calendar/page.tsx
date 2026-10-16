@@ -1191,6 +1191,9 @@ function CalendarPageContent() {
           setTimeout(() => reject(new Error('SAVE_TIMEOUT')), SAVE_TIMEOUT_MS),
         ),
       ])) as { guestNotification?: GuestNotificationStatus } | undefined;
+      // fix/qm-calendar-event-invites — capture before setEditingEventId(null):
+      // creates get "invitation" copy, edits get "update" copy.
+      const wasEditing = !!editingEventId;
       setTimeout(() => {
         isSavingRef.current = false;
         setIsSaving(false);
@@ -1208,9 +1211,12 @@ function CalendarPageContent() {
           text: `${entryLabel} "${finalTitle}" ${editingEventId ? 'updated' : 'saved'}`,
           type: 'success',
         });
-        // fix/qm-calendar-event-guest-notify: report honestly whether the
-        // guest update email actually went out — never fake the confirmation.
-        const guestNote = guestNotificationToastText(saved?.guestNotification, 'update');
+        // fix/qm-calendar-event-guest-notify (+invites): report honestly whether
+        // the guest email actually went out — never fake the confirmation.
+        const guestNote = guestNotificationToastText(
+          saved?.guestNotification,
+          wasEditing ? 'update' : 'invitation',
+        );
         if (guestNote) {
           showToast({
             text: guestNote,

@@ -4,17 +4,23 @@
 // claim guests were notified when they were not.
 import type { GuestNotificationStatus } from '../../../types';
 
+// fix/qm-calendar-event-invites — the create path now emails guests a real
+// invitation on save, so toast copy needs an 'invitation' kind alongside
+// 'update' and 'cancellation'.
 export function guestNotificationToastText(
   status: GuestNotificationStatus | null | undefined,
-  kind: 'update' | 'cancellation',
+  kind: 'update' | 'cancellation' | 'invitation',
 ): string | null {
   if (!status) return null;
-  const what = kind === 'cancellation' ? 'cancellation' : 'update';
+  const what =
+    kind === 'cancellation' ? 'cancellation' : kind === 'invitation' ? 'invitation' : 'update';
   switch (status.reason) {
     case 'sent':
       return kind === 'cancellation'
         ? `Cancellation emailed to ${status.count} guest${status.count === 1 ? '' : 's'}.`
-        : `Update emailed to ${status.count} guest${status.count === 1 ? '' : 's'}.`;
+        : kind === 'invitation'
+          ? `Invitation emailed to ${status.count} guest${status.count === 1 ? '' : 's'}.`
+          : `Update emailed to ${status.count} guest${status.count === 1 ? '' : 's'}.`;
     case 'mail-not-configured':
       return `Saved, but the guest ${what} email was not sent — email sending is not configured.`;
     case 'send-failed':
