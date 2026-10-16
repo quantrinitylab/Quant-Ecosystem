@@ -22,3 +22,9 @@ export {
 export { QueueEvents } from 'bullmq';
 export { QueueDeadLetter } from './dead-letter.js';
 export type { DeadLetterRecord, DeadLetterFilters, DeadLetterStats } from './dead-letter.js';
+export {
+  createLogRedisPublisher,
+  resolveLogRedisUrl,
+  type LogRedisPublisher,
+  type LogRedisPublisherOptions,
+} from './redis-publisher.js';

@@ -179,4 +179,56 @@ describe('LogStreamer & Redis PubSub Streaming Pipeline (Task W34-04)', () => {
       expect(log.stdout).toBe('line 4\nline 5\nline 6\nline 7\nline 8');
     });
   });
+
+  describe('explicit buildId (fix/qm-ci-logs-redis-publish)', () => {
+    it('publishes to the explicit build channel when the job name contains dashes', async () => {
+      vi.useFakeTimers();
+      try {
+        // Without the explicit buildId, extractBuildId('run-42-build-test')
+        // would yield 'run-42-build' — a channel nobody subscribes to.
+        streamer.startStreaming('run-42-build-test', 'run-42');
+        streamer.appendLog('run-42-build-test', 'hello', 'stdout');
+
+        await vi.advanceTimersByTimeAsync(50);
+
+        expect(mockRedis.publish).toHaveBeenCalledTimes(1);
+        const { channel, message } = publishedMessages[0]!;
+        expect(channel).toBe('channel:ci:build:run-42:logs');
+        const payload = JSON.parse(message);
+        expect(payload.buildId).toBe('run-42');
+        expect(payload.entries[0].line).toBe('hello');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('endStreaming with terminal:false flushes entries without isEnd', () => {
+      streamer.startStreaming('job-10');
+      streamer.appendLog('job-10', 'x', 'stdout');
+      streamer.endStreaming('job-10', { terminal: false });
+
+      expect(mockRedis.publish).toHaveBeenCalled();
+      for (const { message } of publishedMessages) {
+        expect(JSON.parse(message).isEnd).not.toBe(true);
+      }
+    });
+
+    it('publishTerminal emits an awaited terminal marker on the build channel', async () => {
+      await streamer.publishTerminal('run-77');
+
+      expect(mockRedis.publish).toHaveBeenCalledTimes(1);
+      const { channel, message } = publishedMessages[0]!;
+      expect(channel).toBe('channel:ci:build:run-77:logs');
+      const payload = JSON.parse(message);
+      expect(payload.isEnd).toBe(true);
+      expect(payload.buildId).toBe('run-77');
+    });
+
+    it('publishTerminal is a no-op without a redisPublisher', async () => {
+      const offline = new LogStreamer();
+      offline.startStreaming('job-x', 'run-x');
+      await expect(offline.publishTerminal('run-x')).resolves.toBeUndefined();
+      offline.close();
+    });
+  });
 });

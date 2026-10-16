@@ -17,6 +17,13 @@ vi.mock('@quant/queue', () => ({
     state.processor = processor;
     return {};
   },
+  // fix/qm-ci-logs-redis-publish: main.ts wires a Redis log publisher into the
+  // LogStreamer; the availability gate under test never reaches logging, so a
+  // dummy publisher keeps this suite offline.
+  createLogRedisPublisher: () => ({
+    publish: vi.fn(async () => 0),
+    close: vi.fn(async () => undefined),
+  }),
 }));
 vi.mock('@quant/health-server', () => ({ startHealthServer: vi.fn(async () => undefined) }));
 vi.mock('../parser.js', () => ({

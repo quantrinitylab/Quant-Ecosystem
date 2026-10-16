@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import fastify, { type FastifyInstance } from 'fastify';
 import ciLogsRoutes from '../routes/ci-logs';
+import { formatLogSseFrames } from '../routes/ci-logs';
 
 describe('CI Build Real-Time Log Streaming Route (Task W34-04)', () => {
   let app: FastifyInstance;
@@ -219,5 +220,76 @@ describe('CI logs SSE hijack regression (fix/qm-ci-logs-hijack)', () => {
     expect(res.json().success).toBe(true);
     expect(hijackCalls).toEqual([]);
     expect(onSendFired).toBe(true);
+  });
+});
+
+describe('formatLogSseFrames (fix/qm-ci-logs-redis-publish)', () => {
+  const batch = (overrides = {}) =>
+    JSON.stringify({
+      buildId: 'build-1',
+      jobId: 'build-1-compile',
+      seq: 3,
+      entries: [
+        { seq: 1, timestamp: 1700000000000, stream: 'stdout', line: 'hello' },
+        { seq: 2, timestamp: 1700000000001, stream: 'stderr', line: 'oops' },
+      ],
+      ...overrides,
+    });
+
+  it('unpacks a batch payload into one SSE log frame per entry', () => {
+    const frames = formatLogSseFrames('build-1', batch());
+
+    expect(frames).toHaveLength(2);
+    expect(frames[0]).toMatch(/^id: 1\nevent: log\ndata: /);
+    expect(frames[1]).toMatch(/^id: 2\nevent: log\ndata: /);
+
+    // BuildTerminal renders data.line — each frame must carry it.
+    const first = JSON.parse(frames[0]!.split('data: ')[1]!);
+    expect(first.line).toBe('hello');
+    expect(first.stream).toBe('stdout');
+    const second = JSON.parse(frames[1]!.split('data: ')[1]!);
+    expect(second.line).toBe('oops');
+    expect(second.stream).toBe('stderr');
+  });
+
+  it('emits terminal frames on isEnd, including an unnamed log frame BuildTerminal observes', () => {
+    const frames = formatLogSseFrames('build-1', batch({ isEnd: true }));
+
+    // 2 entry frames + event:end + unnamed isEnd log frame.
+    expect(frames).toHaveLength(4);
+    const endFrame = frames.find((f) => f.startsWith('event: end'));
+    expect(endFrame).toBeDefined();
+    expect(JSON.parse(endFrame!.split('data: ')[1]!)).toEqual({
+      buildId: 'build-1',
+      completed: true,
+    });
+
+    // BuildTerminal's EventSource onmessage only fires for unnamed events.
+    const terminalLog = frames.find(
+      (f) => f.startsWith('event: log') && f.includes('"isEnd":true'),
+    );
+    expect(terminalLog).toBeDefined();
+    expect(JSON.parse(terminalLog!.split('data: ')[1]!)).toMatchObject({
+      buildId: 'build-1',
+      isEnd: true,
+    });
+  });
+
+  it('forwards a legacy single-message payload untouched', () => {
+    const message = JSON.stringify({ seq: 7, line: 'legacy line' });
+    const frames = formatLogSseFrames('build-1', message);
+
+    expect(frames).toHaveLength(1);
+    expect(frames[0]).toBe(`id: 7\nevent: log\ndata: ${message}\n\n`);
+  });
+
+  it('forwards non-JSON messages as a single fallback frame', () => {
+    const frames = formatLogSseFrames('build-1', 'plain text log');
+    expect(frames).toEqual(['event: log\ndata: plain text log\n\n']);
+  });
+
+  it('defaults the SSE id to 1 when the payload has no usable seq', () => {
+    const frames = formatLogSseFrames('build-1', JSON.stringify({ line: 'x' }));
+    expect(frames[0]).toMatch(/^id: 1\nevent: log\n/);
   });
 });

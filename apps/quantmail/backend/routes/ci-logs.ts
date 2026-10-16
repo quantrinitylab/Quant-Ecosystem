@@ -32,6 +32,70 @@ type CiRunRow = {
   createdAt: Date;
 };
 
+/** One log line inside a ci-runner batch payload. */
+export interface CiLogBatchEntry {
+  seq?: number;
+  timestamp?: number;
+  stream?: 'stdout' | 'stderr';
+  line?: string;
+}
+
+/** Batch payload the ci-runner LogStreamer publishes per flush. */
+export interface CiLogBatchPayload {
+  buildId?: string;
+  jobId?: string;
+  seq?: number;
+  entries?: CiLogBatchEntry[];
+  isEnd?: boolean;
+}
+
+/**
+ * Convert one Redis PubSub message into the SSE frames to write.
+ *
+ * The ci-runner publishes BATCH payloads ({seq, entries: [{seq, timestamp,
+ * stream, line}], isEnd}) — one frame is not renderable by BuildTerminal,
+ * which reads `data.line` per event. Unpack batches into one `event: log`
+ * frame per entry (SSE id = the entry's monotonic seq).
+ *
+ * Completion: the `event: end` frame is the machine signal, but
+ * BuildTerminal's EventSource only observes unnamed `message` events (it has
+ * no 'end' listener), so a final unnamed `log` frame carrying isEnd is what
+ * flips the terminal to COMPLETED. Both are emitted.
+ */
+export function formatLogSseFrames(buildId: string, message: string): string[] {
+  let payload: CiLogBatchPayload | null = null;
+  try {
+    payload = JSON.parse(message) as CiLogBatchPayload;
+  } catch {
+    // Not JSON (legacy/plain-text producer) — forward as a single log event.
+    return [`event: log\ndata: ${message}\n\n`];
+  }
+  if (!payload || typeof payload !== 'object') {
+    return [`event: log\ndata: ${message}\n\n`];
+  }
+
+  const frames: string[] = [];
+  const entries = Array.isArray(payload.entries) ? payload.entries : [];
+  if (entries.length > 0) {
+    for (const entry of entries) {
+      const seq = typeof entry?.seq === 'number' ? entry.seq : 1;
+      frames.push(`id: ${seq}\nevent: log\ndata: ${JSON.stringify(entry ?? {})}\n\n`);
+    }
+  } else {
+    // Legacy single-message shape — forward untouched.
+    const seq = typeof payload.seq === 'number' ? payload.seq : 1;
+    frames.push(`id: ${seq}\nevent: log\ndata: ${message}\n\n`);
+  }
+
+  if (payload.isEnd) {
+    frames.push(`event: end\ndata: ${JSON.stringify({ buildId, completed: true })}\n\n`);
+    frames.push(
+      `event: log\ndata: ${JSON.stringify({ buildId, isEnd: true, status: 'completed' })}\n\n`,
+    );
+  }
+  return frames;
+}
+
 export default async function ciLogsRoutes(fastify: FastifyInstance) {
   // Resolve repository ids owned by caller
   async function ownedRepoIds(userId: string): Promise<string[]> {
@@ -165,18 +229,10 @@ export default async function ciLogsRoutes(fastify: FastifyInstance) {
       subscriber.on('message', (incomingChannel, message) => {
         if (incomingChannel !== channel || isCleanedUp) return;
 
-        try {
-          const payload = JSON.parse(message);
-          const seq = payload.seq ?? 1;
-          reply.raw.write(`id: ${seq}\nevent: log\ndata: ${message}\n\n`);
-
-          if (payload.isEnd) {
-            reply.raw.write(
-              `event: end\ndata: ${JSON.stringify({ buildId: run.id, completed: true })}\n\n`,
-            );
-          }
-        } catch {
-          reply.raw.write(`event: log\ndata: ${message}\n\n`);
+        // Unpack ci-runner batch payloads into per-line SSE events (plus the
+        // terminal frames on isEnd) — see formatLogSseFrames.
+        for (const frame of formatLogSseFrames(run.id, message)) {
+          reply.raw.write(frame);
         }
       });
 
