@@ -15,6 +15,13 @@ export async function proxyToBackend(
   const authHeader = request.headers.get('Authorization');
   if (authHeader) headers['Authorization'] = authHeader;
 
+  // QC-F-450: the 'My Eyes Only' vault unlock token travels only in this
+  // one header (never body/query — URLs get logged). Allowlist-forward
+  // exactly this header so the memories proxies can carry it to the
+  // backend; no other custom header is forwarded.
+  const memoriesUnlock = request.headers.get('X-Memories-Unlock');
+  if (memoriesUnlock) headers['X-Memories-Unlock'] = memoriesUnlock;
+
   const url = new URL(backendPath, BACKEND_URL);
   // Forward search params for GET requests
   if (method === 'GET') {
