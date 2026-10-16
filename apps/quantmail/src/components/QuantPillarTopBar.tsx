@@ -19,6 +19,7 @@ import { QuantGitUserIdModal } from './QuantGitUserIdModal';
 import { Quanty } from './Quanty';
 import { AccountBadge } from './AccountBadge';
 import { LiquidTrack } from './workplace/LiquidTrack';
+import { PillarMascotMark } from './mascots/PillarMascotMark';
 import { useKeyboardSurfaces } from './KeyboardProvider';
 import { CommandIcon } from '../lib/keyboard/command-icons';
 
@@ -263,28 +264,24 @@ export function ChevronRightIcon({ className }: { className?: string }) {
 // contacts card read small at equal box size), 38–43px in the Workplace bar.
 // ============================================================================
 
-function MailLogoIcon() {
-  return <QuantMailLogo size={38} interactive={false} showBadge={false} />;
+function MailLogoIcon({ active }: { active?: boolean } = {}) {
+  return <PillarMascotMark pillar="mail" size="sm" active={active} interactive={false} />;
 }
 
-function CalendarLogoIcon() {
-  return <QuantCalendarLogo size={39} />;
+function CalendarLogoIcon({ active }: { active?: boolean } = {}) {
+  return <PillarMascotMark pillar="calendar" size="sm" active={active} interactive={false} />;
 }
 
-// QuantDrive's official green cloud-folder mascot (approved 2026-10-09,
-// PR #697) — canvas-painted live mark with genuine blink animation.
-function DriveLogoIcon() {
-  return <QuantDriveLogo size={39} />;
+function DriveLogoIcon({ active }: { active?: boolean } = {}) {
+  return <PillarMascotMark pillar="drive" size="sm" active={active} interactive={false} />;
 }
 
-function ContactsLogoIcon() {
-  return <QuantContactsLogo size={43} />;
+function ContactsLogoIcon({ active }: { active?: boolean } = {}) {
+  return <PillarMascotMark pillar="contacts" size="sm" active={active} interactive={false} />;
 }
 
-// QuantGit's official purple voxel-frog mascot (approved 2026-10-09,
-// PR #698) — genuine 3D voxel data on the canvas live-mark pipeline.
-function QuantGitLogoIcon() {
-  return <QuantGitLogo size={43} />;
+function QuantGitLogoIcon({ active }: { active?: boolean } = {}) {
+  return <PillarMascotMark pillar="quantgit" size="sm" active={active} interactive={false} />;
 }
 
 /**
