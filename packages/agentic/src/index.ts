@@ -7,6 +7,7 @@ import { QuantDriveAgent } from './agents/quantdrive.agent.js';
 import { QuantMeetAgent } from './agents/quantmeet.agent.js';
 import { QuantSyncAgent } from './agents/quantsync.agent.js';
 import { PersonalAgent } from './agents/personal.agent.js';
+import { createQuantChatClient } from './clients/http-client.js';
 
 export * from './core/agent.js';
 export * from './memory/memory-store.js';
@@ -44,7 +45,20 @@ export * from './cross-app/app-controller.js';
 export * from './safety/voice-safety.js';
 export * from './hooks/use-voice-command.js';
 
-export function createQuantEcosystemOrchestrator(useIntelligent: boolean = true) {
+export function createQuantEcosystemOrchestrator(
+  useIntelligent: boolean = true,
+  opts?: { quantchatAuthToken?: string },
+) {
+  // QC-F-465 §3.5: `quantchatAuthToken` is construction-time only — it must
+  // be the acting user's own QuantChat JWT in a single-user/test/CLI
+  // context. The module-level `orchestrator` singleton below is SHARED
+  // across all QuantAI requests; NEVER call setAuthToken on its QuantChat
+  // agent per-request (one user's token would leak into another's calls).
+  // Per-request handoff for the singleton is HARD-GATE-465-A (QuantAI lane).
+  // Without a token the QuantChat tools fail honestly with AUTH_REQUIRED.
+  const quantChatAgent = opts?.quantchatAuthToken
+    ? new QuantChatAgent(createQuantChatClient(opts.quantchatAuthToken))
+    : new QuantChatAgent();
   if (useIntelligent) {
     const orchestrator = new IntelligentOrchestrator({
       maxConcurrentAgents: 25,
@@ -55,7 +69,7 @@ export function createQuantEcosystemOrchestrator(useIntelligent: boolean = true)
 
     // Register all agents with capabilities
     orchestrator.registerAgent(new QuantMailAgent(), ['email', 'communication']);
-    orchestrator.registerAgent(new QuantChatAgent(), ['chat', 'realtime']);
+    orchestrator.registerAgent(quantChatAgent, ['chat', 'realtime']);
     orchestrator.registerAgent(new QuantAIAgent(), ['analysis', 'reasoning']);
     orchestrator.registerAgent(new QuantDriveAgent(), ['storage', 'files']);
     orchestrator.registerAgent(new QuantMeetAgent(), ['video', 'meeting']);
@@ -72,7 +86,7 @@ export function createQuantEcosystemOrchestrator(useIntelligent: boolean = true)
   });
 
   orchestrator.registerAgent(new QuantMailAgent());
-  orchestrator.registerAgent(new QuantChatAgent());
+  orchestrator.registerAgent(quantChatAgent);
   orchestrator.registerAgent(new QuantAIAgent());
   orchestrator.registerAgent(new QuantDriveAgent());
   orchestrator.registerAgent(new QuantMeetAgent());
