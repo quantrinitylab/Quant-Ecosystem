@@ -27,6 +27,7 @@ import {
   emojiStatusInputSchema,
   serializeEmojiStatus,
 } from '../lib/emoji-status';
+import { parseDateOfBirth, toDateOnlyString } from '../lib/birthdays';
 import { fetchWithTimeout, getTimeoutMs } from '@quant/server-core';
 
 const loginSchema = z.object({
@@ -85,6 +86,17 @@ const updateProfileSchema = z
     // absolute `expiresAt` is rejected by .strict()); explicit null =
     // clear; absent = leave the current status untouched.
     emojiStatus: emojiStatusInputSchema.nullable().optional(),
+    // QC-F-467: date of birth as a date-only string. 'YYYY-MM-DD' sets /
+    // replaces, null clears, absent leaves the column untouched. Calendar /
+    // future / range validation runs in the handler via parseDateOfBirth —
+    // a bare regex would admit 2026-02-30. The value is SELF-DECLARED and
+    // UNVERIFIED: it is a celebration fact here, never age proof (the
+    // QC-F-441 age-gate slice must do its own consent/enforcement design).
+    dateOfBirth: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .optional(),
   })
   .strict();
 
@@ -160,6 +172,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         statusEmoji: true,
         statusEmojiExpiresAt: true,
         deletedAt: true,
+        dateOfBirth: true,
       },
     });
     if (!user) {
@@ -189,6 +202,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
         level: user.level,
         // QC-F-466: live status only — an expired stored status reads null.
         emojiStatus: serializeEmojiStatus(user),
+        // QC-F-467: the OWNER always gets their own full DOB back (the key
+        // is present even when null, so the edit form never has to guess).
+        // Other users only ever receive month/day — see the participant
+        // DTO and /users/birthdays/today.
+        dateOfBirth: user.dateOfBirth ? toDateOnlyString(user.dateOfBirth) : null,
       },
     });
   });
@@ -211,7 +229,23 @@ export default async function authRoutes(fastify: FastifyInstance) {
         error: { code: 'BAD_REQUEST', message: 'Invalid profile payload', statusCode: 400 },
       });
     }
-    const { displayName, bio, avatarUrl, emojiStatus } = parsed.data;
+    const { displayName, bio, avatarUrl, emojiStatus, dateOfBirth } = parsed.data;
+    // QC-F-467: strict calendar/future/range validation of the date-only
+    // string (the schema regex alone admits impossible dates).
+    let parsedDob: Date | null = null;
+    if (dateOfBirth !== undefined && dateOfBirth !== null) {
+      parsedDob = parseDateOfBirth(dateOfBirth);
+      if (!parsedDob) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'Invalid date of birth',
+            statusCode: 400,
+          },
+        });
+      }
+    }
     // QC-F-330: User.avatarUrl renders in other users' browsers across
     // the network (chat list, search, stories, map) — a bare `.url()`
     // check let any external host become a tracking avatar. Only
@@ -236,13 +270,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
       displayName === undefined &&
       bio === undefined &&
       avatarUrl === undefined &&
-      emojiStatus === undefined
+      emojiStatus === undefined &&
+      dateOfBirth === undefined
     ) {
       return reply.status(400).send({
         success: false,
         error: {
           code: 'BAD_REQUEST',
-          message: 'At least one of displayName, bio, avatarUrl, emojiStatus is required',
+          message: 'At least one of displayName, bio, avatarUrl, emojiStatus, dateOfBirth is required',
           statusCode: 400,
         },
       });
@@ -272,6 +307,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
         ...(bio !== undefined ? { bio } : {}),
         ...(avatarUrl !== undefined ? { avatarUrl } : {}),
         ...emojiStatusData,
+        // QC-F-467: null clears the column; a string writes the validated
+        // UTC-midnight date; absent never reaches this spread.
+        ...(dateOfBirth !== undefined ? { dateOfBirth: parsedDob } : {}),
       },
       select: {
         id: true,
@@ -281,6 +319,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         avatarUrl: true,
         statusEmoji: true,
         statusEmojiExpiresAt: true,
+        dateOfBirth: true,
       },
     });
     return reply.send({
@@ -291,7 +330,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
         displayName: updated.displayName,
         bio: updated.bio,
         avatarUrl: updated.avatarUrl,
+        // QC-F-466: live status only (raw stored columns never leave).
         emojiStatus: serializeEmojiStatus(updated),
+        // QC-F-467: the owner sees their own DOB as a date-only string
+        // (or null) — never a raw Date whose JSON form leaks a
+        // time/timezone. (Explicit field list, not a spread of `updated`,
+        // so the raw statusEmoji columns above never leak either.)
+        dateOfBirth: updated.dateOfBirth ? toDateOnlyString(updated.dateOfBirth) : null,
       },
     });
   });
