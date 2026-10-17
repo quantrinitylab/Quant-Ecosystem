@@ -941,7 +941,7 @@ export function QuantGitIssuesSubView({
 }
 
 // ============================================================================
-// Sub-View 4: CI/CD Pipeline Streaming View (`actions`)
+// Sub-View 4: CI/CD Pipeline Runs (`actions`)
 // ============================================================================
 
 // QM-SCREEN-013 R3 P1: status badges must reflect the real run/job status —
@@ -1001,7 +1001,7 @@ export function QuantGitActionsSubView({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">CI/CD Pipeline Streaming View</h1>
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">CI/CD Pipeline Runs</h1>
                 {masterRun && (() => {
                   const badge = workflowRunBadge(masterRun.status);
                   return (
@@ -1012,7 +1012,7 @@ export function QuantGitActionsSubView({
                 })()}
               </div>
               <p className="text-xs text-[#8B949E] mt-0.5">
-                Real-time job execution telemetry, typecheck gates & vitest test runners
+                Latest CI run results from the backend
               </p>
             </div>
           </div>
@@ -1029,7 +1029,7 @@ export function QuantGitActionsSubView({
           )}
         </div>
 
-        {/* Master CI Gate Card with Real-time Build Jobs Breakdown */}
+        {/* Master CI Gate Card with Build Jobs Breakdown */}
         {workflows.length === 0 && (
           <div
             data-testid="quantgit-actions-empty"
@@ -1112,10 +1112,10 @@ export function QuantGitActionsSubView({
               </span>
             </div>
 
-            {/* Real-time Build Jobs Breakdown */}
+            {/* Build Jobs Breakdown */}
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#8B949E] mb-3">
-                Real-Time Build Jobs Breakdown
+                Build Jobs Breakdown
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {masterRun.jobs.map((job) => (
