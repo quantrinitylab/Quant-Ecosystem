@@ -9,7 +9,7 @@ import { groupEmailsIntoThreads } from '../lib/threading';
 import { useStorageQuota } from '../hooks/useStorageQuota';
 import { ApiRequestError } from '../lib/query-retry';
 import { formatBytes } from '../lib/format-bytes';
-import { QuantMailLogo } from './QuantMailLogo';
+import { QuantMailLogoStatic } from './QuantMailLogoStatic';
 import { BrandWordmark } from './BrandWordmark';
 import { AccountBadge } from './AccountBadge';
 
@@ -484,7 +484,10 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
           onClick={() => router.push('/')}
           title="QuantMail — Go to Inbox"
         >
-          <QuantMailLogo size={36} showBadge={false} interactive={false} />
+          {/* Decorative brand mark: the click is handled by this parent div
+              (router.push('/')), so the mark itself is the zero-JS static SVG —
+              no canvas / rAF marks pipeline for a mark that can never animate. */}
+          <QuantMailLogoStatic size={36} />
           <BrandWordmark app="mail" size="text-lg" />
         </div>
         <div className="flex items-center gap-2">
