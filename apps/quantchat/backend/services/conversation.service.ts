@@ -3,6 +3,7 @@ import { Prisma, ConversationType, ConversationRole } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { getPrivacyService, type PrivacyService } from './privacy.service';
 import { serializeEmojiStatus } from '../lib/emoji-status';
+import { monthDayOf } from '../lib/birthdays';
 
 /** Map the public (lowercase) conversation-type string to the Prisma enum. */
 function toConversationType(type: string): ConversationType {
@@ -76,6 +77,12 @@ export interface ConversationParticipantDto {
   // QC-F-466: the participant's live emoji status, or null. Always present
   // (never the raw stored columns) so clients render it without guessing.
   emojiStatus: { key: string; expiresAt: string } | null;
+  // QC-F-467: the participant's birthday as month/day ONLY, and only when
+  // the requester may see it (PrivacyService.birthdayVisibilityFor). The
+  // full date, the year, and any derived age NEVER leave the backend.
+  // null covers both "no DOB stored" and "not visible to you" — telling
+  // those apart would itself leak the fact that a DOB exists.
+  birthdayMonthDay: { month: number; day: number } | null;
 }
 
 export type ConversationWithParticipants = Conversation & {
@@ -91,6 +98,11 @@ type MemberWithUser = ConversationMember & {
     // QC-F-466: raw stored status columns (serialized in toParticipantDto).
     statusEmoji?: string | null;
     statusEmojiExpiresAt?: Date | null;
+    // QC-F-467: read only to derive birthdayMonthDay via the privacy
+    // helper — `preferences` and the full `dateOfBirth` are NEVER copied
+    // into the DTO (see the census pin in qc-f-467-birthday-participant).
+    dateOfBirth?: Date | null;
+    preferences?: unknown;
   };
 };
 
@@ -104,7 +116,10 @@ function toParticipantRole(role: ConversationRole): 'admin' | 'moderator' | 'mem
   }
 }
 
-function toParticipantDto(m: MemberWithUser): ConversationParticipantDto {
+function toParticipantDto(
+  m: MemberWithUser,
+  birthdayMonthDay: { month: number; day: number } | null = null,
+): ConversationParticipantDto {
   return {
     userId: m.userId,
     username: m.user.username,
@@ -116,6 +131,7 @@ function toParticipantDto(m: MemberWithUser): ConversationParticipantDto {
     nickname: m.nickname,
     // QC-F-466: read-time expiry — an expired stored status is never served.
     emojiStatus: serializeEmojiStatus(m.user),
+    birthdayMonthDay,
   };
 }
 
@@ -131,6 +147,8 @@ const activeMembersWithUser = {
         avatarUrl: true,
         statusEmoji: true,
         statusEmojiExpiresAt: true,
+        dateOfBirth: true,
+        preferences: true,
       },
     },
   },
@@ -445,6 +463,31 @@ export class ConversationService {
     return conversation;
   }
 
+  /**
+   * QC-F-467: batch birthday visibility for a set of member rows — ONE
+   * birthdayVisibilityFor call for the whole set (never per-member), then
+   * each member maps to their DTO. A member whose DOB is missing, or whose
+   * birthday the viewer may not see, gets null (the two are deliberately
+   * indistinguishable in the DTO).
+   */
+  private async participantsWithBirthdays(
+    viewerId: string,
+    members: MemberWithUser[],
+  ): Promise<ConversationParticipantDto[]> {
+    const visibility = await this.privacy.birthdayVisibilityFor(
+      viewerId,
+      members.map((m) => m.userId),
+    );
+    return members.map((m) =>
+      toParticipantDto(
+        m,
+        visibility.get(m.userId) === true && m.user.dateOfBirth
+          ? monthDayOf(m.user.dateOfBirth)
+          : null,
+      ),
+    );
+  }
+
   async getConversation(
     id: string,
     requesterId: string,
@@ -463,7 +506,10 @@ export class ConversationService {
     const { members, ...rest } = conv;
     return {
       ...rest,
-      participants: (members as MemberWithUser[]).map(toParticipantDto),
+      participants: await this.participantsWithBirthdays(
+        requesterId,
+        members as MemberWithUser[],
+      ),
     };
   }
 
@@ -490,6 +536,27 @@ export class ConversationService {
       this.prisma.conversationMember.count({ where: { userId, leftAt: null } }),
     ]);
 
+    // QC-F-467: ONE batch visibility call across the whole page of
+    // conversations (not one per conversation), then map each roster.
+    const allMemberRows = members.flatMap((m: unknown) =>
+      (
+        m as unknown as {
+          conversation: Conversation & { members: MemberWithUser[] };
+        }
+      ).conversation.members,
+    );
+    const visibility = await this.privacy.birthdayVisibilityFor(
+      userId,
+      allMemberRows.map((m) => m.userId),
+    );
+    const toDto = (m: MemberWithUser): ConversationParticipantDto =>
+      toParticipantDto(
+        m,
+        visibility.get(m.userId) === true && m.user.dateOfBirth
+          ? monthDayOf(m.user.dateOfBirth)
+          : null,
+      );
+
     const data: ConversationWithParticipants[] = members.map((m: unknown) => {
       const conv = (
         m as unknown as {
@@ -497,7 +564,7 @@ export class ConversationService {
         }
       ).conversation;
       const { members: convMembers, ...rest } = conv;
-      return { ...rest, participants: convMembers.map(toParticipantDto) };
+      return { ...rest, participants: convMembers.map(toDto) };
     });
     const totalPages = Math.ceil(total / pageSize);
 
