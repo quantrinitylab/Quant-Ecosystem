@@ -61,6 +61,7 @@ import { IssuesTab } from './components/IssuesTab';
 import { PullRequestsTab } from './components/PullRequestsTab';
 import { interpretMergeResult, mergeFailureToast } from './mergeOutcome';
 import { resolveBlobLoadOutcome } from './blobLoadOutcome';
+import { assertBranchCreated, BranchExistsError } from './branchCreate';
 import {
   headShaFromBlobPayload,
   newBranchBaseSha,
@@ -2027,23 +2028,37 @@ function QuantGitContent() {  const router = useRouter();
       // old commit), NOT at selectedRepo.latestCommitSha: the follow-up file
       // commit sends parentSha = expectedHeadSha, and the backend 409s with
       // STALE_PARENT_SHA whenever the new branch head differs from it.
+      //
+      // The branch create is NOT fire-and-forget: a 409 BRANCH_EXISTS means
+      // the requested name already exists, and committing anyway would
+      // silently land the commit on the pre-existing branch — exactly what
+      // "Create a new branch for this commit" promised not to do. Surface
+      // the conflict and STOP before the file commit runs.
       if (input.newBranch) {
+        const branchName: string = input.newBranch;
         try {
-          await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/branches`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: input.newBranch,
-              sha: newBranchBaseSha(input.expectedHeadSha, selectedRepo.latestCommitSha),
-            }),
-          });
-        } catch {
-          // offline fallback
+          await assertBranchCreated(
+            () =>
+              apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/branches`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  name: branchName,
+                  sha: newBranchBaseSha(input.expectedHeadSha, selectedRepo.latestCommitSha),
+                }),
+              }),
+            branchName,
+          );
+        } catch (err) {
+          if (err instanceof BranchExistsError) throw err;
+          // offline fallback: transport/timeout failure only — attempt the
+          // file commit on whatever branch state exists and let ITS honest
+          // errors surface.
         }
         setRepoBranches((prev) =>
-          prev.includes(input.newBranch!) ? prev : [...prev, input.newBranch!],
+          prev.includes(branchName) ? prev : [...prev, branchName],
         );
       }
 
