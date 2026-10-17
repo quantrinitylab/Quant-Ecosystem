@@ -4555,6 +4555,14 @@ body {
 .label-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; flex-shrink: 0; }
 .label-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .label-check { font-size: 0.625rem; color: #4ade80; }
+/*
+ * Row-level label picker (inbox row). Anchored to the row's top-right corner,
+ * where the hover bar's "Add label" button sits, so the dropdown opens right
+ * under the button that opened it. Absolutely positioned inside the relative
+ * `.mail-row-shell`; zero-size when closed so it never steals row clicks.
+ */
+.row-label-picker { position: absolute; right: 0.5rem; top: 0.5rem; z-index: 70; }
+.row-label-picker .label-dropdown { left: auto; right: 0; }
 
 /* ========================================================================== */
 /* Email Context Menu (Right-click)                                           */

@@ -125,4 +125,24 @@ export default async function labelsRoutes(fastify: FastifyInstance) {
 
     return reply.send({ success: true, data: email });
   });
+
+  // POST /labels/remove — remove a label from an email. The row-level label
+  // picker needs this; apply alone would make the picker a one-way door.
+  fastify.post('/remove', async (request, reply) => {
+    const parseResult = applyLabelSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const userId = getUserId(request);
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new EmailService(prisma as never);
+    const email = await service.removeLabel(
+      parseResult.data.emailId,
+      parseResult.data.labelId,
+      userId,
+    );
+
+    return reply.send({ success: true, data: email });
+  });
 }
