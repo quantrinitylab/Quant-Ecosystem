@@ -26,6 +26,38 @@ vi.mock('../../../../../services/browser-auth-session', () => ({
   browserAuthSession: { getAccessToken: () => null },
 }));
 
+// P1 qm-collabdoc-ws-false-saved gate fix (2026-10-17): the hook lazy-loads
+// the real yjs bundle via `import('yjs')` before it ever constructs the
+// socket. That transform is slow and load-dependent (the failing CI shard
+// showed a ~100s import phase), while `waitForSocket` below only flushes
+// microtasks a bounded number of times — so under CI load the dynamic
+// import had not resolved when the wait window expired and every mount
+// test threw 'hook never created a WebSocket' (locally the import resolves
+// in <1s, which is why this only failed in CI).
+// This suite asserts the WS-drop → syncStatus honesty contract, never CRDT
+// behavior, so yjs is mocked: the hook's dynamic import resolves
+// deterministically from the mock registry and the socket lifecycle is
+// exercised on every run, independent of worker load.
+vi.mock('yjs', () => {
+  class MockYDoc {
+    getMap() {
+      return {
+        get: () => undefined,
+        set: () => undefined,
+      };
+    }
+    on() {}
+    off() {}
+    destroy() {}
+  }
+  return {
+    Doc: MockYDoc,
+    encodeStateVector: () => new Uint8Array(0),
+    encodeStateAsUpdate: () => new Uint8Array(0),
+    applyUpdate: () => {},
+  };
+});
+
 const DOC = 'doc-ws-false-saved';
 const EMAIL = 'ws-test@example.com';
 
