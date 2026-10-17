@@ -282,6 +282,9 @@ describe('ConversationService', () => {
                   user: {
                     // QC-F-466: the member query also selects the emoji-status
                     // columns so the participant DTO can serve a live status.
+                    // QC-F-467: select widened with dateOfBirth + preferences —
+                    // read only to derive the privacy-gated birthdayMonthDay
+                    // DTO field; neither value ever reaches the DTO itself.
                     select: {
                       id: true,
                       username: true,
@@ -289,6 +292,8 @@ describe('ConversationService', () => {
                       avatarUrl: true,
                       statusEmoji: true,
                       statusEmojiExpiresAt: true,
+                      dateOfBirth: true,
+                      preferences: true,
                     },
                   },
                 },
@@ -399,6 +404,7 @@ describe('ConversationService', () => {
           members: {
             where: { leftAt: null },
             include: {
+              // QC-F-466 + QC-F-467: select widened (see getUserConversations pin above).
               user: {
                 select: {
                   id: true,
@@ -407,6 +413,8 @@ describe('ConversationService', () => {
                   avatarUrl: true,
                   statusEmoji: true,
                   statusEmojiExpiresAt: true,
+                  dateOfBirth: true,
+                  preferences: true,
                 },
               },
             },
