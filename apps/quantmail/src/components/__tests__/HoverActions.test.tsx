@@ -139,6 +139,15 @@ describe('HoverActions', () => {
     }
   });
 
+  it('exposes the bar as a NAMED toolbar so assistive tech announces it', () => {
+    // A11y: aria-label on a role-less div is ignored — the bar must carry a
+    // landmark-capable role so "Quick actions" is announced.
+    const container = renderBar({ onTogglePin: () => {}, onToggleStar: () => {}, onLabel: () => {} });
+    const bar = container.querySelector('[role="toolbar"]');
+    expect(bar).not.toBeNull();
+    expect(bar?.getAttribute('aria-label')).toBe('Quick actions');
+  });
+
   it('flips the read toggle label with read state', () => {
     const unread = renderBar({ isRead: false });
     const read = renderBar({ isRead: true });

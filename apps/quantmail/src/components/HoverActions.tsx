@@ -66,6 +66,7 @@ export const HoverActions = memo(function HoverActions({
       exit={{ opacity: 0, x: 8 }}
       transition={{ duration: 0.12, ease: 'easeOut' }}
       onClick={(e) => e.stopPropagation()}
+      role="toolbar"
       aria-label="Quick actions"
     >
       {onTogglePin && !isSpam && (
