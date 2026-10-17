@@ -157,6 +157,22 @@ export async function performDocSave(
   }
 }
 
+// ============================================================================
+// WebSocket-drop honesty contract — NEVER claim 'saved' when the live CRDT
+// socket dies.
+// P1 [drive] qm-collabdoc-ws-false-saved: ws.onclose, ws.onerror, and the
+// connectWebSocket throw path all claimed 'saved' unconditionally at the
+// exact moment live-sync stopped — while the last REST snapshot outcome was
+// unknown — and could overwrite an honest 'error' from the auto-save. A
+// socket drop only means the CRDT socket is gone, so it resolves to
+// 'offline', EXCEPT an honest 'error' from the REST save path, which must be
+// preserved ('error' stays 'error'). Pure and exported so it is unit-testable;
+// use it via setSyncStatus(resolveSocketDropStatus) at the drop points below.
+// ============================================================================
+export function resolveSocketDropStatus(current: SyncStatus): SyncStatus {
+  return current === 'error' ? 'error' : 'offline';
+}
+
 // P1 qm-drive-doc-cache-scope: the hook NEVER touches localStorage with an
 // unscoped key. `currentUserEmail` is the authenticated account identity;
 // unknown/empty account = fail closed (no read, no write). Pass it from the
@@ -585,7 +601,10 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
         };
 
         ws.onclose = () => {
-          setSyncStatus('saved');
+          // HONESTY: the live socket just died — never claim 'saved' here;
+          // the last REST snapshot outcome is unknown. Preserve an honest
+          // 'error', otherwise report 'offline'.
+          setSyncStatus(resolveSocketDropStatus);
           if (!isDisposed) {
             // Reconnect with backoff
             reconnectTimer = setTimeout(() => void connectWebSocket(Y, doc), 5000);
@@ -593,11 +612,17 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
         };
 
         ws.onerror = () => {
-          setSyncStatus('saved');
+          // HONESTY: same contract as onclose — 'error' stays 'error',
+          // anything else becomes 'offline'. (ws.close() re-fires onclose,
+          // which applies the same resolution again — idempotent.)
+          setSyncStatus(resolveSocketDropStatus);
           ws?.close();
         };
       } catch {
-        setSyncStatus('saved');
+        // HONESTY: the socket never even connected (constructor threw) —
+        // a socket failure is not a successful save. Preserve 'error',
+        // otherwise report 'offline'.
+        setSyncStatus(resolveSocketDropStatus);
       }
     }
 
