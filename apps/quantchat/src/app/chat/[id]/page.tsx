@@ -18,6 +18,7 @@ import { useChatSocket } from '../../../hooks/useChatSocket';
 import { messageListVariants, messageVariants } from '../../../lib/motion-variants';
 import { ReactionPicker } from '../../../components/ReactionPicker';
 import { CustomEmojiText } from '../../../components/CustomEmojiText';
+import { EmojiStatusBadge } from '../../../components/EmojiStatusBadge';
 import { VoiceNoteRecorder } from '../../../components/VoiceNoteRecorder';
 import { LinkPreviewCard } from '../../../components/LinkPreviewCard';
 import { AIAgentPanel } from '../../../components/chat/AIAgentPanel';
@@ -95,6 +96,20 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       candidate?.displayName?.trim() ||
       candidate?.username?.trim();
     return name || 'Chat';
+  }, [conversations, id, me?.id, me?.username]);
+
+  // QC-F-466: the header peer's live emoji status (same candidate the
+  // header name resolves to). The badge itself re-checks expiry and the
+  // catalog at render, so a stale or unknown status shows nothing.
+  const headerPeerEmojiStatus = useMemo(() => {
+    const conversation = conversations.find((c) => c.id === id);
+    if (!conversation) return null;
+    const participants = conversation.participants ?? [];
+    const other = participants.find(
+      (p) => p.userId !== me?.id && p.username !== me?.username,
+    );
+    const candidate = other ?? participants[0];
+    return candidate?.emojiStatus ?? null;
   }, [conversations, id, me?.id, me?.username]);
 
   // QC-F-317: the peer of a DIRECT conversation — the only surface the
@@ -675,6 +690,11 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       <TopBar
         profileHref="/profile"
         title={chatDisplayName}
+        leftAction={
+          headerPeerEmojiStatus ? (
+            <EmojiStatusBadge status={headerPeerEmojiStatus} size={20} />
+          ) : undefined
+        }
         subtitle={
           disappearSeconds > 0
             ? `🔥 5 Day Streak · ⏱️ ${formatTimerLabel(disappearSeconds)} · ${isConnected ? 'Active now' : 'Reconnecting…'}`
