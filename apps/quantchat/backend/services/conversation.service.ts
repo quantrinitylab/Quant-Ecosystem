@@ -198,6 +198,108 @@ export class ConversationService {
     }
   }
 
+  /**
+   * QC-F-470: blocked gate for call creation on the /calls/create and
+   * /calls/group paths, bound to the CALL SHAPE rather than the route name.
+   *
+   * QC-F-218 put the fail-closed blocked check only on POST /calls/initiate
+   * and recorded the scope as "1:1 ONLY — /calls/group does not apply this
+   * check", a decision made for GROUP conversations. But no code ever
+   * verified the conversation actually IS a group: both /create and /group
+   * accepted a DIRECT conversationId with a single participantId, so a
+   * caller the other party had blocked could relabel the exact same 1:1
+   * call as a "group" call and still get a real LiveKit room, a durable
+   * call-history row, and participant eligibility — the precise contact
+   * /initiate (and QC-F-359 for message-send) refuses.
+   *
+   * The type is therefore read from the conversation ROW (the QC-F-359
+   * precedent in MessageService.assertDirectSendNotBlocked) — never
+   * inferred from participant counts, maxParticipants, or the route name,
+   * because the count is exactly the proxy this bypass abused. Semantics:
+   * - type unreadable / row missing / unknown type → fail CLOSED with
+   *   503 BLOCKED_CHECK_UNAVAILABLE (the QC-F-218 calls vocabulary);
+   * - GROUP or CHANNEL → return immediately: QC-F-218's recorded decision
+   *   for real group conversations is unchanged, and no further read runs;
+   * - DIRECT → the peer set is the conversation's ACTIVE membership minus
+   *   the caller (NOT the request's participantIds — a self-only payload
+   *   must not dodge the check), and each peer is asked ONE-directionally
+   *   via PrivacyService.checkBlockedBy(peer, caller), exactly like
+   *   /initiate asks about its callee: any 'blocked' → 403 CALLER_BLOCKED
+   *   (blocked beats unavailable), otherwise any 'unavailable' → 503
+   *   BLOCKED_CHECK_UNAVAILABLE. No peers (the other side already left)
+   *   means there is nobody to check and the call proceeds to the
+   *   service's own participant-count rules, unchanged.
+   */
+  async assertDirectCallNotBlocked(conversationId: string, callerId: string): Promise<void> {
+    let conversationType: unknown;
+    try {
+      const conversation = await this.prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { type: true },
+      });
+      if (!conversation) {
+        throw new Error('conversation row missing for direct-call blocked gate');
+      }
+      conversationType = conversation.type;
+    } catch {
+      throw createAppError(
+        'Call creation is unavailable: block status cannot be verified.',
+        503,
+        'BLOCKED_CHECK_UNAVAILABLE',
+      );
+    }
+
+    if (
+      conversationType !== 'DIRECT' &&
+      conversationType !== 'GROUP' &&
+      conversationType !== 'CHANNEL'
+    ) {
+      throw createAppError(
+        'Call creation is unavailable: block status cannot be verified.',
+        503,
+        'BLOCKED_CHECK_UNAVAILABLE',
+      );
+    }
+
+    if (conversationType !== 'DIRECT') return;
+
+    let memberRows: Array<{ userId: string }>;
+    try {
+      memberRows = await this.prisma.conversationMember.findMany({
+        where: { conversationId, leftAt: null },
+        select: { userId: true },
+      });
+    } catch {
+      throw createAppError(
+        'Call creation is unavailable: block status cannot be verified.',
+        503,
+        'BLOCKED_CHECK_UNAVAILABLE',
+      );
+    }
+
+    const peerIds = [...new Set(memberRows.map((row) => row.userId))].filter(
+      (userId) => userId !== callerId,
+    );
+    if (peerIds.length === 0) return;
+
+    let sawUnavailable = false;
+    for (const peerId of peerIds) {
+      const verdict = await this.privacy.checkBlockedBy(peerId, callerId);
+      if (verdict === 'blocked') {
+        throw createAppError('This user cannot receive calls from you.', 403, 'CALLER_BLOCKED');
+      }
+      if (verdict === 'unavailable') sawUnavailable = true;
+    }
+
+    if (sawUnavailable) {
+      throw createAppError(
+        'Call creation is unavailable: block status cannot be verified.',
+        503,
+        'BLOCKED_CHECK_UNAVAILABLE',
+      );
+    }
+  }
+
   private async requireAdmin(
     conversationId: string,
     requesterId: string,
