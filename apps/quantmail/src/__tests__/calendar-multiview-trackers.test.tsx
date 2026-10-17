@@ -371,6 +371,9 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
       });
 
       it('Reminders tab shows an honest empty state with a not-wired-yet disclosure', () => {
+        // NOTE (fix/qm-calendar-reminder-account-isolation, CODEX-REVIEW
+        // 6167418183): unresolved auth now renders an honest sign-in gate, so
+        // the list/add-form assertions below need an explicit account.
         const html = renderToStaticMarkup(
           <CalendarScheduleSubView
             events={mockEvents}
@@ -378,6 +381,7 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
             openDedicatedSheet={vi.fn()}
             onSelectEvent={vi.fn()}
             initialSubTab="reminders"
+            userId="u-empty-state"
           />,
         );
 

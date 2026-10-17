@@ -21,8 +21,9 @@ import {
   type StoredLifeTracker,
 } from '../lib/calendar-trackers-storage';
 import {
-  reminderKey,
-  loadReminders,
+  resolveReminderAccount,
+  bindRemindersToAccount,
+  type ReminderAccountBinding,
   applyCreateReminder,
   applyToggleReminder,
   applySnoozeReminder,
@@ -1693,11 +1694,27 @@ export interface CalendarScheduleSubViewProps {
   className?: string;
   /** Test seam — which sub-tab renders first. Defaults to 'clock'. */
   initialSubTab?: 'clock' | 'reminders';
-  /** Scopes reminder persistence per account (localStorage). Defaults to 'anon'. */
+  /**
+   * Scopes reminder persistence per account (localStorage). An empty /
+   * unresolved id GATES the reminders UI (honest sign-in state) — nothing is
+   * read from or written to a shared bucket.
+   */
   userId?: string;
 }
 
-export function CalendarScheduleSubView({
+export function CalendarScheduleSubView(props: CalendarScheduleSubViewProps) {
+  // Account-keyed remount boundary (CODEX-REVIEW 6167418183 on #1159): the
+  // inner view owns ALL per-account state — reminders list, add-form fields,
+  // filter, sub-tab. Keying it by the resolved account id guarantees an A->B
+  // account transition (or unresolved->authenticated hydration) can never
+  // retain A's state under B's identity: React unmounts the old instance and
+  // mounts a fresh one that loads the new account's list. No mismatched
+  // state can render, and no stale list can be written under the wrong key.
+  const accountId = resolveReminderAccount(props.userId);
+  return <CalendarScheduleSubViewInner key={accountId ?? 'unresolved-auth'} {...props} />;
+}
+
+function CalendarScheduleSubViewInner({
   events = [],
   selectedDate = new Date(),
   openDedicatedSheet,
@@ -1740,15 +1757,37 @@ export function CalendarScheduleSubView({
   // water/log trackers (PR #1065) — the "Reminder created" toast may only
   // fire after the write lands; the "sync not wired up" disclosure is
   // rendered under the add form.
-  const remindersKey = reminderKey(userId);
-  const [reminders, setReminders] = useState<ScheduledReminder[]>(() =>
-    loadReminders(safeStorage(), remindersKey),
+  //
+  // ACCOUNT BINDING (CODEX-REVIEW 6167418183 on #1159): the list is bound to
+  // the resolved account id via bindRemindersToAccount. The outer boundary
+  // remounts this inner view on every account change; the render-phase rebind
+  // below is defense-in-depth so that even a direct render of the inner view
+  // can never commit a frame — or a write — with one account's list under
+  // another account's key. React re-renders before committing, so the
+  // mismatched list never paints.
+  const accountId = resolveReminderAccount(userId);
+  const [binding, setBinding] = useState<ReminderAccountBinding>(() =>
+    bindRemindersToAccount(safeStorage(), userId, null),
   );
+  if (binding.accountId !== accountId) {
+    setBinding(bindRemindersToAccount(safeStorage(), userId, binding));
+  }
 
   const [reminderFilter, setReminderFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [newTitle, setNewTitle] = useState('');
   const [newDueTime, setNewDueTime] = useState('Today, 6:00 PM');
   const [newPriority, setNewPriority] = useState<'urgent' | 'medium' | 'low'>('medium');
+
+  // Unresolved auth: the gate below hides every action control, so a null
+  // key is unreachable via UI — but a write without a resolved account must
+  // be impossible even if a handler were ever reached.
+  const requireAccountKey = (): string | null => {
+    if (!binding.key) {
+      showToast({ text: 'Sign in to manage reminders', type: 'error' });
+      return null;
+    }
+    return binding.key;
+  };
 
   const toggleReminder = (id: string) => {
     // Write to storage FIRST; the info toast may only fire when the write
@@ -1756,17 +1795,21 @@ export function CalendarScheduleSubView({
     // React may invoke updaters twice, which double-fires the toast.)
     // The persist/toast decision lives in applyToggleReminder so the
     // honesty contract is unit-testable without a DOM.
-    const result = applyToggleReminder(safeStorage(), remindersKey, reminders, id);
+    const key = requireAccountKey();
+    if (!key) return;
+    const result = applyToggleReminder(safeStorage(), key, binding.list, id);
     if (result.persisted) {
-      setReminders(result.next);
+      setBinding({ ...binding, list: result.next });
     }
     if (result.toast) showToast(result.toast);
   };
 
   const handleSnooze = (id: string, mins: number) => {
-    const result = applySnoozeReminder(safeStorage(), remindersKey, reminders, id, mins);
+    const key = requireAccountKey();
+    if (!key) return;
+    const result = applySnoozeReminder(safeStorage(), key, binding.list, id, mins);
     if (result.persisted) {
-      setReminders(result.next);
+      setBinding({ ...binding, list: result.next });
     }
     if (result.toast) showToast(result.toast);
   };
@@ -1777,7 +1820,9 @@ export function CalendarScheduleSubView({
 
     // Persist before celebrating: only claim "created" when the list is
     // stored. On storage failure show an honest error, never a fake success.
-    const result = applyCreateReminder(safeStorage(), remindersKey, reminders, {
+    const key = requireAccountKey();
+    if (!key) return;
+    const result = applyCreateReminder(safeStorage(), key, binding.list, {
       title: newTitle.trim(),
       dueTime: newDueTime || 'Today, 6:00 PM',
       priority: newPriority,
@@ -1786,20 +1831,22 @@ export function CalendarScheduleSubView({
       if (result.toast) showToast(result.toast);
       return;
     }
-    setReminders(result.next);
+    setBinding({ ...binding, list: result.next });
     setNewTitle('');
     if (result.toast) showToast(result.toast);
   };
 
   const handleDeleteReminder = (id: string) => {
-    const result = applyDeleteReminder(safeStorage(), remindersKey, reminders, id);
+    const key = requireAccountKey();
+    if (!key) return;
+    const result = applyDeleteReminder(safeStorage(), key, binding.list, id);
     if (result.persisted) {
-      setReminders(result.next);
+      setBinding({ ...binding, list: result.next });
     }
     if (result.toast) showToast(result.toast);
   };
 
-  const filteredReminders = reminders.filter((r) => {
+  const filteredReminders = binding.list.filter((r) => {
     if (reminderFilter === 'pending') return !r.completed;
     if (reminderFilter === 'completed') return r.completed;
     return true;
@@ -1872,7 +1919,7 @@ export function CalendarScheduleSubView({
             }`}
           >
             <SvgBell className="size-3.5" />
-            <span>Reminders ({reminders.filter((r) => !r.completed).length})</span>
+            <span>Reminders ({binding.list.filter((r) => !r.completed).length})</span>
           </button>
         </div>
       </div>
@@ -1974,7 +2021,24 @@ export function CalendarScheduleSubView({
       )}
 
       {/* SUB-TAB 2: REMINDERS */}
-      {subTab === 'reminders' && (
+      {/* SUB-TAB 2: REMINDERS.
+          Unresolved auth renders an honest gate instead of the list/add form:
+          reminders are per-account, so nothing is read from or written to a
+          shared bucket while signed out (CODEX-REVIEW 6167418183 on #1159). */}
+      {subTab === 'reminders' && !accountId && (
+        <div className="space-y-6">
+          <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-6 sm:p-8 shadow-sm text-center space-y-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--app-accent)]">
+              Sign in to manage reminders
+            </h3>
+            <p className="text-xs text-[var(--quant-muted-foreground)] max-w-md mx-auto">
+              Reminders are saved per account on this device. Sign in to create
+              and manage yours — nothing is stored while you are signed out.
+            </p>
+          </div>
+        </div>
+      )}
+      {subTab === 'reminders' && accountId && (
         <div className="space-y-6">
           {/* Quick Add Card */}
           <div className="bg-[var(--quant-surface)] border border-[#232938] rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
