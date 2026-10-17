@@ -29,6 +29,15 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   // `revoke-others` is the destructive one; the backend step-up-guards it.
   { pattern: /^auth\/sessions$/, methods: ['GET'] },
   { pattern: /^auth\/sessions\/revoke-others$/, methods: ['POST'] },
+  // Recovery-email verified lifecycle (fix/qm-recovery-channel-authz,
+  // CODEX-REVIEW 6241280732 corrective on merged #1254): the settings UI
+  // reaches these through the Next proxy — without rows here the proxy
+  // answers 404 API_ROUTE_NOT_FOUND before the backend ever sees the
+  // request (the #1254 GET/PUT shipped without them and were unreachable
+  // through the default `/api` base URL). The backend step-up-guards all
+  // three mutations; the proxy only needs to let them through.
+  { pattern: /^auth\/account\/recovery-email$/, methods: ['GET', 'PUT'] },
+  { pattern: /^auth\/account\/recovery-email\/verify$/, methods: ['POST'] },
   // Phone login/OTP REMOVED per the locked 2026-10-05 / 2026-10-11 SSO design
   // (OTP is email-based only: POST /auth/verify-email + /auth/resend-verification).
   // `backend/routes/phone.ts` (POST /auth/phone/send-otp, POST /auth/phone/verify,

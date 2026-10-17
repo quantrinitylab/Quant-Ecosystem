@@ -693,20 +693,39 @@ export class QuantMailApiClient {
   }
 
   /**
-   * Out-of-band account recovery (fix/qm-account-recovery-3). The recovery
-   * email is the address password-reset links are mailed to IN ADDITION to the
-   * account's own inbox, for when the inbox itself is unreachable (forgot
-   * password + no active session). Managed while signed in only — the backend
-   * requires an authenticated session for both calls.
+   * Out-of-band account recovery (fix/qm-account-recovery-3, verified
+   * lifecycle fix/qm-recovery-channel-authz for CODEX-REVIEW 6241280732).
+   * A new address starts PENDING: the backend mails a 6-digit code to it and
+   * only verifyRecoveryEmail() activates it. Mutations cross the step-up
+   * boundary server-side — a stale session gets 401 STEP_UP_REQUIRED, which
+   * the UI surfaces honestly (re-authenticate) instead of inventing success.
    */
-  async getRecoveryEmail(): Promise<ApiResponse<{ recoveryEmail: string | null }>> {
+  async getRecoveryEmail(): Promise<
+    ApiResponse<{ recoveryEmail: string | null; verified: boolean; pendingEmail: string | null }>
+  > {
     return this.get('/auth/account/recovery-email');
   }
 
   async setRecoveryEmail(
     email: string | null,
-  ): Promise<ApiResponse<{ recoveryEmail: string | null }>> {
+  ): Promise<
+    ApiResponse<{
+      recoveryEmail: string | null;
+      verified: boolean;
+      pendingEmail: string | null;
+      pendingVerification?: boolean;
+      codeDelivered?: boolean;
+    }>
+  > {
     return this.put('/auth/account/recovery-email', { email });
+  }
+
+  async verifyRecoveryEmail(
+    code: string,
+  ): Promise<
+    ApiResponse<{ recoveryEmail: string | null; verified: boolean; pendingEmail: string | null }>
+  > {
+    return this.post('/auth/account/recovery-email/verify', { code });
   }
 
   async resetPassword(
