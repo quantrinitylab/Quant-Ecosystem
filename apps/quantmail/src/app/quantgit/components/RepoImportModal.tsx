@@ -131,8 +131,12 @@ export function RepoImportModal({
   const [targetRepoName, setTargetRepoName] = useState('');
   const [token, setToken] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
-  const [convertPipelines, setConvertPipelines] = useState(true);
-  const [extractEnv, setExtractEnv] = useState(true);
+  // HONESTY (2026-10-17): pipeline conversion and env extraction from the
+  // remote's ACTUAL files are not wired up yet — the backend answers 501
+  // when these are requested. Kept visible but disabled so the roadmap is
+  // clear; they default off so an import succeeds with real ref discovery.
+  const [convertPipelines, setConvertPipelines] = useState(false);
+  const [extractEnv, setExtractEnv] = useState(false);
 
   // Migration Stepper State
   const [isImporting, setIsImporting] = useState(false);
@@ -477,16 +481,19 @@ export function RepoImportModal({
                     data-testid="convert-pipelines-checkbox"
                     checked={convertPipelines}
                     onChange={(e) => setConvertPipelines(e.target.checked)}
-                    className="mt-0.5 accent-[#238636] rounded"
+                    disabled
+                    title="Not wired yet — the backend cannot fetch the remote's actual workflow files"
+                    className="mt-0.5 accent-[#238636] rounded disabled:opacity-40"
                   />
                   <div>
                     <span className="font-semibold text-white group-hover:text-[#58A6FF] transition-colors">
                       Convert CI/CD pipelines (.github/workflows / .gitlab-ci.yml to QuantGit
-                      Actions)
+                      Actions){' '}
+                      <span className="text-[10px] font-normal text-[#F0883E]">not wired yet</span>
                     </span>
                     <p className="text-[11px] text-[#7D8590]">
-                      Automatically translates workflow jobs, steps, triggers, and artifacts into
-                      sovereign <code>.quant/workflows/ci.yml</code>.
+                      Will translate the remote&apos;s actual workflow files into sovereign{' '}
+                      <code>.quant/workflows/ci.yml</code> once wired up.
                     </p>
                   </div>
                 </label>
@@ -497,15 +504,19 @@ export function RepoImportModal({
                     data-testid="extract-env-checkbox"
                     checked={extractEnv}
                     onChange={(e) => setExtractEnv(e.target.checked)}
-                    className="mt-0.5 accent-[#238636] rounded"
+                    disabled
+                    title="Not wired yet — the backend cannot fetch the remote's actual env templates"
+                    className="mt-0.5 accent-[#238636] rounded disabled:opacity-40"
                   />
                   <div>
                     <span className="font-semibold text-white group-hover:text-[#58A6FF] transition-colors">
-                      Extract environment variables & secrets templates
+                      Extract environment variables & secrets templates{' '}
+                      <span className="text-[10px] font-normal text-[#F0883E]">not wired yet</span>
                     </span>
                     <p className="text-[11px] text-[#7D8590]">
-                      Discovers keys like <code>DATABASE_URL</code>, <code>API_KEY</code>,{' '}
-                      <code>JWT_SECRET</code> and injects masked dummy templates.
+                      Will discover keys like <code>DATABASE_URL</code>, <code>API_KEY</code>,{' '}
+                      <code>JWT_SECRET</code> from the remote&apos;s actual templates once wired
+                      up. Nothing is fabricated in the meantime.
                     </p>
                   </div>
                 </label>

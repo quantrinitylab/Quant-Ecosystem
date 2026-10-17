@@ -938,8 +938,12 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     targetOwner: z.string().optional(),
     targetRepoName: z.string().min(1, 'Target repository name is required'),
     isPrivate: z.boolean().optional().default(false),
-    importPipelines: z.boolean().optional().default(true),
-    importEnv: z.boolean().optional().default(true),
+    // HONESTY (2026-10-17): pipeline conversion and env extraction from the
+    // remote's ACTUAL files are not wired up — the service 501s when requested.
+    // Defaulting to false keeps /import working for real ref discovery instead
+    // of failing every call with 501.
+    importPipelines: z.boolean().optional().default(false),
+    importEnv: z.boolean().optional().default(false),
   });
 
   const handleImportRepo = async (request: any, reply: any) => {
