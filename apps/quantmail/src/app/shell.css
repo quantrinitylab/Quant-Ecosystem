@@ -163,32 +163,6 @@
 }
 .mail-copilot-trigger svg { color: var(--quant-primary); }
 
-/* 3) Auth pages: the access form stays vertically centered, and desktop is a
-      real two-column layout instead of a short form lost in empty space.
-      On mobile, the brand illustration panel is hidden so there is no dead
-      gap below the sign-in form. */
-.auth-shell .auth-shell-form {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.auth-shell .auth-shell-form-content {
-  width: 100%;
-  max-width: 460px;
-  margin: 0 auto;
-}
-/* Brand panel: visible only on desktop */
-.auth-shell-brand { display: none; }
-@media (min-width: 1024px) {
-  .auth-shell {
-    display: grid;
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-    align-items: stretch;
-    min-height: 100dvh;
-  }
-  .auth-shell-brand { display: flex; }
-}
-
 /* ──────────────────────────────────────────────────────────────────────────
    Folder mailboxes (Starred / Snoozed / Archive / Spam) — per-row rescue
    action button used by MailFolderPage.
@@ -429,4 +403,3 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
-
