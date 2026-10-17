@@ -184,3 +184,145 @@ describe('OTP Fail-Closed Authentication (no demo bypass, no local token mint)',
     expect(res.status).toBe(400);
   });
 });
+
+describe('OTP request proxy passes deliberate backend answers through verbatim (QC-F-442)', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('fetch failed'));
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  function otpRequest() {
+    return new Request('http://localhost/api/auth/otp/request', {
+      method: 'POST',
+      body: JSON.stringify({ phoneNumber: '+919876543210' }),
+    });
+  }
+
+  function upstreamJson(status: number, body: unknown) {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      }) as unknown as Response,
+    );
+  }
+
+  it('request OTP passes a backend 400 BAD_REQUEST through verbatim — not a fake 503', async () => {
+    upstreamJson(400, {
+      success: false,
+      error: { code: 'BAD_REQUEST', message: 'Invalid request', statusCode: 400 },
+    });
+
+    const res = await requestPOST(otpRequest());
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('BAD_REQUEST');
+    expect(json.error.message).toBe('Invalid request');
+    expect(json.error.statusCode).toBe(400);
+  });
+
+  it('request OTP passes a backend 429 with metadata.retryAfter through verbatim', async () => {
+    upstreamJson(429, {
+      success: false,
+      error: {
+        code: 'OTP_REQUEST_FAILED',
+        message: 'Too many code requests. Try again later.',
+        statusCode: 429,
+      },
+      metadata: { retryAfter: 3600 },
+    });
+
+    const res = await requestPOST(otpRequest());
+    expect(res.status).toBe(429);
+    const json = await res.json();
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('OTP_REQUEST_FAILED');
+    expect(json.error.message).toBe('Too many code requests. Try again later.');
+    // The cooldown the client needs for an honest retry UI must survive.
+    expect(json.metadata).toEqual({ retryAfter: 3600 });
+  });
+
+  it('request OTP passes a backend 429 without metadata through without fabricating retryAfter', async () => {
+    upstreamJson(429, {
+      success: false,
+      error: {
+        code: 'OTP_REQUEST_FAILED',
+        message: 'Invalid phone number format',
+        statusCode: 429,
+      },
+    });
+
+    const res = await requestPOST(otpRequest());
+    expect(res.status).toBe(429);
+    const json = await res.json();
+    expect(json.error.code).toBe('OTP_REQUEST_FAILED');
+    expect(json.error.message).toBe('Invalid phone number format');
+    expect(json.metadata).toBeUndefined();
+  });
+
+  it('request OTP passes any other deliberate 4xx through verbatim (general rule, not just 400/429)', async () => {
+    upstreamJson(403, {
+      success: false,
+      error: { code: 'OTP_COUNTRY_NOT_ALLOWED', message: 'Country not allowed', statusCode: 403 },
+    });
+
+    const res = await requestPOST(otpRequest());
+    expect(res.status).toBe(403);
+    const json = await res.json();
+    expect(json.error.code).toBe('OTP_COUNTRY_NOT_ALLOWED');
+    expect(json.error.message).toBe('Country not allowed');
+  });
+
+  it('request OTP still strips demoCode from a forwarded error body (QC-F-062 strip applies to every passthrough)', async () => {
+    upstreamJson(429, {
+      success: false,
+      demoCode: '654321',
+      error: {
+        code: 'OTP_REQUEST_FAILED',
+        message: 'Please wait before requesting another code',
+        statusCode: 429,
+      },
+      metadata: { retryAfter: 42 },
+      data: { demoCode: '654321' },
+    });
+
+    const res = await requestPOST(otpRequest());
+    expect(res.status).toBe(429);
+    const text = await res.text();
+    expect(text).not.toContain('demoCode');
+    expect(text).not.toContain('654321');
+    const json = JSON.parse(text);
+    expect(json.error.code).toBe('OTP_REQUEST_FAILED');
+    expect(json.metadata).toEqual({ retryAfter: 42 });
+  });
+
+  it('request OTP still fails closed with 503 when the backend answers 500 — even with a JSON error body', async () => {
+    upstreamJson(500, {
+      success: false,
+      error: { code: 'INTERNAL', message: 'database exploded', statusCode: 500 },
+    });
+
+    const res = await requestPOST(otpRequest());
+    expect(res.status).toBe(503);
+    const json = await res.json();
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('OTP_UPSTREAM_UNAVAILABLE');
+  });
+
+  it('request OTP fails closed with 503 when a deliberate-status body is not JSON (unparseable = upstream failure)', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response('error', { status: 400 }) as unknown as Response);
+
+    const res = await requestPOST(otpRequest());
+    expect(res.status).toBe(503);
+    const json = await res.json();
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('OTP_UPSTREAM_UNAVAILABLE');
+  });
+});
