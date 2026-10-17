@@ -2,6 +2,7 @@ import type { PrismaClient, Conversation, ConversationMember } from '@prisma/cli
 import { Prisma, ConversationType, ConversationRole } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { getPrivacyService, type PrivacyService } from './privacy.service';
+import { serializeEmojiStatus } from '../lib/emoji-status';
 
 /** Map the public (lowercase) conversation-type string to the Prisma enum. */
 function toConversationType(type: string): ConversationType {
@@ -72,6 +73,9 @@ export interface ConversationParticipantDto {
   joinedAt: Date;
   lastReadAt?: Date | null;
   nickname?: string | null;
+  // QC-F-466: the participant's live emoji status, or null. Always present
+  // (never the raw stored columns) so clients render it without guessing.
+  emojiStatus: { key: string; expiresAt: string } | null;
 }
 
 export type ConversationWithParticipants = Conversation & {
@@ -79,7 +83,15 @@ export type ConversationWithParticipants = Conversation & {
 };
 
 type MemberWithUser = ConversationMember & {
-  user: { id: string; username: string; displayName: string; avatarUrl: string | null };
+  user: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+    // QC-F-466: raw stored status columns (serialized in toParticipantDto).
+    statusEmoji?: string | null;
+    statusEmojiExpiresAt?: Date | null;
+  };
 };
 
 function toParticipantRole(role: ConversationRole): 'admin' | 'moderator' | 'member' {
@@ -102,6 +114,8 @@ function toParticipantDto(m: MemberWithUser): ConversationParticipantDto {
     joinedAt: m.joinedAt,
     lastReadAt: m.lastReadAt,
     nickname: m.nickname,
+    // QC-F-466: read-time expiry — an expired stored status is never served.
+    emojiStatus: serializeEmojiStatus(m.user),
   };
 }
 
@@ -109,7 +123,16 @@ function toParticipantDto(m: MemberWithUser): ConversationParticipantDto {
 const activeMembersWithUser = {
   where: { leftAt: null },
   include: {
-    user: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+    user: {
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        avatarUrl: true,
+        statusEmoji: true,
+        statusEmojiExpiresAt: true,
+      },
+    },
   },
 } as const;
 
