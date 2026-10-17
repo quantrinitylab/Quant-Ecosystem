@@ -830,7 +830,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '403':
-          description: Caller or a participant is not an active member of the conversation
+          description: Caller or a participant is not an active member of the conversation, or the conversation is a direct conversation and the other participant has blocked the caller
           content:
             application/json:
               schema:
@@ -842,7 +842,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '503':
-          description: Calls unavailable, or membership cannot be verified (fail-closed)
+          description: Calls unavailable, or membership/block status cannot be verified (fail-closed)
           content:
             application/json:
               schema:
