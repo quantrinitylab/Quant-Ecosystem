@@ -18,6 +18,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   headShaFromBlobError,
   headShaFromBlobPayload,
+  newBranchBaseSha,
   toParentShaParam,
 } from '../blobHeadSha';
 import { BlobEditor } from '../../../components/BlobEditor';
@@ -121,5 +122,38 @@ describe('BlobEditor base-commit display', () => {
       />,
     );
     expect(html).toContain('no base commit');
+  });
+});
+
+describe('newBranchBaseSha (commit-to-new-branch base)', () => {
+  const OLD_COMMIT = 'b1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+  const LATEST = 'c1c2c3d4e5f60718293a4b5c6d7e8f9012345678';
+
+  it('creates the new branch at the read-time head, not latestCommitSha', () => {
+    // Regression: handleCommitBlob created the branch at
+    // selectedRepo.latestCommitSha while sending parentSha = viewingHeadSha
+    // (the browsed historical commit) — backend 409 STALE_PARENT_SHA on
+    // every commit-to-new-branch from an old commit.
+    expect(newBranchBaseSha(OLD_COMMIT, LATEST)).toBe(OLD_COMMIT);
+    expect(newBranchBaseSha(OLD_COMMIT, undefined)).toBe(OLD_COMMIT);
+  });
+
+  it('keeps base === parentSha so the follow-up commit cannot 409', () => {
+    // The wire: branch POST sha = newBranchBaseSha(...), commit parentSha =
+    // toParentShaParam(expectedHeadSha). They must agree.
+    const expectedHeadSha = OLD_COMMIT;
+    expect(newBranchBaseSha(expectedHeadSha, LATEST)).toBe(toParentShaParam(expectedHeadSha));
+  });
+
+  it('falls back to latestCommitSha only when the read-time head is unknown', () => {
+    expect(newBranchBaseSha('', LATEST)).toBe(LATEST);
+    expect(newBranchBaseSha(null, LATEST)).toBe(LATEST);
+    expect(newBranchBaseSha(undefined, LATEST)).toBe(LATEST);
+  });
+
+  it('returns undefined when neither SHA is known (key dropped from the POST body)', () => {
+    expect(newBranchBaseSha('', '')).toBeUndefined();
+    expect(newBranchBaseSha(null, null)).toBeUndefined();
+    expect(newBranchBaseSha(undefined, undefined)).toBeUndefined();
   });
 });

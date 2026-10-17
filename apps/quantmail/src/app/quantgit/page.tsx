@@ -63,6 +63,7 @@ import { interpretMergeResult, mergeFailureToast } from './mergeOutcome';
 import { resolveBlobLoadOutcome } from './blobLoadOutcome';
 import {
   headShaFromBlobPayload,
+  newBranchBaseSha,
   toParentShaParam,
 } from './blobHeadSha';
 import { AgentsTab } from './components/AgentsTab';
@@ -2020,7 +2021,12 @@ function QuantGitContent() {  const router = useRouter();
       const method = input.isDelete ? 'DELETE' : 'PATCH';
       let payload: any = null;
 
-      // If newBranch is requested, create the branch on the backend first if needed
+      // If newBranch is requested, create the branch on the backend first if needed.
+      // The branch MUST be created at the commit the file was read at
+      // (expectedHeadSha — the browsed historical commit when browsing at an
+      // old commit), NOT at selectedRepo.latestCommitSha: the follow-up file
+      // commit sends parentSha = expectedHeadSha, and the backend 409s with
+      // STALE_PARENT_SHA whenever the new branch head differs from it.
       if (input.newBranch) {
         try {
           await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/branches`, {
@@ -2030,7 +2036,7 @@ function QuantGitContent() {  const router = useRouter();
             },
             body: JSON.stringify({
               name: input.newBranch,
-              sha: selectedRepo.latestCommitSha || undefined,
+              sha: newBranchBaseSha(input.expectedHeadSha, selectedRepo.latestCommitSha),
             }),
           });
         } catch {
