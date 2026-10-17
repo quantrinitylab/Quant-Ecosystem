@@ -185,15 +185,26 @@ export async function passwordResetRoutes(fastify: FastifyInstance) {
         });
 
         // The out-of-band channel (migration 0091, routes/account-recovery.ts):
-        // the SAME link is mailed to the recovery address too when one is set.
-        // The primary inbox is unreachable in exactly the lockout this endpoint
-        // exists for (forgot password + no active session); without this, the
-        // reset is a dead letter in a mailbox the person cannot open. Still
-        // non-committal: the response never says whether the address exists or
-        // whether a recovery email was set, and the fire-and-forget send adds
-        // no timing signal either way.
+        // the SAME link is mailed to the recovery address too when one is set
+        // AND verified (migration 0102, CODEX-REVIEW 6241280732 corrective on
+        // #1254). The primary inbox is unreachable in exactly the lockout this
+        // endpoint exists for (forgot password + no active session); without
+        // this, the reset is a dead letter in a mailbox the person cannot
+        // open. An UNVERIFIED address — including every legacy #1254 row whose
+        // recoveryEmailVerifiedAt is NULL — is INERT here: mailing a usable
+        // link to an address whose destination was never proven is the gap
+        // this gate closes. Still non-committal: the response never says
+        // whether the address exists, whether a recovery email was set, or
+        // whether it was verified, and the fire-and-forget send adds no timing
+        // signal either way.
         const recoveryEmail = user.recoveryEmail;
-        if (typeof recoveryEmail === 'string' && recoveryEmail.trim()) {
+        const recoveryVerified = (user as { recoveryEmailVerifiedAt?: Date | null })
+          .recoveryEmailVerifiedAt;
+        if (
+          typeof recoveryEmail === 'string' &&
+          recoveryEmail.trim() &&
+          recoveryVerified != null
+        ) {
           void sendPasswordResetEmail({
             to: recoveryEmail.trim(),
             url: resetUrl(token),

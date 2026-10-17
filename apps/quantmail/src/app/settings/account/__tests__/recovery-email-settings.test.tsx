@@ -26,6 +26,7 @@ vi.mock('../../../../services/api-client', () => ({
   apiClient: {
     getRecoveryEmail: vi.fn(),
     setRecoveryEmail: vi.fn(),
+    verifyRecoveryEmail: vi.fn(),
   },
 }));
 
@@ -71,8 +72,23 @@ describe('recovery email wiring (source scans)', () => {
     expect(src()).toMatch(/^'use client'/m);
     expect(src()).toContain('apiClient.getRecoveryEmail');
     expect(src()).toContain('apiClient.setRecoveryEmail');
+    expect(src()).toContain('apiClient.verifyRecoveryEmail');
     expect(src()).not.toContain('TODO');
     expect(src()).not.toContain('not wired');
+  });
+
+  it('gates activation on the verification code (CODEX-REVIEW 6241280732)', () => {
+    // A new address starts pending: the UI offers a code entry, says the
+    // address only becomes active after confirmation, and re-reads GET after
+    // verify instead of trusting local state.
+    const s = src();
+    expect(s).toContain('Confirm address');
+    expect(s).toContain('only becomes active after you confirm the code');
+    expect(s).toContain('apiClient.verifyRecoveryEmail(code.trim())');
+    expect(s).toContain('setVerified(response.data.verified === true)');
+    // codeDelivered:false is surfaced honestly, never invented as sent.
+    expect(s).toContain('codeDelivered');
+    expect(s).not.toMatch(/code (was )?sent( successfully)?/i);
   });
 
   it('re-reads the value after actions instead of trusting local state', () => {

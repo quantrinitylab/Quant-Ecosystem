@@ -25,6 +25,14 @@ model User {
   // unreachable — does not become permanent. Nullable: no backfill needed.
   // No unique index: one shared family mailbox may back more than one account.
   recoveryEmail       String?
+  // CODEX-REVIEW 6241280732 (war-room #902) corrective on #1254: an address
+  // only becomes the recovery channel after DESTINATION VERIFICATION (a code
+  // mailed to it, consumed back through POST /auth/account/recovery-email/verify).
+  // NULL = never verified — this deliberately includes the legacy #1254 rows,
+  // whose addresses were activated by session identity alone. Reset links go
+  // only to verified addresses; an unverified legacy address keeps the channel
+  // inert until the owner re-verifies it.
+  recoveryEmailVerifiedAt DateTime?
   role                UserRole   @default(USER)
   status              UserStatus @default(PENDING_VERIFICATION)
   emailVerified       Boolean    @default(false)
@@ -72,6 +80,7 @@ model User {
   twoFactorBackupCodes TwoFactorBackupCode[]
   passwordResetTokens  PasswordResetToken[]
   emailVerificationCodes EmailVerificationCode[]
+  recoveryEmailVerifications RecoveryEmailVerification[]
   followUpReminders FollowUpReminder[]
   personalAccessTokens PersonalAccessToken[]
   oauthClients       OAuthClient[]        @relation("UserOwnedClients")
@@ -342,6 +351,35 @@ model EmailVerificationCode {
   @@index([userId])
   @@index([expiresAt])
   @@map("email_verification_codes")
+}
+
+/**
+ * Recovery-address destination verification (CODEX-REVIEW 6241280732 on #902,
+ * corrective on #1254). A recovery address starts PENDING: only the SHA-256
+ * digest of a 6-digit code is stored (a leaked table must not be live codes),
+ * single-use, 15-minute-bounded, attempt-capped — the same contract as
+ * EmailVerificationCode. Consuming the code flips User.recoveryEmailVerifiedAt.
+ * The CURRENT recoveryEmail stays active until the pending one is verified,
+ * so a typo'd or hostile address can never silently become the channel.
+ */
+model RecoveryEmailVerification {
+  id         String    @id @default(cuid())
+  userId     String
+  // The normalized pending recovery address. The code is mailed HERE, so a
+  // typo'd address degrades to a code nobody can read, never to activation.
+  email      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  usedAt     DateTime?
+  requestedIp String?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("recovery_email_verifications")
 }
 
 /**
