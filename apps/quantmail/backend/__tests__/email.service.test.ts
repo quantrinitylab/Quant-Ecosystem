@@ -261,7 +261,11 @@ describe('EmailService', () => {
       expect(result.folderId).toBe('sent-folder-id');
       expect(result.sentAt).toBeInstanceOf(Date);
       expect(prisma.email.updateMany).toHaveBeenCalledWith({
-        where: { id: 'email-1' },
+        // fix/qm-send-transmit-before-flip: the flip is the atomic send-once
+        // guard — it only matches a still-unsent draft, so a retry after a
+        // crash (or past the idempotency claim TTL) 409s instead of
+        // re-transmitting.
+        where: { id: 'email-1', isDraft: true, isSent: false },
         data: {
           isDraft: false,
           isSent: true,
@@ -402,6 +406,132 @@ describe('EmailService', () => {
       await expect(service.send('user-1', 'email-1', 'sent-folder')).rejects.toThrow(
         'Not authorized to send this email',
       );
+    });
+  });
+
+  describe('send — flip-first ordering (fix/qm-send-transmit-before-flip)', () => {
+    const draftEmail = {
+      id: 'email-1',
+      userId: 'user-1',
+      isDraft: true,
+      isSent: false,
+      folderId: 'drafts-folder-id',
+      toAddresses: ['recipient@test.com'],
+      ccAddresses: [],
+      bccAddresses: [],
+      fromAddress: 'user-1@quantmail.in',
+      fromName: 'User One',
+      subject: 'Test Subject',
+      bodyHtml: '<p>Hello</p>',
+      bodyPlain: 'Hello',
+      messageId: null,
+      receivedAt: null,
+    };
+    const flippedEmail = {
+      ...draftEmail,
+      isDraft: false,
+      isSent: true,
+      folderId: 'sent-folder-id',
+      deliveryStatus: 'queued',
+      version: 3,
+    };
+
+    it('commits the sent-flip BEFORE the pipeline enqueue (no transmit-then-flip window)', async () => {
+      // The P1: transmit used to run before the flip, so a crash in between
+      // left the draft unflipped and a retry re-transmitted (double email).
+      const order: string[] = [];
+      prisma.email.findUnique.mockResolvedValue(draftEmail);
+      prisma.email.updateMany.mockImplementation(async (args: unknown) => {
+        order.push(`updateMany:${JSON.stringify((args as { where: unknown }).where)}`);
+        return { count: 1 };
+      });
+      const pipeline = {
+        enqueueSend: vi.fn().mockImplementation(async () => {
+          order.push('enqueueSend');
+          return 'job-1';
+        }),
+        cancelSend: vi.fn(),
+      };
+      const svc = new EmailService(prisma as never, pipeline as never, suppression);
+
+      await svc.send('user-1', 'email-1', 'sent-folder-id');
+
+      const flipIdx = order.findIndex((e) => e.startsWith('updateMany:'));
+      const enqueueIdx = order.indexOf('enqueueSend');
+      expect(flipIdx).toBeGreaterThanOrEqual(0);
+      expect(enqueueIdx).toBeGreaterThan(flipIdx);
+      // The flip is the atomic send-once guard.
+      expect(order[flipIdx]).toContain('"isDraft":true');
+      expect(order[flipIdx]).toContain('"isSent":false');
+      expect(pipeline.enqueueSend).toHaveBeenCalledWith('user-1', 'email-1', {
+        sentFolderId: 'sent-folder-id',
+        delayMs: undefined,
+      });
+    });
+
+    it('a retry after the flip committed gets 409 EMAIL_ALREADY_SENT and never re-transmits', async () => {
+      // Simulates the crash window: the first attempt flipped, then died
+      // before transmitting. The retry's conditional flip matches zero rows.
+      const sentRow = { ...flippedEmail, isDraft: false, isSent: true };
+      prisma.email.findUnique.mockResolvedValue(sentRow);
+      prisma.email.updateMany.mockResolvedValue({ count: 0 });
+      const pipeline = {
+        enqueueSend: vi.fn().mockResolvedValue('job-1'),
+        cancelSend: vi.fn(),
+      };
+      const svc = new EmailService(prisma as never, pipeline as never, suppression);
+
+      const err = await svc.send('user-1', 'email-1', 'sent-folder-id').then(
+        () => null,
+        (e: unknown) => e as { statusCode?: number; code?: string; message?: string },
+      );
+
+      expect(err).not.toBeNull();
+      expect(err?.statusCode).toBe(409);
+      expect(err?.code).toBe('EMAIL_ALREADY_SENT');
+      // No second transmit, no finalize write — the 409 happens at the flip.
+      expect(pipeline.enqueueSend).not.toHaveBeenCalled();
+      expect(prisma.outboxEvent.create).not.toHaveBeenCalled();
+    });
+
+    it('compensates the flip back to a draft when the pipeline dies and no SES fallback applies', async () => {
+      // Pipeline exists at the pre-check but the enqueue throws (Redis blip),
+      // and SES is not configured: the old code threw 503 with the draft
+      // untouched; flip-first must restore the draft instead of stranding a
+      // 'queued' Sent row.
+      const calls: Array<{ where: unknown; data: unknown }> = [];
+      // The first read sees the draft; every later read sees the committed
+      // flip — that is what compensateSendFlip's guard (isSent + 'queued')
+      // checks before flipping back, so the mock must reflect the flip.
+      prisma.email.findUnique
+        .mockResolvedValueOnce(draftEmail)
+        .mockResolvedValue(flippedEmail);
+      prisma.email.updateMany.mockImplementation(async (args: {
+        where: unknown;
+        data: unknown;
+      }) => {
+        calls.push({ where: args.where, data: args.data });
+        return { count: 1 };
+      });
+      const pipeline = {
+        enqueueSend: vi.fn().mockRejectedValue(new Error('Redis down')),
+        cancelSend: vi.fn(),
+      };
+      const svc = new EmailService(prisma as never, pipeline as never, suppression);
+
+      const err = await svc.send('user-1', 'email-1', 'sent-folder-id').then(
+        () => null,
+        (e: unknown) => e as { statusCode?: number; code?: string; message?: string },
+      );
+
+      expect(err?.statusCode).toBe(503);
+      expect(err?.code).toBe('DELIVERY_QUEUE_UNAVAILABLE');
+      // First write: the flip. Later write: the compensation back to draft.
+      expect(calls.length).toBeGreaterThanOrEqual(2);
+      const flipBack = calls[calls.length - 1]!;
+      expect((flipBack.data as { isDraft: boolean }).isDraft).toBe(true);
+      expect((flipBack.data as { isSent: boolean }).isSent).toBe(false);
+      expect((flipBack.data as { deliveryStatus: string }).deliveryStatus).toBe('draft');
     });
   });
 

@@ -31,13 +31,13 @@ vi.mock('../lib/ses-sender', () => ({
  *   - GET /emails (default inbox) requires `isDraft = false` -> missed it (bug 2)
  *   - GET /emails/search has no isDraft filter               -> found it
  *
- * The interim fix recorded a transport failure as 'deferred' and still
- * flipped to Sent — but that was a silent lie (CUST-P0-2): the UI announced
- * "Message sent" while no queue job existed and nothing could ever deliver
- * the mail. The current contract is honest: when no transport can deliver
- * (queue down and no direct fallback applies), send() throws a real 503
- * DELIVERY_QUEUE_UNAVAILABLE and the draft stays a draft, so the user sees
- * the actual reason and can retry.
+ * The current contract is honest AND crash-safe (fix/qm-send-order-outbox):
+ * the durable sent-flip commits BEFORE any external transmit (flip-first),
+ * so a retry after a crash 409s on the atomic send-once guard instead of
+ * re-transmitting. When no transport can deliver (queue down and no direct
+ * fallback applies), send() compensates the flip back to a draft and throws
+ * a real 503 DELIVERY_QUEUE_UNAVAILABLE — the draft stays a draft, so the
+ * user sees the actual reason and can retry.
  */
 
 // Mirrors Prisma's client-side enum validation (PrismaClientValidationError is
@@ -119,6 +119,9 @@ function makePrisma() {
       }),
       // QM-BACK-002: versionedUpdate runs a conditional updateMany inside the
       // tx; the fake honours the version predicate and the increment marker.
+      // fix/qm-send-order-outbox: it also honours the requireUnsent
+      // (isDraft/isSent) predicate, so the atomic send-once guard is real
+      // in this fake.
       updateMany: vi.fn(async ({ where, data }: any) => {
         if (
           data.deliveryStatus !== undefined &&
@@ -129,6 +132,12 @@ function makePrisma() {
         const id = where?.id as string | undefined;
         const row = (id ? rows.get(id) : undefined) ?? { ...DRAFT_ROW };
         if (where?.version !== undefined && (row['version'] ?? 0) !== where.version) {
+          return { count: 0 };
+        }
+        if (where?.isDraft !== undefined && row['isDraft'] !== where.isDraft) {
+          return { count: 0 };
+        }
+        if (where?.isSent !== undefined && row['isSent'] !== where.isSent) {
           return { count: 0 };
         }
         const next = applyData(row, data);
@@ -188,9 +197,11 @@ describe('EmailService.send fails honestly when delivery transport is down', () 
     // The composer always sends with a 10s undo delay, which also disables the
     // direct-SES fallback — this is the exact QA path.
     // CUST-P0-2: the send must not fake success. Nothing can deliver the
-    // message, so send() throws a real, retryable 503 — and the draft is
-    // never flipped to Sent (the old deferred-flip made the UI announce
-    // "Message sent" while the mail sat undeliverable).
+    // message, so send() throws a real, retryable 503 — and the row ends as
+    // a draft: fix/qm-send-order-outbox flips first (the durable send-once
+    // record) and then compensates the flip back to a draft when the enqueue
+    // fails, so the UI never announces "Message sent" for undeliverable mail
+    // and the user can retry from the draft.
     const err = await service
       .send('u1', 'e1', 'sent-folder-id', { delayMs: 10_000 })
       .then(
@@ -200,7 +211,14 @@ describe('EmailService.send fails honestly when delivery transport is down', () 
     expect(err).not.toBeNull();
     expect(err?.statusCode).toBe(503);
     expect(err?.code).toBe('DELIVERY_QUEUE_UNAVAILABLE');
-    expect(updates).toHaveLength(0);
+    // Two writes: the flip, then the compensation back to a draft.
+    expect(updates).toHaveLength(2);
+    expect(updates[0]!.data.isSent).toBe(true);
+    expect(updates[0]!.data.deliveryStatus).toBe('queued');
+    const compensated = updates[1]!.data;
+    expect(compensated.isDraft).toBe(true);
+    expect(compensated.isSent).toBe(false);
+    expect(compensated.deliveryStatus).toBe('draft');
   });
 
   it('still records the Sent copy when direct SES transmission throws', async () => {
@@ -211,12 +229,17 @@ describe('EmailService.send fails honestly when delivery transport is down', () 
 
     const sent = await service.send('u1', 'e1', 'sent-folder-id');
 
-    expect(updates).toHaveLength(1);
+    // Two writes: the durable flip first, then the honest delivery-state
+    // finalize (queued -> deferred) after the SES transmit fails.
+    expect(updates).toHaveLength(2);
     expect(updates[0]!.data.isSent).toBe(true);
     expect(updates[0]!.data.isDraft).toBe(false);
     expect(updates[0]!.data.folderId).toBe('sent-folder-id');
-    expect(VALID_DELIVERY_STATUSES.has(updates[0]!.data.deliveryStatus as string)).toBe(true);
+    expect(updates[0]!.data.deliveryStatus).toBe('queued');
+    expect(updates[1]!.data.deliveryStatus).toBe('deferred');
+    expect(VALID_DELIVERY_STATUSES.has(updates[1]!.data.deliveryStatus as string)).toBe(true);
     expect(sent.isSent).toBe(true);
+    expect((sent as unknown as { deliveryStatus: string }).deliveryStatus).toBe('deferred');
   });
 });
 

@@ -163,7 +163,9 @@ export class OutboundDeliveryPipeline {
   /**
    * Enqueue a previously-composed draft for real delivery.
    *
-   * Preconditions: the email exists, is owned by `userId`, and is a valid draft.
+   * Preconditions: the email exists, is owned by `userId`, and is a valid
+   * draft — or a freshly flipped send (isSent, deliveryStatus 'queued')
+   * whose durable flip committed before this enqueue (flip-first send).
    * Postconditions: a durable BullMQ job exists and `email.deliveryStatus = 'queued'`.
    *
    * Ownership is enforced BEFORE any job is created, so a cross-owner request
@@ -195,8 +197,14 @@ export class OutboundDeliveryPipeline {
           throw createAppError('Not authorized to send this email', 403, 'FORBIDDEN');
         }
 
-        // Must be a valid, unsent draft.
-        if (!email.isDraft || email.isSent) {
+        // Must be a valid, unsent draft — or a freshly flipped send whose
+        // durable flip committed before the enqueue (fix/qm-send-transmit-before-flip:
+        // EmailService.send() now flips first, then enqueues, so the row is
+        // already isSent with deliveryStatus 'queued' when this runs).
+        // Anything else (delivered, deferred, bounced, re-drafted) is rejected.
+        const deliveryStatus = (email as { deliveryStatus?: string | null }).deliveryStatus;
+        const freshlyFlipped = !email.isDraft && email.isSent && deliveryStatus === 'queued';
+        if (!freshlyFlipped && (!email.isDraft || email.isSent)) {
           throw createAppError('Email is not a valid draft for sending', 409, 'INVALID_DRAFT');
         }
 
