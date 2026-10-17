@@ -131,6 +131,17 @@ describe('HttpClient', () => {
     expect(response.error).toContain('timeout');
   });
 
+  it('hasAuthToken reflects whether a token is set (QC-F-465)', () => {
+    expect(client.hasAuthToken()).toBe(false);
+    client.setAuthToken('some-token');
+    expect(client.hasAuthToken()).toBe(true);
+    const tokenClient = new HttpClient({
+      baseUrl: 'http://localhost:3000',
+      authToken: 'ctor-token',
+    });
+    expect(tokenClient.hasAuthToken()).toBe(true);
+  });
+
   it('setAuthToken updates auth header for subsequent requests', async () => {
     fetchMock.mockResolvedValue({
       ok: true,

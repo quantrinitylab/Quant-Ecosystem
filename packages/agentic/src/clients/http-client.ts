@@ -137,6 +137,12 @@ export class HttpClient {
     this.authToken = token;
   }
 
+  // QC-F-465 §3.5: lets a tool fail honestly (AUTH_REQUIRED) before firing
+  // a call that is guaranteed to 401, instead of pretending it tried.
+  hasAuthToken(): boolean {
+    return typeof this.authToken === 'string' && this.authToken.length > 0;
+  }
+
   getBaseUrl(): string {
     return this.baseUrl;
   }
