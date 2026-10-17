@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CommitsTab } from '../components/CommitsTab';
-import { mapBackendCommitToItem } from '../components/mapBackendCommit';
+import { formatCommitRelativeTime, mapBackendCommitToItem } from '../components/mapBackendCommit';
 import { computeRepoInsights } from '../components/InsightsTab';
 import { INITIAL_REPOS } from '../constants';
 import type { CommitItem } from '../types';
@@ -31,24 +31,44 @@ function makeCommit(overrides: Partial<CommitItem> = {}): CommitItem {
   };
 }
 
-describe('mapBackendCommitToItem — no invented commit dates', () => {
+describe('mapBackendCommitToItem — real relative time from the numeric timestamp', () => {
   it('degrades a missing date to an honest empty string, never a hardcoded date', () => {
     // Real backend shape: numeric timestamp, no `date` / `relativeTime`.
     const raw = {
       sha: 'abc1234def000000000000000000000000000001',
       parents: [],
       author: { name: 'Dev One', email: 'devone@quantmail.in' },
-      timestamp: 1760000000,
+      timestamp: Math.floor(Date.now() / 1000) - 3600,
       message: 'real commit',
     };
     const item = mapBackendCommitToItem(raw, 'tester');
     expect(item.date).toBe('');
     expect(item.date).not.toBe(INVENTED_DATE);
-    expect(item.relativeTime).toBe('recently');
+    expect(item.relativeTime).toBe('1 hour ago');
     expect(item.sha).toBe(raw.sha);
     expect(item.shortSha).toBe('abc1234');
     expect(item.message).toBe('real commit');
     expect(item.verified).toBe(false);
+  });
+
+  it('computes an honest relative time for a years-old commit, never "recently"', () => {
+    // 2020-01-01 — months/years old; the old mapper rendered "committed recently".
+    const raw = { sha: 'a'.repeat(40), timestamp: 1577836800, message: 'old commit' };
+    const item = mapBackendCommitToItem(raw, 'tester');
+    expect(item.relativeTime).not.toBe('recently');
+    expect(item.relativeTime).toMatch(/\d+ years? ago/);
+  });
+
+  it('degrades an unusable timestamp to an honest empty string', () => {
+    for (const raw of [
+      { sha: 'b'.repeat(40) },
+      { sha: 'b'.repeat(40), timestamp: 0 },
+      { sha: 'b'.repeat(40), timestamp: 'not-a-number' },
+      { sha: 'b'.repeat(40), timestamp: Math.floor(Date.now() / 1000) + 86400 },
+    ]) {
+      const item = mapBackendCommitToItem(raw, 'tester');
+      expect(item.relativeTime).toBe('');
+    }
   });
 
   it('preserves a real date string supplied by the backend verbatim', () => {
@@ -60,10 +80,31 @@ describe('mapBackendCommitToItem — no invented commit dates', () => {
     expect(item.relativeTime).toBe('2 days ago');
   });
 
-  it('prefers timeAgo over the honest relativeTime fallback', () => {
+  it('prefers backend-provided timeAgo over the computed relative time', () => {
     const item = mapBackendCommitToItem({ sha: 'y'.repeat(40), timeAgo: '5h ago' }, 'tester');
     expect(item.relativeTime).toBe('5h ago');
     expect(item.date).toBe('');
+  });
+});
+
+describe('formatCommitRelativeTime — honest units, no false claims', () => {
+  it('formats fresh and aged timestamps with honest units', () => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    expect(formatCommitRelativeTime(nowSec - 20)).toBe('just now');
+    expect(formatCommitRelativeTime(nowSec - 3 * 60)).toBe('3 minutes ago');
+    expect(formatCommitRelativeTime(nowSec - 60)).toBe('1 minute ago');
+    expect(formatCommitRelativeTime(nowSec - 5 * 3600)).toBe('5 hours ago');
+    expect(formatCommitRelativeTime(nowSec - 3 * 86400)).toBe('3 days ago');
+    expect(formatCommitRelativeTime(nowSec - 60 * 86400)).toBe('2 months ago');
+    expect(formatCommitRelativeTime(nowSec - 400 * 86400)).toBe('1 year ago');
+  });
+
+  it('accepts numeric-string timestamps from JSON', () => {
+    const item = mapBackendCommitToItem(
+      { sha: 'z'.repeat(40), timestamp: String(Math.floor(Date.now() / 1000) - 7200) },
+      'tester',
+    );
+    expect(item.relativeTime).toBe('2 hours ago');
   });
 });
 
@@ -116,6 +157,21 @@ describe('CommitsTab — undated commits are honest, never misdated', () => {
     expect(html).toContain('Undated commits');
     expect(html).toContain('undated commit');
     expect(html).not.toContain(INVENTED_DATE);
+  });
+
+  it('hides the time slot entirely when the backend gave no usable time', () => {
+    // The mapper degrades an unusable timestamp to '' — the row must say
+    // "committed" with no trailing time and never fall back to "recently".
+    const html = renderToStaticMarkup(
+      <CommitsTab
+        repo={repo}
+        commits={[makeCommit({ date: '', relativeTime: '' })]}
+        currentBranch="main"
+        repoBranches={['main']}
+      />,
+    );
+    expect(html).toContain('committed');
+    expect(html).not.toContain('recently');
   });
 });
 

@@ -239,8 +239,13 @@ export function CommitsTab({
             <div className="flex items-center gap-1.5">
               <span className="text-[#7D8590] text-[11px]">Author:</span>
               <span className="font-semibold text-white">{activeCommit.author.name}</span>
-              <span className="text-[#7D8590]">·</span>
-              <span className="text-[#7D8590]">{activeCommit.relativeTime}</span>
+              {/* No dangling separator when the backend gave no usable time */}
+              {activeCommit.relativeTime ? (
+                <>
+                  <span className="text-[#7D8590]">·</span>
+                  <span className="text-[#7D8590]">{activeCommit.relativeTime}</span>
+                </>
+              ) : null}
             </div>
           </div>
 
@@ -418,8 +423,16 @@ export function CommitsTab({
                           </div>
 
                           <span>committed</span>
-                          {/* Honest date: no invented tooltip when the backend gave no date */}
-                          <span title={commit.date || undefined}>{commit.relativeTime}</span>
+                          {/* Honest date: no invented tooltip or false recency when the
+                              backend gave no usable time — the slot hides entirely. */}
+                          {commit.relativeTime ? (
+                            <>
+                              {' '}
+                              <span title={commit.date || undefined}>
+                                {commit.relativeTime}
+                              </span>
+                            </>
+                          ) : null}
 
                           {/* Stats Preview */}
                           {commit.stats && (
