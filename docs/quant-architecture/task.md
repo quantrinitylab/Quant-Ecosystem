@@ -1738,7 +1738,17 @@ STILL-UNVERIFIED: signed-in sessions/grants/PAT/2FA flows live.
 R3 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 1 P2 (R3-NEW-1; R2-NEW-1/R2-NEW-2 confirmed still present, not re-counted). No fix agents spawned (no P0/P1). Rotation -> QM-SCREEN-017 R3.
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
-Status: [x] DONE (R14 regression audit complete 2026-10-17 ~04:40–05:05 IST — Owner: LANE-1, Branch: lane1-audit-017r14; #855 fixes verified intact on origin/main 7f76a1eca; window 14 merges, zero admin-path changes; 0 new findings; carryovers: 2 P1 + 2 P2 still present, green-dot resolved; live blocked by quantmail.in origin outage; fixes tracked via their PRs)
+Status: [x] DONE — LANE-1, branch lane1-audit-017r15 (2026-10-17 ~19:35–19:50 IST). R15 REGRESSION AUDIT COMPLETE.
+
+R15 REGRESSION AUDIT COMPLETE: NET-EFFECT DIFF 7f76a1eca (R14 base)..origin/main 7a8a3ad46 (fresh fetch, 29 first-parent merges: #1294 oci-arm64-build, #1292 qm-contact-suggestions, #1291 qm-1277-r2, #1282 qm-mailfilter-stepup, #1290/#1280/#1269 OCI deploy stack, #1287 qm-repo-migration-fake-shas, #1270 qm-meta-ai-provider, #1271 qm-s3-endpoint-config, #1278/#1279/#1284/#1274/#1268/#1267/#1272/#1266/#1265/#1264/#1263/#1262/#1288/#1293/#1286/#1285/#1276/#1275 fixes). ZERO admin/audit/retention/DLP-path bytes in window (path-filter over */admin/*, *admin*, *audit*, *retention*, *dlp* + name-only grep both EMPTY) → pure re-verification pass. Working tree ignored per stale-tree lesson; all reads from origin/main tree only (git show/git grep).
+#855 PRIOR FIXES BYTE-VERIFIED INTACT on 7a8a3ad46: retention.ts 8× requireStaff; audit-logs.ts zero startsWith('admin'); admin.ts STAFF_ROLES={'ADMIN','MODERATOR'} :32 + 14× requireStaff; AdminGuard wraps /admin layout :21.
+CARRYOVERS CONFIRMED STILL PRESENT (not re-filed): P1 no admin UI for legal holds/retention policies/org roles + orgRole never assigned (ADMIN_SECTIONS Domains + DLP & Audit only); P1 incident visibility/break-glass absent; P2 DLP "compliance API" empty-state copy (dlp-audit/page.tsx:179); P2 divider hairlines unchanged (dlp-audit/page.tsx, domains/page.tsx, admin/page.tsx — 1 each, confirmed same counts).
+FRESH HUNT CLEAN: zero ?token= in admin trees (src/app/admin + backend/routes/{admin,audit-logs,retention}); zero toast calls in src/app/admin; zero fake/coming-soon/lorem/dummy/mock copy in src/app/admin.
+R15 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 0 P2 + 0 P3. NO FIX AGENTS (P0/P1-only protocol; subagent.list 0 active — capacity fine). findings.md untouched.
+VERDICT-LIVE: BLOCKED THIS ROUND — quantmail.in origin outage PERSISTS ~18h (13th consecutive lane-1 round: 014/015/016/017/018 R14 + 007/008-009/010-011/012/013/014/015/016/017 R15). curl /admin → 000 (20s), /api/admin → 000 (20s) via proxy 127.0.0.1:8888 (up; google.com → 200 in 0.6s same proxy = egress healthy, origin-side fault; Oracle Phase C in flight). Logged-out gates + /api 401 probes NOT re-verified; no regression expected (zero admin-path bytes in window). Signed-in staff flows = needs-auth (as R1–R14).
+Rotation -> QM-SCREEN-018 (help) ROUND 15 regression, queued.
+
+R15-PLAN: (a) net-effect diff on admin/audit/retention/DLP-path files, full-diff review any in-scope commits; (b) byte-verify #855 fixes intact on origin/main tree (git show/git grep only — working tree stale); (c) fresh hunt: token-in-URL, toast calls, fake/mock copy; (d) live logged-out /admin desktop+mobile + /api 401s; (e) signed-in staff flows needs-auth.
 Owner: LANE-1
 Branch: lane1-audit-017r13
 Required: capability RBAC, tenant isolation, domain verification, DLP, audit explorer, legal hold, retention, export/deletion, incident visibility, break-glass controls.
