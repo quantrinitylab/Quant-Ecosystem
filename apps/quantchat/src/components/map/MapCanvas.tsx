@@ -6,7 +6,9 @@ import { motion, useSpring, useMotionValue } from 'framer-motion';
 // ============================================================================
 // Task 8.1: MapCanvas — div-based map container with geolocation centering,
 // pulsing blue dot for user location, and gesture support (8.8)
-// Task 8.9: Geolocation-denied fallback
+// Task 8.9: Geolocation failure states (honest, no fallback location) —
+// QC-F-384: on any failure the user location stays null and no dot renders;
+// the dot means a real fix, never an invented one.
 // ============================================================================
 
 export interface GeoPosition {
@@ -28,13 +30,22 @@ interface MapCanvasProps {
   panOffset?: { x: number; y: number };
 }
 
-/** Default fallback location (New York City center) */
-const DEFAULT_LOCATION: GeoPosition = {
-  latitude: 40.7128,
-  longitude: -74.006,
-  accuracy: 0,
-  timestamp: Date.now(),
-};
+/**
+ * Geolocation state (QC-F-384). There is deliberately NO fallback location:
+ * a fabricated position (previously a hardcoded city-center constant with
+ * accuracy 0) rendered the same "you are here" dot as a real fix.
+ * - pending:     no answer yet — no dot, no banner
+ * - acquired:    real fix — dot renders, no banner
+ * - denied:      PERMISSION_DENIED — no dot, help banner
+ * - unavailable: POSITION_UNAVAILABLE / TIMEOUT — no dot, retry banner
+ * - unsupported: no geolocation API in this browser — no dot, honest banner
+ */
+type LocationStatus =
+  | 'pending'
+  | 'acquired'
+  | 'denied'
+  | 'unavailable'
+  | 'unsupported';
 
 export function MapCanvas({
   children,
@@ -45,7 +56,7 @@ export function MapCanvas({
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [userLocation, setUserLocation] = useState<GeoPosition | null>(null);
-  const [locationDenied, setLocationDenied] = useState(false);
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>('pending');
 
   // Gesture state for pinch-to-zoom and pan (Task 8.8)
   const [zoom, setZoom] = useState(1);
@@ -75,11 +86,12 @@ export function MapCanvas({
     }
   }, [externalPan, springX, springY]);
 
-  // Task 8.1 & 8.9: Get user geolocation
+  // Task 8.1 & 8.9: Get user geolocation. On failure the location stays
+  // null (QC-F-384) — the parent only ever receives real positions through
+  // onLocationAcquired, and onLocationDenied fires exactly once per failure.
   useEffect(() => {
     if (!navigator.geolocation) {
-      setLocationDenied(true);
-      setUserLocation(DEFAULT_LOCATION);
+      setLocationStatus('unsupported');
       onLocationDenied?.();
       return;
     }
@@ -93,19 +105,18 @@ export function MapCanvas({
           timestamp: pos.timestamp,
         };
         setUserLocation(geoPos);
+        setLocationStatus('acquired');
         onLocationAcquired?.(geoPos);
       },
       (error) => {
-        // Task 8.9: If PermissionDeniedError, use default location
         if (error.code === error.PERMISSION_DENIED) {
-          setLocationDenied(true);
-          setUserLocation(DEFAULT_LOCATION);
-          onLocationDenied?.();
+          setLocationStatus('denied');
         } else {
-          // Other errors (position unavailable, timeout): use fallback
-          setUserLocation(DEFAULT_LOCATION);
-          onLocationDenied?.();
+          // POSITION_UNAVAILABLE / TIMEOUT: no fix, but permission may be
+          // fine — the banner copy must not blame the permission setting.
+          setLocationStatus('unavailable');
         }
+        onLocationDenied?.();
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
     );
@@ -218,9 +229,13 @@ export function MapCanvas({
         <div className="absolute top-[20%] bottom-[30%] left-[25%] w-[2%] bg-gray-700/15 rotate-12" />
         <div className="absolute left-[10%] right-[30%] top-[70%] h-[2%] bg-gray-700/15 -rotate-6" />
 
-        {/* User location pulsing blue dot (Task 8.1) */}
+        {/* User location pulsing blue dot (Task 8.1) — rendered ONLY for a
+            real acquired fix; userLocation is null in every failure state */}
         {userLocation && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
+          <div
+            data-testid="user-location-dot"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30"
+          >
             {/* Pulsing ring */}
             <div className="absolute -inset-3 rounded-full bg-blue-500/30 animate-ping" />
             {/* Outer glow */}
@@ -234,9 +249,14 @@ export function MapCanvas({
         {children}
       </motion.div>
 
-      {/* Task 8.9: Location denied banner */}
-      {locationDenied && (
-        <div className="absolute top-28 left-4 right-4 z-50">
+      {/* Task 8.9 / QC-F-384: honest failure banner — copy matches the actual
+          failure state; there is no location dot behind it */}
+      {locationStatus === 'denied' && (
+        <div
+          data-testid="location-status-banner"
+          data-location-status={locationStatus}
+          className="absolute top-28 left-4 right-4 z-50"
+        >
           <div className="bg-yellow-500/90 backdrop-blur-sm rounded-xl px-4 py-3 flex items-center gap-3 shadow-lg">
             <span className="text-lg">&#9888;&#65039;</span>
             <div className="flex-1">
@@ -252,6 +272,44 @@ export function MapCanvas({
             >
               Learn how
             </a>
+          </div>
+        </div>
+      )}
+      {locationStatus === 'unsupported' && (
+        <div
+          data-testid="location-status-banner"
+          data-location-status={locationStatus}
+          className="absolute top-28 left-4 right-4 z-50"
+        >
+          <div className="bg-yellow-500/90 backdrop-blur-sm rounded-xl px-4 py-3 flex items-center gap-3 shadow-lg">
+            <span className="text-lg">&#9888;&#65039;</span>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-yellow-900">
+                Location is not available in this browser
+              </p>
+              <p className="text-xs text-yellow-900/80">
+                Friends nearby cannot be shown around you.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      {locationStatus === 'unavailable' && (
+        <div
+          data-testid="location-status-banner"
+          data-location-status={locationStatus}
+          className="absolute top-28 left-4 right-4 z-50"
+        >
+          <div className="bg-yellow-500/90 backdrop-blur-sm rounded-xl px-4 py-3 flex items-center gap-3 shadow-lg">
+            <span className="text-lg">&#9888;&#65039;</span>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-yellow-900">
+                Could not get your location
+              </p>
+              <p className="text-xs text-yellow-900/80">
+                Check your connection or GPS and reload to try again.
+              </p>
+            </div>
           </div>
         </div>
       )}
