@@ -4073,6 +4073,9 @@ Status: [x] DONE (R15 regression audit complete 2026-10-17 ~13:50 IST; 2 in-scop
 - LEDGER-REPAIR (this run): 5 commits stranded on lane1-audit-017r14 (017-R14 DONE, 018-R14 claim+DONE, 007-R15 DONE, 008/009-R15 DONE — committed but never merged to arch branch) recovered via fast-forward merge into architecture/quant-company-system-v1 (no history rewritten).
 - Rotation -> QM-SCREEN-012 (contacts) ROUND 15 regression, queued.
 
+## QM-SCREEN-010/011 R16 — Drive regression (ROUND 16)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-010r16, started 2026-10-17 ~23:35 IST; R15 base e758434af -> origin/main 5524b9bf4f, fresh fetch)
+
 ## QM-SCREEN-012 R15 — Contacts regression (ROUND 15)
 Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-012r15, started 2026-10-17 ~14:35 IST; R14 base a2f67e6ce -> origin/main 40fccef5, fresh fetch)
 Status: [x] DONE (R15 regression audit complete 2026-10-17 ~14:55 IST; 0 contacts-code commits in window, prior fixes byte-verified intact, 0 new findings, live blocked by persisting ~13h origin outage; fixes tracked via their PRs)
