@@ -47,7 +47,7 @@
 // processes converge within the TTL. Errors are never cached.
 // ============================================================================
 
-/** The 8 privacy fields, exactly as stored under preferences.chatSettings.privacy. */
+/** The privacy fields, exactly as stored under preferences.chatSettings.privacy. */
 export interface PrivacyPrefs {
   whoCanMessage: 'everyone' | 'friends' | 'nobody';
   whoCanSeeStory: 'everyone' | 'friends' | 'custom';
@@ -57,6 +57,10 @@ export interface PrivacyPrefs {
   showTypingIndicator: boolean;
   allowScreenshots: boolean;
   hideFromSearch: boolean;
+  // QC-F-467: whose birthday month/day may be shown. Default 'friends'
+  // (birthday was shown NOWHERE before this field existed, so the safer
+  // default regresses nothing); malformed stored value → 'nobody'.
+  whoCanSeeBirthday: 'everyone' | 'friends' | 'nobody';
 }
 
 /**
@@ -73,6 +77,7 @@ export const DEFAULT_PRIVACY: PrivacyPrefs = {
   showTypingIndicator: true,
   allowScreenshots: false,
   hideFromSearch: false,
+  whoCanSeeBirthday: 'friends',
 };
 
 /**
@@ -93,6 +98,7 @@ export const MOST_RESTRICTIVE_PRIVACY: PrivacyPrefs = {
   showTypingIndicator: false,
   allowScreenshots: false,
   hideFromSearch: true,
+  whoCanSeeBirthday: 'nobody',
 };
 
 export type PrivacySource = 'stored' | 'default' | 'missing' | 'error';
@@ -111,7 +117,7 @@ export interface PrivacyPrismaLike {
     ) => Promise<Array<{ id: string; preferences: unknown }>>;
   };
   closeFriend?: {
-    findMany: (args: unknown) => Promise<Array<{ userId: string }>>;
+    findMany: (args: unknown) => Promise<Array<{ userId: string; friendId?: string }>>;
   };
   conversationMember?: {
     findMany: (
@@ -126,6 +132,7 @@ export interface PrivacyPrismaLike {
 const WHO_CAN_MESSAGE = ['everyone', 'friends', 'nobody'] as const;
 const WHO_CAN_SEE_STORY = ['everyone', 'friends', 'custom'] as const;
 const WHO_CAN_SEE_LOCATION = ['friends', 'nobody', 'ghost'] as const;
+const WHO_CAN_SEE_BIRTHDAY = ['everyone', 'friends', 'nobody'] as const;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -213,6 +220,7 @@ export function extractPrivacyPrefs(preferences: unknown): ResolvedPrivacy {
       showTypingIndicator: pickBoolStored(privacy['showTypingIndicator'], DEFAULT_PRIVACY.showTypingIndicator, MOST_RESTRICTIVE_PRIVACY.showTypingIndicator),
       allowScreenshots: pickBoolStored(privacy['allowScreenshots'], DEFAULT_PRIVACY.allowScreenshots, MOST_RESTRICTIVE_PRIVACY.allowScreenshots),
       hideFromSearch: pickBoolStored(privacy['hideFromSearch'], DEFAULT_PRIVACY.hideFromSearch, MOST_RESTRICTIVE_PRIVACY.hideFromSearch),
+      whoCanSeeBirthday: pickEnumStored(privacy['whoCanSeeBirthday'], WHO_CAN_SEE_BIRTHDAY, DEFAULT_PRIVACY.whoCanSeeBirthday, MOST_RESTRICTIVE_PRIVACY.whoCanSeeBirthday),
     },
   };
 }
@@ -531,6 +539,106 @@ export class PrivacyService {
       else if (unsure) uncertain.add(id);
     }
     return { excluded, uncertain };
+  }
+
+  /**
+   * QC-F-467: may `viewerId` see each owner's birthday month/day?
+   * Batch form (the F-411 `profileVisibilityFor` shape): ONE resolveMany
+   * for prefs, ONE blockedExclusionsFor for the pair block check, and a
+   * batch friend context (owner→viewer CloseFriend edges + shared active
+   * DIRECT memberships) — never a per-owner isFriendOf loop (N+1).
+   * Rules: the owner themself → true; prefs source 'error' → false;
+   * a blocked pair in EITHER direction (or an unreadable block list) →
+   * false — birthday is a sensitive fact and these surfaces are new, so
+   * unlike avatar/bio there is no legacy no-block-filter behaviour to
+   * preserve; 'everyone' → true; 'nobody' → false; 'friends' → the v1
+   * friend test (owner listed the viewer as a close friend, or a shared
+   * active DIRECT conversation). Every read failure fails closed.
+   */
+  async birthdayVisibilityFor(
+    viewerId: string,
+    ownerIds: string[],
+  ): Promise<Map<string, boolean>> {
+    const result = new Map<string, boolean>();
+    const owners = [...new Set(ownerIds)];
+    for (const id of owners) result.set(id, id === viewerId);
+    const others = owners.filter((id) => id !== viewerId);
+    if (others.length === 0) return result;
+
+    const resolved = await this.resolveMany(others);
+    const { excluded, uncertain } = await this.blockedExclusionsFor(viewerId, others);
+
+    // Batch friend context (stories' loadFriendContext shape).
+    const friendOwners = new Set<string>();
+    try {
+      const edges =
+        (await this.prisma.closeFriend?.findMany({
+          where: { userId: { in: others }, friendId: viewerId },
+          select: { userId: true },
+        })) ?? [];
+      for (const edge of edges) friendOwners.add(edge.userId);
+    } catch {
+      // Fail-closed: no close-friend edges are assumed on error.
+    }
+    try {
+      const viewerMemberships =
+        (await this.prisma.conversationMember?.findMany({
+          where: { userId: viewerId, leftAt: null },
+          select: { conversationId: true },
+        })) ?? [];
+      const conversationIds = viewerMemberships.map((m) => m.conversationId);
+      if (conversationIds.length > 0) {
+        const ownerMemberships =
+          (await this.prisma.conversationMember?.findMany({
+            where: {
+              conversationId: { in: conversationIds },
+              userId: { in: others },
+              leftAt: null,
+            },
+            select: { conversationId: true, userId: true },
+          })) ?? [];
+        if (ownerMemberships.length > 0) {
+          const direct =
+            (await this.prisma.conversation?.findMany({
+              where: {
+                id: { in: [...new Set(ownerMemberships.map((m) => m.conversationId))] },
+                type: 'DIRECT',
+              },
+              select: { id: true },
+            })) ?? [];
+          const directIds = new Set(direct.map((c) => c.id));
+          for (const m of ownerMemberships) {
+            if (m.userId && directIds.has(m.conversationId)) friendOwners.add(m.userId);
+          }
+        }
+      }
+    } catch {
+      // Fail-closed: no shared conversations are assumed on error.
+    }
+
+    for (const id of others) {
+      if (excluded.has(id) || uncertain.has(id)) {
+        result.set(id, false);
+        continue;
+      }
+      const entry = resolved.get(id);
+      if (!entry || entry.source === 'error') {
+        result.set(id, false);
+        continue;
+      }
+      switch (entry.prefs.whoCanSeeBirthday) {
+        case 'everyone':
+          result.set(id, true);
+          break;
+        case 'nobody':
+          result.set(id, false);
+          break;
+        case 'friends':
+          result.set(id, friendOwners.has(id));
+          break;
+      }
+    }
+    return result;
   }
 
   /**
