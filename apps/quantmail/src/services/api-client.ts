@@ -36,6 +36,7 @@ import type {
   Calendar,
   Contact,
   ContactGroup,
+  ContactActivitySuggestion,
   CompanyGroup,
   LetterGroup,
   GroupInviteLink,
@@ -1660,6 +1661,22 @@ export class QuantMailApiClient {
    */
   async getFrequentContacts(limit?: number): Promise<ApiResponse<Contact[]>> {
     return this.get('/contacts/frequent', { params: { limit } });
+  }
+
+  /**
+   * Frequent correspondents who are NOT saved contacts yet, aggregated from
+   * real mail (inbound senders + outbound recipients; drafts, spam and trash
+   * excluded) — the Gmail "Merge & Fix" analogue. Backs the contacts page's
+   * "Suggested from your mail" section with one-click add.
+   *
+   * Through the Next proxy this is `/api/contacts/suggestions` — a dedicated
+   * route file (app/api/contacts/suggestions/route.ts) forwards
+   * `/contacts/suggestions` to the backend verbatim. App Router static
+   * segments take precedence over the `[id]` dynamic route, so it never lands
+   * in `[id]`. `limit` is clamped to 1..100 by the backend.
+   */
+  async getContactSuggestions(limit?: number): Promise<ApiResponse<ContactActivitySuggestion[]>> {
+    return this.get('/contacts/suggestions', { params: { limit } });
   }
 
   /**

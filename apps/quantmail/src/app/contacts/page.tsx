@@ -20,6 +20,7 @@ import {
   useCreateContact,
   useUpdateContact,
   useDeleteContact,
+  useContactActivitySuggestions,
 } from '../../hooks/useContacts';
 import {
   useContactGroups,
@@ -33,6 +34,7 @@ import { ContactsDedupeModal } from './components/ContactsDedupeModal';
 import type { DuplicateCluster } from './components/ContactsDedupeModal';
 import { ContactGroupModal } from './components/ContactGroupModal';
 import { GroupInviteLinkCard } from './components/GroupInviteLinkCard';
+import { SuggestedContacts } from './components/SuggestedContacts';
 import {
   ContactDetailSheet,
   CompaniesSubView,
@@ -41,7 +43,7 @@ import {
   contactDisplayName,
 } from './components/ContactsSubViews';
 import type { DedupCollisionPair, DedupCollisionRecord } from './components/ContactsSubViews';
-import type { Contact, ContactGroup } from '../../types';
+import type { Contact, ContactGroup, ContactActivitySuggestion } from '../../types';
 import { showToast } from '../../components/InboxToast';
 import { apiClient } from '../../services/api-client';
 
@@ -335,6 +337,41 @@ export default function ContactsPage() {
   const createContact = useCreateContact();
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
+
+  // Frequent correspondents who are NOT saved contacts yet — the "Suggested
+  // from your mail" section above the list. Enabled on the All tab only: on a
+  // filtered tab (search, favorites, a group) the list answers a different
+  // question and suggestions would read as noise.
+  const { data: contactSuggestions = [] } = useContactActivitySuggestions({ enabled: activeTab === 'all' });
+  const [addingSuggestionEmail, setAddingSuggestionEmail] = useState<string | null>(null);
+
+  const handleAddSuggestion = useCallback(
+    async (suggestion: ContactActivitySuggestion) => {
+      const key = suggestion.email.toLowerCase();
+      setAddingSuggestionEmail(key);
+      try {
+        // No known name: store the address as the display name, the same
+        // fallback the send path uses when it auto-creates a contact — the
+        // row renders the address itself, never an invented name.
+        await createContact.mutateAsync({
+          name: suggestion.name?.trim() || suggestion.email,
+          email: suggestion.email,
+        });
+        showToast({
+          text: `Added ${suggestion.name?.trim() || suggestion.email} to contacts`,
+          type: 'success',
+        });
+      } catch (err) {
+        showToast({
+          text: err instanceof Error ? err.message : 'Could not add contact',
+          type: 'error',
+        });
+      } finally {
+        setAddingSuggestionEmail(null);
+      }
+    },
+    [createContact],
+  );
   const { data: contactGroups = [] } = useContactGroups();
   const createContactGroup = useCreateContactGroup();
   const updateContactGroup = useUpdateContactGroup();
@@ -1144,6 +1181,24 @@ export default function ContactsPage() {
                   )}
 
                   {error && <ErrorState message={error.message} onRetry={() => void refetch()} />}
+
+                  {/* Gmail Merge & Fix analogue: frequent correspondents who are
+                      not saved contacts yet, with one-click add. Only on the
+                      unfiltered All tab — on search/favorites/groups the list
+                      answers a different question and this would read as noise. */}
+                  {!isLoading &&
+                    !error &&
+                    activeTab === 'all' &&
+                    !debouncedQuery &&
+                    contactSuggestions.length > 0 && (
+                      <div className="mb-4">
+                        <SuggestedContacts
+                          suggestions={contactSuggestions}
+                          addingEmail={addingSuggestionEmail}
+                          onAdd={(suggestion) => void handleAddSuggestion(suggestion)}
+                        />
+                      </div>
+                    )}
 
                   {!isLoading && !error && (!displayedContacts || displayedContacts.length === 0) && (
                     <div className="text-center py-12 px-4 space-y-2">

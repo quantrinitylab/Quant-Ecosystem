@@ -59,6 +59,33 @@ export interface ContactListOptions extends PaginationOptions {
   favorites?: boolean;
 }
 
+/**
+ * A person who shows up in this user's mail often but is not a saved contact
+ * yet — the data behind the contacts page's "Suggested from your mail"
+ * section (Gmail's Merge & Fix analogue).
+ *
+ * `name` is the best-known display name from the most recent mail that
+ * carried one, and is null when the address never carried a name — callers
+ * must render the address itself rather than inventing one.
+ */
+export interface ContactActivitySuggestion {
+  email: string;
+  name: string | null;
+  messageCount: number;
+  lastMessageAt: Date | null;
+  direction: 'inbound' | 'outbound' | 'both';
+}
+
+/**
+ * The scan behind {@link ContactService.getContactSuggestions}: a bounded
+ * window over the user's most recent mail — one indexed query — rather than
+ * an unbounded full-mailbox aggregation, which would turn the endpoint into
+ * a table scan on large mailboxes. The trade is honest and documented on the
+ * surface: suggestions reflect recent activity, and a correspondent who went
+ * quiet long ago drops out.
+ */
+const SUGGESTION_SCAN_WINDOW = 2000;
+
 export interface PaginatedResult<T> {
   data: T[];
   total: number;
@@ -559,6 +586,138 @@ export class ContactService {
       ],
       take,
     });
+  }
+
+  /**
+   * People this user corresponds with often who are NOT saved contacts yet.
+   *
+   * `GET /contacts/frequent` answers "who do I talk to most" but only from the
+   * `contact` table, so a correspondent emailed 50 times who was never saved —
+   * most often somebody who emails *you* and you have never replied to, since
+   * the send path auto-creates contacts via {@link ContactService.recordRecipients}
+   * but nothing ever records inbound senders — never appears anywhere. This
+   * aggregates from real mail instead: inbound from `Email.fromAddress`,
+   * outbound from the to/cc/bcc of rows this user sent (`isSent`).
+   *
+   * Excluded, deliberately: the user's own address, every address already in
+   * the address book (case-insensitive), drafts (writing half a message to
+   * somebody is not contacting them — the same rule as the send-path wiring),
+   * spam, trash and soft-deleted rows. Suggesting a spammer as a contact would
+   * be a bug, not a feature.
+   *
+   * Ranked by message count, then recency, so a burst from last week outranks
+   * a trickle from last year at equal counts.
+   */
+  async getContactSuggestions(userId: string, limit = 10): Promise<ContactActivitySuggestion[]> {
+    const take = Math.min(Math.max(Math.trunc(limit), 1), 100);
+    const delegates = this.prisma as unknown as {
+      user: { findUnique(args: unknown): Promise<{ email: string } | null> };
+      email: { findMany(args: unknown): Promise<SuggestionEmailRow[]> };
+    };
+
+    const userRow = await delegates.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    const ownEmail = userRow?.email?.trim().toLowerCase() ?? null;
+    const known = new Set(await this.listContactEmails(userId));
+
+    const rows = await delegates.email.findMany({
+      where: { userId, deletedAt: null, isDraft: false, isSpam: false, isTrash: false },
+      orderBy: [{ createdAt: 'desc' }],
+      take: SUGGESTION_SCAN_WINDOW,
+      select: {
+        fromAddress: true,
+        fromName: true,
+        toAddresses: true,
+        ccAddresses: true,
+        bccAddresses: true,
+        isSent: true,
+        receivedAt: true,
+        createdAt: true,
+      },
+    });
+
+    interface SuggestionBucket {
+      email: string;
+      name: string | null;
+      nameAt: Date | null;
+      count: number;
+      inbound: boolean;
+      outbound: boolean;
+      lastAt: Date | null;
+    }
+
+    const buckets = new Map<string, SuggestionBucket>();
+
+    const track = (
+      rawAddress: unknown,
+      opts: { name?: string | null; at: Date | null; direction: 'inbound' | 'outbound' },
+    ): void => {
+      if (typeof rawAddress !== 'string') return;
+      const email = rawAddress.trim();
+      if (!email) return;
+      const key = email.toLowerCase();
+      if (ownEmail && key === ownEmail) return;
+      if (known.has(key)) return;
+
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = { email, name: null, nameAt: null, count: 0, inbound: false, outbound: false, lastAt: null };
+        buckets.set(key, bucket);
+      }
+      bucket.count += 1;
+      if (opts.direction === 'inbound') bucket.inbound = true;
+      else bucket.outbound = true;
+      if (opts.at && (!bucket.lastAt || opts.at > bucket.lastAt)) bucket.lastAt = opts.at;
+      // The name from the most recent mail that carries one wins; an older
+      // display name never overwrites a newer one.
+      const candidate = opts.name?.trim();
+      if (candidate && (!bucket.nameAt || (opts.at !== null && opts.at >= bucket.nameAt))) {
+        bucket.name = candidate;
+        bucket.nameAt = opts.at;
+      }
+    };
+
+    for (const row of rows) {
+      const at = row.receivedAt ?? row.createdAt ?? null;
+      if (!row.isSent) {
+        track(row.fromAddress, { name: row.fromName, at, direction: 'inbound' });
+      } else {
+        // One message = one count per correspondent: the same address in To
+        // and Cc of a single send is one message to them, not two.
+        const recipients = new Map<string, string>();
+        for (const group of [row.toAddresses, row.ccAddresses, row.bccAddresses]) {
+          if (!Array.isArray(group)) continue;
+          for (const address of group) {
+            if (typeof address !== 'string') continue;
+            const trimmed = address.trim();
+            if (!trimmed) continue;
+            const key = trimmed.toLowerCase();
+            if (!recipients.has(key)) recipients.set(key, trimmed);
+          }
+        }
+        for (const address of recipients.values()) track(address, { at, direction: 'outbound' });
+      }
+    }
+
+    return Array.from(buckets.values())
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        const aTime = a.lastAt?.getTime() ?? -1;
+        const bTime = b.lastAt?.getTime() ?? -1;
+        return bTime - aTime;
+      })
+      .slice(0, take)
+      .map((bucket) => ({
+        email: bucket.email,
+        name: bucket.name,
+        messageCount: bucket.count,
+        lastMessageAt: bucket.lastAt,
+        direction: (
+          bucket.inbound && bucket.outbound ? 'both' : bucket.inbound ? 'inbound' : 'outbound'
+        ) as 'inbound' | 'outbound' | 'both',
+      }));
   }
 
   /**
@@ -1304,6 +1463,19 @@ export class ContactService {
 
     return { importedCount, errors };
   }
+}
+
+// The projection getContactSuggestions scans: only the columns the
+// aggregation touches, never bodies or attachments.
+interface SuggestionEmailRow {
+  fromAddress: string;
+  fromName: string | null;
+  toAddresses: unknown;
+  ccAddresses: unknown;
+  bccAddresses: unknown;
+  isSent: boolean;
+  receivedAt: Date | null;
+  createdAt: Date | null;
 }
 
 // Type helper for Prisma contact model operations

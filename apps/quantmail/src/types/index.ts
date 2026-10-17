@@ -520,6 +520,21 @@ export interface ContactSuggestion {
 }
 
 /**
+ * A frequent correspondent who is NOT a saved contact yet — aggregated from
+ * real mail by `GET /contacts/suggestions` (the Gmail "Merge & Fix"
+ * analogue). `name` is null when no mail from the address ever carried a
+ * display name; render the address itself rather than inventing one.
+ * `lastMessageAt` arrives as an ISO string over the wire.
+ */
+export interface ContactActivitySuggestion {
+  email: string;
+  name: string | null;
+  messageCount: number;
+  lastMessageAt: string | null;
+  direction: 'inbound' | 'outbound' | 'both';
+}
+
+/**
  * A contact as the backend API actually returns it (Prisma `Contact` row —
  * id, userId, name, email, avatar, phone, company, tags, isFavorite,
  * frequency, lastContactedAt, createdAt, updatedAt). Fields the backend never
