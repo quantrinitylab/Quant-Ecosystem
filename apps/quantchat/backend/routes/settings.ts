@@ -42,6 +42,9 @@ const privacySchema = z.object({
   showTypingIndicator: z.boolean().optional(),
   allowScreenshots: z.boolean().optional(),
   hideFromSearch: z.boolean().optional(),
+  // QC-F-467: birthday month/day visibility (stored in the same JSON block;
+  // DEFAULT_PRIVACY spread in toSettingsView surfaces it automatically).
+  whoCanSeeBirthday: z.enum(['everyone', 'friends', 'nobody']).optional(),
 });
 
 const notificationsSchema = z.object({
