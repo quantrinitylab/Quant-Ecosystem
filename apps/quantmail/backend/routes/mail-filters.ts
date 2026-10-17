@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { MailFilterService, validateForwardRecipient } from '../services/mail-filter.service';
@@ -76,8 +76,45 @@ async function verifyForwardActions(
 }
 
 export default async function mailFiltersRoutes(fastify: FastifyInstance) {
+  /**
+   * Conditional step-up guard for mail-filter writes.
+   *
+   * Gmail forces a 2-Step Verification challenge when you create/edit a filter
+   * with a forwarding action (or add a forwarding address / enable IMAP): a
+   * hijacked session must not silently set up mail exfiltration.
+   *
+   * The stock `fastify.requireStepUp()` is unconditional per route, so this
+   * wrapper delegates to it only when the request body actually carries a
+   * forwarding action (`actions[].forwardTo`). Otherwise plain session auth
+   * applies — creating a label-only filter does not demand a fresh sign-in.
+   *
+   * The detection is structural and mirrors the zod action schema, so any
+   * forward the handler would accept is caught here first (a malformed body
+   * can never create a filter — the handler's schema parse rejects it).
+   */
+  const requireStepUpForForwarding = (() => {
+    const stepUp = fastify.requireStepUp();
+    const auth = fastify.requireAuth();
+    return async function (request: FastifyRequest, reply: FastifyReply) {
+      const actions = (request.body as { actions?: unknown } | undefined)?.actions;
+      const hasForwardAction =
+        Array.isArray(actions) &&
+        actions.some(
+          (action) =>
+            typeof action === 'object' &&
+            action !== null &&
+            Boolean((action as { forwardTo?: unknown }).forwardTo),
+        );
+      if (hasForwardAction) {
+        await stepUp(request, reply);
+        return;
+      }
+      await auth(request, reply);
+    };
+  })();
+
   // POST /mail-filters
-  fastify.post('/', async (request, reply) => {
+  fastify.post('/', { preHandler: requireStepUpForForwarding }, async (request, reply) => {
     const parseResult = createFilterSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw parseResult.error;
@@ -126,7 +163,7 @@ export default async function mailFiltersRoutes(fastify: FastifyInstance) {
   });
 
   // PUT /mail-filters/:id
-  fastify.put<{ Params: { id: string } }>('/:id', async (request, reply) => {
+  fastify.put<{ Params: { id: string } }>('/:id', { preHandler: requireStepUpForForwarding }, async (request, reply) => {
     const parseResult = updateFilterSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw parseResult.error;

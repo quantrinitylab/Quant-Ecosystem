@@ -340,6 +340,13 @@ async function buildFastifyApp(prisma: any, authenticatedUserId: string | null =
   await app.register(errorHandlerPlugin);
   app.decorate('prisma', prisma);
   app.decorate('suppressionService', new SuppressionService(prisma));
+  // fix/qm-mailfilter-stepup: mailFiltersRoutes now resolves its step-up guard
+  // from the auth plugin's `requireStepUp`/`requireAuth` decorators at
+  // registration time (production decorates these via the server-core auth
+  // plugin). This parity harness bypasses auth with its own onRequest hook, so
+  // pass-through decorators keep that contract — they must not enforce.
+  app.decorate('requireStepUp', () => async () => {});
+  app.decorate('requireAuth', () => async () => {});
   app.addHook('onRequest', async (req) => {
     (req as any).auth = authenticatedUserId ? { userId: authenticatedUserId } : null;
   });
