@@ -101,6 +101,62 @@ export function saveReminders(storage: StorageLike | null, key: string, reminder
 }
 
 // ---------------------------------------------------------------------------
+// Account binding
+//
+// The reminders list (and the add-form/filter state around it) is BOUND to
+// the account identity. Two hazards this closes (CODEX-REVIEW 6167418183 on
+// #1159):
+//  1. A->B account transition on one mounted instance: the storage key was
+//     recomputed from the new userId on every render while the list state
+//     was only loaded once at mount, so the next toggle/snooze/delete/add
+//     wrote A's stale list under B's newly computed key, destroying B's
+//     stored list (and A's list rendered under B's identity).
+//  2. Unresolved auth (empty userId): reads/writes fell into the shared
+//     `anon` bucket, so an anonymous list could be written over an
+//     authenticated account's list on hydration.
+// The component keys its inner remount boundary by the resolved account and
+// rebinds during render as defense-in-depth; unresolved auth renders an
+// honest gate and every action call site refuses a null key.
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the account identity reminders bind to. Returns null when auth is
+ * unresolved (empty/blank id) — callers must GATE (honest sign-in state, no
+ * action controls) instead of touching the shared `anon` bucket.
+ */
+export function resolveReminderAccount(userId: string | null | undefined): string | null {
+  const raw = userId ?? '';
+  return raw.trim().length > 0 ? raw : null;
+}
+
+export interface ReminderAccountBinding {
+  /** Account the list below was loaded for; null when auth is unresolved. */
+  accountId: string | null;
+  /** Storage key for that account; null when unresolved (never the anon bucket). */
+  key: string | null;
+  /** The list to render. Empty — never another account's — while unresolved. */
+  list: StoredReminder[];
+}
+
+/**
+ * (Re)binds reminders state to the current account identity. Returns the
+ * existing binding untouched when the account is unchanged, so steady-state
+ * renders never re-read storage. On an account change it loads the NEW
+ * account's list fresh — the caller must discard the old list and never
+ * write it under the new key.
+ */
+export function bindRemindersToAccount(
+  storage: StorageLike | null,
+  userId: string | null | undefined,
+  current: ReminderAccountBinding | null,
+): ReminderAccountBinding {
+  const accountId = resolveReminderAccount(userId);
+  if (current && current.accountId === accountId) return current;
+  const key = accountId ? reminderKey(accountId) : null;
+  return { accountId, key, list: key ? loadReminders(storage, key) : [] };
+}
+
+// ---------------------------------------------------------------------------
 // Persist-then-toast action helpers
 //
 // The handlers in CalendarScheduleSubView delegate to these. Keeping the
