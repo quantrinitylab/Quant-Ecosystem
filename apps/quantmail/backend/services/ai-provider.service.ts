@@ -10,10 +10,15 @@
 //   AI_PROVIDER=openai                (AI_API_KEY|OPENAI_API_KEY, AI_BASE_URL, AI_MODEL)
 //   AI_PROVIDER=anthropic             (AI_API_KEY|ANTHROPIC_API_KEY, AI_MODEL)
 //   AI_PROVIDER=custom                (AI_BASE_URL — OpenAI-compatible /chat/completions)
+//   AI_PROVIDER=meta                  (META_API_KEY, META_AI_MODEL, META_AI_BASE_URL)
+//                                     Meta Model API — OpenAI-compatible /v1/chat/completions.
+//                                     META_API_KEY alone also auto-selects this provider.
 //
 // `openai` and `custom` cover any OpenAI-compatible gateway (vLLM, Ollama,
-// Bedrock proxies, our own inference service), so no application code has to
-// change when the model changes.
+// our own inference service), so no application code has to change when the
+// model changes. The `meta` provider is the designated brain for the Oracle
+// Cloud deployment (there is no Bedrock there); it reuses the OpenAI-compatible
+// transport below against the Meta Model API.
 // ============================================================================
 
 export type AIRole = 'system' | 'user' | 'assistant';
@@ -77,10 +82,19 @@ export interface AIChatWithToolsOptions extends AIChatOptions {
   toolChoice?: 'auto' | 'none';
 }
 
-export type AIProviderName = 'cloudflare' | 'openai' | 'anthropic' | 'custom' | 'none';
+export type AIProviderName = 'cloudflare' | 'openai' | 'anthropic' | 'custom' | 'meta' | 'none';
 
 const DEFAULT_TIMEOUT_MS = 40_000;
 const CLOUDFLARE_DEFAULT_ACCOUNT_ID = '9af698848a5edd00e756c3a2c908ec8d';
+
+/**
+ * Meta Model API (OpenAI-compatible). The designated AI brain for the Oracle
+ * Cloud deployment — there is no AWS Bedrock there. Verified working via the
+ * terminal `metaapi` helper (OpenAI-style /v1/chat/completions).
+ */
+const META_AI_DEFAULT_BASE_URL = 'https://api.meta.ai/v1';
+/** Strongest available Meta chat model (verified 2026-10-17). */
+const META_AI_DEFAULT_MODEL = 'muse-spark-1.3';
 
 function env(name: string): string | undefined {
   const value = process.env[name];
@@ -93,6 +107,34 @@ function getCloudflareToken(): string | undefined {
 
 function getCloudflareAccountId(): string {
   return env('CLOUDFLARE_ACCOUNT_ID') ?? CLOUDFLARE_DEFAULT_ACCOUNT_ID;
+}
+
+function getMetaApiKey(): string | undefined {
+  return env('META_API_KEY');
+}
+
+function getMetaBaseUrl(): string {
+  return (env('META_AI_BASE_URL') ?? META_AI_DEFAULT_BASE_URL).replace(/\/$/, '');
+}
+
+/**
+ * Resolve the Meta model for a request.
+ *
+ * Precedence: per-call override (server-side only — never from a request body,
+ * same rule as AIChatOptions.model) > META_AI_MODEL > AI_MODEL > the default
+ * pin (muse-spark-1.3).
+ */
+function resolveMetaModel(requestedModel?: string): string {
+  return requestedModel ?? env('META_AI_MODEL') ?? env('AI_MODEL') ?? META_AI_DEFAULT_MODEL;
+}
+
+function metaOverrides(model: string): { baseUrl: string; headers: Record<string, string>; model: string } {
+  const apiKey = getMetaApiKey()!;
+  return {
+    baseUrl: getMetaBaseUrl(),
+    headers: { Authorization: `Bearer ${apiKey}` },
+    model,
+  };
 }
 
 /**
@@ -183,8 +225,14 @@ export function activeProvider(): AIProviderName {
   if (configured === 'custom') {
     return env('AI_BASE_URL') ? 'custom' : 'none';
   }
+  if (configured === 'meta') {
+    return getMetaApiKey() ? 'meta' : 'none';
+  }
 
-  // No explicit provider: auto-detect whatever credentials exist (prioritize Cloudflare Workers AI).
+  // No explicit provider: auto-detect whatever credentials exist.
+  // META_API_KEY is checked first — it is an unambiguous, dedicated credential,
+  // so its presence is the clearest signal the deployment wants the Meta brain.
+  if (getMetaApiKey()) return 'meta';
   if (getCloudflareToken()) return 'cloudflare';
   if (env('OPENAI_API_KEY') ?? env('AI_API_KEY')) return 'openai';
   if (env('ANTHROPIC_API_KEY')) return 'anthropic';
@@ -288,14 +336,17 @@ async function chatViaCloudflare(messages: AIMessage[], options: AIChatOptions):
 async function chatViaOpenAICompatible(
   messages: AIMessage[],
   options: AIChatOptions,
+  overrides?: { baseUrl: string; headers: Record<string, string>; model: string },
 ): Promise<string> {
   const apiKey = env('AI_API_KEY') ?? env('OPENAI_API_KEY');
-  const baseUrl = (env('AI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-  const model = options.model ?? env('AI_MODEL') ?? 'gpt-4o-mini';
+  const baseUrl =
+    overrides?.baseUrl ?? (env('AI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, '');
+  const headers = overrides?.headers ?? (apiKey ? { Authorization: `Bearer ${apiKey}` } : {});
+  const model = overrides?.model ?? options.model ?? env('AI_MODEL') ?? 'gpt-4o-mini';
 
   const data = (await postJson(
     `${baseUrl}/chat/completions`,
-    apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+    headers,
     {
       model,
       messages,
@@ -357,6 +408,10 @@ export async function aiChat(messages: AIMessage[], options: AIChatOptions = {})
     case 'openai':
     case 'custom':
       return chatViaOpenAICompatible(messages, options);
+    case 'meta':
+      // Meta Model API is OpenAI-compatible — reuse that transport with Meta's
+      // base URL, Bearer key, and model resolution.
+      return chatViaOpenAICompatible(messages, options, metaOverrides(resolveMetaModel(options.model)));
     case 'anthropic':
       return chatViaAnthropic(messages, options);
     default:
@@ -530,6 +585,14 @@ export async function aiChatWithTools(
       });
     case 'anthropic':
       return chatWithToolsViaAnthropic(messages, options);
+    case 'meta':
+      // Meta Model API is OpenAI-compatible — reuse that transport with Meta's
+      // base URL, Bearer key, and model resolution.
+      return chatWithToolsViaOpenAICompatible(
+        messages,
+        options,
+        metaOverrides(resolveMetaModel(options.model)),
+      );
     default:
       throw new Error(aiUnavailableReason());
   }

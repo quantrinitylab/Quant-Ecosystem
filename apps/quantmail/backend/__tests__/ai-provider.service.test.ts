@@ -46,6 +46,9 @@ const ENV_KEYS = [
   'OPENAI_API_KEY',
   'ANTHROPIC_API_KEY',
   'AI_BASE_URL',
+  'META_API_KEY',
+  'META_AI_MODEL',
+  'META_AI_BASE_URL',
 ];
 
 let savedEnv: Record<string, string | undefined>;
@@ -199,5 +202,133 @@ describe('aiChatWithTools — Cloudflare model resolution', () => {
     expect(err).toBeInstanceOf(UnknownAIModelError);
     expect((err as UnknownAIModelError).code).toBe('UNKNOWN_MODEL');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================================================
+// Meta Model API provider (AI_PROVIDER=meta / META_API_KEY auto-detect).
+//
+// The designated AI brain for the Oracle Cloud deployment (no Bedrock there).
+// OpenAI-compatible transport: POST {base}/chat/completions with a Bearer
+// META_API_KEY. Model precedence: per-call override > META_AI_MODEL >
+// AI_MODEL > the default pin muse-spark-1.3.
+// ============================================================================
+
+const META_URL = 'https://api.meta.ai/v1/chat/completions';
+const META_DEFAULT_MODEL = 'muse-spark-1.3';
+
+function authHeader(): string | undefined {
+  const init = fetchMock.mock.calls[0]?.[1] as { headers?: Record<string, string> } | undefined;
+  return init?.headers?.['Authorization'];
+}
+
+describe('aiChat — Meta provider', () => {
+  it('posts to the Meta chat-completions endpoint with the default model', async () => {
+    process.env.AI_PROVIDER = 'meta';
+    process.env.META_API_KEY = 'test-meta-key';
+
+    const text = await aiChat([{ role: 'user', content: 'hi' }]);
+
+    expect(text).toBe('hello from the model');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe(META_URL);
+    expect(authHeader()).toBe('Bearer test-meta-key');
+    expect(calls[0]!.body.model).toBe(META_DEFAULT_MODEL);
+  });
+
+  it('auto-detects the Meta provider from META_API_KEY alone (even with a Cloudflare token set)', async () => {
+    // beforeEach always sets CLOUDFLARE_API_TOKEN; META_API_KEY must win.
+    process.env.META_API_KEY = 'test-meta-key';
+
+    await aiChat([{ role: 'user', content: 'hi' }]);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe(META_URL);
+    expect(calls[0]!.body.model).toBe(META_DEFAULT_MODEL);
+  });
+
+  it('honours META_AI_MODEL', async () => {
+    process.env.AI_PROVIDER = 'meta';
+    process.env.META_API_KEY = 'test-meta-key';
+    process.env.META_AI_MODEL = 'muse-spark-1.2';
+
+    await aiChat([{ role: 'user', content: 'hi' }]);
+
+    expect(calls[0]!.body.model).toBe('muse-spark-1.2');
+  });
+
+  it('honours a server-side per-call model override over META_AI_MODEL', async () => {
+    process.env.AI_PROVIDER = 'meta';
+    process.env.META_API_KEY = 'test-meta-key';
+    process.env.META_AI_MODEL = 'muse-spark-1.2';
+
+    await aiChat([{ role: 'user', content: 'hi' }], { model: 'muse-spark-1.1' });
+
+    expect(calls[0]!.body.model).toBe('muse-spark-1.1');
+  });
+
+  it('honours META_AI_BASE_URL', async () => {
+    process.env.AI_PROVIDER = 'meta';
+    process.env.META_API_KEY = 'test-meta-key';
+    process.env.META_AI_BASE_URL = 'https://meta-proxy.internal/v1/';
+
+    await aiChat([{ role: 'user', content: 'hi' }]);
+
+    // Trailing slash is stripped, /chat/completions appended.
+    expect(calls[0]!.url).toBe('https://meta-proxy.internal/v1/chat/completions');
+  });
+
+  it('fails closed when AI_PROVIDER=meta but META_API_KEY is missing', async () => {
+    process.env.AI_PROVIDER = 'meta';
+
+    const err = await aiChat([{ role: 'user', content: 'hi' }]).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toContain('not configured');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('aiChatWithTools — Meta provider', () => {
+  it('passes tools through and parses tool_calls off the Meta response', async () => {
+    process.env.AI_PROVIDER = 'meta';
+    process.env.META_API_KEY = 'test-meta-key';
+    fetchMock.mockImplementationOnce(async (url: string, init: { body?: string }) => {
+      const body = init?.body ? (JSON.parse(init.body) as Record<string, unknown>) : {};
+      calls.push({ url, body });
+      return okJson({
+        choices: [
+          {
+            message: {
+              content: 'checking',
+              tool_calls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'get_time', arguments: '{"tz":"IST"}' },
+                },
+              ],
+            },
+          },
+        ],
+      });
+    });
+
+    const result = await aiChatWithTools([{ role: 'user', content: 'hi' }], {
+      tools: [
+        {
+          type: 'function',
+          function: { name: 'get_time', description: 'current time', parameters: { type: 'object', properties: {} } },
+        },
+      ],
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe(META_URL);
+    expect(authHeader()).toBe('Bearer test-meta-key');
+    expect(calls[0]!.body.model).toBe(META_DEFAULT_MODEL);
+    expect((calls[0]!.body.tools as unknown[]).length).toBe(1);
+    expect(result.content).toBe('checking');
+    expect(result.toolCalls).toEqual([{ id: 'call_1', name: 'get_time', arguments: { tz: 'IST' } }]);
   });
 });
