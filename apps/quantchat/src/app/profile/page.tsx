@@ -19,6 +19,9 @@ import { AvatarGenerator } from '../../components/profile/AvatarGenerator';
 import { NotificationSettings } from '../../components/settings/NotificationSettings';
 import { apiClient } from '../../services/api-client';
 import { useMe } from '../../hooks/useMe';
+import { EmojiStatusPicker } from '../../components/EmojiStatusPicker';
+import { EmojiStatusBadge } from '../../components/EmojiStatusBadge';
+import type { EmojiStatusView } from '../../types';
 
 interface RouteTile {
   id: string;
@@ -67,16 +70,43 @@ type Panel = 'avatar' | 'notifications' | 'edit' | null;
 function EditProfileForm({
   initialDisplayName,
   initialBio,
+  initialEmojiStatus,
   onSaved,
 }: {
   initialDisplayName: string;
   initialBio: string;
+  initialEmojiStatus?: EmojiStatusView | null;
   onSaved: () => void;
 }) {
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const [bio, setBio] = useState(initialBio);
   const [saving, setSaving] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+
+  // QC-F-466: the emoji status has its own save — the picker's Set/Clear
+  // calls PUT /auth/profile with ONLY the emojiStatus field (the backend
+  // leaves every other field untouched when it is the sole field, and
+  // leaves the status untouched when it is absent from a name/bio save).
+  const saveStatus = async (
+    next: { key: string; duration: '1h' | '24h' | '7d' } | null,
+  ) => {
+    setSavingStatus(true);
+    setMessage(null);
+    try {
+      const res = await apiClient.updateProfile({ emojiStatus: next });
+      if (!res.success) throw new Error(res.error?.message || 'Save failed');
+      setMessage({
+        kind: 'success',
+        text: next ? 'Status saved ✓' : 'Status cleared ✓',
+      });
+      onSaved();
+    } catch (err) {
+      setMessage({ kind: 'error', text: err instanceof Error ? err.message : 'Save failed' });
+    } finally {
+      setSavingStatus(false);
+    }
+  };
 
   const save = async () => {
     const trimmedName = displayName.trim();
@@ -139,6 +169,14 @@ function EditProfileForm({
           className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-purple-500"
         />
       </label>
+      <div className="border-t border-white/10 pt-4">
+        <EmojiStatusPicker
+          key={initialEmojiStatus?.key ?? 'no-status'}
+          current={initialEmojiStatus ?? null}
+          saving={savingStatus}
+          onSave={(next) => void saveStatus(next)}
+        />
+      </div>
       {message && (
         <p
           role={message.kind === 'success' ? 'status' : 'alert'}
@@ -183,7 +221,10 @@ export default function ProfilePage() {
           <section className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
             <AlienAvatar userId={me.id} size={72} surface="profile_header" />
             <div className="flex-1">
-              <h2 className="text-lg font-bold">@{me.username}</h2>
+              <h2 className="flex items-center gap-2 text-lg font-bold">
+                @{me.username}
+                <EmojiStatusBadge status={me.emojiStatus ?? null} size={20} />
+              </h2>
               <p className="mb-2 text-xs text-gray-400">
                 {me.displayName || 'Your QuantChat profile'}
               </p>
@@ -300,6 +341,7 @@ export default function ProfilePage() {
                 <EditProfileForm
                   initialDisplayName={me.displayName || ''}
                   initialBio={me.bio || ''}
+                  initialEmojiStatus={me.emojiStatus ?? null}
                   onSaved={() => void refetch()}
                 />
               ) : (
