@@ -62,7 +62,7 @@ const { showToast, api } = vi.hoisted(() => {
   const api = {
     markAsUnread: vi.fn(),
     snoozeEmail: vi.fn(),
-    addLabel: vi.fn(),
+    applyLabel: vi.fn(),
     getLabels: vi.fn(),
     toggleStar: vi.fn(),
     markNotSpam: vi.fn(),
@@ -488,13 +488,16 @@ describe('QM-UIUX-093 — Apply label', () => {
   });
 
   it('API refusal shows the error toast, never the "applied" success', async () => {
-    api.addLabel.mockResolvedValue(REFUSED);
+    api.applyLabel.mockResolvedValue(REFUSED);
     renderView([incoming()]);
     await flush();
 
     await applyLabelViaMenu();
 
-    expect(api.addLabel).toHaveBeenCalled();
+    // Regression pin: the thread view must call the working labelId-based
+    // endpoint (POST /labels/apply { emailId, labelId }) — the old name-based
+    // call sent the label NAME and hit a route that never existed (404).
+    expect(api.applyLabel).toHaveBeenCalledWith(expect.any(String), 'lbl-1');
     expect(toastCalls()).toContainEqual({
       text: 'Could not apply label',
       type: 'error',
@@ -505,7 +508,7 @@ describe('QM-UIUX-093 — Apply label', () => {
   });
 
   it('API success keeps the normal "applied" behaviour', async () => {
-    api.addLabel.mockResolvedValue(ACCEPTED);
+    api.applyLabel.mockResolvedValue(ACCEPTED);
     renderView([incoming()]);
     await flush();
 
@@ -518,6 +521,23 @@ describe('QM-UIUX-093 — Apply label', () => {
     expect(toastCalls().some((t) => t.text === 'Could not apply label')).toBe(
       false,
     );
+  });
+  it('sends the label id (not the name) to the working /labels/apply endpoint', async () => {
+    api.applyLabel.mockResolvedValue(ACCEPTED);
+    renderView([incoming()]);
+    await flush();
+
+    await applyLabelViaMenu();
+
+    // The old defect: the component called the name-based dead endpoint
+    // POST /emails/{id}/labels, which has no route and 404s every time.
+    // The fix calls the labelId-based POST /labels/apply { emailId, labelId }.
+    const calls = api.applyLabel.mock.calls as Array<[string, string]>;
+    expect(calls.length).toBeGreaterThan(0);
+    for (const [, labelId] of calls) {
+      expect(labelId).toBe('lbl-1');
+    }
+    expect(api.applyLabel).not.toHaveBeenCalledWith(expect.anything(), 'Receipts');
   });
 });
 

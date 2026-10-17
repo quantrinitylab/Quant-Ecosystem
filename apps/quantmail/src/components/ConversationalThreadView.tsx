@@ -1603,14 +1603,16 @@ export function ConversationalThreadView({
     }
   }, []);
   const handleApplyLabel = useCallback(
-    async (labelName: string) => {
+    async (labelId: string, labelName: string) => {
       const ids = conversationMessageIds;
       if (ids.length === 0) return;
       try {
         // QM-UIUX-093: apiClient resolves `{ success: false }` on failure —
         // it never rejects — so claim the label only when every POST was
         // accepted; any refusal is reported as a failure.
-        const results = await Promise.all(ids.map((id) => apiClient.addLabel(id, labelName)));
+        // The endpoint is labelId-based: POST /labels/apply { emailId, labelId }
+        // (the old name-based POST /emails/{id}/labels has no route and 404s).
+        const results = await Promise.all(ids.map((id) => apiClient.applyLabel(id, labelId)));
         if (results.every((r) => r?.success)) {
           showToast({ text: `Label "${labelName}" applied`, type: 'success' });
         } else {
@@ -2282,7 +2284,7 @@ export function ConversationalThreadView({
                           tabIndex={-1}
                           onClick={() => {
                             close();
-                            void handleApplyLabel(label.name);
+                            void handleApplyLabel(label.id, label.name);
                           }}
                           className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
                         >

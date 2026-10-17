@@ -1183,8 +1183,15 @@ export class QuantMailApiClient {
     return this.post('/emails/categories/backfill', input);
   }
 
-  async addLabel(emailId: string, label: string): Promise<ApiResponse<{ message: string }>> {
-    return this.post(`/emails/${emailId}/labels`, { label });
+  /**
+   * Apply a label to an email by label id — the working endpoint (backend
+   * `POST /labels/apply`, Next proxy at `/api/labels/apply`; idempotent,
+   * ownership-checked). This replaces the old per-email
+   * `POST /emails/{id}/labels` shape, which had no route on either side and
+   * 404'd end to end, so every label apply failed ("Could not apply label").
+   */
+  async applyLabel(emailId: string, labelId: string): Promise<ApiResponse<unknown>> {
+    return this.post('/labels/apply', { emailId, labelId });
   }
 
   async getLabels(): Promise<ApiResponse<EmailLabel[]>> {
