@@ -39,3 +39,25 @@ export function headShaFromBlobError(payload: unknown): string {
 export function toParentShaParam(expectedHeadSha: string | null | undefined): string | null {
   return expectedHeadSha || null;
 }
+
+/**
+ * fix/qm-quantgit-commit-new-branch: the base commit a "commit to new
+ * branch" flow creates the branch at.
+ *
+ * The follow-up file commit sends parentSha = expectedHeadSha (the commit
+ * the file was read at — the browsed historical commit in browse-at-old-
+ * commit mode, or the current branch head in the inline editor). The new
+ * branch MUST therefore be created AT expectedHeadSha. The old code created
+ * it at selectedRepo.latestCommitSha, so the backend's strict
+ * expectedHeadSha !== currentHeadSha check 409'd (STALE_PARENT_SHA) every
+ * commit-to-new-branch whose read-time head differed from the repo's latest
+ * commit (old-commit browsing, non-default branches, stale repo list).
+ * Falls back to latestCommitSha only when the read-time head is unknown,
+ * preserving the old behavior for that path.
+ */
+export function newBranchBaseSha(
+  expectedHeadSha: string | null | undefined,
+  latestCommitSha: string | null | undefined,
+): string | undefined {
+  return expectedHeadSha || latestCommitSha || undefined;
+}
