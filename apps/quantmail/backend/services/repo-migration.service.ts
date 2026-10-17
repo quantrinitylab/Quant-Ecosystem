@@ -5,7 +5,17 @@
 // ============================================================================
 
 import { randomUUID } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { createAppError } from '@quant/server-core';
+import { GIT_CHILD_ENV } from '../modules/code/services/git-transport/git-child-env';
+
+const execFileAsync = promisify(execFile);
+// ls-remote output is small (one line per ref); this cap only guards against a
+// pathological remote. The timeout keeps an unreachable remote from hanging
+// the import request — it becomes a loud 502, never a silent hang.
+const LS_REMOTE_TIMEOUT_MS = 25_000;
+const LS_REMOTE_MAX_BUFFER = 4 * 1024 * 1024;
 
 export type MigrationProvider = 'github' | 'gitlab' | 'git';
 
@@ -75,7 +85,13 @@ export interface ImportedRepoRecord {
   defaultBranch: string;
   cloneUrl: string;
   branches: string[];
-  commitCount: number;
+  /**
+   * Total commit count of the remote repository. OMITTED (undefined) because
+   * `git ls-remote` cannot report it and we never fabricate it — a shallow
+   * count would be wrong and a random count was the old lie. Consumers render
+   * '—' when absent.
+   */
+  commitCount?: number;
   starCount?: number;
   forkCount?: number;
   createdAt: string;
@@ -84,9 +100,30 @@ export interface ImportedRepoRecord {
 
 export interface ImportRepositoryResult {
   repo: ImportedRepoRecord;
-  importedCommits: number;
+  /**
+   * Omitted — see ImportedRepoRecord.commitCount. Never a fabricated number.
+   */
+  importedCommits?: number;
   convertedPipelines: ConvertedPipelineResult[];
   importedEnvVars: ImportedEnvVar[];
+}
+
+/**
+ * One branch discovered on the remote, with its REAL tip commit SHA from
+ * `git ls-remote`. Never invented.
+ */
+export interface DiscoveredRemoteBranch {
+  name: string;
+  sha: string;
+}
+
+/**
+ * Honest result of remote ref discovery. `branches` is empty only when the
+ * remote genuinely has no heads (empty repository).
+ */
+export interface RemoteRefDiscovery {
+  branches: DiscoveredRemoteBranch[];
+  defaultBranch: string;
 }
 
 // In-memory fallback repository store when database/Prisma is absent or mocked
@@ -652,14 +689,129 @@ function getEnvVarDescription(key: string): string {
 }
 
 /**
+ * Strips any embedded credentials (userinfo) from a URL before it is placed
+ * in an error message. The token itself is never in the URL by construction,
+ * but a caller-supplied sourceUrl could be `https://user:pass@host/...`.
+ */
+function maskUrlForError(url: string): string {
+  return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^@/]*@/, '$1');
+}
+
+/**
+ * Builds a safe one-line detail from a failed `git ls-remote` invocation.
+ *
+ * SECURITY: the raw execFile error message contains the FULL argv — including
+ * the `-c http.extraHeader=Authorization: ...` value (base64 of the caller's
+ * token, trivially reversible) — and git's stderr echoes the URL with any
+ * embedded userinfo. Both are scrubbed here: error text must never carry
+ * credentials into logs or API responses.
+ */
+function scrubGitErrorDetail(err: any): string {
+  const raw = String(err?.stderr ?? err?.message ?? 'git ls-remote failed');
+  const firstLine =
+    raw
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)[0] ?? 'git ls-remote failed';
+  return firstLine
+    .replace(/http\.extraHeader=\S+/g, 'http.extraHeader=<redacted>')
+    .replace(/([a-z][a-z0-9+.-]*:\/\/)[^@/\s]+@/gi, '$1')
+    .slice(0, 300);
+}
+
+/**
  * Main Service Class for Repository Migration
  */
 export class RepoMigrationService {
   constructor(private readonly prisma?: any) {}
 
   /**
-   * Imports a remote repository from GitHub, GitLab, or generic Git URL,
-   * converts CI/CD workflows, extracts environment secrets, and persists the record.
+   * Discovers the remote repository's real refs via `git ls-remote`.
+   *
+   * This is the ONLY source of branch/SHA data for an import. It runs without
+   * a shell (execFile argv, no interpolation), with the allowlisted
+   * GIT_CHILD_ENV (GIT_TERMINAL_PROMPT=0 so a credential prompt can never
+   * hang the request) and a hard timeout.
+   *
+   * Token handling: when the caller supplies a token for an HTTPS remote it
+   * is sent as an Authorization header via `-c http.extraHeader` (per-
+   * invocation config, never persisted). GitHub expects Basic with the
+   * x-access-token username; GitLab accepts Bearer. The token is NEVER
+   * embedded in the URL (no ?token= / userinfo leak) and NEVER echoed in
+   * error messages.
+   *
+   * Failure is LOUD: any ls-remote failure (unreachable host, DNS, auth
+   * rejection, missing git binary, timeout) becomes a 502
+   * REMOTE_GIT_UNREACHABLE, and importRepository mints nothing.
+   *
+   * Protected (not private) so tests can subclass-stub discovery without
+   * network access; the real path is covered by tests against local git repos.
+   */
+  protected async discoverRemoteRefs(
+    sourceUrl: string,
+    provider: MigrationProvider,
+    token?: string,
+  ): Promise<RemoteRefDiscovery> {
+    const url = sourceUrl.trim();
+    const args: string[] = [];
+    if (token && /^https:\/\//i.test(url)) {
+      const header =
+        provider === 'gitlab'
+          ? `Authorization: Bearer ${token}`
+          : `Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`;
+      args.push('-c', `http.extraHeader=${header}`);
+    }
+    args.push('ls-remote', '--symref', '--heads', '--end-of-options', url);
+
+    let stdout: string;
+    try {
+      const res = await execFileAsync('git', args, {
+        env: { ...GIT_CHILD_ENV, GIT_TERMINAL_PROMPT: '0' },
+        timeout: LS_REMOTE_TIMEOUT_MS,
+        maxBuffer: LS_REMOTE_MAX_BUFFER,
+      });
+      stdout = res.stdout;
+    } catch (err: any) {
+      throw createAppError(
+        `Could not reach the remote Git repository at ${maskUrlForError(url)}. ` +
+          'No repository record was created. ' +
+          `(${scrubGitErrorDetail(err)})`,
+        502,
+        'REMOTE_GIT_UNREACHABLE',
+        { provider },
+      );
+    }
+
+    const branches: DiscoveredRemoteBranch[] = [];
+    let headTarget: string | null = null;
+    for (const line of stdout.split('\n')) {
+      const symref = line.match(/^ref: refs\/heads\/(.+)\tHEAD$/);
+      if (symref) {
+        headTarget = symref[1];
+        continue;
+      }
+      const head = line.match(/^([0-9a-f]{40})\trefs\/heads\/(.+)$/);
+      if (head) {
+        branches.push({ name: head[2], sha: head[1] });
+      }
+    }
+
+    // An empty remote (no heads at all) is a legitimate state — ls-remote
+    // succeeded, so the repo exists; it simply has no branches yet.
+    // Without an advertised HEAD symref (e.g. local-path remotes) there is no
+    // way to know the true default, so we deterministically use the first
+    // advertised branch — real data, never a guess presented as discovery.
+    const defaultBranch = headTarget ?? branches[0]?.name ?? 'main';
+
+    return { branches, defaultBranch };
+  }
+
+  /**
+   * Imports a remote repository from GitHub, GitLab, or generic Git URL and
+   * persists the record. Branch/SHA data comes ONLY from a real
+   * `git ls-remote` (loud 502 when the remote is unreachable — nothing is
+   * minted). CI/CD pipeline conversion and env/secret extraction are NOT
+   * wired up yet: requesting them is a loud 501, never sample data.
    */
   async importRepository(input: ImportRepositoryInput): Promise<ImportRepositoryResult> {
     // 1. Validate inputs
@@ -682,88 +834,45 @@ export class RepoMigrationService {
 
     const targetOwner = input.targetOwner.trim();
 
-    // 2. Discover remote Git refs, commit history, and branches
-    const discoveredBranches = ['main', 'develop', 'release/v1.0'];
-    const commitCount = Math.floor(Math.random() * 45) + 35; // resilient mock-accurate commit count
-    const latestCommitSha = randomUUID().replace(/-/g, '') + 'c4e6';
+    // 2. Discover remote Git refs and branches — FOR REAL.
+    // `git ls-remote` is the only source of truth here. When the remote is
+    // unreachable (DNS, network, auth, or the git binary missing) this throws
+    // a loud 502 and NO repository record is minted — never fabricated
+    // branches, never a random commit count, never a random SHA.
+    const discovery = await this.discoverRemoteRefs(input.sourceUrl, input.provider, input.token);
 
-    // 3. CI/CD Pipeline Converter
+    // 3. CI/CD Pipeline Converter — NOT WIRED UP.
+    // Honest conversion requires fetching the remote's ACTUAL workflow files
+    // (.github/workflows/*.yml, .gitlab-ci.yml); converting a hardcoded
+    // sample template and presenting it as "imported" was fabrication. Fail
+    // loudly with 501 when requested. Pass importPipelines:false to import
+    // refs only.
     const convertedPipelines: ConvertedPipelineResult[] = [];
-    if (input.importPipelines !== false) {
-      if (input.provider === 'github') {
-        const sampleGitHubYaml = `
-name: Continuous Integration
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node
-        run: nvm use 20 || node -v
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Run Test Suite
-        run: pnpm test
-        env:
-          DATABASE_URL: \${{ secrets.DATABASE_URL }}
-          API_KEY: \${{ secrets.API_KEY }}
-`;
-        convertedPipelines.push(
-          convertGitHubActionsToQuantWorkflow(sampleGitHubYaml, '.github/workflows/ci.yml'),
-        );
-      } else if (input.provider === 'gitlab') {
-        const sampleGitLabYaml = `
-stages:
-  - build
-  - test
-  - deploy
-
-build_job:
-  stage: build
-  script:
-    - pnpm install
-    - pnpm build
-  artifacts:
-    paths:
-      - dist/
-    expire_in: 1 week
-
-test_job:
-  stage: test
-  script:
-    - pnpm test
-`;
-        convertedPipelines.push(convertGitLabCiToQuantWorkflow(sampleGitLabYaml, '.gitlab-ci.yml'));
-      } else {
-        // Generic git: generate default sovereign pipeline
-        convertedPipelines.push(
-          convertGitHubActionsToQuantWorkflow(
-            `name: CI\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm test`,
-            '.quant/workflows/ci.yml',
-          ),
-        );
-      }
+    if (input.importPipelines) {
+      throw createAppError(
+        'CI/CD pipeline conversion is not wired up yet: it requires fetching the remote ' +
+          "repository's actual workflow files, which importRepository does not do. " +
+          'No sample pipeline was generated. Pass importPipelines:false to import without pipelines.',
+        501,
+        'PIPELINE_IMPORT_NOT_SUPPORTED',
+        { provider: input.provider },
+      );
     }
 
-    // 4. Environment & Secrets Importer
-    let importedEnvVars: ImportedEnvVar[] = [];
-    if (input.importEnv !== false) {
-      const sampleEnvExample = `
-# Quant Migration Detected Environment
-DATABASE_URL=postgresql://quant:password@localhost:5432/quant_repo
-PORT=3000
-NODE_ENV=production
-API_KEY=sk_quant_dummy_live_token
-JWT_SECRET=super_secret_quant_jwt_key
-REDIS_URL=redis://localhost:6379
-`;
-      const workflowEnvContent = convertedPipelines.map((p) => p.workflowYaml).join('\n');
-      importedEnvVars = extractEnvironmentVariables(sampleEnvExample, workflowEnvContent);
+    // 4. Environment & Secrets Importer — NOT WIRED UP.
+    // Same story: extracting variables from a hardcoded sample .env string
+    // and labeling them "imported" was fabrication. Fail loudly with 501 when
+    // requested. Pass importEnv:false to import without env extraction.
+    const importedEnvVars: ImportedEnvVar[] = [];
+    if (input.importEnv) {
+      throw createAppError(
+        'Environment/secret importing is not wired up yet: it requires fetching the remote ' +
+          "repository's actual env templates, which importRepository does not do. " +
+          'No sample variables were generated. Pass importEnv:false to import without env extraction.',
+        501,
+        'ENV_IMPORT_NOT_SUPPORTED',
+        { provider: input.provider },
+      );
     }
 
     // 5. Persist repository record in Prisma or in-memory fallback
@@ -777,10 +886,11 @@ REDIS_URL=redis://localhost:6379
       fullName: `${targetOwner}/${cleanTargetName}`,
       description: `Imported from ${input.provider.toUpperCase()} (${input.sourceUrl})`,
       visibility: input.isPrivate ? 'private' : 'public',
-      defaultBranch: 'main',
+      defaultBranch: discovery.defaultBranch,
       cloneUrl: `${(process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://quantmail.in').replace(/\/$/, '')}/api/code/gitd/repos/${encodeURIComponent(targetOwner)}/${encodeURIComponent(cleanTargetName)}.git`,
-      branches: discoveredBranches,
-      commitCount,
+      branches: discovery.branches.map((b) => b.name),
+      // commitCount deliberately omitted: git ls-remote cannot report it and
+      // we never fabricate it (the old code minted a random 35-79).
       starCount: 0,
       forkCount: 0,
       createdAt: now,
@@ -808,21 +918,21 @@ REDIS_URL=redis://localhost:6379
             name: cleanTargetName,
             description: repoRecord.description,
             visibility: input.isPrivate ? 'PRIVATE' : 'PUBLIC',
-            defaultBranch: 'main',
+            defaultBranch: discovery.defaultBranch,
             starCount: 0,
             forkCount: 0,
           },
         });
 
         if (this.prisma.branch) {
-          for (const b of discoveredBranches) {
+          for (const b of discovery.branches) {
             await this.prisma.branch
               .create({
                 data: {
                   repoId: createdDbRepo.id,
-                  name: b,
-                  commitSha: latestCommitSha,
-                  isProtected: b === 'main',
+                  name: b.name,
+                  commitSha: b.sha,
+                  isProtected: b.name === discovery.defaultBranch,
                 },
               })
               .catch(() => {});
@@ -840,7 +950,7 @@ REDIS_URL=redis://localhost:6379
 
     return {
       repo: repoRecord,
-      importedCommits: commitCount,
+      // importedCommits deliberately omitted — never a fabricated number.
       convertedPipelines,
       importedEnvVars,
     };

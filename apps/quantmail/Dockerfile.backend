@@ -44,8 +44,11 @@ RUN node infra/scripts/build-backend.mjs apps/quantmail backend/server.ts apps/q
 FROM node:22-slim AS runner
 # See the note on the `deps` stage: this is the stage the query engine actually
 # runs in, so the detection has to succeed here as well.
+# `git` is required at runtime: the QuantGit git-transport services and the
+# repo-migration service shell out to `git ls-remote`/`git` via execFile. The
+# node:22-slim base image does not ship git; without it those code paths fail.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl \
+  && apt-get install -y --no-install-recommends openssl git \
   && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 quantapp

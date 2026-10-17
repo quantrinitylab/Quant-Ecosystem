@@ -9,7 +9,25 @@ import {
   convertGitHubActionsToQuantWorkflow,
   convertGitLabCiToQuantWorkflow,
   extractEnvironmentVariables,
+  type RemoteRefDiscovery,
 } from '../../../../backend/services/repo-migration.service';
+
+// Deterministic discovery stub — no network in tests. Mirrors a real
+// `git ls-remote --symref --heads` result (see the backend
+// repo-migration-discovery.test.ts for the real-git coverage).
+const STUB_DISCOVERY: RemoteRefDiscovery = {
+  branches: [
+    { name: 'main', sha: 'c1d2e3f405162738495a6b7c8d9e0f112131415' },
+    { name: 'develop', sha: 'd1d2e3f405162738495a6b7c8d9e0f112131415' },
+  ],
+  defaultBranch: 'main',
+};
+
+class StubDiscoveryService extends RepoMigrationService {
+  protected override async discoverRemoteRefs(): Promise<RemoteRefDiscovery> {
+    return STUB_DISCOVERY;
+  }
+}
 import { RepoImportModal, MIGRATION_STEPS, MigrationCompleteSummary, formatImportStat } from '../components/RepoImportModal';
 
 describe('QuantGit Repository Migration & Pipeline Converter Suite', () => {
@@ -175,9 +193,9 @@ env:
     });
   });
 
-  describe('4. Backend RepoMigrationService Integration', () => {
-    it('executes full repository migration pipeline with mock-resilient refs and commit tree', async () => {
-      const service = new RepoMigrationService();
+  describe('4. Backend RepoMigrationService Integration (honest discovery, no fabrication)', () => {
+    it('imports with REAL discovered refs and no fabricated numbers', async () => {
+      const service = new StubDiscoveryService();
 
       const result = await service.importRepository({
         sourceUrl: 'https://github.com/torvalds/linux.git',
@@ -185,20 +203,74 @@ env:
         targetOwner: 'kundan',
         targetRepoName: 'linux-sovereign',
         isPrivate: false,
-        importPipelines: true,
-        importEnv: true,
+        importPipelines: false,
+        importEnv: false,
       });
 
       expect(result.repo).toBeDefined();
       expect(result.repo.name).toBe('linux-sovereign');
       expect(result.repo.ownerId).toBe('kundan');
       expect(result.repo.visibility).toBe('public');
-      expect(result.repo.branches).toContain('main');
-      expect(result.importedCommits).toBeGreaterThan(0);
-      expect(result.convertedPipelines.length).toBeGreaterThan(0);
-      expect(result.importedEnvVars.length).toBeGreaterThan(0);
+      // Discovered refs come from (stubbed) ls-remote — never the old
+      // hardcoded ['main','develop','release/v1.0'].
+      expect(result.repo.branches).toEqual(['main', 'develop']);
+      expect(result.repo.defaultBranch).toBe('main');
+      // No fabricated data anywhere: no random commit count, no sample
+      // pipelines, no sample env vars.
+      expect(result.repo).not.toHaveProperty('commitCount');
+      expect(result).not.toHaveProperty('importedCommits');
+      expect(result.convertedPipelines).toEqual([]);
+      expect(result.importedEnvVars).toEqual([]);
       expect(result.repo.cloneUrl).toContain('/api/code/gitd/repos/kundan/linux-sovereign.git');
       expect(result.repo).not.toHaveProperty('sshUrl');
+    });
+
+    it('importPipelines:true → 501 PIPELINE_IMPORT_NOT_SUPPORTED (never sample templates)', async () => {
+      const service = new StubDiscoveryService();
+      const err = await service
+        .importRepository({
+          sourceUrl: 'https://github.com/torvalds/linux.git',
+          provider: 'github',
+          targetOwner: 'kundan',
+          targetRepoName: 'linux-sovereign',
+          importPipelines: true,
+          importEnv: false,
+        })
+        .then(() => null, (e) => e);
+      expect(err?.statusCode).toBe(501);
+      expect(err?.code).toBe('PIPELINE_IMPORT_NOT_SUPPORTED');
+    });
+
+    it('importEnv:true → 501 ENV_IMPORT_NOT_SUPPORTED (never sample env strings)', async () => {
+      const service = new StubDiscoveryService();
+      const err = await service
+        .importRepository({
+          sourceUrl: 'https://github.com/torvalds/linux.git',
+          provider: 'github',
+          targetOwner: 'kundan',
+          targetRepoName: 'linux-sovereign',
+          importPipelines: false,
+          importEnv: true,
+        })
+        .then(() => null, (e) => e);
+      expect(err?.statusCode).toBe(501);
+      expect(err?.code).toBe('ENV_IMPORT_NOT_SUPPORTED');
+    });
+
+    it('unreachable remote → 502 REMOTE_GIT_UNREACHABLE, nothing minted', async () => {
+      const service = new RepoMigrationService();
+      const err = await service
+        .importRepository({
+          sourceUrl: 'https://127.0.0.1:1/no-such-repo.git',
+          provider: 'git',
+          targetOwner: 'kundan',
+          targetRepoName: 'linux-sovereign-unreachable',
+          importPipelines: false,
+          importEnv: false,
+        })
+        .then(() => null, (e) => e);
+      expect(err?.statusCode).toBe(502);
+      expect(err?.code).toBe('REMOTE_GIT_UNREACHABLE');
     });
   });
 
@@ -239,6 +311,31 @@ env:
       // Action buttons
       expect(html).toContain('Begin Migration');
       expect(html).toContain('Cancel');
+    });
+
+    it('marks pipeline/env options as not-wired-yet, disabled and off by default (no fake imports)', () => {
+      const html = renderToStaticMarkup(
+        <RepoImportModal
+          isOpen={true}
+          onClose={vi.fn()}
+          currentUsername="developer"
+          onImportSuccess={vi.fn()}
+          showToast={vi.fn()}
+        />,
+      );
+
+      // Both unwired options are visibly labeled, never silently active.
+      expect(html).toContain('not wired yet');
+      // Both checkboxes render disabled so the user cannot request a 501 path.
+      const disabledCount = (html.match(/disabled=""/g) ?? []).length;
+      expect(disabledCount).toBeGreaterThanOrEqual(2);
+      // Neither option checkbox is checked by default (the visibility radio
+      // legitimately is — scope the check to the two option inputs).
+      for (const testid of ['convert-pipelines-checkbox', 'extract-env-checkbox']) {
+        const input = html.match(new RegExp(`<input[^>]*data-testid="${testid}"[^>]*>`));
+        expect(input?.[0]).toBeDefined();
+        expect(input?.[0]).not.toContain('checked');
+      }
     });
 
     it('defines honest migration steps in MIGRATION_STEPS (no theatrical fake steps)', () => {
