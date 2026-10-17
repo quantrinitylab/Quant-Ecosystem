@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AiReviewBotService } from '../modules/code/services/ai-review-bot.service';
+// Real minter for proof: the scanner pattern must match the actual minted
+// PAT format (packages/auth), not a hand-rolled guess.
+import { generatePersonalAccessToken } from '../../../../packages/auth/src/services/personal-access-token.service';
 
 describe('AiReviewBotService (Task CH-05)', () => {
   let bot: AiReviewBotService;
@@ -39,7 +42,8 @@ describe('AiReviewBotService (Task CH-05)', () => {
       const patch = [
         'diff --git a/config.ts b/config.ts',
         '@@ -1,3 +1,4 @@',
-        '+const token = "qcp_1234567890abcdef1234567890abcdef";',
+        // Real minted PAT format: qcp_<24 hex tokenId>_<43 base64url secret>
+        '+const token = "qcp_0123456789abcdef01234567_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq";',
         '+const awsKey = "AKIAIOSFODNN7EXAMPLE";',
       ].join('\n');
 
@@ -47,6 +51,35 @@ describe('AiReviewBotService (Task CH-05)', () => {
       expect(findings.length).toBeGreaterThanOrEqual(1);
       expect(findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets')).toBe(true);
       expect(findings[0]?.severity).toBe('ERROR');
+    });
+
+    it('flags a PAT produced by the real minter (qcp_<24hex>_<43 base64url>)', () => {
+      // End-to-end proof against the actual mint format in
+      // packages/auth/src/services/personal-access-token.service.ts —
+      // not a hand-rolled string.
+      const { token } = generatePersonalAccessToken();
+      expect(token).toMatch(/^qcp_[0-9a-f]{24}_[A-Za-z0-9_-]{43}$/);
+      const patch = [
+        'diff --git a/seed.ts b/seed.ts',
+        '@@ -1,1 +1,2 @@',
+        `+const leaked = "${token}";`,
+      ].join('\n');
+
+      const findings = bot.analyzePatch(patch);
+      expect(findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets')).toBe(true);
+    });
+
+    it('no longer mis-fires on the old qcp_<32 hex> shape (never a real token)', () => {
+      // The pre-fix pattern required 32 hex chars after qcp_, which the
+      // minter can never produce; after the fix it must not flag.
+      const patch = [
+        'diff --git a/config.ts b/config.ts',
+        '@@ -1,1 +1,2 @@',
+        '+const token = "qcp_1234567890abcdef1234567890abcdef";',
+      ].join('\n');
+
+      const findings = bot.analyzePatch(patch);
+      expect(findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets')).toBe(false);
     });
 
     it('detects debugger statements and console.log', () => {
