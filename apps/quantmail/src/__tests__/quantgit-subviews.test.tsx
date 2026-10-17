@@ -220,9 +220,9 @@ describe('QuantGit Context Sub-Views — no fabricated defaults', () => {
   });
 
   // ==========================================================================
-  // 4. CI/CD Pipeline Streaming View (`actions`)
+  // 4. CI/CD Pipeline Runs (`actions`) — honest non-streaming copy
   // ==========================================================================
-  describe('4. CI/CD Pipeline Streaming View (`actions`)', () => {
+  describe('4. CI/CD Pipeline Runs (`actions`)', () => {
     it('renders provided workflow runs', () => {
       const html = renderToStaticMarkup(<QuantGitActionsSubView workflows={FIXTURE_WORKFLOWS} />);
 
@@ -231,6 +231,22 @@ describe('QuantGit Context Sub-Views — no fabricated defaults', () => {
       expect(html).toContain('abcdef12');
       expect(html).toContain('lint: pass');
       expect(html).toContain('ALL GATES PASSING');
+    });
+
+    it('uses honest non-streaming copy — data is a one-time fetch snapshot, not live telemetry', () => {
+      const html = renderToStaticMarkup(<QuantGitActionsSubView workflows={FIXTURE_WORKFLOWS} />);
+
+      // Honest header/subtitle matching the backend's honest-listing convention.
+      expect(html).toContain('CI/CD Pipeline Runs');
+      expect(html).toContain('Latest CI run results from the backend');
+      expect(html).toContain('Build Jobs Breakdown');
+
+      // No fabricated streaming / real-time capability claims (QM-CICD-SUBTITLE
+      // P1): no polling, EventSource, or WebSocket exists in the subview.
+      expect(html).not.toContain('Streaming View');
+      expect(html).not.toContain('Real-time');
+      expect(html).not.toContain('Real-Time');
+      expect(html).not.toContain('telemetry');
     });
 
     it('shows an honest empty state by default (no fabricated CI runs)', () => {
