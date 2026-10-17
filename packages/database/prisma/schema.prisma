@@ -45,6 +45,12 @@ model User {
   website             String?
   location            String?
   dateOfBirth         DateTime?
+  // QC-F-466: expiring emoji status — a catalog key ("quant:<name>", the
+  // QC-F-336 first-party pack) plus the server-computed expiry. Both are
+  // always written together or both NULL; expired rows are never served
+  // (read-time filter in the backend's emoji-status helper).
+  statusEmoji         String?
+  statusEmojiExpiresAt DateTime?
   lastLoginAt         DateTime?
   lastLoginIp         String?
   loginCount          Int        @default(0)
