@@ -11,7 +11,21 @@
 
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Room, RoomEvent, Track, type LocalVideoTrack } from 'livekit-client';
+import {
+  Room,
+  RoomEvent,
+  Track,
+  type LocalVideoTrack,
+} from 'livekit-client';
+
+// QC-F-455: structural minimum of a LiveKit audio track for attach/detach.
+// The publication getter's static type is the Local|Remote audio-track
+// union; only the remote microphone publication is ever read (see
+// attachTracks), and both members share this attach/detach surface.
+type AttachableAudioTrack = {
+  attach: (element: HTMLMediaElement) => unknown;
+  detach: (element: HTMLMediaElement) => unknown;
+};
 import {
   AppShell,
   TopBar,
@@ -40,6 +54,15 @@ export default function CallRoomPage({
   );
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  // QC-F-455: identity guard for the one bound remote mic track, plus the
+  // exact element it was attached to (F-443 closure discipline — detach
+  // from the element captured at attach time, never a re-read ref).
+  const attachedAudioTrackRef = useRef<AttachableAudioTrack | null>(null);
+  const attachedAudioElementRef = useRef<HTMLAudioElement | null>(null);
+  // QC-F-455: honest autoplay state — set ONLY from the room's
+  // AudioPlaybackStatusChanged event, never assumed or self-cleared.
+  const [audioBlocked, setAudioBlocked] = useState(false);
   const joinedRef = useRef(false);
 
   // QC-F-322: in-call background blur (this page auto-joins, so there
@@ -73,7 +96,43 @@ export default function CallRoomPage({
         break;
       }
     }
+    // QC-F-455: remote audio — the FIRST remote participant's microphone
+    // track, chosen independently of the video loop above (an audio-only
+    // peer has no camera publication, and must still be heard). LiveKit
+    // plays audio only through an attached HTMLAudioElement; without this
+    // the peer is visible but never heard. The LOCAL microphone is never
+    // read here — local audio is publish-only (echo guard).
+    let desiredAudio: AttachableAudioTrack | undefined;
+    for (const participant of room.remoteParticipants.values()) {
+      desiredAudio = participant.getTrackPublication(
+        Track.Source.Microphone,
+      )?.audioTrack;
+      if (desiredAudio) break;
+    }
+    const attachedAudio = attachedAudioTrackRef.current;
+    if ((desiredAudio ?? null) !== attachedAudio) {
+      if (attachedAudio) {
+        const el =
+          attachedAudioElementRef.current ?? remoteAudioRef.current;
+        if (el) attachedAudio.detach(el);
+        attachedAudioTrackRef.current = null;
+        attachedAudioElementRef.current = null;
+      }
+      if (desiredAudio && remoteAudioRef.current) {
+        desiredAudio.attach(remoteAudioRef.current);
+        attachedAudioTrackRef.current = desiredAudio;
+        attachedAudioElementRef.current = remoteAudioRef.current;
+      }
+    }
   }, [room]);
+
+  const detachRemoteAudio = useCallback(() => {
+    const track = attachedAudioTrackRef.current;
+    const el = attachedAudioElementRef.current ?? remoteAudioRef.current;
+    if (track && el) track.detach(el);
+    attachedAudioTrackRef.current = null;
+    attachedAudioElementRef.current = null;
+  }, []);
 
   useEffect(() => {
     if (joinedRef.current || !callId) return;
@@ -93,7 +152,13 @@ export default function CallRoomPage({
           .on(RoomEvent.TrackUnsubscribed, attachTracks)
           .on(RoomEvent.ParticipantConnected, attachTracks)
           .on(RoomEvent.ParticipantDisconnected, attachTracks)
+          .on(RoomEvent.AudioPlaybackStatusChanged, () => {
+            // QC-F-455: the room is the only source of truth for whether
+            // audio playback is currently permitted (autoplay policy).
+            if (!cancelled) setAudioBlocked(!room.canPlaybackAudio);
+          })
           .on(RoomEvent.Disconnected, () => {
+            detachRemoteAudio();
             if (!cancelled) setPhase('ended');
           });
         await room.connect(res.data.serverUrl, res.data.token);
@@ -116,13 +181,25 @@ export default function CallRoomPage({
     })();
     return () => {
       cancelled = true;
+      // QC-F-455: detach the bound remote mic track BEFORE disconnecting,
+      // so no track stays bound to a dead element after leaving the page.
+      detachRemoteAudio();
       try {
         room.disconnect();
       } catch {
         /* already disconnected */
       }
     };
-  }, [callId, room, attachTracks]);
+  }, [callId, room, attachTracks, detachRemoteAudio]);
+
+  // QC-F-455: attachTracks() runs at join time while the page is still in
+  // the 'joining' phase — the in-call media elements do not exist yet, so
+  // that call cannot bind anything. Re-run it once the in-call UI (and its
+  // <video>/<audio> elements) has actually mounted; the identity guard
+  // makes repeat runs no-ops.
+  useEffect(() => {
+    if (phase === 'in-call') attachTracks();
+  }, [phase, attachTracks]);
 
   const toggleMic = useCallback(async () => {
     const next = !isMicOn;
@@ -222,6 +299,11 @@ export default function CallRoomPage({
                 aria-label="Your video preview"
               />
             </div>
+            {/* QC-F-455: the remote peer's voice plays only through this
+                element (remote mic track is attached to it by
+                attachTracks). No visual styling — an <audio> element has
+                no picture; display:none can disturb playback. */}
+            <audio ref={remoteAudioRef} autoPlay aria-hidden="true" />
             <div className="pb-10 pt-4 flex items-center justify-center gap-6">
               <button
                 type="button"
@@ -262,6 +344,22 @@ export default function CallRoomPage({
                 error={background.error}
                 onModeChange={background.setMode}
               />
+              {/* QC-F-455: shown ONLY when the room itself reported audio
+                  playback blocked (AudioPlaybackStatusChanged). The click
+                  is the user gesture LiveKit requires for startAudio();
+                  the button disappears only when a later room event says
+                  playback is permitted again — never on the click itself. */}
+              {audioBlocked && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void room.startAudio();
+                  }}
+                  className="h-11 px-5 rounded-full bg-white text-black font-medium"
+                >
+                  Tap to enable sound
+                </button>
+              )}
             </div>
           </>
         )}
