@@ -3920,6 +3920,9 @@ Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-018r13, started 2026
 - Rotation -> QM-SCREEN-007 (search) ROUND 14 regression, queued.
 Status: [x] DONE (R13 regression audit complete 2026-10-16 ~18:50 IST; window clean (0 in-scope commits), prior fixes intact, 1 carryover P1 (forgot-email phone copy) RESOLVED, 0 new findings; fixes tracked via their PRs)
 
+## QM-SCREEN-018 R14 — Help regression (ROUND 14)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-018r14, started 2026-10-17 ~05:35 IST; R13 base 50a9235253f7 -> origin/main 52b01fb9d, fresh fetch)
+
 ## QM-SCREEN-007 R14 — Search regression (ROUND 14)
 Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-007r14, started 2026-10-16 ~19:35 IST; R13 base c10a067375 -> origin/main fdb161a3e)
 - Base: R13 @ c10a067375 -> origin/main fdb161a3e (fresh fetch). Code read from origin/main tree only (qe-main working tree stale per standing lesson; never read).
