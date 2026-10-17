@@ -819,7 +819,7 @@ export function QuantGitIssuesSubView({
                 </span>
               </div>
               <p className="text-xs text-[#8B949E] mt-0.5">
-                Triage, CalDAV recurrence tracking & session diagnostics
+                Triage, filtering & issue cards
               </p>
             </div>
           </div>
