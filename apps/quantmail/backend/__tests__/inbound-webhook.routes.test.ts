@@ -18,6 +18,7 @@ interface FakeUser {
   email: string;
   username: string;
   role: string;
+  preferences?: Record<string, unknown>;
 }
 
 const state = vi.hoisted(() => ({
@@ -846,6 +847,116 @@ describe('POST /webhook/inbound — new mail creates an in-app notification (QM-
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+  });
+});
+
+describe('POST /webhook/inbound — the mail notification mode filters new-mail notifications', () => {
+  function modeUser(mode: string): FakeUser {
+    return localUser({ preferences: { mailNotificationMode: mode } });
+  }
+
+  function ingestedEmail(overrides: Record<string, unknown> = {}) {
+    ingest.mockResolvedValue({
+      id: 'email-1',
+      threadId: 'thread-1',
+      subject: 'Numbers',
+      fromName: 'Ada Lovelace',
+      fromAddress: 'ada@example.com',
+      snippet: 'Hello Bob.',
+      ...overrides,
+    });
+  }
+
+  async function deliver() {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+  }
+
+  it('notifies for everything when the user never chose a mode (backwards compatible)', async () => {
+    state.users.push(localUser());
+    ingestedEmail({ aiCategory: 'promotions' });
+
+    await deliver();
+
+    expect(state.notifications).toHaveLength(1);
+  });
+
+  it("mode 'off' creates no notification, but the mail still lands", async () => {
+    state.users.push(modeUser('off'));
+    ingestedEmail();
+
+    await deliver();
+
+    expect(ingest).toHaveBeenCalledTimes(1);
+    expect(state.notifications).toHaveLength(0);
+  });
+
+  it("mode 'important' stays silent for bulk mail", async () => {
+    state.users.push(modeUser('important'));
+    ingestedEmail({ aiCategory: 'promotions' });
+
+    await deliver();
+
+    expect(state.notifications).toHaveLength(0);
+  });
+
+  it("mode 'important' notifies for personal (primary) mail", async () => {
+    state.users.push(modeUser('important'));
+    ingestedEmail({ aiCategory: 'primary' });
+
+    await deliver();
+
+    expect(state.notifications).toHaveLength(1);
+    expect(state.notifications[0]).toMatchObject({ userId: 'u-bob', type: 'new_email' });
+  });
+
+  it("mode 'important' notifies when the star flag wins over a bulk category", async () => {
+    state.users.push(modeUser('important'));
+    ingestedEmail({ aiCategory: 'promotions', isStarred: true });
+
+    await deliver();
+
+    expect(state.notifications).toHaveLength(1);
+  });
+
+  it("mode 'important' notifies for high-priority mail in any category", async () => {
+    state.users.push(modeUser('important'));
+    ingestedEmail({ aiCategory: 'social', priority: 'HIGH' });
+
+    await deliver();
+
+    expect(state.notifications).toHaveLength(1);
+  });
+
+  it("mode 'important' fails open on unclassified mail — silence needs a reason", async () => {
+    state.users.push(modeUser('important'));
+    ingestedEmail({ aiCategory: null });
+
+    await deliver();
+
+    expect(state.notifications).toHaveLength(1);
+  });
+
+  it('the mode is per-user: one recipient opting out does not silence the other', async () => {
+    state.users.push(modeUser('off'));
+    state.users.push(localUser({ id: 'u-carol', email: 'carol@quantmail.in', username: 'carol' }));
+    ingestedEmail();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ recipients: ['bob@quantmail.in', 'carol@quantmail.in'] }),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ ok: true, delivered: 2 });
+    expect(state.notifications).toHaveLength(1);
+    expect(state.notifications[0]).toMatchObject({ userId: 'u-carol', type: 'new_email' });
   });
 });
 
