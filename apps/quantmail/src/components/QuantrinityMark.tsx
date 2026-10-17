@@ -1,6 +1,6 @@
 'use client';
 
-import { QuantMailLogo } from './QuantMailLogo';
+import { QuantMailLogoStatic } from './QuantMailLogoStatic';
 
 interface QuantrinityMarkProps {
   className?: string;
@@ -30,7 +30,10 @@ export function QuantrinityMark({
       aria-label={label}
       className={'quantrinity-mark is-quantmail ' + (compact ? 'is-compact ' : '') + className}
     >
-      <QuantMailLogo size={compact ? 28 : 56} interactive={false} />
+      {/* Decorative mark: this span already carries role="img" + the name, so
+          the mark itself is the zero-JS static SVG — no canvas / rAF marks
+          pipeline for a mark that can never animate. */}
+      <QuantMailLogoStatic size={compact ? 28 : 56} />
     </span>
   );
 }

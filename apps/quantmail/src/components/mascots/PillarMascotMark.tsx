@@ -73,8 +73,14 @@ export function PillarMascotMark({
   const [isBlinking, setIsBlinking] = useState(false);
   const [isBouncing, setIsBouncing] = useState(false);
 
-  // Subtle natural blink interval every 4-7 seconds
+  // Subtle natural blink interval every 4-7 seconds.
+  //
+  // Decorative instances (interactive={false}) never animate: the blink chain
+  // is skipped entirely so a decorative mark mounts zero timers and never
+  // re-renders on its own. Same bug class as the canvas-QuantMailLogo
+  // decorative findings — JS living-physics for marks that can never animate.
   useEffect(() => {
+    if (!interactive) return;
     let blinkTimeout: NodeJS.Timeout;
     const scheduleNextBlink = () => {
       const delay = 4000 + Math.random() * 3000;
@@ -89,7 +95,7 @@ export function PillarMascotMark({
 
     scheduleNextBlink();
     return () => clearTimeout(blinkTimeout);
-  }, []);
+  }, [interactive]);
 
   // 3D perspective mouse tilt handler
   const handleMouseMove = useCallback(
@@ -103,16 +109,25 @@ export function PillarMascotMark({
     [interactive]
   );
 
+  const handleMouseEnter = useCallback(() => {
+    // Decorative instances never hover-animate: no hover scale, no halo
+    // state — the parent button/tile owns the interaction affordance.
+    if (!interactive) return;
+    setIsHovered(true);
+  }, [interactive]);
+
   const handleMouseLeave = useCallback(() => {
     setIsHovered(false);
     setTilt({ x: 0, y: 0 });
   }, []);
 
   const handleClick = useCallback(() => {
+    // Decorative marks are not controls: no bounce timer, no click handling.
+    if (!interactive) return;
     setIsBouncing(true);
     setTimeout(() => setIsBouncing(false), 450);
     onClick?.();
-  }, [onClick]);
+  }, [interactive, onClick]);
 
   const assetSrc = `/mascots/${pillar}-${sizeConfig.assetSuffix}.webp`;
   const fallbackSrc = `/mascots/${pillar}-${sizeConfig.assetSuffix}.png`;
@@ -133,7 +148,7 @@ export function PillarMascotMark({
         sizeConfig.className
       } ${interactive ? 'cursor-pointer' : ''} ${className}`}
       onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
       title={title || meta.label}
