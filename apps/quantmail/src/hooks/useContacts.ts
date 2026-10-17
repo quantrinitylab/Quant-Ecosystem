@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/api-client';
 import { createContactsPageQuery, type ContactsPageOptions } from '../lib/contacts-pagination';
-import type { Contact, CompanyGroup, LetterGroup } from '../types';
+import type { Contact, CompanyGroup, LetterGroup, ContactActivitySuggestion } from '../types';
 
 export function useContacts(options?: {
   q?: string;
@@ -167,3 +167,34 @@ export function useLetterGroups(options?: {
 }
 
 export type { ContactsPageOptions };
+
+/**
+ * Frequent correspondents who are NOT saved contacts yet (Gmail "Merge & Fix"
+ * analogue) — aggregated from real mail by `GET /contacts/suggestions`.
+ * Backs the contacts page's "Suggested from your mail" section.
+ *
+ * Named useContactActivitySuggestions (not useContactSuggestions) on purpose:
+ * src/hooks/useContactSuggestions.ts already exports a useContactSuggestions
+ * for the composer's recipient autocomplete (backed by /contacts/frequent);
+ * this is a different hook with a different payload.
+ *
+ * The key sits under `['contacts']` so the create mutation below, which
+ * invalidates that prefix, refreshes this too: add a suggestion and it
+ * disappears from the list without any extra wiring.
+ */
+export function useContactActivitySuggestions(options?: { limit?: number; enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['contacts', 'suggestions', { limit: options?.limit }] as const,
+    queryFn: async (): Promise<ContactActivitySuggestion[]> => {
+      const response = await apiClient.getContactSuggestions(options?.limit);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to load suggestions');
+      }
+      return response.data ?? [];
+    },
+    enabled: options?.enabled ?? true,
+    // Mail activity changes on a human timescale, and the create mutation
+    // invalidates this key anyway.
+    staleTime: 5 * 60_000,
+  });
+}

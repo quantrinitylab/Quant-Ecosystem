@@ -123,6 +123,14 @@ const frequentQuerySchema = z
   })
   .strict();
 
+// GET /contacts/suggestions honours the same limit contract as /frequent.
+// Strict: a misspelt filter must 400, not silently return the default window.
+const suggestionsQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+  })
+  .strict();
+
 export default async function contactsRoutes(fastify: FastifyInstance) {
   // POST /contacts
   fastify.post('/', async (request, reply) => {
@@ -213,6 +221,36 @@ export default async function contactsRoutes(fastify: FastifyInstance) {
     const contacts = await service.getFrequentContacts(userId, queryResult.data.limit ?? 10);
 
     return reply.send({ success: true, data: contacts });
+  });
+
+  // GET /contacts/suggestions
+  //
+  // People this user corresponds with often who are NOT saved contacts yet —
+  // the Gmail "Merge & Fix" analogue. `GET /contacts/frequent` answers "who
+  // do I talk to most" but only from the contact table, so a correspondent
+  // emailed 50 times who was never saved never appeared anywhere; the
+  // contacts page had zero surface for them either. This aggregates from real
+  // mail (inbound senders + outbound recipients, drafts/spam/trash excluded)
+  // and the page renders it as one-click-add suggestions.
+  //
+  // A dedicated static segment (like /directory, /search, /frequent) so it
+  // never lands in the `/:id` route below.
+  fastify.get('/suggestions', async (request, reply) => {
+    const queryResult = suggestionsQuerySchema.safeParse(request.query);
+    if (!queryResult.success) {
+      throw queryResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new ContactService(prisma as never);
+    const suggestions = await service.getContactSuggestions(userId, queryResult.data.limit ?? 10);
+
+    return reply.send({ success: true, data: suggestions });
   });
 
   // GET /contacts/directory
@@ -474,9 +512,9 @@ export default async function contactsRoutes(fastify: FastifyInstance) {
 
   // GET /contacts/:id
   //
-  // Registered after the three static routes it shares a prefix with. Fastify's
+  // Registered after the four static routes it shares a prefix with. Fastify's
   // radix router prefers a static segment over a parametric one, so `/search`,
-  // `/frequent` and `/directory` still reach their own handlers rather than
+  // `/frequent`, `/suggestions` and `/directory` still reach their own handlers rather than
   // arriving here as an id — but keeping the declaration order honest saves the
   // next reader the trip to the router's source.
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
