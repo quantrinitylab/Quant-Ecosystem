@@ -1044,6 +1044,34 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(prisma.branch.create).toHaveBeenCalled();
   });
 
+  it('POST /repos/:id/branches returns 409 BRANCH_EXISTS when the name is taken', async () => {
+    // fix/qm-commit-existing-branch-check: the frontend commit-to-new-branch
+    // flow keys its "stop before committing" guard on this exact contract —
+    // a 409 whose error.code is BRANCH_EXISTS. Do not rename the code or
+    // fold it into a generic 409 without updating the frontend guard.
+    const app = await buildApp();
+    prisma.branch.findFirst.mockResolvedValueOnce({
+      id: 'branch-taken',
+      repoId: 'repo-1',
+      name: 'taken-name',
+      commitSha: '1111111111111111111111111111111111111111',
+      isProtected: false,
+    } as never);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/branches',
+      payload: {
+        name: 'taken-name',
+        sha: '948e361200000000000000000000000000000000',
+      },
+    });
+    expect(res.statusCode).toBe(409);
+    const body = res.json();
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('BRANCH_EXISTS');
+    expect(prisma.branch.create).not.toHaveBeenCalled();
+  });
+
   it('POST /repos/:id/branches inherits the default branch database SHA', async () => {
     const app = await buildApp();
 
