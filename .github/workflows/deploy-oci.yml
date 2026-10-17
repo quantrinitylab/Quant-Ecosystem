@@ -351,8 +351,11 @@ jobs:
           cd /opt/quant/oci
           # Snapshot the current tag for rollback before switching.
           if [ -f .last-good-tag ]; then cp .last-good-tag .prev-tag; fi
-          IMAGE_TAG="$RELEASE_SHA" docker compose -f quant-stack.yml pull
-          IMAGE_TAG="$RELEASE_SHA" docker compose -f quant-stack.yml up -d --remove-orphans
+          # Scope pull/up to this target's services (+ the Caddy proxy, which the
+          # health check needs). An unscoped pull fails on the first deploy of
+          # any target because the other targets' images don't exist on GHCR yet.
+          IMAGE_TAG="$RELEASE_SHA" docker compose -f quant-stack.yml pull $SERVICES quant-proxy
+          IMAGE_TAG="$RELEASE_SHA" docker compose -f quant-stack.yml up -d --remove-orphans $SERVICES quant-proxy
           # Per-service state check: every service for this target must be running.
           running="$(IMAGE_TAG="$RELEASE_SHA" docker compose -f quant-stack.yml ps --status running --services)"
           for svc in $SERVICES; do
@@ -413,11 +416,12 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/oci-deploy -o BatchMode=yes "$OCI_SSH_USER@$VM_APP_IP" \
-            'bash -s' <<'REMOTE' || true
+            "SERVICES='$COMPOSE_SERVICES' bash -s" <<'REMOTE' || true
           set -euo pipefail
           cd /opt/quant/oci
           if [ -f .prev-tag ]; then
-            IMAGE_TAG="$(cat .prev-tag)" docker compose -f quant-stack.yml up -d --remove-orphans
+            # Same scoping as the deploy step: only this target's services (+ proxy).
+            IMAGE_TAG="$(cat .prev-tag)" docker compose -f quant-stack.yml up -d --remove-orphans $SERVICES quant-proxy
             cp .prev-tag .last-good-tag
             echo "Rolled back to $(cat .prev-tag)"
           else
