@@ -39,14 +39,19 @@ function readS3Config(): S3Config | null {
     process.env.DRIVE_S3_SECRET_ACCESS_KEY ?? process.env.S3_SECRET_ACCESS_KEY;
   if (!bucket || !accessKeyId || !secretAccessKey) return null;
   const region = process.env.DRIVE_S3_REGION ?? process.env.S3_REGION ?? 'us-east-1';
-  const endpoint = (
-    process.env.DRIVE_S3_ENDPOINT ??
-    process.env.S3_ENDPOINT ??
-    `https://s3.${region}.amazonaws.com`
-  ).replace(/\/+$/, '');
+  // Fully endpoint-driven: any S3-compatible store (e.g. OCI Object Storage's
+  // S3-compatible API at https://<ns>.compat.objectstorage.<region>.oraclecloud.com)
+  // works by setting the endpoint + credentials; unset → default AWS S3.
+  const customEndpoint = process.env.DRIVE_S3_ENDPOINT ?? process.env.S3_ENDPOINT;
+  const endpoint = (customEndpoint ?? `https://s3.${region}.amazonaws.com`).replace(/\/+$/, '');
+  // OCI's S3-compatible API (and most S3-compatible stores) require path-style
+  // addressing — virtual-hosted style (bucket.host) does not resolve there.
+  // Default to path-style when a custom endpoint is set, unless explicitly
+  // overridden; AWS default behavior is unchanged when no endpoint is set.
+  const forcePathStyleRaw =
+    process.env.DRIVE_S3_FORCE_PATH_STYLE ?? process.env.S3_FORCE_PATH_STYLE;
   const forcePathStyle =
-    (process.env.DRIVE_S3_FORCE_PATH_STYLE ?? process.env.S3_FORCE_PATH_STYLE ?? 'false') ===
-    'true';
+    forcePathStyleRaw !== undefined ? forcePathStyleRaw === 'true' : customEndpoint !== undefined;
   return { bucket, region, endpoint, accessKeyId, secretAccessKey, forcePathStyle };
 }
 
@@ -54,7 +59,7 @@ export function driveStorageReady(): boolean {
   return readS3Config() !== null && readMasterKey() !== null;
 }
 export function driveStorageUnavailableReason(): string {
-  if (!readS3Config()) return 'Drive object storage is not configured (DRIVE_S3_* missing)';
+  if (!readS3Config()) return 'Drive object storage is not configured (DRIVE_S3_* / S3_* missing)';
   if (!readMasterKey()) return 'Drive encryption key is not configured (DRIVE_MASTER_KEY missing)';
   return '';
 }
