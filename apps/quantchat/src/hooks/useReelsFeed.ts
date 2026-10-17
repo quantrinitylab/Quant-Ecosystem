@@ -60,6 +60,16 @@ async function fetchReelsFeed(cursor?: string): Promise<ReelsFeedPage> {
 
   const response = await apiFetchRaw(`/api/reels/feed?${params.toString()}`, { timeout: 15000 });
   if (!response.ok) {
+    // QC-F-453: a cursor the server can no longer resolve (deleted reel, or
+    // the anchor reel became invisible to this viewer) answers 400
+    // INVALID_CURSOR. That is an honest end of the chain for THIS cursor —
+    // return a terminal page so React Query stops paging instead of
+    // surfacing an error (or, pre-fix, appending a repeated first page).
+    // A 400 on the cursor-less first page is a real server fault and still
+    // throws.
+    if (cursor && response.status === 400) {
+      return { reels: [], nextCursor: null, hasMore: false, totalAvailable: 0 };
+    }
     throw new Error(`Failed to fetch reels feed: ${response.statusText}`);
   }
   const json: ReelsFeedResponse = await response.json();
@@ -83,8 +93,15 @@ export function useReelsFeed(): UseReelsFeedReturn {
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
 
-  // Flatten all pages into a single reels array (backend returns pre-ranked via @quant/ranking)
-  const reels: Reel[] = data?.pages.flatMap((page) => page.reels) ?? [];
+  // Flatten all pages into a single reels array (backend returns pre-ranked via @quant/ranking).
+  // QC-F-453: dedupe by id (first occurrence wins) — a second line of
+  // defence so an overlapping/refetched page can never render a reel twice.
+  const seenReelIds = new Set<string>();
+  const reels: Reel[] = (data?.pages.flatMap((page) => page.reels) ?? []).filter((reel) => {
+    if (seenReelIds.has(reel.id)) return false;
+    seenReelIds.add(reel.id);
+    return true;
+  });
   const hasMore = hasNextPage ?? false;
 
   // Optimistic like mutation
