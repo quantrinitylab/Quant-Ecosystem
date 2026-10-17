@@ -88,8 +88,14 @@ function createFakePrisma(input: { conversations: string[]; members: FakeMemberR
 
   const prisma = {
     conversation: {
+      // QC-F-470 fixture migration: the gate now reads the conversation
+      // ROW's type. conv-1 is used by this suite as a group-create
+      // conversation (participants 1-2, no DIRECT claim anywhere in the
+      // file), so GROUP is the honest type — DIRECT would make the new
+      // gate fail closed 503 here (this fake has no user delegate).
+      // No assertion changes.
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
-        input.conversations.includes(where.id) ? { id: where.id } : null,
+        input.conversations.includes(where.id) ? { id: where.id, type: 'GROUP' } : null,
       ),
     },
     conversationMember: {

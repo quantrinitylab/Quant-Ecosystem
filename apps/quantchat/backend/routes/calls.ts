@@ -131,8 +131,15 @@ function getMembershipGate(fastify: FastifyInstance): ConversationService {
  * with 503 BLOCKED_CHECK_UNAVAILABLE instead of silently ringing someone
  * who may have blocked the caller.
  *
- * Scope decision (recorded, not silent): 1:1 ONLY. /calls/group does not
- * apply this check — group participants are already members of a shared
+ * Scope decision (recorded, not silent; QC-F-470 supersedes the route-name
+ * reading of it): the blocked check is bound to the CALL SHAPE, not the
+ * endpoint. On /initiate this helper checks the body-supplied callee. On
+ * /calls/create and /calls/group, ConversationService
+ * .assertDirectCallNotBlocked applies the same fail-closed check to the
+ * DIRECT conversation's other active member(s) — a DIRECT conversation
+ * relabelled as a "group" call gets no bypass. For conversations that
+ * really are GROUP or CHANNEL, QC-F-218's original decision stands
+ * unchanged: group participants are already members of a shared
  * conversation, and per-participant block semantics inside existing
  * groups are a separate product question (the same reason
  * PrivacyService.checkCanMessage never gates existing conversations).
@@ -249,6 +256,14 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     // no token and no durable history row is created.
     const membershipGate = getMembershipGate(fastify);
     await membershipGate.assertAllMembers(conversationId, allParticipants);
+
+    // QC-F-470 blocked gate: when this conversation is DIRECT, the call is
+    // 1:1 whatever this route is called, so the QC-F-218 blocked check
+    // applies to the other member — fail-closed, AFTER membership (a
+    // non-member payload must answer NOT_A_MEMBER first) and OUTSIDE the
+    // try below (its 403/503 must not be wrapped into CALL_CREATE_FAILED,
+    // and a rejected attempt must not orphan a room).
+    await membershipGate.assertDirectCallNotBlocked(conversationId, userId);
 
     // Create the real LiveKit room. No tokens are generated here (see the
     // QC-F-075 note above); participants join via /:id/join for their own.
@@ -394,8 +409,9 @@ export default async function callsRoutes(fastify: FastifyInstance) {
   // participantIds used to get a LiveKit room with zero checks and no
   // durable record. Every participant (caller included) must now be an
   // active member of conversationId, and the started call is persisted.
-  // (The blocked-check is 1:1-only by recorded decision — see
-  // assertCalleeHasNotBlockedCaller.)
+  // (The blocked-check follows the call shape — see the QC-F-470 note on
+  // assertCalleeHasNotBlockedCaller: DIRECT conversations are gated here
+  // too; real GROUP/CHANNEL conversations keep the QC-F-218 exemption.)
   fastify.post('/group', async (request, reply) => {
     const parseResult = initiateGroupSchema.safeParse(request.body);
     if (!parseResult.success) {
@@ -416,6 +432,10 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     // QC-F-218 membership gate (QC-F-075 pattern, shared helper).
     const membershipGate = getMembershipGate(fastify);
     await membershipGate.assertAllMembers(conversationId, allParticipants);
+
+    // QC-F-470 blocked gate (same placement contract as /create: after
+    // membership, before any room exists).
+    await membershipGate.assertDirectCallNotBlocked(conversationId, userId);
 
     const call = await callService.initiateGroupCall(userId, participantIds);
 

@@ -523,4 +523,114 @@ describe('ConversationService', () => {
       );
     });
   });
+
+  // QC-F-470: the blocked gate for /calls/create + /calls/group, bound to
+  // the conversation ROW's type. The peer set comes from active membership
+  // (never from a request payload), the check is one-directional
+  // (peer blocked caller), and every unreadable state fails closed 503.
+  describe('assertDirectCallNotBlocked', () => {
+    function serviceWithVerdict(verdict: 'blocked' | 'clear' | 'unavailable') {
+      const checkBlockedBy = vi.fn(async () => verdict);
+      const svc = new ConversationService(prisma as never, { checkBlockedBy } as never);
+      return { svc, checkBlockedBy };
+    }
+
+    it('(i) DIRECT + peer blocked the caller → 403 CALLER_BLOCKED; type read from the row, peers from membership', async () => {
+      const { svc, checkBlockedBy } = serviceWithVerdict('blocked');
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', type: 'DIRECT' });
+      prisma.conversationMember.findMany.mockResolvedValue([
+        { userId: 'user-1' },
+        { userId: 'user-2' },
+      ]);
+
+      await expect(svc.assertDirectCallNotBlocked('conv-1', 'user-1')).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'CALLER_BLOCKED',
+      });
+      expect(prisma.conversation.findUnique).toHaveBeenCalledWith({
+        where: { id: 'conv-1' },
+        select: { type: true },
+      });
+      // All-active-members query: NO userId.in filter (the payload never
+      // decides who the peer is).
+      expect(prisma.conversationMember.findMany).toHaveBeenCalledWith({
+        where: { conversationId: 'conv-1', leftAt: null },
+        select: { userId: true },
+      });
+      expect(checkBlockedBy).toHaveBeenCalledWith('user-2', 'user-1');
+    });
+
+    it('(ii) DIRECT + peer clear → resolves', async () => {
+      const { svc } = serviceWithVerdict('clear');
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', type: 'DIRECT' });
+      prisma.conversationMember.findMany.mockResolvedValue([
+        { userId: 'user-1' },
+        { userId: 'user-2' },
+      ]);
+
+      await expect(svc.assertDirectCallNotBlocked('conv-1', 'user-1')).resolves.toBeUndefined();
+    });
+
+    it('(iii) DIRECT + verdict unavailable → 503 BLOCKED_CHECK_UNAVAILABLE (fail-closed)', async () => {
+      const { svc } = serviceWithVerdict('unavailable');
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', type: 'DIRECT' });
+      prisma.conversationMember.findMany.mockResolvedValue([
+        { userId: 'user-1' },
+        { userId: 'user-2' },
+      ]);
+
+      await expect(svc.assertDirectCallNotBlocked('conv-1', 'user-1')).rejects.toMatchObject({
+        statusCode: 503,
+        code: 'BLOCKED_CHECK_UNAVAILABLE',
+      });
+    });
+
+    it('(iv) GROUP + peer blocked → resolves with NO member read and NO blocked check (QC-F-218 exemption untouched)', async () => {
+      const { svc, checkBlockedBy } = serviceWithVerdict('blocked');
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', type: 'GROUP' });
+
+      await expect(svc.assertDirectCallNotBlocked('conv-1', 'user-1')).resolves.toBeUndefined();
+      expect(prisma.conversationMember.findMany).not.toHaveBeenCalled();
+      expect(checkBlockedBy).not.toHaveBeenCalled();
+    });
+
+    it('(v) conversation row missing → 503 BLOCKED_CHECK_UNAVAILABLE (the method itself fails closed, never 404)', async () => {
+      const { svc } = serviceWithVerdict('clear');
+      prisma.conversation.findUnique.mockResolvedValue(null);
+
+      await expect(svc.assertDirectCallNotBlocked('nope', 'user-1')).rejects.toMatchObject({
+        statusCode: 503,
+        code: 'BLOCKED_CHECK_UNAVAILABLE',
+      });
+    });
+
+    it('(vi) unknown conversation type → 503 BLOCKED_CHECK_UNAVAILABLE', async () => {
+      const { svc } = serviceWithVerdict('clear');
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', type: 'PARTY' });
+
+      await expect(svc.assertDirectCallNotBlocked('conv-1', 'user-1')).rejects.toMatchObject({
+        statusCode: 503,
+        code: 'BLOCKED_CHECK_UNAVAILABLE',
+      });
+    });
+
+    it('(vi-b) missing conversation type → 503 BLOCKED_CHECK_UNAVAILABLE', async () => {
+      const { svc } = serviceWithVerdict('clear');
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1' });
+
+      await expect(svc.assertDirectCallNotBlocked('conv-1', 'user-1')).rejects.toMatchObject({
+        statusCode: 503,
+        code: 'BLOCKED_CHECK_UNAVAILABLE',
+      });
+    });
+
+    it('(vii) DIRECT + caller is the only active member → resolves with no blocked check (nobody left to call)', async () => {
+      const { svc, checkBlockedBy } = serviceWithVerdict('blocked');
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', type: 'DIRECT' });
+      prisma.conversationMember.findMany.mockResolvedValue([{ userId: 'user-1' }]);
+
+      await expect(svc.assertDirectCallNotBlocked('conv-1', 'user-1')).resolves.toBeUndefined();
+      expect(checkBlockedBy).not.toHaveBeenCalled();
+    });
+  });
 });
