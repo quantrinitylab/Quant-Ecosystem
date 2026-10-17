@@ -47,6 +47,10 @@ import {
 import { InboundIngestAdapter, type InboundRawMessage } from '../services/inbound-ingest.service';
 import { InboundAttachmentKeeper } from '../services/inbound-attachments.service';
 import { deliverPushToUser } from '../services/push-delivery.service';
+import {
+  isImportantMail,
+  readUserMailNotificationMode,
+} from '../services/mail-notification-mode.service';
 import { MailFilterService } from '../services/mail-filter.service';
 import { suppressionService } from '../services/suppression.service';
 import { createAppError } from '@quant/server-core';
@@ -489,7 +493,23 @@ async function keepAttachmentBytes(
 async function createNewMailNotification(
   log: FastifyInstance['log'],
   userId: string,
-  email: { id: string; threadId: string | null; subject: string; fromName: string | null; fromAddress: string; snippet: string | null },
+  email: {
+    id: string;
+    threadId: string | null;
+    subject: string;
+    fromName: string | null;
+    fromAddress: string;
+    snippet: string | null;
+    // Importance signals for the `important` notification mode. The real
+    // `ingest()` returns the full persisted row (aiCategory is written at
+    // ingest); harnesses may pass a partial shape and the mode helpers
+    // fail-open on anything missing.
+    aiCategory?: string | null;
+    category?: string | null;
+    isStarred?: boolean | null;
+    isImportant?: boolean | null;
+    priority?: string | null;
+  },
 ): Promise<void> {
   try {
     const db = prisma as unknown as {
@@ -500,7 +520,32 @@ async function createNewMailNotification(
       emailThread: {
         findUnique(args: unknown): Promise<{ userId: string; isMuted: boolean } | null>;
       };
+      user: {
+        findUnique(args: unknown): Promise<{ preferences: unknown } | null>;
+        update(args: unknown): Promise<unknown>;
+      };
     };
+    // The user's notification mode is the single filter on this path — it
+    // covers the in-app row, the web push below, and the desktop watcher's
+    // feed (which polls the same rows). Stored in User.preferences, default
+    // 'all' preserves the old every-mail behaviour.
+    const mode = await readUserMailNotificationMode(db, userId, {
+      warn: (obj, msg) => log.warn(obj as object, msg),
+    });
+    if (mode === 'off') {
+      log.info(
+        { userId, emailId: email.id },
+        '[inbound] notification skipped — user notification mode is off',
+      );
+      return;
+    }
+    if (mode === 'important' && !isImportantMail(email)) {
+      log.info(
+        { userId, emailId: email.id, aiCategory: email.aiCategory ?? null },
+        '[inbound] notification skipped — not important under user notification mode',
+      );
+      return;
+    }
     // Muted threads never notify: muting a conversation is the user asking for
     // silence (Gmail/Superhuman parity — muted conversations "won't trigger
     // notifications"). The mail itself is still delivered; only the in-app

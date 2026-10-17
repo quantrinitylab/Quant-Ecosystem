@@ -3,8 +3,15 @@ import type { PrismaClient } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { z } from 'zod';
 import { getPushPublicKey, isPushConfigured } from '../services/push-delivery.service';
+import {
+  MAIL_NOTIFICATION_MODES,
+  readUserMailNotificationMode,
+  writeUserMailNotificationMode,
+} from '../services/mail-notification-mode.service';
 
 const listQuerySchema = z.object({ limit: z.coerce.number().int().min(1).max(100).default(30) });
+
+const mailNotificationModeBodySchema = z.object({ mode: z.enum(MAIL_NOTIFICATION_MODES) });
 
 // QM-UIUX-053: the browser's `PushSubscription.toJSON()` shape. Deliberately
 // no `userId` field — the owner comes from the authenticated session, never
@@ -140,5 +147,35 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
       where: { userId, endpoint: parsed.data.endpoint },
     });
     return reply.send({ success: true, data: { removed: result.count } });
+  });
+
+  // -------------------------------------------------------------------------
+  // Mail notification mode (QM: "important mail only" gap).
+  //
+  // GET /notifications/mail-notification-mode — the caller's mode: 'all' (the
+  // old every-mail behaviour, and the default), 'important' (only important
+  // mail creates a notification), or 'off' (no mail notifications at all).
+  // The inbound webhook reads the same mode before creating a `new_email`
+  // notification, so one setting covers the in-app bell, web push, and the
+  // desktop watcher's feed.
+  // -------------------------------------------------------------------------
+  fastify.get('/mail-notification-mode', async (request, reply) => {
+    const userId = userIdFrom(request);
+    const mode = await readUserMailNotificationMode(prisma, userId, {
+      warn: (obj, msg) => fastify.log.warn(obj as object, msg),
+    });
+    return reply.send({ success: true, data: { mode } });
+  });
+
+  // PUT /notifications/mail-notification-mode — change the caller's mode. The
+  // mode merges into User.preferences JSON, so unrelated stored keys survive.
+  fastify.put('/mail-notification-mode', async (request, reply) => {
+    const userId = userIdFrom(request);
+    const parsed = mailNotificationModeBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw createAppError('Invalid notification mode', 400, 'VALIDATION_ERROR');
+    }
+    const mode = await writeUserMailNotificationMode(prisma, userId, parsed.data.mode);
+    return reply.send({ success: true, data: { mode } });
   });
 }
