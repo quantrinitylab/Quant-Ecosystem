@@ -70,7 +70,9 @@ function makeFakePrisma() {
   const memberIds = ['user-a', 'user-b', 'user-c'];
   const prisma: CallRecordPrisma & {
     conversation: {
-      findUnique: (args: { where: { id: string } }) => Promise<{ id: string } | null>;
+      findUnique: (args: {
+        where: { id: string };
+      }) => Promise<{ id: string; type: string } | null>;
     };
     conversationMember: {
       findMany: (args: {
@@ -79,7 +81,11 @@ function makeFakePrisma() {
     };
   } = {
     conversation: {
-      findUnique: async ({ where }) => (where.id === 'conv-1' ? { id: 'conv-1' } : null),
+      // QC-F-470 fixture migration: the gate reads the ROW's type; conv-1
+      // has 3 active members (user-a/b/c) so it honestly is GROUP.
+      // No assertion changes.
+      findUnique: async ({ where }) =>
+        where.id === 'conv-1' ? { id: 'conv-1', type: 'GROUP' } : null,
     },
     conversationMember: {
       findMany: async ({ where }) =>

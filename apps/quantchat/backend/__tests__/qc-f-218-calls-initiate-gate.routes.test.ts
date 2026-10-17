@@ -96,6 +96,11 @@ interface FakeMemberRow {
  */
 function createFakePrisma(input: {
   conversations: string[];
+  // QC-F-470 fixture migration: the direct-call gate reads the
+  // conversation ROW's type. conv-1's /group cases here are 3-member
+  // group calls, so its honest type is GROUP (the default below);
+  // /initiate never consults this map. No assertion changes.
+  conversationTypes?: Record<string, string>;
   members: FakeMemberRow[];
   // QC-F-218 blocked-check: raw User.preferences per user id (the block
   // list lives at chatSettings.blockedUsers on the CALLEE's row).
@@ -121,7 +126,9 @@ function createFakePrisma(input: {
         }),
     conversation: {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
-        input.conversations.includes(where.id) ? { id: where.id } : null,
+        input.conversations.includes(where.id)
+          ? { id: where.id, type: input.conversationTypes?.[where.id] ?? 'GROUP' }
+          : null,
       ),
     },
     conversationMember: {
