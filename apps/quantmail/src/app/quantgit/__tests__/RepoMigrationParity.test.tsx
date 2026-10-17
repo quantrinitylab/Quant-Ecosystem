@@ -1,14 +1,22 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   RepoMigrationService,
+  DefaultRepoMigrationStorage,
   repoMigrationService,
   validateSourceUrl,
   parseRepoInfo,
   convertGitHubActionsToQuantWorkflow,
   convertGitLabCiToQuantWorkflow,
   extractEnvironmentVariables,
+} from '../../../../backend/services/repo-migration.service';
+import type {
+  MigrationGitOps,
+  DiscoveredSourceRepo,
 } from '../../../../backend/services/repo-migration.service';
 import { RepoImportModal, MIGRATION_STEPS, MigrationCompleteSummary, formatImportStat } from '../components/RepoImportModal';
 
@@ -176,8 +184,69 @@ env:
   });
 
   describe('4. Backend RepoMigrationService Integration', () => {
+    // The migration service clones real git sources; a live network clone in
+    // a unit test is non-deterministic and hangs (30s timeout). Stub the
+    // cloneAndDiscover seam with a deterministic discovered source instead.
+    const tempDirs: string[] = [];
+    afterEach(async () => {
+      for (const d of tempDirs.splice(0)) {
+        await rm(d, { recursive: true, force: true });
+      }
+    });
+
+    const stubbedService = async (): Promise<RepoMigrationService> => {
+      const storageBase = await mkdtemp(join(tmpdir(), 'qm-parity-test-'));
+      tempDirs.push(storageBase);
+      const stubGitOps: MigrationGitOps = {
+        cloneAndDiscover: async (_sourceUrl, stagingDir): Promise<DiscoveredSourceRepo> => {
+          // Materialize a bare-repo skeleton so provisioning (rename into
+          // storage) has real on-disk content to move.
+          await mkdir(stagingDir, { recursive: true });
+          await writeFile(join(stagingDir, 'HEAD'), 'ref: refs/heads/main\n');
+          return {
+            branches: [
+              {
+                name: 'main',
+                sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4',
+                commitCount: 1337,
+              },
+              {
+                name: 'develop',
+                sha: '0123456789abcdef0123456789abcdef01234567',
+                commitCount: 42,
+              },
+            ],
+            defaultBranch: 'main',
+            workflowFiles: [
+              {
+                path: '.github/workflows/ci.yml',
+                content:
+                  'name: CI\n' +
+                  'on:\n' +
+                  '  push:\n' +
+                  '    branches: [ main ]\n' +
+                  'jobs:\n' +
+                  '  test:\n' +
+                  '    runs-on: ubuntu-latest\n' +
+                  '    steps:\n' +
+                  '      - uses: actions/checkout@v4\n' +
+                  '      - name: Install dependencies\n' +
+                  '        run: pnpm install --frozen-lockfile\n' +
+                  '      - name: Run Test Suite\n' +
+                  '        run: pnpm test\n' +
+                  '        env:\n' +
+                  '          DATABASE_URL: ${{ secrets.DATABASE_URL }}\n',
+              },
+            ],
+            envExampleContent: 'DATABASE_URL=postgres://localhost:5432/app\nPORT=8080\n',
+          };
+        },
+      };
+      return new RepoMigrationService(undefined, stubGitOps, new DefaultRepoMigrationStorage(storageBase));
+    };
+
     it('executes full repository migration pipeline with mock-resilient refs and commit tree', async () => {
-      const service = new RepoMigrationService();
+      const service = await stubbedService();
 
       const result = await service.importRepository({
         sourceUrl: 'https://github.com/torvalds/linux.git',
