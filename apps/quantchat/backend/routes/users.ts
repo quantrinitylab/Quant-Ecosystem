@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { getPrivacyService } from '../services/privacy.service';
+import { serializeEmojiStatus } from '../lib/emoji-status';
 
 // ============================================================================
 // QuantChat — user directory routes (contact discovery for new chats)
@@ -35,6 +36,10 @@ interface DirectoryUser {
   displayName: string;
   avatarUrl: string | null;
   bio: string | null;
+  // QC-F-466: raw stored status columns; serialized through the expiry
+  // helper below so an expired status is never served.
+  statusEmoji?: string | null;
+  statusEmojiExpiresAt?: Date | string | null;
 }
 
 interface DirectoryPrisma {
@@ -83,6 +88,8 @@ export default async function usersRoutes(fastify: FastifyInstance) {
         displayName: true,
         avatarUrl: true,
         bio: true,
+        statusEmoji: true,
+        statusEmojiExpiresAt: true,
       },
       skip: (page - 1) * limit,
       take: limit + 1,
@@ -106,10 +113,23 @@ export default async function usersRoutes(fastify: FastifyInstance) {
     // (probe row already removed above), never on the probe row.
     const privacy = getPrivacyService(prisma);
     const resolved = await privacy.resolveMany(pageUsers.map((u) => u.id));
-    const visible = pageUsers.filter((u) => {
-      const entry = resolved.get(u.id);
-      return !(entry?.prefs.hideFromSearch ?? false);
-    });
+    const visible = pageUsers
+      .filter((u) => {
+        const entry = resolved.get(u.id);
+        return !(entry?.prefs.hideFromSearch ?? false);
+      })
+      // QC-F-466: replace the raw stored columns with the one live-status
+      // shape. The field is always present (null when there is no live
+      // status) so clients never have to guess, and the raw columns never
+      // leave the server.
+      .map((u) => ({
+        id: u.id,
+        username: u.username,
+        displayName: u.displayName,
+        avatarUrl: u.avatarUrl,
+        bio: u.bio,
+        emojiStatus: serializeEmojiStatus(u),
+      }));
 
     // `data` stays the bare array the web caller parses (QC-F-348 §3.2F);
     // paging truth rides in the `pagination` sibling, which old callers

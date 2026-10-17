@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { AppShell, TopBar, BottomNav, useAuth } from '@quant/shared-ui';
 import { LoadingState, ErrorState } from '@quant/shared-ui';
 import { apiClient } from '../../services/api-client';
+import { EmojiStatusBadge } from '../../components/EmojiStatusBadge';
 import type { ChatContact } from '../../types';
 import { navItems, routes } from '../../lib/navigation';
 
@@ -477,8 +478,9 @@ export default function NewChatPage() {
                 >
                   <ContactAvatar contact={contact} />
                   <span className="flex-1 min-w-0">
-                    <span className="block font-medium text-[var(--quant-foreground)] truncate">
-                      {contact.displayName}
+                    <span className="flex items-center gap-1.5 font-medium text-[var(--quant-foreground)]">
+                      <span className="truncate">{contact.displayName}</span>
+                      <EmojiStatusBadge status={contact.emojiStatus ?? null} size={14} />
                     </span>
                     <span className="block text-sm text-gray-500 truncate">
                       @{contact.username}

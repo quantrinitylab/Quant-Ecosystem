@@ -22,6 +22,11 @@ import type { OtpService } from '../lib/otp-service';
 import type { SessionTokenIssuer } from '../lib/session-tokens';
 import { RefreshTokenStore, type RefreshSessionMeta } from '../lib/refresh-token-store';
 import { validateMediaUrl } from '../lib/media-url';
+import {
+  EMOJI_STATUS_DURATIONS,
+  emojiStatusInputSchema,
+  serializeEmojiStatus,
+} from '../lib/emoji-status';
 import { fetchWithTimeout, getTimeoutMs } from '@quant/server-core';
 
 const loginSchema = z.object({
@@ -75,6 +80,11 @@ const updateProfileSchema = z
     displayName: z.string().trim().min(1).max(80).optional(),
     bio: z.string().trim().max(280).optional(),
     avatarUrl: z.string().url().max(2048).optional(),
+    // QC-F-466: expiring emoji status. Nested object = set/replace (server
+    // computes the expiry from the closed duration enum — a client-sent
+    // absolute `expiresAt` is rejected by .strict()); explicit null =
+    // clear; absent = leave the current status untouched.
+    emojiStatus: emojiStatusInputSchema.nullable().optional(),
   })
   .strict();
 
@@ -147,6 +157,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         role: true,
         xpPoints: true,
         level: true,
+        statusEmoji: true,
+        statusEmojiExpiresAt: true,
         deletedAt: true,
       },
     });
@@ -175,6 +187,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         role: String(user.role).toLowerCase(),
         xpPoints: user.xpPoints,
         level: user.level,
+        // QC-F-466: live status only — an expired stored status reads null.
+        emojiStatus: serializeEmojiStatus(user),
       },
     });
   });
@@ -197,7 +211,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         error: { code: 'BAD_REQUEST', message: 'Invalid profile payload', statusCode: 400 },
       });
     }
-    const { displayName, bio, avatarUrl } = parsed.data;
+    const { displayName, bio, avatarUrl, emojiStatus } = parsed.data;
     // QC-F-330: User.avatarUrl renders in other users' browsers across
     // the network (chat list, search, stories, map) — a bare `.url()`
     // check let any external host become a tracking avatar. Only
@@ -218,22 +232,46 @@ export default async function authRoutes(fastify: FastifyInstance) {
         },
       });
     }
-    if (displayName === undefined && bio === undefined && avatarUrl === undefined) {
+    if (
+      displayName === undefined &&
+      bio === undefined &&
+      avatarUrl === undefined &&
+      emojiStatus === undefined
+    ) {
       return reply.status(400).send({
         success: false,
         error: {
           code: 'BAD_REQUEST',
-          message: 'At least one of displayName, bio, avatarUrl is required',
+          message: 'At least one of displayName, bio, avatarUrl, emojiStatus is required',
           statusCode: 400,
         },
       });
     }
+    // QC-F-466: the two status columns are written together or not at all.
+    // Set: server-computed expiry from the closed duration enum. Clear
+    // (explicit null): both columns NULL. Absent: neither column is in the
+    // update payload, so an unrelated profile edit never disturbs a live
+    // status. The write target is always the caller's own row
+    // (request.auth.userId) — there is no body field that can aim it
+    // elsewhere, and .strict() rejects one if a client tries.
+    const emojiStatusData =
+      emojiStatus === undefined
+        ? {}
+        : emojiStatus === null
+          ? { statusEmoji: null, statusEmojiExpiresAt: null }
+          : {
+              statusEmoji: emojiStatus.key,
+              statusEmojiExpiresAt: new Date(
+                Date.now() + EMOJI_STATUS_DURATIONS[emojiStatus.duration],
+              ),
+            };
     const updated = await prisma.user.update({
       where: { id: authUserId },
       data: {
         ...(displayName !== undefined ? { displayName } : {}),
         ...(bio !== undefined ? { bio } : {}),
         ...(avatarUrl !== undefined ? { avatarUrl } : {}),
+        ...emojiStatusData,
       },
       select: {
         id: true,
@@ -241,9 +279,21 @@ export default async function authRoutes(fastify: FastifyInstance) {
         displayName: true,
         bio: true,
         avatarUrl: true,
+        statusEmoji: true,
+        statusEmojiExpiresAt: true,
       },
     });
-    return reply.send({ success: true, data: updated });
+    return reply.send({
+      success: true,
+      data: {
+        id: updated.id,
+        username: updated.username,
+        displayName: updated.displayName,
+        bio: updated.bio,
+        avatarUrl: updated.avatarUrl,
+        emojiStatus: serializeEmojiStatus(updated),
+      },
+    });
   });
 
   // POST /auth/login — Email/Username/Phone + Password direct authentication

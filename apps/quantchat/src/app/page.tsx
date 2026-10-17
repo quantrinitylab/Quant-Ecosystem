@@ -16,6 +16,8 @@ import { usePresence, type PresenceStatus } from '../hooks/usePresence';
 import { useChatSocket } from '../hooks/useChatSocket';
 import { navItems, routes } from '../lib/navigation';
 import { listContainerVariants, listItemVariants } from '../lib/motion-variants';
+import { EmojiStatusBadge } from '../components/EmojiStatusBadge';
+import type { EmojiStatusView } from '../types';
 
 interface EnhancedConversation {
   id: string;
@@ -27,6 +29,8 @@ interface EnhancedConversation {
   isPinned: boolean;
   isArchived: boolean;
   avatarInitial: string;
+  // QC-F-466: the other participant's live emoji status (direct chats).
+  emojiStatus?: EmojiStatusView | null;
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -181,8 +185,9 @@ function SwipeableChatItem({ item, onSelect, onArchive, onPin }: SwipeableChatIt
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-[var(--quant-foreground)] truncate">
-              {item.name}
+            <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-[var(--quant-foreground)]">
+              <span className="truncate">{item.name}</span>
+              <EmojiStatusBadge status={item.emojiStatus ?? null} size={14} />
             </span>
             <span className="text-xs text-[var(--quant-muted-foreground)] flex-shrink-0 ml-2">
               {item.timestamp}
@@ -410,10 +415,19 @@ export default function ChatListPage() {
           : String(conv.lastActivityAt)
         : fallback.timestamp || '';
       const displayName = displayNameFor(conv);
+      // QC-F-466: a direct chat shows the OTHER participant's status next
+      // to their name; group rows show none (member-list render is a
+      // later slice — the participant DTO already carries the field).
+      const convParticipants = conv.participants ?? [];
+      const isGroupRow = conv.type === 'group' || convParticipants.length > 2;
+      const otherParticipant = isGroupRow
+        ? undefined
+        : convParticipants.find((p) => p.userId !== user?.id);
 
       return {
         id: conv.id,
         name: displayName,
+        emojiStatus: otherParticipant?.emojiStatus ?? null,
         lastMessage: lastMsgText,
         timestamp: formatRelativeTime(rawTimestamp),
         unreadCount: conv.unreadCount || 0,

@@ -84,6 +84,14 @@ export interface ChannelMessageView {
   createdAt: string;
 }
 
+/** QC-F-466: a live expiring emoji status as served by the backend —
+ *  `key` is a QC-F-336 catalog key ("quant:<name>"); the backend only ever
+ *  serves live statuses, and the badge re-checks `expiresAt` at render. */
+export interface EmojiStatusView {
+  key: string;
+  expiresAt: string;
+}
+
 /** The authenticated user's profile, verified server-side via /auth/me. */
 export interface MeView {
   id: string;
@@ -95,6 +103,7 @@ export interface MeView {
   role: string;
   xpPoints: number;
   level: number;
+  emojiStatus?: EmojiStatusView | null;
 }
 
 export interface QuantMailLinkRequest {
@@ -212,6 +221,7 @@ export interface ConversationParticipant {
   joinedAt: Date;
   lastReadAt?: Date;
   nickname?: string;
+  emojiStatus?: EmojiStatusView | null;
 }
 
 // ----------------------------------------------------------------------------
@@ -225,6 +235,7 @@ export interface ChatContact {
   displayName: string;
   avatarUrl?: string | null;
   bio?: string | null;
+  emojiStatus?: EmojiStatusView | null;
 }
 
 // ============================================================================
