@@ -32,6 +32,7 @@ import { SwipeHint } from '../components/SwipeHint';
 import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
 import { InboxZeroState } from '../components/InboxZeroState';
+import { LabelQuickApply } from '../components/LabelQuickApply';
 import { showToast } from '../components/InboxToast';
 import { MailIcon } from '../components/MailIcon';
 import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
@@ -41,6 +42,7 @@ import { GroupEditorModal, type GroupDraft } from '../components/GroupEditorModa
 import { ThreadKindBadge } from '../components/MessageKindBadge';
 import { UnreadCountPill } from '../components/UnreadCountPill';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
+import { useApplyLabel, useLabels, useRemoveLabel } from '../hooks/useLabels';
 import { useMailMutations } from '../hooks/useMailMutations';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { useTouchSwipe } from '../components/SwipeableEmailRow';
@@ -408,6 +410,51 @@ function EmailRow({
   const [showRowMenu, setShowRowMenu] = useState(false);
   /** Row-level delete always asks first — no silent deletes from the row. */
   const [confirmDeleteRow, setConfirmDeleteRow] = useState(false);
+  /**
+   * The label picker is opened from two doors — the hover bar's "Add label"
+   * button (pointer/keyboard) and the touch "…" menu's "Label…" item — and
+   * lives outside the hover AnimatePresence so the pointer leaving the row
+   * doesn't kill an open picker.
+   */
+  const [showLabelMenu, setShowLabelMenu] = useState(false);
+  const { data: availableLabels = [] } = useLabels();
+  const applyLabelMutation = useApplyLabel();
+  const removeLabelMutation = useRemoveLabel();
+  /**
+   * Label actions fan out to every message in the conversation, the same way
+   * archive/mark-read treat the row as the whole conversation (and the way
+   * the thread view's label flow already does). The picker toasts its own
+   * success; here we only surface failures honestly and rethrow so the
+   * picker doesn't claim a success that didn't happen.
+   */
+  const handleRowApplyLabel = useCallback(
+    async (_emailId: string, labelId: string) => {
+      const ids = thread.messages.map((m) => m.id);
+      if (ids.length === 0) return;
+      const results = await Promise.allSettled(
+        ids.map((id) => applyLabelMutation.mutateAsync({ emailId: id, labelId })),
+      );
+      if (results.some((r) => r.status === 'rejected')) {
+        showToast({ text: 'Could not apply label', type: 'error' });
+        throw new Error('label apply failed');
+      }
+    },
+    [thread.messages, applyLabelMutation],
+  );
+  const handleRowRemoveLabel = useCallback(
+    async (_emailId: string, labelId: string) => {
+      const ids = thread.messages.map((m) => m.id);
+      if (ids.length === 0) return;
+      const results = await Promise.allSettled(
+        ids.map((id) => removeLabelMutation.mutateAsync({ emailId: id, labelId })),
+      );
+      if (results.some((r) => r.status === 'rejected')) {
+        showToast({ text: 'Could not remove label', type: 'error' });
+        throw new Error('label remove failed');
+      }
+    },
+    [thread.messages, removeLabelMutation],
+  );
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = useRef(false);
 
@@ -493,7 +540,7 @@ function EmailRow({
   const swipe = useTouchSwipe({
     onArchive,
     onSnooze: () => setShowSnoozeMenu(true),
-    disabled: isChecked || showSnoozeMenu || showRowMenu,
+    disabled: isChecked || showSnoozeMenu || showRowMenu || showLabelMenu,
     reducedMotion,
   });
 
@@ -726,11 +773,30 @@ function EmailRow({
               onSnooze={() => setShowSnoozeMenu((prev) => !prev)}
               onToggleStar={onToggleStar}
               onTogglePin={onTogglePin}
+              onLabel={() => setShowLabelMenu(true)}
               isSpam={isSpamMode}
               onRescueSpam={onRescueSpam}
             />
           )}
         </AnimatePresence>
+        {/*
+          Label picker — the "Add label" door for the row. Opened from the
+          hover bar (pointer/keyboard) and from the touch "…" menu below.
+          Rendered OUTSIDE the hover AnimatePresence so the pointer leaving
+          the row doesn't kill an open picker mid-search.
+        */}
+        <div className="row-label-picker" onClick={(e) => e.stopPropagation()}>
+          <LabelQuickApply
+            emailId={thread.id}
+            currentLabels={thread.labels ?? []}
+            availableLabels={availableLabels}
+            onApply={handleRowApplyLabel}
+            onRemove={handleRowRemoveLabel}
+            open={showLabelMenu}
+            onOpenChange={setShowLabelMenu}
+            hideTrigger
+          />
+        </div>
         {/* Snooze popup anchor */}
         <EmailSnooze
           // The row closes over its own id; `EmailSnooze` no longer takes one back,
@@ -795,7 +861,8 @@ function EmailRow({
         {/*
           The row's "…" menu: the touch (and extra keyboard) door to the same
           quick actions the hover bar offers a pointer — Pin, Star, Mark
-          read/unread, Snooze, Archive, Move to Trash (behind a confirmation).
+          read/unread, Snooze, Label, Archive, Move to Trash (behind a
+          confirmation).
           Visibility is NOT width-gated: `.row-touch-menu` (shell.css) hides
           only on `(hover: hover) and (pointer: fine)`, where the hover bar
           already covers everything. A coarse pointer at ANY width — phone,
@@ -926,6 +993,36 @@ function EmailRow({
                       <path d="M12 9v4l2 2" />
                     </svg>
                     <span>Snooze…</span>
+                  </button>
+
+                  {/*
+                    The label door for touch: the hover bar's "Add label"
+                    button is CSS-hidden on coarse pointers, so without this
+                    item the picker would be unreachable on touch.
+                  */}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      close();
+                      setShowLabelMenu(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] rounded-lg transition-colors text-left"
+                  >
+                    <svg
+                      className="size-3.5 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                      <line x1="7" y1="7" x2="7.01" y2="7" />
+                    </svg>
+                    <span>Label…</span>
                   </button>
 
                   <button

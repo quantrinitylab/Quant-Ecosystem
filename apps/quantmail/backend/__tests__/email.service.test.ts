@@ -948,6 +948,68 @@ describe('EmailService', () => {
     });
   });
 
+  describe('removeLabel', () => {
+    it('removes a label from an email', async () => {
+      prisma.email.findUnique
+        .mockResolvedValueOnce({
+          id: 'email-1',
+          userId: 'user-1',
+          labels: ['label-1', 'label-2'],
+          version: 1,
+        })
+        .mockResolvedValueOnce({
+          id: 'email-1',
+          userId: 'user-1',
+          labels: ['label-1'],
+          version: 2,
+        });
+
+      const result = await service.removeLabel('email-1', 'label-2', 'user-1');
+
+      expect((result as unknown as { labels: string[] }).labels).toEqual(['label-1']);
+      // QM-BACK-002: conditional updateMany with a version bump.
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: { id: 'email-1' },
+        data: { labels: ['label-1'], version: { increment: 1 } },
+      });
+    });
+
+    it('is a no-op when the label is not applied', async () => {
+      const email = {
+        id: 'email-1',
+        userId: 'user-1',
+        labels: ['label-1'],
+      };
+      prisma.email.findUnique.mockResolvedValue(email);
+
+      const result = await service.removeLabel('email-1', 'label-9', 'user-1');
+
+      expect(result).toEqual(email);
+      expect(prisma.email.update).not.toHaveBeenCalled();
+      expect(prisma.email.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('throws EMAIL_NOT_FOUND for missing email', async () => {
+      prisma.email.findUnique.mockResolvedValue(null);
+
+      await expect(service.removeLabel('missing', 'label-1', 'user-1')).rejects.toThrow(
+        'Email not found',
+      );
+    });
+
+    it('throws FORBIDDEN when user does not own the email', async () => {
+      prisma.email.findUnique.mockResolvedValue({
+        id: 'email-1',
+        userId: 'other-user',
+        labels: ['label-1'],
+      });
+
+      await expect(service.removeLabel('email-1', 'label-1', 'user-1')).rejects.toThrow(
+        'Not authorized',
+      );
+    });
+  });
+
   describe('batch operations', () => {
     it('batchMarkRead marks multiple emails as read', async () => {
       prisma.email.updateMany.mockResolvedValue({ count: 5 });

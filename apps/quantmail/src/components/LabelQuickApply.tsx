@@ -18,6 +18,19 @@ interface LabelQuickApplyProps {
   availableLabels: Label[];
   onApply: (emailId: string, labelId: string) => Promise<void>;
   onRemove: (emailId: string, labelId: string) => Promise<void>;
+  /**
+   * Controlled mode — used by the inbox row, where the picker's opener lives
+   * elsewhere (the hover bar's "Add label" button and the touch "…" menu).
+   * When `open` is provided the row owns the open state; `onOpenChange`
+   * reports outside-click / Escape closes back to it.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /**
+   * Hide the inline "Label" trigger button — the opener lives elsewhere (see
+   * `open`). The dropdown still anchors to this container.
+   */
+  hideTrigger?: boolean;
 }
 
 /**
@@ -31,8 +44,20 @@ export function LabelQuickApply({
   availableLabels,
   onApply,
   onRemove,
+  open,
+  onOpenChange,
+  hideTrigger = false,
 }: LabelQuickApplyProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isOpen = open ?? uncontrolledOpen;
+  const close = useCallback(() => {
+    if (onOpenChange) onOpenChange(false);
+    else setUncontrolledOpen(false);
+  }, [onOpenChange]);
+  const toggle = useCallback(() => {
+    if (onOpenChange) onOpenChange(!isOpen);
+    else setUncontrolledOpen((v) => !v);
+  }, [isOpen, onOpenChange]);
   const [filter, setFilter] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -50,10 +75,10 @@ export function LabelQuickApply({
   useEffect(() => {
     if (!isOpen) return;
     const handleClickOutside = (e: PointerEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setIsOpen(false);
+      if (!menuRef.current?.contains(e.target as Node)) close();
     };
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false);
+      if (e.key === 'Escape') close();
     };
     document.addEventListener('pointerdown', handleClickOutside);
     document.addEventListener('keydown', handleEsc);
@@ -61,7 +86,7 @@ export function LabelQuickApply({
       document.removeEventListener('pointerdown', handleClickOutside);
       document.removeEventListener('keydown', handleEsc);
     };
-  }, [isOpen]);
+  }, [isOpen, close]);
 
   const handleToggleLabel = useCallback(
     async (label: Label) => {
@@ -79,14 +104,15 @@ export function LabelQuickApply({
 
   return (
     <div className="label-quick-apply" ref={menuRef}>
-      <button
-        type="button"
-        className="label-trigger-btn"
-        onClick={() => setIsOpen((v) => !v)}
-        aria-haspopup="listbox"
-        aria-expanded={isOpen}
-        title="Apply label (L)"
-      >
+      {!hideTrigger && (
+        <button
+          type="button"
+          className="label-trigger-btn"
+          onClick={toggle}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          title="Apply label (L)"
+        >
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -100,7 +126,8 @@ export function LabelQuickApply({
           <line x1="7" y1="7" x2="7.01" y2="7" />
         </svg>
         <span>Label</span>
-      </button>
+        </button>
+      )}
 
       <AnimatePresence>
         {isOpen && (

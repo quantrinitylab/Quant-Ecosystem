@@ -1731,4 +1731,62 @@ export class EmailService {
       return updated as Email;
     });
   }
+
+  /**
+   * Remove a label from an email — the counterpart of applyLabel, added when
+   * the inbox row's label picker was wired up (the row needs remove, not just
+   * apply, and no remove endpoint existed before). Mirrors applyLabel: same
+   * ownership checks, same K1 transaction + threadLabelChanged outbox event,
+   * same idempotent no-op when the label is not present.
+   */
+  async removeLabel(
+    emailId: string,
+    labelId: string,
+    userId: string,
+    opts?: MutationOptions,
+  ): Promise<Email> {
+    const email = await this.prisma.email.findUnique({ where: { id: emailId } });
+
+    if (!email) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+
+    if (email.userId !== userId) {
+      throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    }
+
+    const currentLabels = (email as unknown as { labels: string[] }).labels ?? [];
+    if (!currentLabels.includes(labelId)) {
+      return email;
+    }
+
+    // K1: label change + outbox row in ONE transaction (doc 05).
+    const nextLabels = currentLabels.filter((id) => id !== labelId);
+    // QM-BACK-002: requestId correlates the label change across logs + outbox.
+    const requestId = opts?.requestId ?? resolveRequestId();
+    // QM-BACK-002: atomic conditional update (VERSION_CONFLICT on races).
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await versionedUpdate<Email>(tx as unknown as VersionedTx, {
+        id: emailId,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: opts?.expectedVersion,
+        data: { labels: nextLabels },
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.threadLabelChanged,
+        aggregateType: 'EmailThread',
+        aggregateId: (email as { threadId?: string | null }).threadId ?? emailId,
+        payload: {
+          userId,
+          emailId,
+          labelId,
+          labels: nextLabels,
+          requestId,
+        },
+      });
+      return updated as Email;
+    });
+  }
 }

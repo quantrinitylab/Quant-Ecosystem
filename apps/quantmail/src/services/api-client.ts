@@ -1187,6 +1187,22 @@ export class QuantMailApiClient {
     return this.post(`/emails/${emailId}/labels`, { label });
   }
 
+  /**
+   * Apply a label to an email by label id — the working endpoint behind the
+   * inbox row's label picker (backend `POST /labels/apply`).
+   */
+  async applyLabel(emailId: string, labelId: string): Promise<ApiResponse<unknown>> {
+    return this.post('/labels/apply', { emailId, labelId });
+  }
+
+  /**
+   * Remove a label from an email by label id — the working endpoint behind the
+   * inbox row's label picker (backend `POST /labels/remove`).
+   */
+  async removeLabel(emailId: string, labelId: string): Promise<ApiResponse<unknown>> {
+    return this.post('/labels/remove', { emailId, labelId });
+  }
+
   async getLabels(): Promise<ApiResponse<EmailLabel[]>> {
     return this.get('/labels');
   }
