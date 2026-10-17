@@ -53,6 +53,7 @@ import { DocumentEnginePreview } from '../../components/drive/DocumentEnginePrev
 import { docsEngineKindFor } from '../../lib/docs-engine/formats';
 import { browserApiRequest } from '../../services/browser-api-request';
 import { browserAuthSession } from '../../services/browser-auth-session';
+import { fetchDriveMemoryItems, forgetDriveMemory } from '../../services/drive-memory';
 
 type DriveItem = {
   id: string;
@@ -419,26 +420,9 @@ function DrivePageContent() {
     setMemoryLoading(true);
     setMemoryError(null);
     try {
-      const response = await fetch('/api/drive/memory', { cache: 'no-store' });
-      if (!response.ok) throw new Error('Memory data is unavailable right now.');
-      const payload = (await response.json()) as {
-        memories?: Array<{
-          id: string;
-          content: string;
-          summary?: string;
-          sourceApp?: string;
-          sourceLabel?: string;
-          confidenceScore?: number | null;
-          sensitivity?: string | null;
-          explicitness?: string | null;
-          policyVersion?: string | null;
-          provenance?: string | null;
-          sourceObjectId?: string | null;
-          extractedFacts?: string[];
-          entityGraphLinks?: string[];
-          updatedAt?: string;
-        }>;
-      };
+      // Session token is attached inside fetchDriveMemoryItems — a tokenless
+      // fetch 401s here because no access-token cookie exists.
+      const memories = await fetchDriveMemoryItems();
 
       const appMap: Record<string, AiMemoryItem['app']> = {
         QuantMail: 'QuantMail',
@@ -450,7 +434,7 @@ function DrivePageContent() {
       };
 
       setMemoryItems(
-        (payload.memories ?? []).map((memory) => ({
+        memories.map((memory) => ({
           id: memory.id,
           app: appMap[memory.sourceApp ?? ''] ?? 'Shared',
           title: memory.summary?.trim() || memory.content.slice(0, 120),
@@ -2047,10 +2031,9 @@ function DrivePageContent() {
                 });
                 if (!ok) return;
                 try {
-                  const response = await fetch(`/api/drive/memory/${encodeURIComponent(mem.id)}`, {
-                    method: 'DELETE',
-                  });
-                  if (!response.ok) throw new Error('Could not forget this memory.');
+                  // Session token is attached inside forgetDriveMemory — a
+                  // tokenless fetch 401s here because no access-token cookie exists.
+                  await forgetDriveMemory(mem.id);
                   showToast({ text: 'Memory archived', type: 'success', subject: `memory-forget-${mem.id}` });
                   await loadMemory();
                 } catch (error) {
