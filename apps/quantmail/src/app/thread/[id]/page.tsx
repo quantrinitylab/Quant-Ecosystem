@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
-import { ConversationalThreadView } from '../../../components/ConversationalThreadView';
+import { ConversationalThreadView, type ThreadLeaveGuard } from '../../../components/ConversationalThreadView';
 import { useMailMutations } from '../../../hooks/useMailMutations';
 import { useEdgeSwipeBack } from '../../../hooks/useEdgeSwipeBack';
 import { useThreadViewKeyboard } from '../../../hooks/useThreadViewKeyboard';
@@ -53,7 +53,15 @@ export default function ThreadPage() {
     }
   }, [returnTo]);
 
-  const leaveThread = useCallback(
+  /*
+   * The view's unsaved-changes guard: typed-but-unsent quick-reply text must
+   * never be silently vaporised by a leave. Mirrors /compose's discard guard
+   * (L773/qm-compose-edge-swipe-discard) — the branded confirm asks before
+   * any navigation away from the thread proceeds.
+   */
+  const leaveGuardRef = useRef<ThreadLeaveGuard | null>(null);
+
+  const doLeaveThread = useCallback(
     (replace = false) => {
       if (returnTo) {
         if (replace) router.replace(returnTo);
@@ -67,6 +75,24 @@ export default function ThreadPage() {
       router.replace('/');
     },
     [returnTo, router],
+  );
+
+  const guardedNavigate = useCallback((navigate: () => void) => {
+    const guard = leaveGuardRef.current;
+    if (!guard) {
+      navigate();
+      return;
+    }
+    void guard.confirmLeaveIfNeeded().then((ok) => {
+      if (ok) navigate();
+    });
+  }, []);
+
+  const leaveThread = useCallback(
+    (replace = false) => {
+      guardedNavigate(() => doLeaveThread(replace));
+    },
+    [doLeaveThread, guardedNavigate],
   );
 
   /*
@@ -161,12 +187,17 @@ export default function ThreadPage() {
           /*
            * Horizontal swipe on the stream moves between conversations. Keep
            * the returnTo chain so swiping through threads still lands back in
-           * the same inbox lens instead of the default view.
+           * the same inbox lens instead of the default view. Guarded like
+           * every other thread exit: moving to the next conversation with
+           * typed-but-unsent reply text used to vaporise it silently.
            */
           onNavigateToThread={(targetId) => {
-            const suffix = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '';
-            router.push(`/thread/${encodeURIComponent(targetId)}${suffix}`);
+            guardedNavigate(() => {
+              const suffix = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '';
+              router.push(`/thread/${encodeURIComponent(targetId)}${suffix}`);
+            });
           }}
+          leaveGuardRef={leaveGuardRef}
         />
       </div>
     </AppShell>

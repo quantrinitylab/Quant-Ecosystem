@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useState, useCallback, useEffect, useId, useRef, useMemo } from 'react';
+import type { RefObject } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -41,6 +42,9 @@ import { QuickActionBar } from './QuickActionBar';
 import { useRegisterCommands } from '../lib/keyboard/hooks';
 import type { Command } from '../lib/keyboard/command-registry';
 import { THREAD_KEYBOARD_SCOPE } from '../hooks/useThreadViewKeyboard';
+import { useThreadLeaveGuard, type ThreadLeaveGuard } from '../hooks/useThreadLeaveGuard';
+// Re-exported so the thread page keeps importing the guard type from the view.
+export type { ThreadLeaveGuard };
 import {
   buildEventDraftFromThread,
   encodeEmailDraft,
@@ -414,6 +418,15 @@ export interface ConversationalThreadViewProps {
    * archived view — instead of the header always claiming the inbox.
    */
   backLabel?: string;
+  /**
+   * Leave guard for the thread page's navigation paths (edge swipe, Esc,
+   * swipe-to-next-thread). The view fills this ref with `confirmLeaveIfNeeded`,
+   * which the page calls before navigating away: when the quick-reply bar
+   * holds typed-but-unsent text the branded /compose discard confirm appears
+   * instead of the text being silently vaporised. Resolves true when it is
+   * safe to navigate away.
+   */
+  leaveGuardRef?: RefObject<ThreadLeaveGuard | null>;
 }
 
 /**
@@ -454,6 +467,7 @@ export function ConversationalThreadView({
   onNotSpam,
   onNavigateToThread,
   backLabel = 'Back to inbox',
+  leaveGuardRef,
 }: ConversationalThreadViewProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -553,6 +567,19 @@ export function ConversationalThreadView({
 
   // Quick reply & AI state
   const [quickReplyText, setQuickReplyText] = useState('');
+  /*
+   * Unsaved-changes guard for the thread leave paths: when the bar holds
+   * typed-but-unsent text the branded /compose discard confirm appears
+   * instead of the text being silently vaporised (see useThreadLeaveGuard).
+   * The page drives it through leaveGuardRef for its edge-swipe / Esc /
+   * swipe-to-next-thread paths; the header back button already routes
+   * through onClose, which the page guards.
+   */
+  const { dialog: leaveGuardDialog, confirmLeaveIfNeeded } = useThreadLeaveGuard(
+    quickReplyText,
+    setQuickReplyText,
+    leaveGuardRef,
+  );
   // Phones get the short reply placeholder: the keyboard hints (Enter,
   // ⌘/Ctrl+Enter) mean nothing on a touch keyboard and truncated the line.
   const isPhoneWidth = useIsMobile(640);
@@ -1004,9 +1031,16 @@ export function ConversationalThreadView({
         onNavigateToThread(targetId);
         return;
       }
-      if (variant === 'full') router.push(`/thread/${encodeURIComponent(targetId)}`);
+      // Fallback for hosts that render variant="full" without onNavigateToThread:
+      // the same unsaved-changes guard as every other thread exit — a raw
+      // router.push here used to vaporise typed-but-unsent reply text silently.
+      if (variant === 'full') {
+        void confirmLeaveIfNeeded().then((ok) => {
+          if (ok) router.push(`/thread/${encodeURIComponent(targetId)}`);
+        });
+      }
     },
-    [onNavigateToThread, router, threadId, variant],
+    [onNavigateToThread, router, threadId, variant, confirmLeaveIfNeeded],
   );
 
   /**
@@ -3808,6 +3842,12 @@ export function ConversationalThreadView({
           }}
         />
       )}
+      {/*
+       * Branded discard confirm for the quick-reply unsaved-changes guard.
+       * Portaled to document.body by ConfirmDialog so it escapes the thread
+       * pane's stacking context.
+       */}
+      {leaveGuardDialog}
     </div>
   );
 }
