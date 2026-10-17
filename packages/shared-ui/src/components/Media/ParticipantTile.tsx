@@ -116,7 +116,7 @@ export const ParticipantTile: React.FC<ParticipantTileProps> = ({
           className="w-full h-full object-cover"
         />
       ) : (
-        <div className="flex items-center justify-center h-full min-h-[160px] bg-gray-700">
+        <div className="flex h-full w-full items-center justify-center bg-gray-700">
           <div className="w-16 h-16 bg-gray-600 rounded-full flex items-center justify-center text-white text-2xl font-medium">
             {name.charAt(0).toUpperCase()}
           </div>
