@@ -238,6 +238,9 @@ export class QuantChatApiClient {
     displayName?: string;
     bio?: string;
     avatarUrl?: string;
+    // QC-F-466: set/replace with { key, duration } (server computes the
+    // expiry), clear with null, omit to leave the status untouched.
+    emojiStatus?: { key: string; duration: '1h' | '24h' | '7d' } | null;
   }): Promise<ApiResponse<unknown>> {
     return this.put('/auth/profile', data);
   }
