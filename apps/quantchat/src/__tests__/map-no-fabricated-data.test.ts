@@ -29,6 +29,7 @@ function readAppSource(relFromApp: string): string {
 const mapPageSource = readAppSource('src/app/map/page.tsx');
 const mapFriendsRouteSource = readAppSource('src/app/api/map/friends/route.ts');
 const heatmapSource = readAppSource('src/components/map/HeatmapOverlay.tsx');
+const mapCanvasSource = readAppSource('src/components/map/MapCanvas.tsx');
 const supportSource = readAppSource('src/app/support/page.tsx');
 const privacySource = readAppSource('src/app/privacy/page.tsx');
 const termsSource = readAppSource('src/app/terms/page.tsx');
@@ -53,6 +54,16 @@ describe('Fake removal: no fabricated map data', () => {
 
   it('heatmap overlay does not render invented fallback activity (FALLBACK_HEATMAP is gone)', () => {
     expect(heatmapSource).not.toContain('FALLBACK_HEATMAP');
+  });
+
+  // QC-F-384: MapCanvas must never fall back to an invented location. On any
+  // geolocation failure the user location stays null (no "you are here" dot);
+  // the dot renders only for a real fix.
+  it('map canvas has no fabricated fallback location (DEFAULT_LOCATION is gone)', () => {
+    expect(mapCanvasSource).not.toContain('DEFAULT_LOCATION');
+    expect(mapCanvasSource).not.toContain('40.7128');
+    expect(mapCanvasSource).not.toContain('74.006');
+    expect(mapCanvasSource).not.toContain('New York');
   });
 });
 
