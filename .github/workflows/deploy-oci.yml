@@ -132,7 +132,9 @@ jobs:
   build-and-push:
     name: Build and push ${{ inputs.target }}
     needs: validate-release
-    runs-on: ubuntu-latest
+    # OCI VMs are Ampere A1 (ARM64/aarch64). The images must be built for
+    # linux/arm64 — an amd64 image crashes on the VM with "exec format error".
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     permissions:
       contents: read
