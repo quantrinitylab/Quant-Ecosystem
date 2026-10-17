@@ -274,7 +274,12 @@ function LoginForm() {
     const target = destination();
     const returnParam = target && target !== '/' ? `?returnTo=${encodeURIComponent(target)}` : '';
     const returnTo = encodeURIComponent(`${window.location.origin}/login${returnParam}`);
-    window.location.href = `https://quantmail.in/sso?returnTo=${returnTo}&client_id=quantai`;
+    // The OAuth client_id registered for QuantAI on the identity root. The
+    // ticket minted by /sso is bound to this client, and the server-to-server
+    // exchange verifies the binding — so this MUST be the registered id, not
+    // a display name.
+    const clientId = process.env.NEXT_PUBLIC_QUANT_SSO_CLIENT_ID ?? 'quantai';
+    window.location.href = `https://quantmail.in/sso?returnTo=${returnTo}&client_id=${encodeURIComponent(clientId)}`;
   }, [destination]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {

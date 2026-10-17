@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { QUANTAI_BACKEND_URL } from '../../../_lib/agent-proxy';
+
+// QuantMail identity root. QUANTMAIL_BACKEND_URL is set in every deployment
+// (compose/quant-stack.yml); the localhost fallback is for local dev only.
+const QUANTMAIL_BACKEND_URL = process.env.QUANTMAIL_BACKEND_URL || 'http://localhost:3010';
 
 // QuantAI web tier — QuantMail opaque-ticket SSO handoff.
 //
 // The browser hands us the single-use `__quant_sso_ticket` it received from
 // the QuantMail /sso chooser. We NEVER verify the ticket here (it is opaque to
-// us and can never validate as an access token); we forward it to our own
-// backend (POST /auth/sso/ticket), which resolves it server-to-server with the
-// identity root and mints a QuantAI SSO session.
+// us and can never validate as an access token); we exchange it server-to-server
+// with the identity root (POST /sso/ticket/exchange), presenting our OAuth
+// client credentials. The identity root validates the ticket + credentials and
+// returns the identity plus a freshly minted access token, which becomes the
+// QuantAI session.
+//
+// (Previously this route proxied to a dedicated QuantAI backend at
+// QUANTAI_BACKEND_URL that was never deployed in any environment, so the
+// exchange always failed. The identity root now exposes the exchange
+// directly.)
 //
 // On success we set the HttpOnly `quant_access_token` cookie with the same
 // attributes as the hardened login route, and return the identity + session
@@ -41,23 +51,44 @@ export async function POST(request: NextRequest) {
     return errorResponse(400, 'SSO_TICKET_MISSING', 'A sign-in ticket is required.');
   }
 
+  // OAuth client credentials for the server-to-server exchange. Without them
+  // the identity root cannot authenticate us — fail with the honest
+  // misconfigured copy instead of a confusing downstream 401.
+  const clientId = process.env['QUANT_SSO_CLIENT_ID'];
+  const clientSecret = process.env['QUANT_SSO_CLIENT_SECRET'];
+  if (!clientId || !clientSecret) {
+    return errorResponse(
+      500,
+      'SSO_CLIENT_MISCONFIGURED',
+      'Single sign-on is not configured for QuantAI yet.',
+    );
+  }
+
   // ONE deadline covers headers AND body: the timer is cleared only after
   // the backend's response body is fully parsed, so a stalled body fails
   // closed at the deadline instead of hanging the route.
   let backendRes: Response;
   let json: {
     success?: boolean;
-    data?: { user?: unknown; sessionToken?: unknown };
+    data?: { user?: unknown; accessToken?: unknown; sessionToken?: unknown };
     error?: { code?: string; message?: string; statusCode?: number };
   } | null;
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), resolveTimeoutMs());
     try {
-      backendRes = await fetch(`${QUANTAI_BACKEND_URL}/auth/sso/ticket`, {
+      // Forward the browser's Origin: the identity backend's trusted-origin
+      // check 403s auth-adjacent calls that arrive without one.
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+        'cache-control': 'no-store',
+      };
+      const origin = request.headers.get('origin');
+      if (origin) headers['origin'] = origin;
+      backendRes = await fetch(`${QUANTMAIL_BACKEND_URL}/sso/ticket/exchange`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
-        body: JSON.stringify({ ticket }),
+        headers,
+        body: JSON.stringify({ ticket, client_id: clientId, client_secret: clientSecret }),
         signal: controller.signal,
         cache: 'no-store',
       });
@@ -88,7 +119,11 @@ export async function POST(request: NextRequest) {
   }
 
   const sessionToken =
-    json.data && typeof json.data.sessionToken === 'string' ? json.data.sessionToken : '';
+    json.data && typeof json.data.accessToken === 'string'
+      ? json.data.accessToken
+      : json.data && typeof json.data.sessionToken === 'string'
+        ? json.data.sessionToken
+        : '';
   const user = json.data?.user ?? null;
   if (!sessionToken || !user) {
     return errorResponse(502, 'SSO_FAILED', 'Sign-in via QuantMail failed.');

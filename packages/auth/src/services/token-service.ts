@@ -113,6 +113,73 @@ export class TokenService {
     throw lastError;
   }
 
+  /**
+   * Sign one access JWT with the active KMS access key. Single choke point
+   * for access-token minting: generateTokenPair and generateAccessToken both
+   * go through here so claims, TTL, issuer/audience and key stamping cannot
+   * drift between the two call sites.
+   */
+  private async signAccessToken(
+    userId: string,
+    userInfo: { email: string; username: string; role: string },
+    scopes: PermissionScope[],
+    app: QuantApp,
+    tokenId: string,
+    strongAuthAt: number,
+    accessKey: JwtKeyVersion,
+  ): Promise<string> {
+    return new jose.SignJWT({
+      email: userInfo.email,
+      username: userInfo.username,
+      role: userInfo.role,
+      scopes,
+      app,
+      lastStrongAuthAt: strongAuthAt,
+    })
+      .setProtectedHeader({ alg: 'HS256', kid: accessKey.kid })
+      .setIssuedAt()
+      .setExpirationTime(`${this.config.accessTokenExpiresIn}s`)
+      .setIssuer(this.config.issuer)
+      .setAudience(this.config.audience)
+      .setJti(tokenId)
+      .setSubject(userId)
+      .sign(accessKey.secret);
+  }
+
+  /**
+   * Mint an access token WITHOUT a refresh pair. For server-to-server SSO
+   * ticket exchange: the receiving app establishes its own session lifetime
+   * (its own cookie), so minting a refresh row here would create an orphaned
+   * credential that is never delivered to anyone. Same claims/TTL/issuer as
+   * the access half of generateTokenPair.
+   */
+  async generateAccessToken(
+    userId: string,
+    userInfo: { email: string; username: string; role: string },
+    scopes: PermissionScope[],
+    app: QuantApp,
+    lastStrongAuthAt?: number,
+  ): Promise<{ accessToken: string; expiresIn: number; tokenType: 'Bearer' }> {
+    const tokenId = generateId('tok');
+    const now = Math.floor(Date.now() / 1000);
+    const strongAuthAt = lastStrongAuthAt ?? now;
+    const accessKey = await this.kms.getActiveKey('access');
+    const accessToken = await this.signAccessToken(
+      userId,
+      userInfo,
+      scopes,
+      app,
+      tokenId,
+      strongAuthAt,
+      accessKey,
+    );
+    return {
+      accessToken,
+      expiresIn: this.config.accessTokenExpiresIn,
+      tokenType: 'Bearer',
+    };
+  }
+
   async generateTokenPair(
     userId: string,
     userInfo: { email: string; username: string; role: string },
@@ -148,22 +215,15 @@ export class TokenService {
     const accessKey = await this.kms.getActiveKey('access');
     const refreshKey = await this.kms.getActiveKey('refresh');
 
-    const accessToken = await new jose.SignJWT({
-      email: userInfo.email,
-      username: userInfo.username,
-      role: userInfo.role,
+    const accessToken = await this.signAccessToken(
+      userId,
+      userInfo,
       scopes,
       app,
-      lastStrongAuthAt: strongAuthAt,
-    })
-      .setProtectedHeader({ alg: 'HS256', kid: accessKey.kid })
-      .setIssuedAt()
-      .setExpirationTime(`${this.config.accessTokenExpiresIn}s`)
-      .setIssuer(this.config.issuer)
-      .setAudience(this.config.audience)
-      .setJti(tokenId)
-      .setSubject(userId)
-      .sign(accessKey.secret);
+      tokenId,
+      strongAuthAt,
+      accessKey,
+    );
 
     const refreshPayload: RefreshTokenPayload = {
       sub: userId,
