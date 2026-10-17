@@ -4039,3 +4039,6 @@ Status: [x] DONE (R15 regression audit complete 2026-10-17 ~14:55 IST; 0 contact
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents spawned (protocol: P0/P1 only; subagent.list 0 active — capacity fine). findings.md untouched (clean pass).
 - VERDICT-LIVE: BLOCKED — quantmail.in origin outage PERSISTS ~13h (9th consecutive lane-1 round: 014/015/016/017/018 R14 + 007/008-009/010-011/012 R15). curl / and /contacts -> 000 (20s) via proxy 127.0.0.1:8888 (healthy; google.com -> 200 on same proxy = egress healthy, origin-side fault; old-AWS infra, Oracle Phase C in flight). /contacts logged-out renders + /api/contacts{,/groups,/invites} 401 probes NOT re-verified; no regression expected (zero contacts-code bytes in window). Already alerted earlier — no new filing.
 - Rotation -> QM-SCREEN-013 (QuantGit) ROUND 15 regression, queued.
+
+## QM-SCREEN-013 R15 — QuantGit regression (ROUND 15)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-013r15, started 2026-10-17 ~15:35 IST; R14 base ba3309330 -> origin/main d6337d8d, fresh fetch, 22 first-parent merges; code read from origin/main tree only, qe-main working tree ignored per stale-tree lesson; remote arch tip 5b425c900 == HEAD before writing)
