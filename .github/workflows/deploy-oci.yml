@@ -19,7 +19,7 @@ name: Deploy OCI (SSH + compose)
 # COMPOSE CONTRACT (compose/quant-stack.yml — authored in migration Phase C):
 #   * services reference images ghcr.io/<owner>/quant-oci-<name>:${IMAGE_TAG}
 #     (IMAGE_TAG defaults to `latest`; this workflow always sets the SHA)
-#   * service names: quantmail-frontend, quantmail-backend, quantchat, quantai
+#   * service names: quantmail-frontend, quantmail-backend, quantchat, quantchat-backend, quantai
 #   * every service exposes /api/health returning HTTP 200
 #
 # VM PROVISIONING CONTRACT (migration Phase B/C cloud-init):
@@ -53,6 +53,7 @@ on:
           - quantmail
           - quantmail-backend
           - quantchat
+          - quantchat-backend
           - quantai
       release_sha:
         description: Exact 40-character SHA of the current protected main commit
@@ -175,6 +176,9 @@ jobs:
             quantchat)
               images="quant-oci-quantchat:apps/quantchat/Dockerfile"
               compose_services="quantchat" ;;
+            quantchat-backend)
+              images="quant-oci-quantchat-backend:apps/quantchat/Dockerfile.backend"
+              compose_services="quantchat-backend" ;;
             quantai)
               images="quant-oci-quantai:apps/quantai/Dockerfile"
               compose_services="quantai" ;;
