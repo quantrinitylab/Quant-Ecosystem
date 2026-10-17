@@ -80,6 +80,7 @@ model User {
   twoFactorBackupCodes TwoFactorBackupCode[]
   passwordResetTokens  PasswordResetToken[]
   emailVerificationCodes EmailVerificationCode[]
+  recoveryEmailVerifications RecoveryEmailVerification[]
   followUpReminders FollowUpReminder[]
   personalAccessTokens PersonalAccessToken[]
   oauthClients       OAuthClient[]        @relation("UserOwnedClients")
