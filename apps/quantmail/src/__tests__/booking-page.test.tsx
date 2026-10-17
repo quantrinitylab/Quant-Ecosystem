@@ -10,7 +10,7 @@ vi.mock('@quant/api-client', () => ({
 }));
 
 import { apiFetchRaw } from '@quant/api-client';
-import PublicBookingPage from '../app/calendar/booking/[slug]/page';
+import PublicBookingPage from '../app/(app)/calendar/booking/[slug]/page';
 import {
   applyBookingLinkResponse,
   generateIcsContent,
@@ -20,7 +20,7 @@ import {
   resolveSlotsResponse,
   bookingWallTimeToUtcMs,
   formatSlotTimeLabelInTz,
-} from '../app/calendar/booking/[slug]/booking-utils';
+} from '../app/(app)/calendar/booking/[slug]/booking-utils';
 import {
   BookingLinksModal,
   slugify,
@@ -28,8 +28,8 @@ import {
   persistBookingLinkToServer,
   bookingLinkSaveToast,
   type BookingLinkItem,
-} from '../app/calendar/components/BookingLinksModal';
-import { CalendarHeader } from '../app/calendar/components/CalendarHeader';
+} from '../app/(app)/calendar/components/BookingLinksModal';
+import { CalendarHeader } from '../app/(app)/calendar/components/CalendarHeader';
 
 describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & W39-CAL02)', () => {
   beforeEach(() => {

@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { isDocumentDriveId } from '../lib/drive-ids';
-import { DriveRecentSubView, type RecentItem } from '../app/drive/components/DriveRecentSubView';
+import { DriveRecentSubView, type RecentItem } from '../app/(app)/drive/components/DriveRecentSubView';
 
 function item(partial: Partial<RecentItem> & { id: string }): RecentItem {
   return {

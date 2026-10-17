@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import React from 'react';
 import { readFileSync } from 'node:fs';
-import { DedupWizardSubView } from '../app/contacts/components/ContactsSubViews';
+import { DedupWizardSubView } from '../app/(app)/contacts/components/ContactsSubViews';
 
 /**
  * qm-ai-dupe-claim — honest non-AI labeling regression tests.

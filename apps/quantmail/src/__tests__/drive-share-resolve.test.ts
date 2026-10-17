@@ -16,7 +16,7 @@ import {
   resolveShareToken,
   ShareResolveError,
   TEXT_PREVIEW_MAX_BYTES,
-} from '../app/drive/share/[token]/share-resolve';
+} from '../app/(app)/drive/share/[token]/share-resolve';
 
 type FetchImpl = (input: string, init?: RequestInit) => Promise<Response>;
 

@@ -7,7 +7,7 @@
  * the same handle.
  */
 import { describe, it, expect } from 'vitest';
-import { formatSentRecipientLine } from '../app/sent/recipients';
+import { formatSentRecipientLine } from '../app/(app)/sent/recipients';
 
 describe('SIA-P2-5 — formatSentRecipientLine', () => {
   it('prefixes a single recipient with "To: "', () => {

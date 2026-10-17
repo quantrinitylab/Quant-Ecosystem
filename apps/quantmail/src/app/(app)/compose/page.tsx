@@ -1,0 +1,401 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { AppShell } from '../../../components/AppShell';
+import { AppSidebar } from '../../../components/AppSidebar';
+import { EmailComposer } from '../../../components/EmailComposer';
+import type { ComposerMessageData } from '../../../components/EmailComposer';
+import { showToast } from '../../../components/InboxToast';
+import { stripTrailingSignature } from '../../../lib/email-body';
+import { filterValidRecipients } from '../../../lib/email-validation';
+import { invalidateMailLists } from '../../../lib/offline/folders';
+import { apiClient } from '../../../services/api-client';
+import type { MessageKind } from '../../../types';
+import { UndoSendProvider } from '../../../components/UndoSendCountdownBar';
+import { ServerDraftRef, saveServerDraft } from '../../../lib/serverDraft';
+
+/**
+ * REG-1: the prefill used to strip *every* "Re:" via /^(Re:\s*)+/i, so a reply
+ * link carrying ?subject=Re:… rendered with a bare subject. Normalize stacked
+ * prefixes down to exactly ONE "Re: " — never zero, never two.
+ */
+function normalizeReplySubject(subject: string): string {
+  const base = subject.replace(/^(Re:\s*)+/i, '').trim();
+  return base ? `Re: ${base}` : '';
+}
+
+export default function ComposePage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const replyTo = searchParams?.get('replyTo') ?? null;
+  const forwardId = searchParams?.get('forward') ?? null;
+  const draftId = searchParams?.get('draftId') ?? null;
+  const prefillBody = searchParams?.get('body') ?? null;
+  const prefillSubject = searchParams?.get('subject') ?? null;
+  const prefillTo = searchParams?.get('to') ?? null;
+  // The server draft this page is saving to, plus the optimistic-concurrency
+  // version it last observed. (qm-draft-conflict-tabs: two tabs on the same
+  // ?draftId= used to keep only a per-tab id and save with no version, so
+  // they silently overwrote each other's drafts. Updates now carry
+  // expectedVersion: a 409 retries once with the server's fresh version
+  // (last-writer-wins) with a toast, and a 404 drops the id so the next save
+  // honestly mints one fresh draft instead of 404ing forever.)
+  // A ref, not state: discard can run right after an autosave lands — before
+  // React would re-render a new id into this page's callbacks — and a stale
+  // `null` there skipped the delete and left an orphan draft in Drafts.
+  const pageDraftRef = useRef<ServerDraftRef | null>(null);
+  if (!pageDraftRef.current) {
+    const ref = new ServerDraftRef();
+    if (draftId) ref.adopt(draftId);
+    pageDraftRef.current = ref;
+  }
+  const serverDraftRef = pageDraftRef.current;
+
+  const [draftData, setDraftData] = useState<{
+    to?: Array<{ email: string }>;
+    subject?: string;
+    body?: string;
+  } | null>(null);
+  const [draftLoading, setDraftLoading] = useState(Boolean(draftId));
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('quant_undo_draft');
+      if (saved) {
+        sessionStorage.removeItem('quant_undo_draft');
+        const parsed = JSON.parse(saved);
+        setDraftData({
+          to: parsed.toRecipients || (parsed.to ? [{ email: parsed.to }] : []),
+          subject: parsed.subject || '',
+          body: parsed.body || '',
+        });
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!draftId) return;
+    let active = true;
+    setDraftLoading(true);
+    apiClient
+      .getEmail(draftId)
+      .then((response) => {
+        if (!active) return;
+        if (response.success && response.data) {
+          const storedDraft = response.data as typeof response.data & {
+            toAddresses?: string[];
+            bodyPlain?: string;
+          };
+          // Adopt the row version the server just reported, so the first
+          // autosave is version-guarded — but only if no save has landed
+          // since (its fresher version would be regressed by this older read).
+          if (
+            serverDraftRef.getId() === draftId &&
+            serverDraftRef.getExpectedVersion() === undefined
+          ) {
+            serverDraftRef.adopt(draftId, response.data.version ?? null);
+          }
+          setDraftData({
+            to: storedDraft.to ?? storedDraft.toAddresses?.map((email) => ({ email })),
+            subject: storedDraft.subject ?? '',
+            // A saved draft's plain-text half ends with the appended signature,
+            // behind the RFC 3676 "-- " line. It must not come back into the
+            // editable body: the signature is attached from the saved default at
+            // send time, so a restored copy would be appended a second time and
+            // would freeze whatever the signature said on the day of the draft.
+            body: stripTrailingSignature(
+              storedDraft.bodyText ?? storedDraft.bodyPlain ?? storedDraft.snippet ?? '',
+            ),
+          });
+        }
+        setDraftLoading(false);
+      })
+      .catch(() => {
+        if (active) setDraftLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [draftId]);
+
+  // `?kind=chat` (from the inbox's "New chat" button) starts a chat thread
+  // instead of a letter; the kind travels to the backend compose call and to
+  // the composer itself.
+  const composeKind: MessageKind = searchParams?.get('kind') === 'chat' ? 'chat' : 'mail';
+
+  const composeDraft = useCallback(
+    async (data: ComposerMessageData) => {
+      // Compose validation: malformed chips are EXCLUDED from the wire
+      // payload — the backend's compose/updateDraft schemas are
+      // `z.string().email()`, so shipping one is a guaranteed 400. (The
+      // composer already filters before calling onSaveDraft; this is the
+      // host-side belt-and-braces so no caller can ship an undeliverable
+      // address through this adapter.)
+      const toAddresses: import('../../../types').EmailAddress[] = filterValidRecipients(
+        Array.isArray(data.to)
+          ? (data.to as any[]).map((t) =>
+              typeof t === 'string' ? { email: t } : { email: t.email || '' },
+            )
+          : typeof data.to === 'string'
+            ? data.to
+                .split(/[,;\s]+/)
+                .filter(Boolean)
+                .map((email) => ({ email }))
+            : [],
+      );
+
+      const rawCc: import('../../../types').EmailAddress[] | undefined = data.cc
+        ? typeof data.cc === 'string'
+          ? data.cc
+              .split(/[,;\s]+/)
+              .filter(Boolean)
+              .map((email) => ({ email }))
+          : Array.isArray(data.cc)
+            ? (data.cc as any[]).map((t) =>
+                typeof t === 'string' ? { email: t } : { email: t.email || '' },
+              )
+            : undefined
+        : undefined;
+      const ccAddresses: import('../../../types').EmailAddress[] | undefined = rawCc
+        ? filterValidRecipients(rawCc)
+        : undefined;
+
+      const rawBcc: import('../../../types').EmailAddress[] | undefined = data.bcc
+        ? typeof data.bcc === 'string'
+          ? data.bcc
+              .split(/[,;\s]+/)
+              .filter(Boolean)
+              .map((email) => ({ email }))
+          : Array.isArray(data.bcc)
+            ? (data.bcc as any[]).map((t) =>
+                typeof t === 'string' ? { email: t } : { email: t.email || '' },
+              )
+            : undefined
+        : undefined;
+      const bccAddresses: import('../../../types').EmailAddress[] | undefined = rawBcc
+        ? filterValidRecipients(rawBcc)
+        : undefined;
+
+      // `?kind=chat` travels via composeKind from the page's search params.
+      const payload = {
+        to: toAddresses,
+        cc: ccAddresses,
+        bcc: bccAddresses,
+        subject:
+          data.subject ||
+          (composeKind === 'chat' ? `Chat with ${toAddresses.map((t) => t.email).join(', ')}` : ''),
+        bodyText: data.bodyText || data.body || '',
+        bodyHtml: data.bodyHtml || data.body || '',
+        priority: data.priority || 'normal',
+        scheduledAt: data.scheduledAt
+          ? typeof data.scheduledAt === 'string'
+            ? data.scheduledAt
+            : new Date(data.scheduledAt).toISOString()
+          : undefined,
+        inReplyTo: replyTo || undefined,
+        attachments: (data.attachments as any) || [],
+        isDraft: true,
+        // Stated rather than left to the server's default so the thread's mark
+        // comes from what the sender actually chose.
+        messageKind: composeKind,
+      };
+      const ref = serverDraftRef;
+      const runGuardedSave = () =>
+        saveServerDraft({
+          ref,
+          create: () => apiClient.composeEmail(payload),
+          update: (id, expectedVersion) =>
+            apiClient.updateDraft(id, payload, { expectedVersion }),
+          onConflict: () => {
+            showToast({
+              text: 'Another tab or device edited this draft too — your latest changes were saved.',
+              type: 'warning',
+            });
+          },
+          onDeleted: () => {
+            showToast({
+              text: 'This draft was deleted elsewhere — saving as a new draft.',
+              type: 'warning',
+            });
+          },
+        });
+      let saved = await runGuardedSave();
+      if (!saved && !ref.getId()) {
+        // The draft died server-side (sent or deleted elsewhere): the ref was
+        // cleared, so exactly one more attempt honestly mints a single fresh
+        // draft instead of failing the save. (A false from a network error or
+        // a lost conflict-retry keeps the id, so this never double-mints.)
+        saved = await runGuardedSave();
+      }
+      const id = ref.getId();
+      if (!saved || !id) {
+        throw new Error('Draft could not be saved.');
+      }
+      return { id };
+    },
+    [replyTo, searchParams],
+  );
+
+  const handleSend = useCallback(
+    async (data: ComposerMessageData) => {
+      const draft = await composeDraft(data);
+
+      // QM-UIUX-050: a scheduled send must actually queue the draft for
+      // delivery — the backend expects `sendAt` (its compose schema silently
+      // strips `scheduledAt`). Previously this returned early and the draft
+      // sat in Drafts forever while the UI claimed "Email scheduled".
+      if (data.scheduledAt) {
+        const scheduledAt =
+          typeof data.scheduledAt === 'string'
+            ? data.scheduledAt
+            : new Date(data.scheduledAt).toISOString();
+        const schedRes = await apiClient.sendEmail(draft.id, { sendAt: scheduledAt });
+        if (!schedRes.success) {
+          throw new Error(schedRes.error?.message || 'Email could not be scheduled.');
+        }
+        return;
+      }
+
+      const response = await apiClient.sendEmail(draft.id, { delayMs: 10000 });
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Message could not be sent.');
+      }
+
+      // Before the redirect, not after: `/` renders from the React Query cache, so
+      // a list left marked fresh would paint without the message that was just sent.
+      invalidateMailLists(queryClient);
+
+      // QM-UIUX-025: this toast lives for exactly the 10s recall window
+      // (`delayMs: 10000` above) — the message has NOT been sent yet while
+      // it is on screen, so it must not claim "Message sent". Say what is
+      // true: it is sending, and there are 10s to undo.
+      //
+      // The recall window closing is NOT delivery confirmation — it is only
+      // the moment the send becomes un-undoable and the worker STARTS
+      // transmitting (the server enqueues a BullMQ job with the same 10s
+      // delay and answers 202 "Email queued for delivery"; SES can still
+      // fail afterwards). So the second toast must never claim "Email
+      // sent" either — that would be a timer guess with zero knowledge of
+      // the delivery outcome. Say what is true instead: the send is
+      // confirmed and delivery is underway — unless the user undid the
+      // send, in which case the undo toast has already said what happened.
+      let sendUndone = false;
+      showToast({
+        text: 'Sending… (10s to undo)',
+        type: 'success',
+        duration: 10000,
+        countdown: 10,
+        undoAction: async () => {
+          sendUndone = true;
+          try {
+            const undoRes = await apiClient.undoSend(draft.id);
+            if (undoRes.success) {
+              showToast({ text: 'Sending undone. Message restored to Drafts.', type: 'info' });
+              invalidateMailLists(queryClient);
+            } else {
+              showToast({
+                text: undoRes.error?.message || 'Could not undo send.',
+                type: 'warning',
+              });
+            }
+          } catch {
+            showToast({ text: 'Could not undo send.', type: 'error' });
+          }
+        },
+      });
+      window.setTimeout(() => {
+        if (!sendUndone) {
+          // Honest copy: at t=10s the undo window closes and transmission
+          // starts — delivery itself is still unconfirmed (see above), so
+          // never claim "Email sent" on this timer.
+          showToast({ text: 'Send confirmed — delivering', type: 'success' });
+        }
+      }, 10000);
+      router.push('/');
+    },
+    [composeDraft, queryClient, router],
+  );
+
+  const handleSaveDraft = useCallback(
+    async (data: ComposerMessageData) => {
+      await composeDraft(data);
+    },
+    [composeDraft],
+  );
+
+  const handleDiscard = useCallback(async () => {
+    // Delete the saved server draft (if any) so "Discard" actually discards.
+    const savedId = serverDraftRef.getId();
+    if (savedId) {
+      try {
+        await apiClient.deleteEmail(savedId);
+      } catch {
+        // Best-effort: still navigate away even if the delete fails.
+      }
+      serverDraftRef.clear();
+    }
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/');
+    }
+  }, [router]);
+
+  // No page-level edge swipe: it used to call handleDiscard, so a stray swipe
+  // from the left edge DELETED the draft with no prompt. The composer owns the
+  // gesture now and treats it as Back — save the draft, then leave.
+
+  const handleAIAssist = useCallback(
+    async (action: 'compose' | 'improve' | 'shorten' | 'formalize', text: string) => {
+      const response = await apiClient.aiCompose({
+        instructions: `${action}: ${text}`,
+        tone: action === 'formalize' ? 'formal' : 'professional',
+        length: action === 'shorten' ? 'short' : 'medium',
+      });
+
+      if (!response.success) {
+        throw new Error(response.error?.message || 'AI writing assistance is unavailable.');
+      }
+
+      return response.data?.body || text;
+    },
+    [],
+  );
+
+  if (draftLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[var(--quant-surface-subtle)] text-[var(--quant-muted-foreground)] text-sm">
+        <p>Loading draft…</p>
+      </div>
+    );
+  }
+
+  return (
+    <UndoSendProvider>
+      <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[var(--quant-surface-subtle)] flex justify-center">
+        <div className="w-full max-w-[880px] h-full">
+        <EmailComposer
+          // Handed over as the raw string, not wrapped in a one-entry array: `?to=`
+          // can carry a whole group's members, and the composer is the thing that
+          // knows how to cut a list of addresses into one chip each.
+          initialTo={draftData?.to ?? prefillTo ?? undefined}
+          initialSubject={
+            draftData?.subject ??
+            (prefillSubject ? normalizeReplySubject(prefillSubject) : '')
+          }
+          initialBody={draftData?.body ?? prefillBody ?? undefined}
+          inReplyTo={replyTo || undefined}
+          onSend={handleSend}
+          onSaveDraft={handleSaveDraft}
+          onDiscard={handleDiscard}
+          onAIAssist={handleAIAssist}
+          initialMessageKind={composeKind}
+        />
+        </div>
+      </div>
+    </UndoSendProvider>
+  );
+}

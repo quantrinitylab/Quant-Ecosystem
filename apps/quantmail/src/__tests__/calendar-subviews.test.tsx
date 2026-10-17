@@ -8,8 +8,8 @@ import { fileURLToPath } from 'node:url';
 // Components under test (CalendarRemindersView deleted on this branch as orphaned
 // dead code — see calendar-reminders-orphan-guard.test.ts; CalendarBookingView and
 // CalendarQuantMeetView were deleted on origin/main)
-import { CalendarContextSubTabs } from '../app/calendar/components/CalendarContextSubTabs';
-import type { CalendarEventLike } from '../app/calendar/types';
+import { CalendarContextSubTabs } from '../app/(app)/calendar/components/CalendarContextSubTabs';
+import type { CalendarEventLike } from '../app/(app)/calendar/types';
 
 // Mock Next.js navigation
 const mockPush = vi.fn();

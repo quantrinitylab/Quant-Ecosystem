@@ -26,7 +26,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { CalendarHeader } from '../app/calendar/components/CalendarHeader';
+import { CalendarHeader } from '../app/(app)/calendar/components/CalendarHeader';
 import { CalendarMonthSubView } from '../components/CalendarSubViews';
 
 // React 19's act(...) requires this flag in the test environment.

@@ -90,7 +90,7 @@ vi.mock('@quant/shared-ui', () => ({
 }));
 
 import { PeopleHome } from '../components/PeopleHome';
-import PersonPage from '../app/people/[personId]/page';
+import PersonPage from '../app/(app)/people/[personId]/page';
 
 let seq = 0;
 const at = (iso: string) => new Date(iso);

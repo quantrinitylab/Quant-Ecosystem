@@ -48,7 +48,7 @@ vi.mock('@quant/api-client', () => ({
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AuthGuard } from '../components/AuthGuard';
-import PublicBookingPage from '../app/calendar/booking/[slug]/page';
+import PublicBookingPage from '../app/(app)/calendar/booking/[slug]/page';
 
 const CONTENT_MARKER = 'booking-guest-content-marker';
 

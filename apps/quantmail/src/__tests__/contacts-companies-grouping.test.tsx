@@ -11,7 +11,7 @@ vi.mock('@quant/shared-ui', () => ({
     React.createElement('div', { className }, children),
 }));
 
-import { CompaniesSubView } from '../app/contacts/components/ContactsSubViews';
+import { CompaniesSubView } from '../app/(app)/contacts/components/ContactsSubViews';
 
 /**
  * Regression: CompaniesSubView used to hardcode 6 company profiles

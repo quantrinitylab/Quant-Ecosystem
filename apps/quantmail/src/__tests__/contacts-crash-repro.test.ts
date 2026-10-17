@@ -7,7 +7,7 @@ import {
   getInitials,
   getAvatarBgColor,
   contactDisplayName,
-} from '../app/contacts/components/ContactsSubViews';
+} from '../app/(app)/contacts/components/ContactsSubViews';
 
 /**
  * Regression test for the live P0: Contacts tab showed "QuantMail couldn't

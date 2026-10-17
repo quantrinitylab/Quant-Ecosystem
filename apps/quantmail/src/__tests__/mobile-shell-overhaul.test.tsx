@@ -21,7 +21,7 @@ import {
   CalendarContextSubTabs,
   mergedTabTargets,
   resolveMergedTab,
-} from '../app/calendar/components/CalendarContextSubTabs';
+} from '../app/(app)/calendar/components/CalendarContextSubTabs';
 import { DriveAISearchBar } from '../components/drive/DriveAISearchBar';
 
 // Mock Window EventTarget
@@ -371,7 +371,7 @@ describe('Mobile Shell Overhaul — Worker A', () => {
   // ==========================================================================
   describe('QuantGit AppShell integration', () => {
     it('page module loads with the shell wiring (no import-time crash)', async () => {
-      const mod = await import('../app/quantgit/page');
+      const mod = await import('../app/(app)/quantgit/page');
       expect(typeof mod.default).toBe('function');
     });
   });

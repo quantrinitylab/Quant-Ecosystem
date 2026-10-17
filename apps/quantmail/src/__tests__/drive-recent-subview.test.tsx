@@ -11,7 +11,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   DriveRecentSubView,
   type RecentItem,
-} from '../app/drive/components/DriveRecentSubView';
+} from '../app/(app)/drive/components/DriveRecentSubView';
 
 vi.mock('../hooks/useStorageQuota', () => ({
   useStorageQuota: () => ({

@@ -21,7 +21,7 @@ import {
   defaultHostTimezone,
   hostTimezoneOptions,
   type BookingLinkItem,
-} from '../app/calendar/components/BookingLinksModal';
+} from '../app/(app)/calendar/components/BookingLinksModal';
 
 const serverRecord = {
   id: 'clx-booking-server-1',

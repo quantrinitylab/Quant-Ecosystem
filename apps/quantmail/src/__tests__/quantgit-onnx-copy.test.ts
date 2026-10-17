@@ -8,7 +8,7 @@ import {
   INITIAL_REPOS,
   MOCK_FILES,
   INITIAL_DISCUSSIONS,
-} from '../app/quantgit/constants';
+} from '../app/(app)/quantgit/constants';
 
 const UNSHIPPED_CAPABILITY = /onnx|onnxruntime|semantic search|vector embedding/i;
 

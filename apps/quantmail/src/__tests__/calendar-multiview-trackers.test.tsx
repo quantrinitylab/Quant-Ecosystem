@@ -7,15 +7,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   resolveMergedTab,
   mergedTabTargets,
-} from '../app/calendar/components/CalendarContextSubTabs';
-import { CalendarHeader } from '../app/calendar/components/CalendarHeader';
+} from '../app/(app)/calendar/components/CalendarContextSubTabs';
+import { CalendarHeader } from '../app/(app)/calendar/components/CalendarHeader';
 import {
   CalendarFeedSubView,
   CalendarMonthSubView,
   CalendarTrackersSubView,
   CalendarScheduleSubView,
 } from '../components/CalendarSubViews';
-import type { CalendarEventLike } from '../app/calendar/types';
+import type { CalendarEventLike } from '../app/(app)/calendar/types';
 
 // Mock sample events
 const mockEvents: CalendarEventLike[] = [

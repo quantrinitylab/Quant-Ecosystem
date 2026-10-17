@@ -141,7 +141,7 @@ vi.mock('../lib/motion-variants', () => ({
   listItemVariants: {},
 }));
 
-import SearchPage from '../app/search/page';
+import SearchPage from '../app/(app)/search/page';
 
 function makeEmail(id: string, subject: string): Email {
   return {
