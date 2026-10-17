@@ -634,9 +634,14 @@ export default async function emailsRoutes(
 
   // POST /emails/:id/send - durably queue an owned draft for delivery.
   // WR-MAIL-104: mail.send.execute is an active catalog command — key required.
+  // fix/qm-send-transmit-before-flip: same honest 15-minute in-flight claim
+  // window as the compose routes (fix/qm-idempotency-ttl-3). The flip-first
+  // send-once guard in EmailService.send() is the real double-send
+  // protection; the longer claim window narrows the stale-claim
+  // re-execution window on top of it.
   fastify.post<{ Params: { id: string } }>(
     '/:id/send',
-    { config: { idempotencyRequired: true } },
+    { config: { idempotencyRequired: true, idempotencyProcessingTtlSeconds: 900 } },
     async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');

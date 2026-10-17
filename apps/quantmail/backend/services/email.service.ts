@@ -672,12 +672,114 @@ export class EmailService {
       }
     }
 
-    let deliveryStatus = 'delivered';
+    // fix/qm-send-transmit-before-flip: the durable sent-flip now commits
+    // BEFORE any external side effect (pipeline enqueue or SES transmit). The
+    // old order transmitted first and flipped after, so a crash between the
+    // two left the draft unflipped — and a retry after the idempotency claim
+    // TTL (5 min default) re-transmitted to external recipients (double
+    // email). Flip-first plus the atomic send-once guard on the flip
+    // (requireUnsent) turns that retry into a 409 instead of a re-send.
+    const needsTransmit = external.length > 0 || (options?.delayMs && options.delayMs > 0);
     let deliveryError: string | undefined;
 
-    if (external.length > 0 || (options?.delayMs && options.delayMs > 0)) {
-      deliveryStatus = 'queued';
+    // Transport pre-check BEFORE the flip: when no transport can possibly
+    // deliver (no pipeline, and the send is delayed or SES is unconfigured),
+    // fail honestly with 503 here — the draft stays a draft, exactly like the
+    // old pre-flip CUST-P0-2 throw.
+    if (needsTransmit && !this.pipeline && (options?.delayMs || !isSesConfigured())) {
+      const reason = 'No outbound transport configured (queue unavailable, SES env missing)';
+      // eslint-disable-next-line no-console
+      console.error(
+        `[EmailService.send: No outbound transport] emailId=${emailId} userId=${userId}: ${reason}`,
+      );
+      throw createAppError(
+        `Email could not be sent: ${reason}. It remains a draft — please try again.`,
+        503,
+        'DELIVERY_QUEUE_UNAVAILABLE',
+      );
+    }
 
+    const sentAt = options?.sendAt ?? new Date();
+    /*
+     * Cross-mailbox read receipts need one stable identity for the message that
+     * both the sender's Sent copy and every recipient's inbox copy share.
+     * `deliverInternally` stamps this same value on the recipient copies, and
+     * `ThreadService.markThreadRead` uses it to propagate `readAt` back to the
+     * sender's copy when a recipient opens the thread. Generated once here so a
+     * re-send keeps the same identity.
+     */
+    const messageId =
+      (email as { messageId?: string | null }).messageId ?? `<${emailId}@quantmail.in>`;
+    // K1: sent-flip + outbox row in ONE transaction (doc 05) — and it commits
+    // BEFORE any external transmit. The flip is the durable, exactly-once
+    // "send claimed" record: `requireUnsent` makes the flip itself the atomic
+    // send-once guard, so a second execution (retry after a crash, or past
+    // the idempotency claim TTL) 409s here instead of re-transmitting. The
+    // event mirrors the provisional deliveryStatus: queued (durable intent
+    // handed to the transmit step below), submitted (internal-only send:
+    // nothing external to transmit). Spec: delivery-events.md.
+    const provisionalStatus = needsTransmit ? 'queued' : 'delivered';
+    const flipped = await this.prisma.$transaction(async (tx) => {
+      // QM-BACK-002: atomic conditional update — a concurrent writer loses
+      // with VERSION_CONFLICT instead of silently overwriting the send flip.
+      const row = await versionedUpdate<Email>(tx as unknown as VersionedTx, {
+        id: emailId,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: options?.expectedVersion,
+        // Atomic send-once: only a still-unsent draft flips — see the
+        // requireUnsent contract in lib/optimistic-update.ts.
+        requireUnsent: true,
+        data: {
+          isDraft: false,
+          isSent: true,
+          folderId: sentFolderId,
+          sentAt,
+          messageId,
+          /*
+           * A sent copy needs a timeline position, not just a send time.
+           *
+           * The unified inbox is one list ordered by `receivedAt`, and this column
+           * was left null on every message the user sent — so their own messages had
+           * no place in that order at all and never appeared beside the conversation
+           * they belong to. `sentAt` is when the message entered this mailbox, so it
+           * is the honest value. An existing `receivedAt` is never overwritten,
+           * which keeps a scheduled or re-sent message on its original timeline.
+           */
+          receivedAt: (email as { receivedAt?: Date | null }).receivedAt ?? sentAt,
+          deliveryStatus: provisionalStatus,
+          /*
+           * Read-receipt pipeline: the message is delivered the moment this send
+           * completes (internal recipients get their copies below; external
+           * delivery is finalized in the transmit step after the flip).
+           * A queued/deferred send leaves `deliveredAt` null until the
+           * transmit step or the delivery worker's finalizeEmailState stamps
+           * it on completion.
+           */
+          ...(provisionalStatus === 'delivered' ? { deliveredAt: sentAt } : {}),
+        },
+      });
+      await emitOutbox(tx, {
+        event: needsTransmit
+          ? MailOutboxEvents.outboundQueued
+          : MailOutboxEvents.outboundSubmitted,
+        aggregateType: 'Email',
+        aggregateId: emailId,
+        payload: {
+          userId,
+          threadId: (row as { threadId?: string | null }).threadId ?? null,
+          messageId,
+          deliveryStatus: provisionalStatus,
+          requestId: sendRequestId,
+        },
+      });
+      return row;
+    });
+
+    // Transmit AFTER the durable flip committed.
+    let updated: Email = flipped;
+    if (needsTransmit) {
       // MAIL-01: Single authoritative delivery owner. When the durable BullMQ pipeline
       // is available, delegate delivery to the worker. Do NOT also submit via SES directly.
       let enqueued = false;
@@ -737,8 +839,7 @@ export class EmailService {
             replyTo: fromAddress,
             attachments,
           });
-          deliveryStatus = 'delivered';
-          deliveryError = undefined;
+          updated = await this.finalizeSendDelivery(emailId, userId, flipped, 'delivered', sentAt, messageId, sendRequestId);
         } catch (error) {
           deliveryError = error instanceof Error ? error.message : String(error);
           /*
@@ -749,21 +850,27 @@ export class EmailService {
            * design's transient-failure state and keeps the undo window open
            * for a manual retry. (Matches main's fix from Muse's QA round.)
            */
-          deliveryStatus = 'deferred';
+          updated = await this.finalizeSendDelivery(emailId, userId, flipped, 'deferred', sentAt, messageId, sendRequestId);
           // eslint-disable-next-line no-console
           console.error(
             `[EmailService.send: SES delivery failed] emailId=${emailId} userId=${userId}: ${deliveryError}`,
           );
         }
       } else if (!enqueued) {
-        // CUST-P0-2: never fake a successful send. No queue job was created
-        // and no immediate SES fallback applies here (delayed sends must not
-        // fire SES directly, or the undo window becomes a lie), so nothing
-        // will ever deliver this message. Flipping it to Sent with a
-        // 'deferred' status was a silent failure: the UI announced
-        // "Message sent" while the mail sat undeliverable with no transport.
-        // Throw a real, retryable error instead — the draft stays a draft
-        // and the client surfaces the actual reason to the user.
+        // CUST-P0-2: never fake a successful send. The pipeline died between
+        // the transport pre-check and the enqueue and no SES fallback applies
+        // here (delayed sends must not fire SES directly, or the undo window
+        // becomes a lie), so nothing will ever deliver this message.
+        // Compensate the flip back to a draft — the same honesty as the old
+        // pre-flip 503 — and throw a real, retryable error instead.
+        await this.compensateSendFlip(
+          emailId,
+          userId,
+          flipped,
+          (email as { folderId?: string | null }).folderId ?? null,
+          messageId,
+          sendRequestId,
+        );
         const reason =
           deliveryError ?? 'No outbound transport configured (queue unavailable, SES env missing)';
         // eslint-disable-next-line no-console
@@ -776,81 +883,134 @@ export class EmailService {
           'DELIVERY_QUEUE_UNAVAILABLE',
         );
       }
-    }
+        // enqueued === true: the flip already recorded deliveryStatus 'queued'
+        // and the outboundQueued event — nothing more to write.
+      }
 
-    const sentAt = options?.sendAt ?? new Date();
-    /*
-     * Cross-mailbox read receipts need one stable identity for the message that
-     * both the sender's Sent copy and every recipient's inbox copy share.
-     * `deliverInternally` stamps this same value on the recipient copies, and
-     * `ThreadService.markThreadRead` uses it to propagate `readAt` back to the
-     * sender's copy when a recipient opens the thread. Generated once here so a
-     * re-send keeps the same identity.
-     */
-    const messageId =
-      (email as { messageId?: string | null }).messageId ?? `<${emailId}@quantmail.in>`;
-    // K1: sent-flip + outbox row in ONE transaction (doc 05). The event mirrors
-    // the deliveryStatus recorded here: queued (durable pipeline), submitted
-    // (handed to the provider / delivered immediately), deferred (transient
-    // provider failure, retryable). Spec: delivery-events.md.
-    const updated = await this.prisma.$transaction(async (tx) => {
-      // QM-BACK-002: atomic conditional update — a concurrent writer loses
-      // with VERSION_CONFLICT instead of silently overwriting the send flip.
-      const flipped = await versionedUpdate<Email>(tx as unknown as VersionedTx, {
+    return updated;
+  }
+
+  /**
+   * fix/qm-send-transmit-before-flip: second-phase delivery-state write for
+   * the inline (non-pipeline) transmit path. Runs strictly AFTER the durable
+   * flip, so the flip stays the exactly-once record and this only advances
+   * deliveryStatus monotonically (queued -> delivered | deferred) plus the
+   * matching outbox event, in ONE transaction (K1).
+   *
+   * An undo-send that raced the transmit already flipped the row back to a
+   * draft — the undo wins and this finalize is skipped (no Sent resurrection).
+   */
+  private async finalizeSendDelivery(
+    emailId: string,
+    userId: string,
+    flipped: Email,
+    status: 'delivered' | 'deferred',
+    sentAt: Date,
+    messageId: string,
+    requestId: string,
+  ): Promise<Email> {
+    return this.prisma.$transaction(async (tx) => {
+      const current = (await tx.email.findUnique({ where: { id: emailId } })) as unknown as {
+        isSent?: boolean;
+        threadId?: string | null;
+        version?: number;
+      } | null;
+      if (!current?.isSent) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[EmailService.send: finalize skipped] emailId=${emailId}: row no longer sent (undo won the race)`,
+        );
+        return flipped;
+      }
+      const finalized = await versionedUpdate<Email>(tx as unknown as VersionedTx, {
         id: emailId,
         resource: 'Email',
         notFoundCode: 'EMAIL_NOT_FOUND',
         notFoundMessage: 'Email not found',
-        expectedVersion: options?.expectedVersion,
+        expectedVersion: typeof current.version === 'number' ? current.version : undefined,
         data: {
-          isDraft: false,
-          isSent: true,
-          folderId: sentFolderId,
-          sentAt,
-          messageId,
-          /*
-           * A sent copy needs a timeline position, not just a send time.
-           *
-           * The unified inbox is one list ordered by `receivedAt`, and this column
-           * was left null on every message the user sent — so their own messages had
-           * no place in that order at all and never appeared beside the conversation
-           * they belong to. `sentAt` is when the message entered this mailbox, so it
-           * is the honest value. An existing `receivedAt` is never overwritten,
-           * which keeps a scheduled or re-sent message on its original timeline.
-           */
-          receivedAt: (email as { receivedAt?: Date | null }).receivedAt ?? sentAt,
-          deliveryStatus,
-          /*
-           * Read-receipt pipeline: the message is delivered the moment this send
-           * completes (internal recipients get their copies below; external SES
-           * delivery succeeded above). A queued/deferred send leaves
-           * `deliveredAt` null until the delivery worker's finalizeEmailState
-           * stamps it on completion.
-           */
-          ...(deliveryStatus === 'delivered' ? { deliveredAt: sentAt } : {}),
+          deliveryStatus: status,
+          ...(status === 'delivered' ? { deliveredAt: sentAt } : {}),
         },
       });
       await emitOutbox(tx, {
         event:
-          deliveryStatus === 'queued'
-            ? MailOutboxEvents.outboundQueued
-            : deliveryStatus === 'deferred'
-              ? MailOutboxEvents.outboundDeferred
-              : MailOutboxEvents.outboundSubmitted,
+          status === 'deferred'
+            ? MailOutboxEvents.outboundDeferred
+            : MailOutboxEvents.outboundSubmitted,
         aggregateType: 'Email',
         aggregateId: emailId,
         payload: {
           userId,
-          threadId: (flipped as { threadId?: string | null }).threadId ?? null,
+          threadId: current.threadId ?? null,
           messageId,
-          deliveryStatus,
-          requestId: sendRequestId,
+          deliveryStatus: status,
+          requestId,
         },
       });
-      return flipped;
+      return finalized;
     });
+  }
 
-    return updated;
+  /**
+   * fix/qm-send-transmit-before-flip: compensation for the flip when the
+   * transmit step finds no usable transport (the pipeline died between the
+   * transport pre-check and the enqueue, and no SES fallback applies).
+   * Flips the row back to a draft — the same honesty as the old pre-flip 503
+   * ("the draft stays a draft"). Only compensates our own untouched flip; an
+   * undo-send that already reclaimed the row is left alone. Best-effort: a
+   * failure here leaves the row honestly 'queued' for the undo window.
+   */
+  private async compensateSendFlip(
+    emailId: string,
+    userId: string,
+    flipped: Email,
+    draftFolderId: string | null,
+    messageId: string,
+    requestId: string,
+  ): Promise<void> {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const current = (await tx.email.findUnique({ where: { id: emailId } })) as unknown as {
+          isSent?: boolean;
+          deliveryStatus?: string | null;
+          version?: number;
+        } | null;
+        if (!current?.isSent || current.deliveryStatus !== 'queued') return;
+        await versionedUpdate<Email>(tx as unknown as VersionedTx, {
+          id: emailId,
+          resource: 'Email',
+          notFoundCode: 'EMAIL_NOT_FOUND',
+          notFoundMessage: 'Email not found',
+          expectedVersion: typeof current.version === 'number' ? current.version : undefined,
+          data: {
+            isDraft: true,
+            isSent: false,
+            sentAt: null,
+            deliveryStatus: 'draft',
+            folderId: draftFolderId,
+          },
+        });
+        await emitOutbox(tx, {
+          event: MailOutboxEvents.outboundCancelled,
+          aggregateType: 'Email',
+          aggregateId: emailId,
+          payload: {
+            userId,
+            threadId: (flipped as unknown as { threadId?: string | null }).threadId ?? null,
+            messageId,
+            requestId,
+          },
+        });
+      });
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[EmailService.send: send compensation failed] emailId=${emailId} userId=${userId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   async undoSend(

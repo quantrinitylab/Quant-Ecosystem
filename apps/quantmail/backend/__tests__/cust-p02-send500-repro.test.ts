@@ -46,21 +46,53 @@ const DRAFT_ROW = {
 
 function makePrisma() {
   const updates: Array<{ where: unknown; data: Record<string, unknown> }> = [];
+  // fix/qm-send-order-outbox (flip-first): the send path reads the row back
+  // between writes (versionedUpdate's re-read, compensateSendFlip's guard), so
+  // the fake keeps real row state — later reads see earlier writes, and the
+  // conditional updateMany honours the version predicate plus the
+  // requireUnsent (isDraft/isSent) predicate, like the real query.
+  const rows = new Map<string, Record<string, unknown>>([['draft1', { ...DRAFT_ROW }]]);
+  const applyData = (row: Record<string, unknown>, data: Record<string, unknown>) => {
+    const next = { ...row };
+    for (const [k, v] of Object.entries(data)) {
+      if (k === 'version' && typeof v === 'object' && v !== null && 'increment' in v) {
+        next['version'] = ((row['version'] as number) ?? 0) + (v as { increment: number }).increment;
+      } else {
+        next[k] = v;
+      }
+    }
+    return next;
+  };
+  const matchesWhere = (row: Record<string, unknown>, where: any) => {
+    if (where?.id !== undefined && row['id'] !== where.id) return false;
+    if (where?.version !== undefined && (row['version'] ?? 0) !== where.version) return false;
+    if (where?.isDraft !== undefined && row['isDraft'] !== where.isDraft) return false;
+    if (where?.isSent !== undefined && row['isSent'] !== where.isSent) return false;
+    return true;
+  };
   const prisma = {
     email: {
-      findUnique: vi.fn(async ({ where }: any) =>
-        where?.id === 'draft1' ? { ...DRAFT_ROW } : null,
-      ),
+      findUnique: vi.fn(async ({ where }: any) => {
+        const row = where?.id ? rows.get(where.id) : undefined;
+        return row ? { ...row } : null;
+      }),
       findFirst: vi.fn(async () => null),
       findMany: vi.fn(async () => []),
       update: vi.fn(async ({ where, data }: any) => {
+        const row = (where?.id ? rows.get(where.id) : undefined) ?? { ...DRAFT_ROW };
+        const next = applyData(row, data);
+        if (where?.id) rows.set(where.id, next);
         updates.push({ where, data });
-        return { ...DRAFT_ROW, ...data };
+        return { ...next };
       }),
       create: vi.fn(async ({ data }: any) => ({ id: 'new1', ...data })),
       // QM-BACK-002: versionedUpdate's conditional updateMany must match the
       // row; record it like `update` so the sent-flip assertions keep working.
       updateMany: vi.fn(async ({ where, data }: any) => {
+        const row = (where?.id ? rows.get(where.id) : undefined) ?? { ...DRAFT_ROW };
+        if (!matchesWhere(row, where)) return { count: 0 };
+        const next = applyData(row, data);
+        if (where?.id) rows.set(where.id, next);
         updates.push({ where, data });
         return { count: 1 };
       }),
@@ -153,7 +185,7 @@ describe('CUST-P0-2: no fake success on the send path (real pipeline, no Redis)'
     delete process.env['REDIS_PORT'];
   });
 
-  it('composer payload { delayMs: 10000 } fails honestly with 503, draft NOT flipped', async () => {
+  it('composer payload { delayMs: 10000 } fails honestly with 503, flip compensated back to draft', async () => {
     const { app, updates } = await buildApp();
     try {
       const res = await withTimeout(
@@ -169,9 +201,19 @@ describe('CUST-P0-2: no fake success on the send path (real pipeline, no Redis)'
       // The real reason surfaces — never the generic internal-error string.
       expect(body.error.message).not.toContain('An internal error occurred');
       expect(body.error.message).toContain('remains a draft');
-      // The draft was never flipped to Sent: no isSent=true update happened.
+      // fix/qm-send-order-outbox (flip-first): the durable sent-flip commits
+      // BEFORE the transmit attempt, so an isSent=true write does happen —
+      // but only on a still-unsent draft (the atomic send-once guard), and
+      // the failed enqueue is compensated back to a draft before the 503
+      // surfaces, so the row ends as a draft and the user can retry.
       const sentFlip = updates.find((u) => (u.data as any).isSent === true);
-      expect(sentFlip).toBeUndefined();
+      expect(sentFlip).toBeDefined();
+      expect((sentFlip!.where as any).isDraft).toBe(true);
+      expect((sentFlip!.where as any).isSent).toBe(false);
+      const last = updates[updates.length - 1]!;
+      expect((last.data as any).isDraft).toBe(true);
+      expect((last.data as any).isSent).toBe(false);
+      expect((last.data as any).deliveryStatus).toBe('draft');
     } finally {
       await app.close();
     }

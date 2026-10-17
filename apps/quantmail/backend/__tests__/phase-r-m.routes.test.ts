@@ -549,7 +549,7 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       expect(sesCallArg.cc).toEqual(['external-cc@example.com']);
     });
 
-    it('M-F12: send whose enqueue throws with SES unavailable fails honestly with 503 DELIVERY_QUEUE_UNAVAILABLE, never flips the draft to sent', async () => {
+    it('M-F12: send whose enqueue throws with SES unavailable compensates the flip back to a draft and fails honestly with 503 DELIVERY_QUEUE_UNAVAILABLE', async () => {
       vi.mocked(sesSender.isSesConfigured).mockReturnValue(false);
 
       const mockPipeline = {
@@ -569,14 +569,22 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
         fromAddress: 'user-1@quantmail.in',
         subject: 'Urgent',
       };
-      prisma.email.findUnique.mockResolvedValue(mockEmail);
+      // fix/qm-send-order-outbox: the durable sent-flip now commits BEFORE any
+      // external transmit via a conditional updateMany on the in-memory store
+      // (requireUnsent). Seed the store like the sibling QM-BACK-002 tests do
+      // instead of stubbing findUnique — an unseeded store matches zero rows
+      // and the flip 409s with VERSION_CONFLICT instead of reaching the
+      // transmit-failure compensation path this test exercises.
+      await prisma.email.create({ data: mockEmail });
       prisma.user.findMany.mockResolvedValue([]);
 
       // CUST-P0-2: never fake a successful send. No queue job was created and
       // no immediate SES fallback applies here (SES env missing), so nothing
-      // could ever deliver this message. The send fails honestly with a
-      // retryable 503 instead of silently flipping the draft to Sent with a
-      // 'deferred' status while the UI announces "Message sent".
+      // could ever deliver this message. Flip-first ordering commits the
+      // durable sent-flip, then the failed transmit compensates it back to a
+      // draft — the send still fails honestly with a retryable 503 instead of
+      // silently flipping the draft to Sent with a 'deferred' status while the
+      // UI announces "Message sent".
       const err = await serviceWithFailingPipeline
         .send('user-1', 'email-err-1', 'sent-folder-id')
         .catch((e: unknown) => e);
@@ -584,8 +592,12 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       expect(String((err as Error).message)).toContain('Redis connection timeout');
       expect(String((err as Error).message)).toContain('remains a draft');
 
-      // The draft was never flipped to sent and no delivery status was persisted.
-      expect(prisma.email.update).not.toHaveBeenCalled();
+      // The flip was compensated: the row ends as a draft again, never stuck
+      // sent, and no sent delivery status was left persisted.
+      const finalRow = prisma.storedEmails.get('email-err-1');
+      expect(finalRow.isDraft).toBe(true);
+      expect(finalRow.isSent).toBe(false);
+      expect(finalRow.deliveryStatus).toBe('draft');
     });
 
     it('T4 / M-F15: DeliveryWorker SMTP path excludes BCC addresses from DKIM-signed headers', async () => {
