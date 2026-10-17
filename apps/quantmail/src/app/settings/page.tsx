@@ -80,10 +80,15 @@ import { MailFiltersSettings } from './MailFiltersSettings';
 import { showToast } from '../../components/InboxToast';
 import { ShortcutKeys } from '../../components/ShortcutKeys';
 import { useDesktopNotifications } from '../../hooks/useDesktopNotifications';
+import { useMailNotificationMode } from '../../hooks/useMailNotificationMode';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { writeAIIntent } from '../../lib/ai-intent-preference';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
 import { buildHelpGroups, dimNoteFor, helpGroupHeading } from '../../lib/keyboard/help-model';
+import {
+  MAIL_NOTIFICATION_MODE_OPTIONS,
+  type MailNotificationMode,
+} from '../../lib/mail-notification-mode';
 import { useCommandList } from '../../lib/keyboard/hooks';
 import { useSafeEmailHtml } from '../../lib/safe-html';
 import {
@@ -299,6 +304,7 @@ export default function SettingsPage() {
 
   const desktopNotifications = useDesktopNotifications();
   const pushNotifications = usePushNotifications();
+  const mailNotificationMode = useMailNotificationMode();
   const commands = useCommandList();
   const helpGroups = useMemo(() => buildHelpGroups(commands), [commands]);
   const helpNote = dimNoteFor(helpGroups, {
@@ -486,6 +492,24 @@ export default function SettingsPage() {
     const label = THEME_OPTIONS.find((option) => option.value === next)?.label ?? next;
     showToast({ text: `Theme set to ${label}`, type: 'info' });
   }, []);
+
+  /**
+   * Mail notification mode (all / important only / off). Stored server-side —
+   * the inbound webhook consults it before creating a notification, so it
+   * filters the in-app bell, web push and the desktop watcher's feed at once.
+   * A failed PUT leaves the previous mode in place and says so.
+   */
+  const changeMailNotificationMode = useCallback(
+    async (next: MailNotificationMode) => {
+      const ok = await mailNotificationMode.setMode(next);      const label =
+        MAIL_NOTIFICATION_MODE_OPTIONS.find((option) => option.value === next)?.label ?? next;
+      showToast({
+        text: ok ? `Notifications set to ${label}` : 'Could not save notification mode',
+        type: ok ? 'info' : 'error',
+      });
+    },
+    [mailNotificationMode.setMode],
+  );
 
   /**
    * Density was persisted and never applied, so the choice took effect on the
@@ -1020,18 +1044,29 @@ export default function SettingsPage() {
           {activeTab === 'notifications' && (
             <SettingsSection
               title="Notifications"
-              description="Two switches, and both of them are real. Email digests, sound alerts and a mentions-only filter each wrote a preference nothing read — there is no digest job, no sound asset and no mention parser — so they are gone rather than sitting here pretending."
+              description="One mode and two switches, and all three are real. The mode decides which mail creates a notification at all — it is enforced where notifications are born, so it covers the in-app bell, push and desktop alerts together. The switches below are per-device delivery gates: whether this browser may show what the mode lets through. Email digests, sound alerts and a mentions-only filter each wrote a preference nothing read — there is no digest job, no sound asset and no mention parser — so they are gone rather than sitting here pretending."
             >
+              <SettingsChoice<MailNotificationMode>
+                legend="Notify me about"
+                value={mailNotificationMode.mode}
+                options={MAIL_NOTIFICATION_MODE_OPTIONS}
+                onChange={(next) => void changeMailNotificationMode(next)}
+                columns={3}
+              />
               <SettingsToggleRow
                 label="Desktop notifications"
                 description={
-                  desktopNotifications.permission === 'denied'
-                    ? 'Your browser is blocking notifications for this site. Allow them in the address-bar site settings, then switch this back on.'
-                    : 'A system notification when new mail arrives while this tab is in the background.'
+                  mailNotificationMode.mode === 'off'
+                    ? 'Notifications are set to “Nothing” above, so no mail creates one to show.'
+                    : desktopNotifications.permission === 'denied'
+                      ? 'Your browser is blocking notifications for this site. Allow them in the address-bar site settings, then switch this back on.'
+                      : 'A system notification when new mail arrives while this tab is in the background.'
                 }
                 checked={desktopNotifications.enabled}
                 disabled={
-                  !desktopNotifications.supported || desktopNotifications.permission === 'denied'
+                  !desktopNotifications.supported ||
+                  desktopNotifications.permission === 'denied' ||
+                  mailNotificationMode.mode === 'off'
                 }
                 onChange={(next) => void desktopNotifications.setEnabled(next)}
                 status={notificationStatus}
@@ -1039,11 +1074,13 @@ export default function SettingsPage() {
               <SettingsToggleRow
                 label="Push notifications"
                 description={
-                  pushNotifications.status === 'denied'
-                    ? 'Your browser is blocking notifications for this site. Allow them in the address-bar site settings, then switch this back on.'
-                    : pushNotifications.status === 'not-configured'
-                      ? 'The server has no push keys yet, so there is nothing to deliver through. This switch lights up when they are provisioned — it will not pretend to be on before then.'
-                      : 'A system notification when new mail arrives, even with this tab closed. Your browser subscription is stored on the server and removed when you switch this off.'
+                  mailNotificationMode.mode === 'off'
+                    ? 'Notifications are set to “Nothing” above, so no mail creates one to deliver.'
+                    : pushNotifications.status === 'denied'
+                      ? 'Your browser is blocking notifications for this site. Allow them in the address-bar site settings, then switch this back on.'
+                      : pushNotifications.status === 'not-configured'
+                        ? 'The server has no push keys yet, so there is nothing to deliver through. This switch lights up when they are provisioned — it will not pretend to be on before then.'
+                        : 'A system notification when new mail arrives, even with this tab closed. Your browser subscription is stored on the server and removed when you switch this off.'
                 }
                 checked={pushNotifications.enabled}
                 disabled={
@@ -1051,7 +1088,8 @@ export default function SettingsPage() {
                   pushNotifications.status === 'unknown' ||
                   pushNotifications.status === 'unsupported' ||
                   pushNotifications.status === 'denied' ||
-                  pushNotifications.status === 'not-configured'
+                  pushNotifications.status === 'not-configured' ||
+                  mailNotificationMode.mode === 'off'
                 }
                 onChange={(next) => void pushNotifications.setEnabled(next)}
                 status={pushNotificationStatus}

@@ -1,0 +1,88 @@
+# Quant stack — Oracle Cloud (OCI) deployment.
+# Deployed by .github/workflows/deploy-oci.yml: the workflow copies THIS file
+# to /opt/quant/oci/quant-stack.yml on vm-app and runs
+#   IMAGE_TAG=<main-sha> docker compose -f quant-stack.yml pull
+#   IMAGE_TAG=<main-sha> docker compose -f quant-stack.yml up -d
+#
+# Architecture (migration runbook §2):
+#   vm-app  (10.1.1.140, public 80.225.234.186) — this compose stack
+#   vm-db   (10.1.1.174, private)               — Postgres (ankane/pgvector),
+#                                                data on the 100 GB block volume
+#                                                mounted at /data, 91 migrations
+#                                                applied, vector ext enabled.
+#   Object Storage bucket quantmail-drive (S3-compat) replaces the old S3 bucket.
+#
+# VM provisioning contract (must exist before first deploy):
+#   * /etc/quant/secrets.env (0600 root) — DATABASE_URL (-> 10.1.1.174),
+#     AI_PROVIDER=meta, META_API_KEY, DRIVE_S3_* (OCI S3-compat), encryption keys.
+#     Read by the docker daemon (root), so 0600 root is fine with env_file.
+#   * /etc/quant/caddy/Caddyfile — reverse-proxy config (provisioned once).
+#   * /etc/quant/certs/origin.pem + origin-key.pem — TLS cert served on :443.
+#     Cloudflare Origin CA cert (trusted by the Cloudflare edge once DNS
+#     repoints); the deploy workflow's health check uses curl -k so a
+#     self-signed cert also passes pre-DNS.
+#
+# Routing (quant-proxy, Caddy):
+#   quantmail.in            -> quantmail-frontend:3010
+#   quantai.quantrinity.in  -> quantai:3020
+#   quantchat.quantrinity.in -> quantchat:3015
+#   <anything else, incl. raw IP> -> quantmail-frontend:3010
+#     (the deploy workflow health-checks https://<vm-ip>/api/health with -k;
+#      quantmail-frontend serves /api/health -> 200.)
+#
+# Frontend -> backend wiring is server-side: the quantmail frontend proxies
+# /api/* to $QUANTMAIL_BACKEND_URL (default localhost:3010); here it points at
+# the backend service on the compose network.
+
+services:
+  quant-proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/quant/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /etc/quant/certs:/etc/quant/certs:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  quantmail-frontend:
+    image: ghcr.io/quantrinitylab/quant-oci-quantmail-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - /etc/quant/secrets.env
+    environment:
+      QUANTMAIL_BACKEND_URL: http://quantmail-backend:3011
+    depends_on:
+      quantmail-backend:
+        condition: service_started
+
+  quantmail-backend:
+    image: ghcr.io/quantrinitylab/quant-oci-quantmail-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - /etc/quant/secrets.env
+    environment:
+      PORT: "3011"
+
+  quantchat:
+    image: ghcr.io/quantrinitylab/quant-oci-quantchat:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - /etc/quant/secrets.env
+    environment:
+      PORT: "3015"
+
+  quantai:
+    image: ghcr.io/quantrinitylab/quant-oci-quantai:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - /etc/quant/secrets.env
+    environment:
+      PORT: "3020"
+      QUANTMAIL_BACKEND_URL: http://quantmail-backend:3011
+
+volumes:
+  caddy-data:
+  caddy-config:
