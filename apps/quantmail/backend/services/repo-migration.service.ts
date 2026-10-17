@@ -5,7 +5,16 @@
 // ============================================================================
 
 import { randomUUID } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { mkdtemp, mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { promisify } from 'node:util';
 import { createAppError } from '@quant/server-core';
+import { RepoStorageService } from '../modules/code/services/git-transport/repo-storage.service';
+import { GIT_CHILD_ENV } from '../modules/code/services/git-transport/git-child-env';
+
+const execFileAsync = promisify(execFile);
 
 export type MigrationProvider = 'github' | 'gitlab' | 'git';
 
@@ -91,6 +100,268 @@ export interface ImportRepositoryResult {
 
 // In-memory fallback repository store when database/Prisma is absent or mocked
 export const memoryMigratedReposStore = new Map<string, ImportedRepoRecord>();
+
+// ---------------------------------------------------------------------------
+// Real source-repository discovery (P1 fix 2026-10-17).
+//
+// importRepository used to FABRICATE branch names (['main', 'develop',
+// 'release/v1.0']), a random commit count, and a randomUUID-derived pseudo-SHA
+// (not even a valid 40-hex git object id), then persisted those invented SHAs
+// into the branch table — with no clone and no provisioning. The branch rows
+// pointed at git objects that exist nowhere.
+//
+// The service now performs a real `git clone --bare` of the source URL and
+// derives everything from the cloned objects: branch names + 40-hex SHAs from
+// refs/heads, per-branch commit counts from rev-list, workflow files and
+// .env.example read from the default branch's tree. When the source cannot be
+// reached, every failure is an honest, coded error — never invented data.
+// ---------------------------------------------------------------------------
+
+/** A real branch discovered from the source repository's refs/heads. */
+export interface DiscoveredBranch {
+  name: string;
+  /** 40-hex git object id, straight from the source's ref. */
+  sha: string;
+  /** Real commit count from `git rev-list --count <sha>`. */
+  commitCount: number;
+}
+
+/** Everything importRepository learns from the real cloned source repo. */
+export interface DiscoveredSourceRepo {
+  branches: DiscoveredBranch[];
+  /** The source's actual default branch (remote HEAD symref), never assumed. */
+  defaultBranch: string;
+  /** Real workflow files read from the default branch tree (bounded). */
+  workflowFiles: { path: string; content: string }[];
+  /** Real .env.example/.env.sample content, or null when the source has none. */
+  envExampleContent: string | null;
+}
+
+/**
+ * Clone + discovery port. The default implementation shells out to real git;
+ * tests inject a stub so no network is touched.
+ */
+export interface MigrationGitOps {
+  cloneAndDiscover(sourceUrl: string, stagingDir: string, token?: string): Promise<DiscoveredSourceRepo>;
+}
+
+const HEX40_RE = /^[0-9a-f]{40}$/;
+const CLONE_TIMEOUT_MS = 180_000;
+const MAX_WORKFLOW_FILES = 12;
+const MAX_WORKFLOW_FILE_BYTES = 256 * 1024;
+const MAX_ENV_FILE_BYTES = 64 * 1024;
+
+function sanitizeGitOutput(text: string, maxLen = 300): string {
+  return text
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/[^\x20-\x7e]/g, '')
+    .trim()
+    .slice(0, maxLen);
+}
+
+export function mapMigrationCloneError(err: unknown, tokenProvided: boolean): Error {
+  const e = err as { killed?: boolean; stderr?: unknown; message?: unknown };
+  const stderr = typeof e?.stderr === 'string' ? e.stderr : '';
+  const message = typeof e?.message === 'string' ? e.message : '';
+  const blob = `${stderr} ${message}`.toLowerCase();
+
+  if (e?.killed === true || blob.includes('timed out')) {
+    return createAppError(
+      'Source repository clone timed out (180s) — the source may be too large or unreachable',
+      504,
+      'MIGRATION_CLONE_TIMEOUT',
+    );
+  }
+  if (
+    blob.includes('authentication failed') ||
+    blob.includes('permission denied') ||
+    blob.includes('unauthorized') ||
+    /\b401\b|\b403\b/.test(blob)
+  ) {
+    return tokenProvided
+      ? createAppError('Source repository rejected the provided credentials', 403, 'MIGRATION_SOURCE_FORBIDDEN')
+      : createAppError(
+          'Source repository requires authentication — provide a token for private sources',
+          401,
+          'MIGRATION_SOURCE_AUTH_REQUIRED',
+        );
+  }
+  if (
+    blob.includes('not found') ||
+    blob.includes("couldn't find remote ref") ||
+    blob.includes('does not appear to be a git repository') ||
+    blob.includes('unable to connect') ||
+    blob.includes('connection refused') ||
+    blob.includes('could not resolve host') ||
+    blob.includes('name resolution') ||
+    /\b404\b/.test(blob)
+  ) {
+    return createAppError(
+      'Source repository not found or unreachable — check the URL',
+      404,
+      'MIGRATION_SOURCE_NOT_FOUND',
+    );
+  }
+  const detail = sanitizeGitOutput(stderr) || sanitizeGitOutput(message);
+  return createAppError(
+    `Failed to clone source repository${detail ? `: ${detail}` : ''}`,
+    502,
+    'MIGRATION_CLONE_FAILED',
+  );
+}
+
+async function runGit(
+  args: string[],
+  opts: { cwd?: string; env?: NodeJS.ProcessEnv; timeout?: number; maxBuffer?: number } = {},
+): Promise<string> {
+  const { stdout } = await execFileAsync('git', args, {
+    env: GIT_CHILD_ENV,
+    timeout: 60_000,
+    maxBuffer: 10 * 1024 * 1024,
+    ...opts,
+  });
+  return stdout;
+}
+
+/** Reads one file from the cloned repo's object store; null when absent. Never throws for missing files. */
+async function showFileFromObjects(
+  repoDir: string,
+  sha: string,
+  path: string,
+  maxBytes: number,
+): Promise<string | null> {
+  try {
+    const out = await runGit(['--git-dir', repoDir, 'show', `${sha}:${path}`], {
+      maxBuffer: maxBytes + 1024,
+      timeout: 30_000,
+    });
+    return out.slice(0, maxBytes);
+  } catch {
+    return null;
+  }
+}
+
+async function realCloneAndDiscover(
+  sourceUrl: string,
+  stagingDir: string,
+  token?: string,
+): Promise<DiscoveredSourceRepo> {
+  // Token travels in the child env for a throwaway askpass script — never in
+  // the URL, never in argv (both leak into process listings / logs).
+  let askpassPath: string | null = null;
+  const env: NodeJS.ProcessEnv = { ...GIT_CHILD_ENV };
+  if (token && token.trim()) {
+    askpassPath = join(dirname(stagingDir), 'askpass.sh');
+    await writeFile(askpassPath, '#!/bin/sh\nprintf \'%s\' "$QUANTGIT_IMPORT_TOKEN"\n', {
+      mode: 0o700,
+    });
+    env['GIT_ASKPASS'] = askpassPath;
+    env['QUANTGIT_IMPORT_TOKEN'] = token;
+  }
+
+  try {
+    await runGit(['clone', '--bare', '--no-checkout', sourceUrl, stagingDir], {
+      env,
+      timeout: CLONE_TIMEOUT_MS,
+      maxBuffer: 4 * 1024 * 1024,
+    }).catch((err: unknown) => {
+      throw mapMigrationCloneError(err, Boolean(token && token.trim()));
+    });
+  } finally {
+    if (askpassPath) {
+      await rm(askpassPath, { force: true }).catch(() => {});
+      delete env['QUANTGIT_IMPORT_TOKEN'];
+    }
+  }
+
+  // Real branches + real SHAs from refs/heads.
+  const refsOut = await runGit(
+    ['--git-dir', stagingDir, 'for-each-ref', '--format=%(refname:short)%09%(objectname)', 'refs/heads'],
+    { timeout: 30_000 },
+  );
+  const branches: DiscoveredBranch[] = [];
+  for (const line of refsOut.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const tab = trimmed.indexOf('\t');
+    const name = tab >= 0 ? trimmed.slice(0, tab) : '';
+    const sha = tab >= 0 ? trimmed.slice(tab + 1) : '';
+    if (!name || !HEX40_RE.test(sha)) {
+      throw createAppError('Source repository returned malformed refs', 502, 'MIGRATION_MALFORMED_REFS');
+    }
+    branches.push({ name, sha, commitCount: 0 });
+  }
+  if (branches.length === 0) {
+    throw createAppError(
+      'No branches discovered in the source repository — nothing to import',
+      502,
+      'MIGRATION_NO_BRANCHES',
+    );
+  }
+
+  // Real default branch from the remote HEAD symref (set by clone); fall back
+  // to the actual discovered refs, never to an assumed name.
+  let defaultBranch: string | null = null;
+  try {
+    const headRef = (await runGit(['--git-dir', stagingDir, 'symbolic-ref', '--short', 'HEAD'], { timeout: 15_000 })).trim();
+    if (headRef.startsWith('refs/heads/')) {
+      const candidate = headRef.slice('refs/heads/'.length);
+      if (branches.some((b) => b.name === candidate)) defaultBranch = candidate;
+    }
+  } catch {
+    // fall through to ref-based fallback below
+  }
+  if (!defaultBranch) {
+    defaultBranch = branches.some((b) => b.name === 'main') ? 'main' : branches[0].name;
+  }
+
+  const defaultSha = branches.find((b) => b.name === defaultBranch)?.sha ?? branches[0].sha;
+
+  // Real per-branch commit counts.
+  for (const branch of branches) {
+    const countOut = await runGit(['--git-dir', stagingDir, 'rev-list', '--count', branch.sha], {
+      timeout: 60_000,
+    });
+    const count = Number(countOut.trim());
+    if (!Number.isInteger(count) || count < 0) {
+      throw createAppError('Source repository returned a malformed commit count', 502, 'MIGRATION_MALFORMED_COUNT');
+    }
+    branch.commitCount = count;
+  }
+
+  // Real workflow files from the default branch's tree (bounded).
+  const workflowFiles: { path: string; content: string }[] = [];
+  try {
+    const treeOut = await runGit(
+      ['--git-dir', stagingDir, 'ls-tree', '-r', '--name-only', defaultSha, '--', '.github/workflows', '.gitlab-ci.yml'],
+      { timeout: 30_000 },
+    );
+    const candidates = treeOut
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && /\.(ya?ml)$/i.test(s))
+      .slice(0, MAX_WORKFLOW_FILES);
+    for (const candidate of candidates) {
+      const content = await showFileFromObjects(stagingDir, defaultSha, candidate, MAX_WORKFLOW_FILE_BYTES);
+      if (content !== null) workflowFiles.push({ path: candidate, content });
+    }
+  } catch {
+    // A tree-listing failure must not fail the whole import; pipelines are
+    // best-effort enrichment. The branches (the core import) are already real.
+  }
+
+  // Real .env.example / .env.sample from the default branch's tree.
+  let envExampleContent: string | null = null;
+  for (const envPath of ['.env.example', '.env.sample']) {
+    const content = await showFileFromObjects(stagingDir, defaultSha, envPath, MAX_ENV_FILE_BYTES);
+    if (content !== null) {
+      envExampleContent = content;
+      break;
+    }
+  }
+
+  return { branches, defaultBranch, workflowFiles, envExampleContent };
+}
 
 /**
  * Validates the remote repository source URL according to the selected provider.
@@ -651,15 +922,30 @@ function getEnvVarDescription(key: string): string {
   return `Configured environment variable: ${key}`;
 }
 
+/** Default git operations: real `git` subprocess calls (no network mocking). */
+export const defaultMigrationGitOps: MigrationGitOps = {
+  cloneAndDiscover: realCloneAndDiscover,
+};
+
 /**
  * Main Service Class for Repository Migration
  */
 export class RepoMigrationService {
-  constructor(private readonly prisma?: any) {}
+  constructor(
+    private readonly prisma?: any,
+    private readonly gitOps: MigrationGitOps = defaultMigrationGitOps,
+    private readonly storage: RepoStorageService = new RepoStorageService(),
+  ) {}
 
   /**
    * Imports a remote repository from GitHub, GitLab, or generic Git URL,
    * converts CI/CD workflows, extracts environment secrets, and persists the record.
+   *
+   * Everything about the source repo (branches, SHAs, commit counts, workflow
+   * files, env examples) comes from a real `git clone --bare` of the source
+   * URL; the clone is then provisioned into QuantGit storage so the imported
+   * repo is actually servable. Failures are honest coded errors — this method
+   * never invents branches, SHAs, counts, pipelines, or env vars.
    */
   async importRepository(input: ImportRepositoryInput): Promise<ImportRepositoryResult> {
     // 1. Validate inputs
@@ -682,91 +968,88 @@ export class RepoMigrationService {
 
     const targetOwner = input.targetOwner.trim();
 
-    // 2. Discover remote Git refs, commit history, and branches
-    const discoveredBranches = ['main', 'develop', 'release/v1.0'];
-    const commitCount = Math.floor(Math.random() * 45) + 35; // resilient mock-accurate commit count
-    const latestCommitSha = randomUUID().replace(/-/g, '') + 'c4e6';
-
-    // 3. CI/CD Pipeline Converter
-    const convertedPipelines: ConvertedPipelineResult[] = [];
-    if (input.importPipelines !== false) {
-      if (input.provider === 'github') {
-        const sampleGitHubYaml = `
-name: Continuous Integration
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node
-        run: nvm use 20 || node -v
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Run Test Suite
-        run: pnpm test
-        env:
-          DATABASE_URL: \${{ secrets.DATABASE_URL }}
-          API_KEY: \${{ secrets.API_KEY }}
-`;
-        convertedPipelines.push(
-          convertGitHubActionsToQuantWorkflow(sampleGitHubYaml, '.github/workflows/ci.yml'),
-        );
-      } else if (input.provider === 'gitlab') {
-        const sampleGitLabYaml = `
-stages:
-  - build
-  - test
-  - deploy
-
-build_job:
-  stage: build
-  script:
-    - pnpm install
-    - pnpm build
-  artifacts:
-    paths:
-      - dist/
-    expire_in: 1 week
-
-test_job:
-  stage: test
-  script:
-    - pnpm test
-`;
-        convertedPipelines.push(convertGitLabCiToQuantWorkflow(sampleGitLabYaml, '.gitlab-ci.yml'));
-      } else {
-        // Generic git: generate default sovereign pipeline
-        convertedPipelines.push(
-          convertGitHubActionsToQuantWorkflow(
-            `name: CI\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm test`,
-            '.quant/workflows/ci.yml',
-          ),
+    // 2. Fail fast BEFORE the expensive clone: the name/storage must be free.
+    if (this.prisma?.repository) {
+      const existing = await this.prisma.repository.findFirst({
+        where: { ownerId: targetOwner, name: cleanTargetName, deletedAt: null },
+      });
+      if (existing) {
+        throw createAppError(
+          `A repository named '${cleanTargetName}' already exists for this owner`,
+          409,
+          'REPO_ALREADY_EXISTS',
         );
       }
     }
-
-    // 4. Environment & Secrets Importer
-    let importedEnvVars: ImportedEnvVar[] = [];
-    if (input.importEnv !== false) {
-      const sampleEnvExample = `
-# Quant Migration Detected Environment
-DATABASE_URL=postgresql://quant:password@localhost:5432/quant_repo
-PORT=3000
-NODE_ENV=production
-API_KEY=sk_quant_dummy_live_token
-JWT_SECRET=super_secret_quant_jwt_key
-REDIS_URL=redis://localhost:6379
-`;
-      const workflowEnvContent = convertedPipelines.map((p) => p.workflowYaml).join('\n');
-      importedEnvVars = extractEnvironmentVariables(sampleEnvExample, workflowEnvContent);
+    const finalStoragePath = this.storage.getRepoPath(targetOwner, cleanTargetName);
+    if (await this.storage.repoExists(targetOwner, cleanTargetName)) {
+      throw createAppError('Repository storage already contains Git history', 409, 'REPOSITORY_STORAGE_CONFLICT');
     }
 
-    // 5. Persist repository record in Prisma or in-memory fallback
+    // 3. Real clone + discovery. The staging dir lives next to the final path
+    // so provisioning is an atomic rename on the same filesystem.
+    await mkdir(dirname(finalStoragePath), { recursive: true });
+    const stagingParent = await mkdtemp(join(dirname(finalStoragePath), '.import-'));
+    const stagingDir = join(stagingParent, 'repo.git');
+    let discovered: DiscoveredSourceRepo;
+    try {
+      discovered = await this.gitOps.cloneAndDiscover(input.sourceUrl, stagingDir, input.token);
+    } catch (err) {
+      await rm(stagingParent, { recursive: true, force: true });
+      throw err;
+    }
+    if (discovered.branches.length === 0) {
+      await rm(stagingParent, { recursive: true, force: true });
+      throw createAppError(
+        'No branches discovered in the source repository — nothing to import',
+        502,
+        'MIGRATION_NO_BRANCHES',
+      );
+    }
+
+    const defaultBranchRecord =
+      discovered.branches.find((b) => b.name === discovered.defaultBranch) ?? discovered.branches[0];
+    const defaultBranchName = defaultBranchRecord.name;
+    const commitCount = defaultBranchRecord.commitCount;
+
+    // 4. CI/CD Pipeline Converter — real workflow files from the source only.
+    // No workflow files in the source => no converted pipelines (honest).
+    const convertedPipelines: ConvertedPipelineResult[] = [];
+    if (input.importPipelines !== false) {
+      for (const wf of discovered.workflowFiles) {
+        const lower = wf.path.toLowerCase();
+        if (lower.endsWith('.gitlab-ci.yml')) {
+          convertedPipelines.push(convertGitLabCiToQuantWorkflow(wf.content, wf.path));
+        } else {
+          convertedPipelines.push(convertGitHubActionsToQuantWorkflow(wf.content, wf.path));
+        }
+      }
+    }
+
+    // 5. Environment & Secrets Importer — real .env.example content only.
+    // No env example in the source => no imported env vars (honest). The
+    // extractor's 'detected' fallback defaults are invented placeholders, so
+    // they are filtered here: this endpoint only ever returns variables that
+    // were actually found in the source repo.
+    let importedEnvVars: ImportedEnvVar[] = [];
+    if (input.importEnv !== false && discovered.envExampleContent !== null) {
+      const workflowEnvContent = convertedPipelines.map((p) => p.workflowYaml).join('\n');
+      importedEnvVars = extractEnvironmentVariables(discovered.envExampleContent, workflowEnvContent).filter(
+        (v) => v.source !== 'detected',
+      );
+    }
+
+    // 6. Provision: move the cloned bare repo into real QuantGit storage so
+    // the imported branches resolve against actual git objects.
+    try {
+      await rename(stagingDir, finalStoragePath);
+    } catch {
+      await rm(stagingParent, { recursive: true, force: true });
+      throw createAppError('Failed to provision repository storage for the import', 502, 'MIGRATION_PROVISION_FAILED');
+    }
+    await rm(stagingParent, { recursive: true, force: true }).catch(() => {});
+
+    // 7. Persist repository record in Prisma or in-memory fallback
     const repoId = `repo-${randomUUID().slice(0, 8)}`;
     const now = new Date().toISOString();
 
@@ -777,9 +1060,9 @@ REDIS_URL=redis://localhost:6379
       fullName: `${targetOwner}/${cleanTargetName}`,
       description: `Imported from ${input.provider.toUpperCase()} (${input.sourceUrl})`,
       visibility: input.isPrivate ? 'private' : 'public',
-      defaultBranch: 'main',
+      defaultBranch: defaultBranchName,
       cloneUrl: `${(process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://quantmail.in').replace(/\/$/, '')}/api/code/gitd/repos/${encodeURIComponent(targetOwner)}/${encodeURIComponent(cleanTargetName)}.git`,
-      branches: discoveredBranches,
+      branches: discovered.branches.map((b) => b.name),
       commitCount,
       starCount: 0,
       forkCount: 0,
@@ -789,18 +1072,6 @@ REDIS_URL=redis://localhost:6379
 
     if (this.prisma?.repository) {
       try {
-        const existing = await this.prisma.repository.findFirst({
-          where: { ownerId: targetOwner, name: cleanTargetName, deletedAt: null },
-        });
-
-        if (existing) {
-          throw createAppError(
-            `A repository named '${cleanTargetName}' already exists for this owner`,
-            409,
-            'REPO_ALREADY_EXISTS',
-          );
-        }
-
         const createdDbRepo = await this.prisma.repository.create({
           data: {
             id: repoId,
@@ -808,30 +1079,30 @@ REDIS_URL=redis://localhost:6379
             name: cleanTargetName,
             description: repoRecord.description,
             visibility: input.isPrivate ? 'PRIVATE' : 'PUBLIC',
-            defaultBranch: 'main',
+            defaultBranch: defaultBranchName,
+            storagePathUrl: finalStoragePath,
             starCount: 0,
             forkCount: 0,
           },
         });
 
         if (this.prisma.branch) {
-          for (const b of discoveredBranches) {
+          for (const b of discovered.branches) {
+            // Real SHAs from the source's refs — these resolve against the
+            // provisioned objects above, never invented.
             await this.prisma.branch
               .create({
                 data: {
                   repoId: createdDbRepo.id,
-                  name: b,
-                  commitSha: latestCommitSha,
-                  isProtected: b === 'main',
+                  name: b.name,
+                  commitSha: b.sha,
+                  isProtected: b.name === defaultBranchName,
                 },
               })
               .catch(() => {});
           }
         }
       } catch (err: any) {
-        if (err?.code === 'REPO_ALREADY_EXISTS') {
-          throw err;
-        }
         // If Prisma errors, log and proceed with memory record
       }
     }
@@ -848,3 +1119,32 @@ REDIS_URL=redis://localhost:6379
 }
 
 export const repoMigrationService = new RepoMigrationService();
+
+/**
+ * Test-only seam: overrides clone/discovery and storage on the shared
+ * singleton so route-level tests can exercise the import endpoint without
+ * network access or touching real storage. Production code never calls
+ * this — the default is always the real git implementation + real storage.
+ * Tests MUST call resetRepoMigrationServiceTestOverrides() afterwards: the
+ * singleton is module-global.
+ */
+export function setRepoMigrationServiceTestOverrides(overrides: {
+  gitOps?: MigrationGitOps;
+  storage?: RepoStorageService;
+}): void {
+  const svc = repoMigrationService as unknown as {
+    gitOps: MigrationGitOps;
+    storage: RepoStorageService;
+  };
+  if (overrides.gitOps) svc.gitOps = overrides.gitOps;
+  if (overrides.storage) svc.storage = overrides.storage;
+}
+
+export function resetRepoMigrationServiceTestOverrides(): void {
+  const svc = repoMigrationService as unknown as {
+    gitOps: MigrationGitOps;
+    storage: RepoStorageService;
+  };
+  svc.gitOps = defaultMigrationGitOps;
+  svc.storage = new RepoStorageService();
+}
