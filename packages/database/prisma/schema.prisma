@@ -131,6 +131,8 @@ model User {
   gameBadges         GameBadge[]
   gameScores         GameScore[]
   memories           Memory[]
+  memoriesVaultCredential MemoriesVaultCredential?
+  memoriesVaultUnlocks    MemoriesVaultUnlock[]
   pushSubscriptions  PushSubscription[]
   scheduledMessages  ScheduledMessage[]
   quantAvatar        Avatar?           @relation()
@@ -3340,12 +3342,57 @@ model Memory {
   location  String?
   createdAt DateTime       @default(now())
   deletedAt DateTime?      // soft delete for undo window
+  // QC-F-450: 'My Eyes Only' — item lives behind the vault passcode. Default
+  // false is honest: an item becomes private only by the user's explicit
+  // move; private rows are excluded from every response without a valid
+  // unlock token (row-level exclusion, never a masked placeholder).
+  isPrivate Boolean        @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([userId, deletedAt])
+  @@index([userId, isPrivate])
   @@map("memories")
+}
+
+// QC-F-450: per-user 'My Eyes Only' vault credential (1-1 satellite on User,
+// PreKeyBundle/BitmojiConfig precedent — the shared User model takes no
+// QuantChat-specific scalar columns). Only the argon2id PHC hash of the
+// passcode is ever stored; the plaintext passcode is never persisted or
+// logged. failedAttempts/lockoutUntil implement the persistent
+// 5-strikes/15-minute lockout shared by verify, change, and reset.
+model MemoriesVaultCredential {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  passcodeHash   String
+  failedAttempts Int       @default(0)
+  lockoutUntil   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("memories_vault_credentials")
+}
+
+// QC-F-450: short-lived (5-minute) opaque unlock token for the vault. Only
+// the SHA-256 hex of the token is stored — the plaintext token exists only
+// in the verify response. One live token per user: a fresh verify deletes
+// all previous rows; change/reset/lock delete them too (instant revoke,
+// which a stateless JWT could not do).
+model MemoriesVaultUnlock {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("memories_vault_unlocks")
 }
 
 model ScheduledMessage {
