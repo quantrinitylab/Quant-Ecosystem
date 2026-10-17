@@ -1,8 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { loginRateLimiter, getClientIp } from '../../../../lib/rate-limit';
+import { logServerError } from '../../../../lib/server-log';
 
 const QUANTMAIL_BACKEND_URL = process.env.QUANTMAIL_BACKEND_URL || 'http://localhost:3010';
 
-export async function POST(request: NextRequest) {
+// Accepts NextRequest | Request (same convention as the userinfo route): the
+// handler only uses Request-surface APIs (headers/json/url).
+export async function POST(request: NextRequest | Request) {
+  // F-213: credential-stuffing defense. Fail OPEN on limiter error (logged
+  // loudly) — see lib/rate-limit.ts for the documented rationale.
+  try {
+    const verdict = loginRateLimiter.consume(getClientIp(request));
+    if (!verdict.allowed) {
+      const retryAfterSec = Math.ceil(verdict.retryAfterMs / 1000);
+      const limited = NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'RATE_LIMITED',
+            message: 'Too many sign-in attempts. Please wait and try again.',
+          },
+        },
+        { status: 429 },
+      );
+      limited.headers.set('Retry-After', String(retryAfterSec));
+      return limited;
+    }
+  } catch (limiterError) {
+    // Fail open, but scream: a broken limiter is a P0, not a login outage.
+    logServerError(
+      '[auth/login]',
+      `RATE LIMITER FAILURE — failing open: ${
+        limiterError instanceof Error ? limiterError.message : String(limiterError)
+      }`,
+    );
+  }
+
   const body = await request.json().catch(() => ({}));
   const { email, password } = body;
 
