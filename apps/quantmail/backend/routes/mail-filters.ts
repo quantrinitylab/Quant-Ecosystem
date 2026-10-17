@@ -113,8 +113,16 @@ export default async function mailFiltersRoutes(fastify: FastifyInstance) {
     };
   })();
 
-  // POST /mail-filters
-  fastify.post('/', { preHandler: requireStepUpForForwarding }, async (request, reply) => {
+  // POST /mail-filters — rate-limited: filter writes (esp. with a forwarding
+  // action) are an exfiltration vector, so they get a tighter per-user budget
+  // than the global 1000/min default (CodeQL js/missing-rate-limiting).
+  fastify.post(
+    '/',
+    {
+      preHandler: requireStepUpForForwarding,
+      config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+    },
+    async (request, reply) => {
     const parseResult = createFilterSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw parseResult.error;
@@ -162,8 +170,14 @@ export default async function mailFiltersRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: filter });
   });
 
-  // PUT /mail-filters/:id
-  fastify.put<{ Params: { id: string } }>('/:id', { preHandler: requireStepUpForForwarding }, async (request, reply) => {
+  // PUT /mail-filters/:id — same rate limit as create (see above).
+  fastify.put<{ Params: { id: string } }>(
+    '/:id',
+    {
+      preHandler: requireStepUpForForwarding,
+      config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+    },
+    async (request, reply) => {
     const parseResult = updateFilterSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw parseResult.error;
