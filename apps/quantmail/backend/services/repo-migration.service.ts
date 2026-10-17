@@ -6,13 +6,23 @@
 
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { mkdtemp, mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rename, rm, writeFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 import { createAppError } from '@quant/server-core';
-import { RepoStorageService } from '../modules/code/services/git-transport/repo-storage.service';
-import { GIT_CHILD_ENV } from '../modules/code/services/git-transport/git-child-env';
+
+// Deliberately allowlisted environment for every Git child process.
+// (Local copy of the QuantCode git-transport allowlist: the mail domain may
+// not import from modules/code — see the quantcode-module-boundary test,
+// Requirement 6.2 — so the identical constant lives here.)
+const GIT_CHILD_ENV: NodeJS.ProcessEnv = {
+  PATH: process.env.PATH,
+  GIT_CONFIG_NOSYSTEM: '1',
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_TERMINAL_PROMPT: '0',
+  HOME: process.env.HOME,
+};
 
 const execFileAsync = promisify(execFile);
 
@@ -143,6 +153,61 @@ export interface DiscoveredSourceRepo {
  */
 export interface MigrationGitOps {
   cloneAndDiscover(sourceUrl: string, stagingDir: string, token?: string): Promise<DiscoveredSourceRepo>;
+}
+
+/**
+ * Storage seam for imported repositories. Mail-domain-local port with the same
+ * on-disk layout contract as the QuantCode RepoStorageService (`<base>/<owner>/<name>.git`,
+ * with path-traversal guards) — but owned by the mail domain, because the
+ * mail domain may not import from modules/code (Requirement 6.2, enforced by
+ * the quantcode-module-boundary test). Keep the two implementations' path
+ * semantics in sync if either changes.
+ */
+export interface RepoMigrationStorage {
+  getRepoPath(owner: string, name: string): string;
+  repoExists(owner: string, name: string): Promise<boolean>;
+}
+
+/** Default on-disk storage for migrated repos, inside the mail domain. */
+export class DefaultRepoMigrationStorage implements RepoMigrationStorage {
+  private readonly basePath: string;
+
+  constructor(
+    basePath: string = process.env['GIT_REPOS_PATH'] ?? join(process.cwd(), 'data', 'git-repos'),
+  ) {
+    this.basePath = basePath;
+  }
+
+  getRepoPath(owner: string, name: string): string {
+    if (!owner || !name) {
+      throw new Error('Invalid repository path: owner and name must not be empty');
+    }
+    if (owner.includes('..') || owner.includes('/') || owner.includes('\\')) {
+      throw new Error('Invalid repository path: owner contains path traversal characters');
+    }
+    if (name.includes('..') || name.includes('/') || name.includes('\\')) {
+      throw new Error('Invalid repository path: name contains path traversal characters');
+    }
+
+    const repoName = name.endsWith('.git') ? name : `${name}.git`;
+    const repoPath = join(this.basePath, owner, repoName);
+    const resolvedBase = resolve(this.basePath);
+    const resolvedRepo = resolve(repoPath);
+    if (!resolvedRepo.startsWith(resolvedBase + sep) && resolvedRepo !== resolvedBase) {
+      throw new Error('Invalid repository path: path traversal detected');
+    }
+    return repoPath;
+  }
+
+  async repoExists(owner: string, name: string): Promise<boolean> {
+    try {
+      await access(join(this.getRepoPath(owner, name), 'HEAD'));
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+      throw error;
+    }
+  }
 }
 
 const HEX40_RE = /^[0-9a-f]{40}$/;
@@ -934,7 +999,7 @@ export class RepoMigrationService {
   constructor(
     private readonly prisma?: any,
     private readonly gitOps: MigrationGitOps = defaultMigrationGitOps,
-    private readonly storage: RepoStorageService = new RepoStorageService(),
+    private readonly storage: RepoMigrationStorage = new DefaultRepoMigrationStorage(),
   ) {}
 
   /**
@@ -1130,11 +1195,11 @@ export const repoMigrationService = new RepoMigrationService();
  */
 export function setRepoMigrationServiceTestOverrides(overrides: {
   gitOps?: MigrationGitOps;
-  storage?: RepoStorageService;
+  storage?: RepoMigrationStorage;
 }): void {
   const svc = repoMigrationService as unknown as {
     gitOps: MigrationGitOps;
-    storage: RepoStorageService;
+    storage: RepoMigrationStorage;
   };
   if (overrides.gitOps) svc.gitOps = overrides.gitOps;
   if (overrides.storage) svc.storage = overrides.storage;
@@ -1143,8 +1208,8 @@ export function setRepoMigrationServiceTestOverrides(overrides: {
 export function resetRepoMigrationServiceTestOverrides(): void {
   const svc = repoMigrationService as unknown as {
     gitOps: MigrationGitOps;
-    storage: RepoStorageService;
+    storage: RepoMigrationStorage;
   };
   svc.gitOps = defaultMigrationGitOps;
-  svc.storage = new RepoStorageService();
+  svc.storage = new DefaultRepoMigrationStorage();
 }
