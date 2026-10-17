@@ -280,7 +280,16 @@ describe('ConversationService', () => {
                 where: { leftAt: null },
                 include: {
                   user: {
-                    select: { id: true, username: true, displayName: true, avatarUrl: true },
+                    // QC-F-466: the member query also selects the emoji-status
+                    // columns so the participant DTO can serve a live status.
+                    select: {
+                      id: true,
+                      username: true,
+                      displayName: true,
+                      avatarUrl: true,
+                      statusEmoji: true,
+                      statusEmojiExpiresAt: true,
+                    },
                   },
                 },
               },
@@ -390,7 +399,16 @@ describe('ConversationService', () => {
           members: {
             where: { leftAt: null },
             include: {
-              user: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  displayName: true,
+                  avatarUrl: true,
+                  statusEmoji: true,
+                  statusEmojiExpiresAt: true,
+                },
+              },
             },
           },
         },
