@@ -10,7 +10,7 @@ vi.mock('@quant/api-client', () => ({
 }));
 
 import { apiFetchRaw } from '@quant/api-client';
-import { SecurityTab, markSecretFalsePositiveOnServer } from '../app/quantgit/components/SecurityTab';
+import { SecurityTab, markSecretFalsePositiveOnServer } from '../app/(app)/quantgit/components/SecurityTab';
 
 const successEnvelope = {
   success: true,

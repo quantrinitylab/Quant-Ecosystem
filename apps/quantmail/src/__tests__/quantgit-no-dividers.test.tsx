@@ -3,7 +3,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { QuantGitRowSkeleton } from '../app/quantgit/components/QuantGitSkeletons';
+import { QuantGitRowSkeleton } from '../app/(app)/quantgit/components/QuantGitSkeletons';
 
 // QM-FIX-LOOP — QuantGit no-divider-lines design lock.
 // The user-locked QuantMail rule: NO divider lines; separation comes from

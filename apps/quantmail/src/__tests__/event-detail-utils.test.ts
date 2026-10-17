@@ -11,7 +11,7 @@ import {
   toLocalInputValue,
   stripQuantMeta,
   RSVP_LABELS,
-} from '../app/calendar/event/event-detail-utils';
+} from '../app/(app)/calendar/event/event-detail-utils';
 
 describe('formatWhen', () => {
   it('renders a same-day range with the date once', () => {
@@ -117,7 +117,7 @@ describe('createRsvpWriteGate — in-flight guard (fix/qm-booking-journey-v2)', 
 
   it('drops a second direct request while the first write is in flight', async () => {
     const { createRsvpWriteGate } = await import(
-      '../app/calendar/event/event-detail-utils'
+      '../app/(app)/calendar/event/event-detail-utils'
     );
     const gatePost = deferred<unknown>();
     let calls = 0;
@@ -140,7 +140,7 @@ describe('createRsvpWriteGate — in-flight guard (fix/qm-booking-journey-v2)', 
 
   it('re-arms after the in-flight write settles, so a status change still posts', async () => {
     const { createRsvpWriteGate } = await import(
-      '../app/calendar/event/event-detail-utils'
+      '../app/(app)/calendar/event/event-detail-utils'
     );
     const calls: string[] = [];
     const gate = createRsvpWriteGate({
@@ -158,7 +158,7 @@ describe('createRsvpWriteGate — in-flight guard (fix/qm-booking-journey-v2)', 
 
   it('a rejected in-flight write clears the guard (no stuck gate)', async () => {
     const { createRsvpWriteGate } = await import(
-      '../app/calendar/event/event-detail-utils'
+      '../app/(app)/calendar/event/event-detail-utils'
     );
     let calls = 0;
     let fail = true;
@@ -179,7 +179,7 @@ describe('createRsvpWriteGate — in-flight guard (fix/qm-booking-journey-v2)', 
 
   it('series path still requires confirmation and confirm() stays one-shot', async () => {
     const { createRsvpWriteGate } = await import(
-      '../app/calendar/event/event-detail-utils'
+      '../app/(app)/calendar/event/event-detail-utils'
     );
     let calls = 0;
     const gate = createRsvpWriteGate({

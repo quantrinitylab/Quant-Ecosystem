@@ -11,7 +11,7 @@ import {
   DriveCleanerSubView,
   type DriveSubTab,
   type DriveItem,
-} from '../app/drive/components';
+} from '../app/(app)/drive/components';
 import type { SentShareItem } from '../hooks/useDrive';
 
 // The quota meter reads the real GET /api/drive/quota through this hook; the

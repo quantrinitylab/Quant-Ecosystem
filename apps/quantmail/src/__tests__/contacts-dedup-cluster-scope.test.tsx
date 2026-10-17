@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import {
   DedupWizardSubView,
   type DedupCollisionPair,
-} from '../app/contacts/components/ContactsSubViews';
+} from '../app/(app)/contacts/components/ContactsSubViews';
 
 /**
  * qm-dedup-cluster — wizard merge-scope honesty regression tests.

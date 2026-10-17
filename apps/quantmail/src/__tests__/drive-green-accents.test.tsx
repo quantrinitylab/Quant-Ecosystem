@@ -3,9 +3,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import React from 'react';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { DriveMobileTabStrip } from '../app/drive/components/DriveMobileTabStrip';
-import { DriveContextTabsHeader } from '../app/drive/components/DriveContextTabsHeader';
-import { DriveSharedByMeSubView } from '../app/drive/components/DriveSharedByMeSubView';
+import { DriveMobileTabStrip } from '../app/(app)/drive/components/DriveMobileTabStrip';
+import { DriveContextTabsHeader } from '../app/(app)/drive/components/DriveContextTabsHeader';
+import { DriveSharedByMeSubView } from '../app/(app)/drive/components/DriveSharedByMeSubView';
 import type { SentShareItem } from '../hooks/useDrive';
 
 /**

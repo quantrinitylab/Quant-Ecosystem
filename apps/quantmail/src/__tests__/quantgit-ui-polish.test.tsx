@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PullRequestsTab } from '../app/quantgit/components/PullRequestsTab';
-import { IssuesTab } from '../app/quantgit/components/IssuesTab';
-import { AgentsTab } from '../app/quantgit/components/AgentsTab';
-import { QuantGitRowSkeleton, QuantGitEmptyState } from '../app/quantgit/components/QuantGitSkeletons';
+import { PullRequestsTab } from '../app/(app)/quantgit/components/PullRequestsTab';
+import { IssuesTab } from '../app/(app)/quantgit/components/IssuesTab';
+import { AgentsTab } from '../app/(app)/quantgit/components/AgentsTab';
+import { QuantGitRowSkeleton, QuantGitEmptyState } from '../app/(app)/quantgit/components/QuantGitSkeletons';
 import {
   QuantGitPRIcon,
   QuantGitIssueOpenIcon,
@@ -12,8 +12,8 @@ import {
   QuantGitCheckCircleIcon,
   QuantGitXCircleIcon,
   QuantGitCommentIcon,
-} from '../app/quantgit/components/QuantGitIcons';
-import type { PRItem, IssueItem, DeployedAgent } from '../app/quantgit/types';
+} from '../app/(app)/quantgit/components/QuantGitIcons';
+import type { PRItem, IssueItem, DeployedAgent } from '../app/(app)/quantgit/types';
 
 const mockPRs: PRItem[] = [
   {

@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { DriveVaultSubView } from '../app/drive/components/DriveVaultSubView';
-import { DriveSharedSubView } from '../app/drive/components/DriveSharedSubView';
-import { DriveStarredSubView } from '../app/drive/components/DriveStarredSubView';
-import { DriveCleanerSubView } from '../app/drive/components/DriveCleanerSubView';
+import { DriveVaultSubView } from '../app/(app)/drive/components/DriveVaultSubView';
+import { DriveSharedSubView } from '../app/(app)/drive/components/DriveSharedSubView';
+import { DriveStarredSubView } from '../app/(app)/drive/components/DriveStarredSubView';
+import { DriveCleanerSubView } from '../app/(app)/drive/components/DriveCleanerSubView';
 
 // QM-UIUX-020 — Drive fake-data purge: vault, shared, starred, cleaner.
 // Regression: with empty data (the state every fresh account is in), the

@@ -1,0 +1,394 @@
+'use client';
+
+// ============================================================================
+// QuantDrive Document Editor — Canonical Route /drive/doc/[docId]
+// Adheres strictly to Gates N-G1 through N-G5 in PHASE_N_COLLABORATION_MEMO.md
+// Tasks N05 & N06: TipTap / Block Editor UI & Real-Time CRDT Collaboration
+// ============================================================================
+
+import React, { useState, useMemo, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { AppShell } from '../../../../../components/AppShell';
+import { AppSidebar } from '../../../../../components/AppSidebar';
+import { showToast } from '../../../../../components/InboxToast';
+import { browserApiRequest } from '../../../../../services/browser-api-request';
+import { useCollabDoc } from './useCollabDoc';
+import { DocumentHeader } from './DocumentHeader';
+import { DocumentVersionHistoryModal } from './DocumentVersionHistoryModal';
+import { BlockEditor } from './BlockEditor';
+import { blocksToMarkdown, markdownToBlocks, downloadMarkdownFile } from './markdown-serializer';
+import { useConfirm } from '../../../../../hooks/useConfirm';
+import { useAuth } from '../../../../../providers/auth-provider';
+import {
+  docCacheAccountKey,
+  writeDocCache,
+  removeDocCache,
+  purgeLegacyDocCacheKeys,
+  windowDocCacheStorage,
+} from '../../../../../lib/docContentCache';
+
+const EMOJI_PRESETS = ['📄', '🚀', '💡', '📝', '📊', '⚡', '🔒', '🎯', '✨', '🔥'];
+
+export default function DocumentPage() {
+  const params = useParams<{ docId: string }>();
+  const router = useRouter();
+  const docId = params?.docId ?? 'default';
+
+  // P1 qm-drive-doc-cache-scope: the doc cache namespace is account-scoped.
+  // Defensive (same guard as AppShell): tests may render without AuthProvider.
+  let currentUserEmail = '';
+  try {
+    const { user: currentUser } = useAuth();
+    currentUserEmail = currentUser?.email || '';
+  } catch {
+    currentUserEmail = '';
+  }
+  const docAccountKey = docCacheAccountKey(currentUserEmail);
+
+  const {
+    title,
+    setTitle,
+    blocks,
+    setBlocks,
+    metadata,
+    setMetadata,
+    isPublic,
+    setIsPublic,
+    syncStatus,
+    lastSaved,
+    collaborators,
+    isLoading,
+    broadcastCursor,
+    breadcrumbs,
+    subpages,
+    retrySave,
+  } = useCollabDoc(docId, currentUserEmail);
+  const [fullWidth, setFullWidth] = useState<boolean>(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
+  const [isCreatingSubpage, setIsCreatingSubpage] = useState<boolean>(false);
+  const [showVersionHistoryModal, setShowVersionHistoryModal] = useState<boolean>(false);
+
+  const handleAddSubpage = useCallback(async () => {
+    setIsCreatingSubpage(true);
+    try {
+      const res = await browserApiRequest('/api/documents', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: 'Untitled',
+          parentId: docId,
+        }),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { success: boolean; data: { id: string } };
+        if (json.data?.id) {
+          showToast({ text: 'Subpage created', type: 'success', subject: 'doc-subpage' });
+          router.push(`/drive/doc/${json.data.id}`);
+          return;
+        }
+      }
+      showToast({ text: 'Failed to create subpage', type: 'error', subject: 'doc-subpage' });
+    } catch {
+      showToast({ text: 'Failed to create subpage', type: 'error', subject: 'doc-subpage' });
+    } finally {
+      setIsCreatingSubpage(false);
+    }
+  }, [docId, router]);
+
+  // Compute total word count
+  const wordCount = useMemo(() => {
+    return blocks.reduce((acc, b) => {
+      const text = b.content || '';
+      const words = text.trim().split(/\s+/).filter(Boolean);
+      return acc + words.length;
+    }, 0);
+  }, [blocks]);
+
+  // Markdown Export handler
+  const handleExportMarkdown = useCallback(() => {
+    const md = blocksToMarkdown(blocks);
+    const filename = title || 'untitled-document';
+    downloadMarkdownFile(filename, md);
+    showToast({
+      text: `Exported "${filename}.md"`,
+      type: 'success',
+      subject: 'doc-export',
+    });
+  }, [blocks, title]);
+
+  // Markdown Import handler
+  const handleImportMarkdown = useCallback(
+    async (file: File) => {
+      try {
+        const text = await file.text();
+        const parsedBlocks = markdownToBlocks(text);
+        setBlocks(parsedBlocks);
+        // If file has a name, update title
+        const baseName = file.name.replace(/\.[^/.]+$/, '');
+        if (baseName && (!title || title === 'Untitled Document')) {
+          setTitle(baseName);
+        }
+        showToast({
+          text: `Imported ${parsedBlocks.length} blocks from "${file.name}"`,
+          type: 'success',
+          subject: 'doc-import',
+        });
+      } catch {
+        showToast({
+          text: `Failed to import "${file.name}"`,
+          type: 'error',
+          subject: 'doc-import',
+        });
+      }
+    },
+    [setBlocks, setTitle, title],
+  );
+
+  // Duplicate document handler
+  const handleDuplicateDocument = useCallback(() => {
+    const newDocId = 'doc_' + Math.random().toString(36).substring(2, 9);
+    try {
+      // Account-scoped: the copy lands in the duplicating account's own
+      // namespace; unknown account = fail closed (no shared cache key).
+      writeDocCache(
+        windowDocCacheStorage(),
+        newDocId,
+        docAccountKey,
+        JSON.stringify({
+          title: `${title} (Copy)`,
+          blocks,
+          metadata,
+          updatedAt: new Date().toISOString(),
+        }),
+      );
+      showToast({ text: 'Document duplicated', type: 'success', subject: 'doc-duplicate' });
+      router.push(`/drive/doc/${newDocId}`);
+    } catch {
+      showToast({ text: 'Failed to duplicate document', type: 'error', subject: 'doc-duplicate' });
+    }
+  }, [title, blocks, metadata, router, docAccountKey]);
+
+  // Delete document handler
+  // Was: window.confirm() + localStorage-only removal. The native confirm is
+  // unreliable in embedded/automated browsers (the click appeared to do
+  // nothing: no dialog, no toast, doc remained), and the server copy was
+  // never trashed. Now: in-app confirm + real backend trash call.
+  const { confirm: confirmDelete, dialog: confirmDeleteDialog } = useConfirm();
+  const handleDeleteDocument = useCallback(async () => {
+    const ok = await confirmDelete({
+      title: 'Delete this document?',
+      message: `"${
+        title || 'Untitled document'
+      }" will be moved to Trash. You can restore it anytime from the Trash tab.`,
+      confirmLabel: 'Move to Trash',
+      variant: 'destructive',
+    });
+    if (!ok) return;
+    try {
+      const res = await browserApiRequest('/api/drive/files/trash', {
+        method: 'POST',
+        body: JSON.stringify({ fileIds: [docId] }),
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      // Remove the current account's cached copy plus any legacy unscoped
+      // copy — no other account's namespace is ever touched.
+      removeDocCache(windowDocCacheStorage(), docId, docAccountKey);
+      purgeLegacyDocCacheKeys(windowDocCacheStorage());
+      showToast({ text: 'Document moved to trash', type: 'info', subject: 'doc-delete' });
+      router.push('/drive');
+    } catch {
+      showToast({ text: 'Failed to delete document', type: 'error', subject: 'doc-delete' });
+    }
+  }, [docId, router, title, confirmDelete, docAccountKey]);
+
+  return (
+    <AppShell
+      sidebar={<AppSidebar />}
+      theme="dark"
+      className="quantmail-shell"
+      searchPlaceholder="Search document content..."
+    >
+      <div className="flex flex-col h-full bg-[var(--quant-background)] text-[#C9D1D9] overflow-hidden">
+        {/* Notion-class Header Bar */}
+        <DocumentHeader
+          docId={docId}
+          title={title}
+          onTitleChange={setTitle}
+          syncStatus={syncStatus}
+          lastSaved={lastSaved}
+          collaborators={collaborators}
+          isPublic={isPublic}
+          onTogglePublic={setIsPublic}
+          onExportMarkdown={handleExportMarkdown}
+          onImportMarkdown={handleImportMarkdown}
+          onDeleteDocument={handleDeleteDocument}
+          onDuplicateDocument={handleDuplicateDocument}
+          fullWidth={fullWidth}
+          onToggleFullWidth={() => setFullWidth(!fullWidth)}
+          wordCount={wordCount}
+          breadcrumbs={breadcrumbs}
+          onOpenVersionHistory={() => setShowVersionHistoryModal(true)}
+        />
+
+        {/* Scrollable Document Workspace */}
+        <main className="flex-1 overflow-y-auto no-scrollbar relative">
+          {isLoading ? (
+            <div className="mx-auto max-w-4xl py-20 px-8 space-y-6 animate-pulse">
+              <div className="h-10 w-48 bg-[var(--quant-surface-elevated)] rounded-lg" />
+              <div className="h-4 w-full bg-[var(--quant-surface-elevated)] rounded" />
+              <div className="h-4 w-3/4 bg-[var(--quant-surface-elevated)] rounded" />
+              <div className="h-32 w-full bg-[var(--quant-surface-elevated)] rounded-xl" />
+            </div>
+          ) : (
+            <div className="min-h-full">
+              {/* Save-failure banner — HONEST SAVE STATUS: the backend rejected
+                  the write, so edits exist only in this browser's localStorage.
+                  Never hidden, never a fake "Saved". */}
+              {syncStatus === 'error' && (
+                <div role="alert" className="mx-auto max-w-4xl px-4 sm:px-12 pt-6">
+                  <div className="flex items-center gap-3 rounded-xl border border-[#F85149]/40 bg-[#F85149]/10 px-4 py-3">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#F85149]" />
+                    <p className="flex-1 text-xs text-[#F0F6FC]">
+                      <span className="font-semibold">Couldn't save this document.</span>{' '}
+                      Your changes are kept in this browser only — they are not
+                      on the server. Your session may have expired.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={retrySave}
+                      className="shrink-0 rounded-lg border border-[#F85149]/50 bg-black px-3 py-1.5 text-xs font-semibold text-[#F85149] hover:bg-[#F85149] hover:text-black transition-colors"
+                    >
+                      Retry save
+                    </button>
+                  </div>
+                </div>
+              )}
+              {/* Document Title & Icon Header Area */}
+              <div
+                className={`mx-auto pt-12 px-4 sm:px-12 transition-all ${
+                  fullWidth ? 'max-w-full' : 'max-w-4xl'
+                }`}
+              >
+                {/* Emoji / Icon Selector */}
+                <div className="relative inline-block mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="w-12 h-12 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[var(--app-accent)] flex items-center justify-center text-2xl transition-all shadow-sm"
+                    title="Change icon"
+                  >
+                    {metadata.icon || '📄'}
+                  </button>
+
+                  {showEmojiPicker && (
+                    <div className="absolute left-0 top-full mt-2 w-64 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-2 shadow-2xl z-50">
+                      <div className="text-[10px] font-semibold text-[#8B949E] px-1 py-1 uppercase tracking-wider">
+                        Select Icon
+                      </div>
+                      <div className="grid grid-cols-5 gap-1.5 pt-1">
+                        {EMOJI_PRESETS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => {
+                              setMetadata({ icon: emoji });
+                              setShowEmojiPicker(false);
+                            }}
+                            className="w-10 h-10 rounded-lg hover:bg-[#21262D] flex items-center justify-center text-xl transition-colors"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Primary Editable Document Heading */}
+                <input
+                  type="text"
+                  placeholder="Untitled"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full bg-transparent border-none text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#F0F6FC] placeholder-[#30363D] focus:outline-none focus:ring-0 leading-tight mb-4"
+                />
+
+                {/* Subpages Section */}
+                <div className="mt-4 mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-[#8B949E] uppercase tracking-wider">
+                      <svg
+                        className="w-3.5 h-3.5 text-[#8B949E]"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      <span>Subpages ({subpages.length})</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddSubpage}
+                      disabled={isCreatingSubpage}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-[var(--quant-surface-elevated)] text-[#C9D1D9] hover:bg-[#21262D] hover:text-[var(--app-accent)] border border-[#30363D] transition-colors"
+                    >
+                      <span>+ Add subpage</span>
+                    </button>
+                  </div>
+
+                  {subpages.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                      {subpages.map((subpage) => (
+                        <Link
+                          key={subpage.id}
+                          href={`/drive/doc/${subpage.id}`}
+                          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[var(--quant-surface-elevated)]/70 border border-[#30363D]/60 hover:border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all group"
+                        >
+                          <span className="text-base shrink-0">
+                            {(subpage.metadata as any)?.icon || '📄'}
+                          </span>
+                          <span className="text-xs font-medium text-[#C9D1D9] group-hover:text-[#F0F6FC] truncate">
+                            {subpage.title || 'Untitled'}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-[#6E7681] italic">No subpages.</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Core Block Editor Workspace */}
+              <BlockEditor
+                blocks={blocks}
+                onChange={setBlocks}
+                collaborators={collaborators}
+                onCursorMove={broadcastCursor}
+                fullWidth={fullWidth}
+              />
+            </div>
+          )}
+        </main>
+      </div>
+
+      <DocumentVersionHistoryModal
+        isOpen={showVersionHistoryModal}
+        onClose={() => setShowVersionHistoryModal(false)}
+        docId={docId}
+        currentTitle={title}
+        onVersionRestored={(content, newTitle) => {
+          setTitle(newTitle);
+          setBlocks(markdownToBlocks(content));
+        }}
+      />
+      {confirmDeleteDialog}
+    </AppShell>
+  );
+}

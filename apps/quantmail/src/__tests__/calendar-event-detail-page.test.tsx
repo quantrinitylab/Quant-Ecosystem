@@ -35,7 +35,7 @@ vi.mock('../hooks/useCalendar', () => ({
   useDeleteEvent: () => mockUseDeleteEvent(),
 }));
 
-import CalendarEventDetailPage from '../app/calendar/event/[id]/page';
+import CalendarEventDetailPage from '../app/(app)/calendar/event/[id]/page';
 
 const EVENT = {
   id: 'evt-1',

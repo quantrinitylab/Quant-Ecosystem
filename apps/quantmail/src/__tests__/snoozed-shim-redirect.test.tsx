@@ -61,7 +61,7 @@ vi.mock('../lib/offline/outbox', () => ({
   startOutbox: () => () => {},
 }));
 
-import SnoozedPage from '../app/snoozed/page';
+import SnoozedPage from '../app/(app)/snoozed/page';
 import { KeyboardProvider } from '../components/KeyboardProvider';
 
 let root: Root | null = null;

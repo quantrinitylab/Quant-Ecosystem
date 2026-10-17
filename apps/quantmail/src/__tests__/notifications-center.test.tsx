@@ -31,7 +31,7 @@ vi.mock('../hooks/useNotifications', () => ({
   useDeleteNotification: () => mockDeleteOne(),
 }));
 
-import NotificationsPage from '../app/notifications/page';
+import NotificationsPage from '../app/(app)/notifications/page';
 
 const N1 = {
   id: 'n1',

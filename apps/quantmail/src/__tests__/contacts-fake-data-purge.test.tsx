@@ -7,7 +7,7 @@ import {
   CirclesSubView,
   ContactDetailSheet,
   type DedupCollisionPair,
-} from '../app/contacts/components/ContactsSubViews';
+} from '../app/(app)/contacts/components/ContactsSubViews';
 
 /**
  * QM-UIUX-026 — fake-data purge regression tests.

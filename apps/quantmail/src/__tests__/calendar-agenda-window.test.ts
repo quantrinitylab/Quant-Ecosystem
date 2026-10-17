@@ -3,7 +3,7 @@ import {
   defaultEventWindow,
   agendaEventWindow,
   MAX_AGENDA_EVENT_WINDOW_DAYS,
-} from '../app/calendar/lib/calendar-geometry';
+} from '../app/(app)/calendar/lib/calendar-geometry';
 
 const DAY_MS = 86_400_000;
 // Fixed "today" so band boundaries are deterministic: Oct 11, 2026.

@@ -9,8 +9,8 @@ import {
   minutesToTimeLabel,
   layoutDayEvents,
   WEEK_HOUR_HEIGHT,
-} from '../app/calendar/components/CalendarWeekView';
-import type { CalendarEventLike } from '../app/calendar/types';
+} from '../app/(app)/calendar/components/CalendarWeekView';
+import type { CalendarEventLike } from '../app/(app)/calendar/types';
 
 const noop = () => {};
 

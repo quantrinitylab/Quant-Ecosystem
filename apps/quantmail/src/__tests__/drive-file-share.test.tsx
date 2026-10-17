@@ -36,7 +36,7 @@ vi.mock('@quant/shared-ui', () => ({
   ),
 }));
 
-import { FileShareModal } from '../app/drive/components/FileShareModal';
+import { FileShareModal } from '../app/(app)/drive/components/FileShareModal';
 
 describe('FileShareModal (real share, no lying toasts)', () => {
   const fileId = 'file-123';

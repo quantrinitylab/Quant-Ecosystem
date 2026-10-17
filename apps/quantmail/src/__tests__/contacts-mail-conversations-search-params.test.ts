@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { contactThreadSearchParams } from '../app/contacts/components/ContactsSubViews';
+import { contactThreadSearchParams } from '../app/(app)/contacts/components/ContactsSubViews';
 
 /**
  * QM-SCREEN-012 R2 regression: the contact detail sheet's "Mail Conversations"

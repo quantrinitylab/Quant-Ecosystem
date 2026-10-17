@@ -114,7 +114,7 @@ vi.mock('../components/SmartReplySuggestions', () => ({
 
 // The page is the default export of a route file; the static import below
 // resolves after the hoisted vi.mock calls, mirroring the sibling suite.
-import PersonPage from '../app/people/[personId]/page';
+import PersonPage from '../app/(app)/people/[personId]/page';
 
 let seq = 0;
 const at = (iso: string) => new Date(iso);
