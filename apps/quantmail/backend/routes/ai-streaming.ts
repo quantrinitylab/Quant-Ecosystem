@@ -416,15 +416,20 @@ function buildReplyPrompt(b: ReplyBody): string {
 }
 
 // ---------------------------------------------------------------------------
-// Model selection — RESEARCH Q2 ke resolveTierModel-jaisi tier mapping.
-// Exact names RESEARCH se: per-tier env pins AI_MODEL_FAST / AI_MODEL_BALANCED / AI_MODEL_DEEP
+// Model selection — resolveTierModel-jaisi tier mapping.
+// Exact names: per-tier env pins AI_MODEL_FAST / AI_MODEL_BALANCED / AI_MODEL_DEEP
 // (env ONLY — request body se kabhi nahi; deliberate SSRF guard, ai-provider.service.ts).
-// Default model: cloudflare `@cf/meta/llama-3.1-70b-instruct` (AI_PROVIDER default).
-// TODO(UNVERIFIED): resolveTierModel ke exact tier names/behavior — merge-time par
-// apps/quantmail/backend/services/ai-provider.service.ts se confirm karo.
+// Terminal fallback: the Meta default model (muse-spark-1.3) — the designated
+// brain after the Oracle migration. The old terminal fallback was the
+// Cloudflare-deprecated @cf/meta/llama-3.1-70b-instruct; silently sending live
+// traffic to a deprecated model is the exact failure PR #1262 forbids in
+// ai-provider.service.ts, so it is gone here too.
 // ---------------------------------------------------------------------------
 
 export type ModelTier = 'fast' | 'balanced' | 'deep';
+
+/** Default Meta chat model — mirrors META_AI_DEFAULT_MODEL in ai-provider.service.ts. */
+const META_DEFAULT_MODEL = 'muse-spark-1.3';
 
 function resolveModel(tier: ModelTier, override?: string): string {
   if (override) return override;
@@ -433,7 +438,7 @@ function resolveModel(tier: ModelTier, override?: string): string {
     balanced: process.env.AI_MODEL_BALANCED,
     deep: process.env.AI_MODEL_DEEP,
   };
-  return pins[tier] ?? process.env.AI_MODEL ?? '@cf/meta/llama-3.1-70b-instruct';
+  return pins[tier] ?? process.env.AI_MODEL ?? process.env.META_AI_MODEL ?? META_DEFAULT_MODEL;
 }
 
 // ---------------------------------------------------------------------------

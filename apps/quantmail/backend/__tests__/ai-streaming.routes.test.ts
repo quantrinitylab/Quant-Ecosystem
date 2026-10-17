@@ -7,7 +7,7 @@
  * Merge-time run: `vitest run phase2/repo-staging/ai-streaming/__tests__/`
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   aiStreamingRoutes,
   createTokenBucketRateLimiter,
@@ -458,5 +458,53 @@ describe('createTokenBucketRateLimiter', () => {
     expect(limiter.check('u1').ok).toBe(true);
     expect(limiter.check('u2').ok).toBe(true); // different user unaffected
     expect(limiter.check('u1').ok).toBe(false);
+  });
+});
+
+describe('model resolution — deprecated-model fallback is gone (cf. PR #1262)', () => {
+  const DEPRECATED = '@cf/meta/llama-3.1-70b-instruct';
+  const MODEL_KEYS = ['AI_MODEL_FAST', 'AI_MODEL_BALANCED', 'AI_MODEL_DEEP', 'AI_MODEL', 'META_AI_MODEL'];
+  let saved: Record<string, string | undefined>;
+
+  beforeEach(() => {
+    saved = {};
+    for (const k of MODEL_KEYS) {
+      saved[k] = process.env[k];
+      delete process.env[k];
+    }
+  });
+
+  afterEach(() => {
+    for (const k of MODEL_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k] as string;
+    }
+  });
+
+  it('falls back to the Meta default model when nothing is pinned (never the deprecated model)', async () => {
+    const captured: Captured = { prompt: '' };
+    const fastify = await register({ streamProvider: fakeProvider(['x'], captured) });
+    await route(fastify, '/stream/summarize')(makeReq({ body: SUMMARIZE_BODY }), makeReply());
+
+    expect(captured.model).toBe('muse-spark-1.3');
+    expect(captured.model).not.toBe(DEPRECATED);
+  });
+
+  it('honours the per-tier pin when set', async () => {
+    process.env.AI_MODEL_BALANCED = 'muse-spark-1.2';
+    const captured: Captured = { prompt: '' };
+    const fastify = await register({ streamProvider: fakeProvider(['x'], captured) });
+    await route(fastify, '/stream/summarize')(makeReq({ body: SUMMARIZE_BODY }), makeReply());
+
+    expect(captured.model).toBe('muse-spark-1.2');
+  });
+
+  it('honours META_AI_MODEL when no tier pin is set', async () => {
+    process.env.META_AI_MODEL = 'muse-spark-1.2';
+    const captured: Captured = { prompt: '' };
+    const fastify = await register({ streamProvider: fakeProvider(['x'], captured) });
+    await route(fastify, '/stream/summarize')(makeReq({ body: SUMMARIZE_BODY }), makeReply());
+
+    expect(captured.model).toBe('muse-spark-1.2');
   });
 });
