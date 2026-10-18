@@ -9,6 +9,7 @@ import {
 import {
   TASK_STATUS_DOT,
   TASK_STATUS_LABEL,
+  TASK_STATUS_LABEL_HI,
   TASK_STATUS_TO_BUBBLE,
   addRecentCommand,
   purgeLegacyRecentCommands,
@@ -42,11 +43,80 @@ afterEach(() => {
 describe('QuantyLiveAgent types', () => {
   const statuses: QuantyTaskStatus[] = ['idle', 'thinking', 'working', 'waiting-confirm', 'done', 'failed'];
 
-  it('maps every task status to a bubble state, dot color and Hinglish label', () => {
+  it('maps every task status to a bubble state, dot color and locale-safe label', () => {
     for (const s of statuses) {
       expect(TASK_STATUS_TO_BUBBLE[s], `bubble for ${s}`).toBeTruthy();
       expect(TASK_STATUS_DOT[s], `dot for ${s}`).toMatch(/^bg-/);
       expect(TASK_STATUS_LABEL[s], `label for ${s}`).toBeTruthy();
+      expect(TASK_STATUS_LABEL_HI[s], `hi label for ${s}`).toBeTruthy();
+    }
+  });
+
+  it('keeps Roman-script Hinglish out of the default (English) status labels', () => {
+    const leaked = [
+      'Quanty taiyaar hai',
+      'Soch raha hai',
+      'Kaam chal raha hai',
+      'Aapki permission chahiye',
+      'Ho gaya!',
+      'Kuch gadbad hui',
+    ];
+    for (const s of statuses) {
+      for (const h of leaked) {
+        expect(TASK_STATUS_LABEL[s], `en label for ${s} must not contain ${h}`).not.toContain(h);
+      }
+    }
+  });
+
+  it("keeps Roman-script Hinglish out of the Hindi ('hi') status labels — Devanagari only", () => {
+    for (const s of statuses) {
+      expect(TASK_STATUS_LABEL_HI[s], `hi label for ${s} should be Devanagari`).toMatch(
+        /[\u0900-\u097F]/,
+      );
+    }
+  });
+
+  it('renders English status captions and hint when the app locale is English (default)', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        I18nContext.Provider,
+        {
+          value: {
+            locale: 'en' as const,
+            setLocale: () => undefined,
+            t: (key: string) => key,
+            supportedLocales: [],
+          },
+        },
+        React.createElement(QuantyAvatar, { active: true, status: 'thinking' }),
+      ),
+    );
+    expect(html).toContain('Thinking…');
+    expect(html).toContain('aria-label="Quanty — Thinking…. Tap for details."');
+    for (const h of ['Soch raha hai', 'Tap karke details dekhein', 'taiyaar hai']) {
+      expect(html, `must not leak: ${h}`).not.toContain(h);
+    }
+  });
+
+  it("renders Devanagari status captions and hint when the app locale is 'hi'", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        I18nContext.Provider,
+        {
+          value: {
+            locale: 'hi' as const,
+            setLocale: () => undefined,
+            t: (key: string) => key,
+            supportedLocales: [],
+          },
+        },
+        React.createElement(QuantyAvatar, { active: true, status: 'waiting-confirm' }),
+      ),
+    );
+    expect(html).toContain('आपकी अनुमति चाहिए');
+    expect(html).toContain('टैप करके विवरण देखें।');
+    for (const h of ['Aapki permission chahiye', 'Tap karke details dekhein']) {
+      expect(html, `must not leak: ${h}`).not.toContain(h);
     }
   });
 
@@ -138,18 +208,20 @@ describe('QuantyAvatar', () => {
     expect(html).toContain('aria-label="Quanty — 5 emails archive kar raha...');
   });
 
-  it('falls back to the status label without an action label', () => {
+  it('falls back to the English status label without an action label (default locale)', () => {
     const html = renderToStaticMarkup(
       React.createElement(QuantyAvatar, { active: true, status: 'working' }),
     );
-    expect(html).toContain('Kaam chal raha hai');
+    expect(html).toContain('Working…');
+    expect(html).not.toContain('Kaam chal raha hai');
   });
 
-  it('shows the waiting-confirm caption when permission is needed', () => {
+  it('shows the English waiting-confirm caption when permission is needed (default locale)', () => {
     const html = renderToStaticMarkup(
       React.createElement(QuantyAvatar, { active: true, status: 'waiting-confirm' }),
     );
-    expect(html).toContain('Aapki permission chahiye');
+    expect(html).toContain('Needs your confirmation');
+    expect(html).not.toContain('Aapki permission chahiye');
   });
 });
 

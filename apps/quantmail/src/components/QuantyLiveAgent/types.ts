@@ -183,12 +183,22 @@ export const TASK_STATUS_DOT: Record<QuantyTaskStatus, string> = {
   failed: 'bg-red-500',
 };
 
-/** Hinglish status line shown under the avatar. */
+/** Status line shown under the avatar — follows the app locale (English default, Devanagari for 'hi'). */
 export const TASK_STATUS_LABEL: Record<QuantyTaskStatus, string> = {
-  idle: 'Quanty taiyaar hai',
-  thinking: 'Soch raha hai…',
-  working: 'Kaam chal raha hai…',
-  'waiting-confirm': 'Aapki permission chahiye',
-  done: 'Ho gaya!',
-  failed: 'Kuch gadbad hui',
+  idle: 'Quanty is ready',
+  thinking: 'Thinking…',
+  working: 'Working…',
+  'waiting-confirm': 'Needs your confirmation',
+  done: 'Done!',
+  failed: 'Something went wrong',
+};
+
+/** Devanagari status captions, used when the app locale is 'hi'. */
+export const TASK_STATUS_LABEL_HI: Record<QuantyTaskStatus, string> = {
+  idle: 'क्वांटी तैयार है',
+  thinking: 'सोच रहा है…',
+  working: 'काम चल रहा है…',
+  'waiting-confirm': 'आपकी अनुमति चाहिए',
+  done: 'हो गया!',
+  failed: 'कुछ गड़बड़ हुई',
 };

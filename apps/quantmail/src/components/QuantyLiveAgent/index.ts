@@ -72,6 +72,7 @@ export type { UseQuantyAgent, UseQuantyAgentOptions } from './useQuantyAgent';
 export {
   TASK_STATUS_DOT,
   TASK_STATUS_LABEL,
+  TASK_STATUS_LABEL_HI,
   TASK_STATUS_TO_BUBBLE,
 } from './types';
 export type {
