@@ -13,7 +13,7 @@ on:
       - 'apps/quantmail/src/__tests__/browser-auth-session.test.ts'
       - 'apps/quantmail/src/app/api/oauth/userinfo/route.ts'
       - 'apps/quantmail/src/app/api/auth/2fa/verify/route.ts'
-      - 'apps/quantmail/src/app/register/page.tsx'
+      - 'apps/quantmail/src/app/(auth)/register/page.tsx'
       - 'apps/quantmail/src/hooks/useDrive.ts'
       - 'apps/quantmail/src/hooks/useEmail.ts'
       - 'apps/quantmail/src/hooks/useGit.ts'
@@ -185,9 +185,9 @@ jobs:
         if: matrix.stage == 'registration-contract'
         run: |
           set -euo pipefail
-          registration='apps/quantmail/src/app/register/register-form.tsx'
+          registration='apps/quantmail/src/app/(auth)/register/register-form.tsx'
           session='apps/quantmail/src/services/browser-auth-session.ts'
-          grep -F "import { browserAuthSession } from '../../services/browser-auth-session';" "$registration" >/dev/null
+          grep -F "import { browserAuthSession } from '../../../services/browser-auth-session';" "$registration" >/dev/null
           grep -F 'browserAuthSession.register({' "$registration" >/dev/null
           ! grep -F 'apiClient.register(' "$registration"
           grep -F "'/auth/register'" "$session" >/dev/null
