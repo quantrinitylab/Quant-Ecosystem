@@ -32,11 +32,23 @@ vi.mock('@quant/database', () => ({
   prisma: {
     user: {
       findMany: vi.fn(async (args: unknown) => {
-        const where = (args as { where?: { OR?: Array<Record<string, { in?: string[] }>> } }).where;
-        const emails = where?.OR?.[0]?.['email']?.in ?? [];
-        const handles = where?.OR?.[1]?.['username']?.in ?? [];
+        type InFilter = { in?: string[]; mode?: string };
+        const where = (args as { where?: { OR?: Array<Record<string, InFilter>> } }).where;
+        // Mirrors Postgres `{ in, mode: 'insensitive' }` string-filter
+        // semantics (LOWER(column) IN LOWER(values)) that resolveLocalUsers
+        // now relies on for legacy mixed-case user rows.
+        const match = (filter: InFilter | undefined, value: string) => {
+          const values = filter?.in ?? [];
+          if (filter?.mode === 'insensitive') {
+            const lowered = values.map((v) => v.toLowerCase());
+            return lowered.includes(value.toLowerCase());
+          }
+          return values.includes(value);
+        };
+        const emailFilter = where?.OR?.[0]?.['email'];
+        const handleFilter = where?.OR?.[1]?.['username'];
         return state.users.filter(
-          (user) => emails.includes(user.email) || handles.includes(user.username),
+          (user) => match(emailFilter, user.email) || match(handleFilter, user.username),
         );
       }),
       findUnique: vi.fn(async (args: unknown) => {
@@ -442,6 +454,60 @@ describe('POST /webhook/inbound — the recipient is one the message named, or n
       skipped: 'no-local-recipient',
     });
     expect(ingest).not.toHaveBeenCalled();
+  });
+
+  it('delivers to a legacy mixed-case email row a lowercased recipient names', async () => {
+    // Legacy rows predate email normalization: the SES receipt carries a
+    // lowercased address that exact-match `in` never hit — silent mail loss
+    // on the production SES path.
+    state.users.push(
+      localUser({ id: 'u-legacy', email: 'LegacyCase@quantmail.in', username: 'legacyuser' }),
+    );
+    s3ReturnsRawEmail(plainEmail('legacycase@quantmail.in'));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ recipients: ['legacycase@quantmail.in'] }),
+    });
+
+    expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+    expect(ingestCall().options.userId).toBe('u-legacy');
+  });
+
+  it('delivers when the recipient carries mixed case but the row is canonical', async () => {
+    // The route lowercases before querying, and the insensitive filter keeps
+    // working for a canonical (lowercase) row in that direction.
+    state.users.push(localUser({ id: 'u-mixed', email: 'mixeduser@quantmail.in', username: 'mixeduser' }));
+    s3ReturnsRawEmail(plainEmail('MixedUser@quantmail.in'));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ recipients: ['MixedUser@quantmail.in'] }),
+    });
+
+    expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+    expect(ingestCall().options.userId).toBe('u-mixed');
+  });
+
+  it('resolves a legacy mixed-case username row by handle', async () => {
+    // The handle path had the same shape: a legacy mixed-case username
+    // (e.g. `BobJones`) never matched the lowercased handle `bobjones` in
+    // another of our own domains.
+    state.users.push(
+      localUser({ id: 'u-alias', email: 'other@quantmail.in', username: 'BobJones' }),
+    );
+    s3ReturnsRawEmail(plainEmail('bobjones@quantrinity.in'));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ recipients: ['bobjones@quantrinity.in'] }),
+    });
+
+    expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+    expect(ingestCall().options.userId).toBe('u-alias');
   });
 
   it('does not raise the paperclip for a cid: image that is part of the body', async () => {
