@@ -551,6 +551,22 @@ export function resolveBranchSelectorLists(input: {
   };
 }
 
+// Fabrication fix: labels for the file-row commit columns. The backend now
+// attaches REAL per-file last-commit data (git log -1); when it legitimately
+// cannot (unborn branch, enrichment failure) both columns render an em-dash —
+// NEVER the invented "Update file" message or the false "recently" recency.
+export function fileRowCommitLabels(file: Pick<FileNode, 'lastCommit' | 'lastCommitDate'>): {
+  commitLabel: string;
+  dateLabel: string;
+  commitTitle: string | undefined;
+} {
+  return {
+    commitLabel: file.lastCommit || '—',
+    dateLabel: file.lastCommitDate || '—',
+    commitTitle: file.lastCommit || undefined,
+  };
+}
+
 // QM-SCREEN-013 R4 honesty fix: decides what the README preview's Edit button
 // does. When the repo has no README.md, opening the blob editor with a
 // synthesized README.md FileNode hits the backend 404 path, which loads an
@@ -2480,6 +2496,7 @@ pnpm install && pnpm dev
             const depth = (file as any).depth || 0;
             const isExpanded = (file as any).isExpanded || false;
             const childCount = isDir ? dirCounts.get(file.path) : undefined;
+            const commitLabels = fileRowCommitLabels(file);
 
             return (
               <div
@@ -2564,14 +2581,14 @@ pnpm install && pnpm dev
                   {/* Commit Message */}
                   <span
                     className="hidden lg:inline truncate max-w-xs text-left"
-                    title={file.lastCommit}
+                    title={commitLabels.commitTitle}
                   >
-                    {file.lastCommit || 'Update file'}
+                    {commitLabels.commitLabel}
                   </span>
 
                   {/* Relative Timestamp */}
                   <span className="text-right w-20 text-[10px] text-[#8B949E]">
-                    {file.lastCommitDate || 'recently'}
+                    {commitLabels.dateLabel}
                   </span>
                 </div>
               </div>
