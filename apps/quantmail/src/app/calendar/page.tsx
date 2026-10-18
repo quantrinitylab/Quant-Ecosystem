@@ -36,7 +36,7 @@ import {
   calendarEventMatchesQuery,
   calendarSearchStatus,
 } from './lib/calendar-search';
-import { toRecurrenceRule } from './lib/recurrence';
+import { initPeriodHealthFields, buildSheetSavePayload } from './lib/period-log-form';
 import { isEmailShaped, toAttendeeEmail } from './lib/attendee-validation';
 import { guestNotificationToastText } from './lib/guest-notify';
 import type { GuestNotificationStatus } from '../../types';
@@ -975,39 +975,13 @@ function CalendarPageContent() {
       priority: ev.priority || 'medium',
       subtaskInput: '',
       subtasks: ev.subtasks || [],
-      // fix/qm-calendar-sheet-meta-roundtrip: these fields are stored in the
-      // __QUANT_META__ header on save and now come back on the DTO; without
-      // restoring them the form keeps stale/default values and a re-save
-      // silently resets them (birthday year, period-log feelings/pain/energy).
-      birthYear: typeof ev.birthYear === 'string' ? ev.birthYear : prev.birthYear,
-      feelings: Array.isArray(ev.feelings) ? ev.feelings : prev.feelings,
-      pain: Array.isArray(ev.pain) ? ev.pain : prev.pain,
-      energy: typeof ev.energy === 'string' && ev.energy ? ev.energy : prev.energy,
-      flowIntensity: ev.flowIntensity || 'medium',
-      spottingColor: ev.spottingColor || 'red',
-      currentCycleDay: ev.cycleDay || prev.currentCycleDay,
-      // fix/qm-period-log-silent-drop-2: the rest of the sheet-collected
-      // period detail now comes back on the DTO (backend folds the top-level
-      // payload fields into the __QUANT_META__ header and parses them back
-      // out). Without restoring them the form keeps stale/default values and
-      // a re-save silently resets what the user had entered.
-      collectionMethod:
-        typeof ev.collectionMethod === 'string' && ev.collectionMethod
-          ? ev.collectionMethod
-          : prev.collectionMethod,
-      sleep: typeof ev.sleep === 'string' && ev.sleep ? ev.sleep : prev.sleep,
-      sexLife: typeof ev.sexLife === 'string' && ev.sexLife ? ev.sexLife : prev.sexLife,
-      intimateHealth:
-        typeof ev.intimateHealth === 'string' && ev.intimateHealth
-          ? ev.intimateHealth
-          : prev.intimateHealth,
-      hotFlashes:
-        typeof ev.hotFlashes === 'string' && ev.hotFlashes ? ev.hotFlashes : prev.hotFlashes,
-      bbt: typeof ev.bbt === 'string' ? ev.bbt : prev.bbt,
-      weight: typeof ev.weight === 'string' ? ev.weight : prev.weight,
-      customTags: Array.isArray(ev.customTags) ? ev.customTags : prev.customTags,
-      periodDays: typeof ev.periodDays === 'number' ? ev.periodDays : prev.periodDays,
-      cycleLength: typeof ev.cycleLength === 'number' ? ev.cycleLength : prev.cycleLength,
+      // fix/qm-calendar-period-log (CODEX-REVIEW 6250866664): the period/
+      // birthday health fields are initialized ONLY from this record's DTO
+      // plus explicit empty/unknown defaults — never from `prev`. The old
+      // `ev.x ?? prev.x` fallbacks leaked the previously opened record's
+      // observations (BBT, weight, tags, sexLife, periodDays, …) into a
+      // record whose DTO omits them, and Save persisted the leak.
+      ...initPeriodHealthFields(ev),
     }));
 
     setSelectedEvent(null);
@@ -1132,74 +1106,18 @@ function CalendarPageContent() {
       });
     }
 
-    const metaObj = {
-      type: activeSheetType,
-      priority: activeSheetType === 'task' ? formState.priority : undefined,
-      flowIntensity: activeSheetType === 'period' ? formState.flowIntensity : undefined,
-      spottingColor: activeSheetType === 'period' ? formState.spottingColor : undefined,
-      cycleDay: activeSheetType === 'period' ? formState.currentCycleDay : undefined,
-      feelings: activeSheetType === 'period' ? formState.feelings : undefined,
-      pain: activeSheetType === 'period' ? formState.pain : undefined,
-      energy: activeSheetType === 'period' ? formState.energy : undefined,
-      subtasks: activeSheetType === 'task' ? formState.subtasks : undefined,
-      birthYear: activeSheetType === 'birthday' ? formState.birthYear : undefined,
-      // Persisted by the backend into the __QUANT_META__ header; carried here
-      // as well so the client-built description is self-consistent.
-      driveLink: formState.driveLink.trim() || undefined,
-    };
-    const metaHeader = `__QUANT_META__:${JSON.stringify(metaObj)}:__END_QUANT_META__\n`;
-    const userDesc =
-      formState.description ||
-      (activeSheetType === 'period'
-        ? `Feelings: ${formState.feelings.join(', ')} | Pain: ${formState.pain.join(', ')} | Energy: ${formState.energy}`
-        : '');
-    const finalDescription = metaHeader + userDesc;
-
-    const payload = {
-      title: finalTitle,
-      startTime: startIso,
-      endTime: endIso,
-      start: startIso,
-      end: endIso,
-      description: finalDescription,
-      location: formState.location,
-      allDay: formState.allDay,
-      type: activeSheetType,
-      color: formState.color,
-      // The form holds the human-readable label (or a builder-made RRULE);
-      // the API only accepts real RRULEs, so convert before sending.
-      recurrence: toRecurrenceRule(formState.recurrence),
-      reminders: formState.notifications,
-      attendees: formState.attendees,
-      accountEmail: formState.accountEmail,
-      timezone: formState.timezone,
-      // fix/qm-calendar-event-guest-notify: only true when the user confirmed
-      // "Send update to guests?" above; the backend emails nobody otherwise.
-      sendUpdate: editingEventId ? sendUpdate : undefined,
-      driveLink: formState.driveLink,
-      priority: activeSheetType === 'task' ? formState.priority : undefined,
-      subtasks: activeSheetType === 'task' ? formState.subtasks : undefined,
-      flowIntensity: activeSheetType === 'period' ? formState.flowIntensity : undefined,
-      spottingColor: activeSheetType === 'period' ? formState.spottingColor : undefined,
-      collectionMethod: activeSheetType === 'period' ? formState.collectionMethod : undefined,
-      moods: activeSheetType === 'period' ? formState.feelings : undefined,
-      pain: activeSheetType === 'period' ? formState.pain : undefined,
-      sleep: activeSheetType === 'period' ? formState.sleep : undefined,
-      sexLife: activeSheetType === 'period' ? formState.sexLife : undefined,
-      energy: activeSheetType === 'period' ? formState.energy : undefined,
-      intimateHealth: activeSheetType === 'period' ? formState.intimateHealth : undefined,
-      hotFlashes: activeSheetType === 'period' ? formState.hotFlashes : undefined,
-      bbt: activeSheetType === 'period' ? formState.bbt : undefined,
-      weight: activeSheetType === 'period' ? formState.weight : undefined,
-      customTags: activeSheetType === 'period' ? formState.customTags : undefined,
-      cycleDay: activeSheetType === 'period' ? formState.currentCycleDay : undefined,
-      // fix/qm-period-log-silent-drop-2: these were collected by the sheet
-      // (period-length / cycle-length sliders) but never sent — the values
-      // vanished on save. The backend folds them into the __QUANT_META__
-      // header like the other top-level sheet fields.
-      periodDays: activeSheetType === 'period' ? formState.periodDays : undefined,
-      cycleLength: activeSheetType === 'period' ? formState.cycleLength : undefined,
-    };
+    // fix/qm-calendar-period-log: the payload is built by buildSheetSavePayload
+    // (the real save contract, unit-tested against the A→B leak) so the form
+    // state it reads can never carry another record's health values.
+    const payload = buildSheetSavePayload({
+      formState,
+      sheetType: activeSheetType,
+      editingEventId,
+      startIso,
+      endIso,
+      finalTitle,
+      sendUpdate,
+    });
 
     isSavingRef.current = true;
     setIsSaving(true);
