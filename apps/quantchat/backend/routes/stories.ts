@@ -380,7 +380,11 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
   });
 
   // POST /stories - create a story
-  fastify.post('/', async (request, reply) => {
+  // QC-F-493: the 12 Mi-char mediaUrl cap above is unreachable under
+  // Fastify's default 1 MiB bodyLimit — a real canvas photo or gallery
+  // video was 413'd before validation. 13 MiB covers the cap plus the
+  // JSON envelope; the zod/validator caps remain the real bound.
+  fastify.post('/', { bodyLimit: 13_631_488 }, async (request, reply) => {
     const userId = getUserId(request);
     const prisma = getPrisma(fastify);
     const parsed = createStoryBodySchema.safeParse(request.body);

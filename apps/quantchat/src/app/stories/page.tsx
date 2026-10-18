@@ -8,8 +8,11 @@
 // inline error card with retry; a successful-but-empty feed shows an empty
 // state with a create-story CTA. Story creation opens the StoryCreator
 // overlay; text stories post end-to-end (type 'text' + text body persisted).
-// Photo/video post for http(s) media URLs; anything else shows an honest
-// "coming soon" notice because media upload has no real backend yet.
+// Photo/video post inline as data:image/ or data:video/ (the backend's
+// QC-F-330 contract, mirrored by the page gate below) or as already-hosted
+// http(s) URLs (subject to the backend's own-storage rules); anything that
+// is not real media, or is over the backend's size cap, gets an honest
+// notice instead of a silent failure.
 // ============================================================================
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -21,6 +24,11 @@ import { StoryViewer } from '../../components/StoryViewer';
 import { StoryCreator } from '../../components/StoryCreator';
 import { navItems, routes } from '../../lib/navigation';
 import { circleVariants, staggerContainer } from '../../lib/motion-variants';
+
+// Mirrors the stories backend contract (backend/routes/stories.ts +
+// backend/lib/media-url.ts, QC-F-330): inline media is accepted as
+// data:image/ or data:video/ up to 12,582,912 chars (~9 MB of media).
+const MAX_STORY_MEDIA_URL_LENGTH = 12_582_912;
 
 interface CreatorStory {
   type: 'photo' | 'video' | 'text';
@@ -60,10 +68,14 @@ export default function StoriesPage() {
     setCreatorNotice(null);
     const url = story.mediaUrl;
     // Text stories post as real TEXT rows (text body persisted by the backend);
-    // no media upload involved. Photo/video still need a real upload backend,
-    // so only already-hosted http(s) media can be posted today — anything else
-    // gets an honest "coming soon" notice instead of a silent failure.
+    // no media involved. Media stories post inline as data:image/ or
+    // data:video/ — the backend's QC-F-330 contract, mirrored exactly below
+    // (same case-sensitive prefixes, same 12,582,912-char cap) — or as an
+    // already-hosted http(s) URL. Anything that is not real media, or is
+    // over the cap, gets an honest notice instead of a silent failure.
     const text = story.text?.trim();
+    const isInlineMedia =
+      !!url && (url.startsWith('data:image/') || url.startsWith('data:video/'));
     if (story.type === 'text') {
       if (!text) {
         setCreatorNotice('Type something first — a text story needs words.');
@@ -76,7 +88,11 @@ export default function StoriesPage() {
       } finally {
         setPosting(false);
       }
-    } else if (url && /^https?:\/\//i.test(url)) {
+    } else if (url && isInlineMedia && url.length > MAX_STORY_MEDIA_URL_LENGTH) {
+      setCreatorNotice(
+        'That photo or video is too large to post as a story — the limit is about 9 MB. Try a smaller or shorter file.',
+      );
+    } else if (url && (/^https?:\/\//i.test(url) || isInlineMedia)) {
       setPosting(true);
       try {
         await createStory({ type: story.type, mediaUrl: url, duration: 5 });
@@ -84,10 +100,14 @@ export default function StoriesPage() {
       } finally {
         setPosting(false);
       }
-    } else {
+    } else if (url === 'video-placeholder') {
+      // StoryCreator's camera "recording" is not real media yet (QC-F-362);
+      // name that honestly instead of blaming uploads.
       setCreatorNotice(
-        'Story uploads are coming soon — photo and video posting will be enabled shortly.',
+        "Video recording isn't ready yet — post a photo, or pick a video from your gallery instead.",
       );
+    } else {
+      setCreatorNotice("That media can't be posted as a story.");
     }
   };
 
