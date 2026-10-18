@@ -65,6 +65,17 @@ services:
       - /etc/quant/secrets.env
     environment:
       PORT: "3011"
+      REDIS_URL: redis://quant-redis:6379
+      REDIS_HOST: quant-redis
+      REDIS_PORT: "6379"
+    depends_on:
+      quant-redis:
+        condition: service_started
+
+  quant-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
 
   quantchat:
     image: ghcr.io/quantrinitylab/quant-oci-quantchat:${IMAGE_TAG:-latest}
@@ -73,6 +84,28 @@ services:
       - /etc/quant/secrets.env
     environment:
       PORT: "3015"
+      QUANTCHAT_BACKEND_URL: http://quantchat-backend:3002
+    depends_on:
+      quantchat-backend:
+        condition: service_started
+
+  # QuantChat API backend (Fastify). NOTE: health is /livez (and /healthz,
+  # /readyz) — /api/health is NOT a route on this service (see
+  # apps/quantchat/Dockerfile.backend). The frontend proxies /api/* to it
+  # server-side via QUANTCHAT_BACKEND_URL.
+  quantchat-backend:
+    image: ghcr.io/quantrinitylab/quant-oci-quantchat-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - /etc/quant/secrets.env
+    environment:
+      PORT: "3002"
+      REDIS_URL: redis://quant-redis:6379
+      REDIS_HOST: quant-redis
+      REDIS_PORT: "6379"
+    depends_on:
+      quant-redis:
+        condition: service_started
 
   quantai:
     image: ghcr.io/quantrinitylab/quant-oci-quantai:${IMAGE_TAG:-latest}
