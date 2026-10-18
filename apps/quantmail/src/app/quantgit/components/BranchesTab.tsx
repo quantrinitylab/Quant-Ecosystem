@@ -18,6 +18,27 @@ export interface BranchesTabProps {
   currentUsername?: string;
 }
 
+/**
+ * Honest "updated" line for a branch row. The old render
+ * (`Updated {time || 'recently'} by`) printed the fabricated
+ * "Updated recently by" on EVERY row because the backend never sent a time.
+ * Now: the real relative time when the mapper computed one from the
+ * backend's branch-head timestamp, otherwise an honest "last update
+ * unavailable" slot — never a false recency claim.
+ */
+function renderBranchUpdatedBy(branch: BranchItem) {
+  const author = branch.lastCommitAuthor || 'Unknown';
+  return branch.lastCommitTime ? (
+    <span>
+      Updated {branch.lastCommitTime} by <strong className="text-white">{author}</strong>
+    </span>
+  ) : (
+    <span>
+      Last update unavailable · <strong className="text-white">{author}</strong>
+    </span>
+  );
+}
+
 export function BranchesTab({
   repo,
   branches: initialBranches,
@@ -239,12 +260,7 @@ export function BranchesTab({
               </div>
 
               <div className="text-[#7D8590] mt-1 text-[11px] flex items-center gap-2">
-                <span>
-                  Updated {defaultBranchItem.lastCommitTime || 'recently'} by{' '}
-                  <strong className="text-white">
-                    {defaultBranchItem.lastCommitAuthor || 'Unknown'}
-                  </strong>
-                </span>
+                {renderBranchUpdatedBy(defaultBranchItem)}
                 {defaultBranchItem.lastCommitMessage && (
                   <span
                     className="truncate max-w-xs text-[#7D8590] hidden md:inline"
@@ -336,12 +352,7 @@ export function BranchesTab({
                     </div>
 
                     <div className="text-[#7D8590] mt-0.5 text-[11px] flex items-center gap-2 truncate">
-                      <span>
-                        Updated {branch.lastCommitTime || 'recently'} by{' '}
-                        <strong className="text-white">
-                          {branch.lastCommitAuthor || 'Unknown'}
-                        </strong>
-                      </span>
+                      {renderBranchUpdatedBy(branch)}
                       {branch.lastCommitMessage && (
                         <span
                           className="truncate max-w-sm hidden md:inline text-[#7D8590]"

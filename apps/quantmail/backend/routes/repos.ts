@@ -10,6 +10,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError, RepositoryHeadConflictError } from '@quant/server-core';
 import { RepoMigrationService, repoMigrationService } from '../services/repo-migration.service';
+import { GitInspectService } from '../modules/code/services/git-transport';
+import { enrichBranchesWithHeadCommits } from '../modules/code/services/branch-head-enrichment';
 
 const execFileAsync = promisify(execFile);
 
@@ -730,6 +732,12 @@ function requireUserId(request: unknown): string {
 }
 
 export default async function reposRoutes(fastify: FastifyInstance) {
+  // Real per-branch head-commit data for the branches list (defect family:
+  // the endpoints used to send no last-commit fields, so the frontend
+  // fabricated "Updated recently by" on every row). Resolves via git;
+  // unresolvable branches degrade to no enrichment fields, honestly.
+  const branchHeadInspectService = new GitInspectService();
+
   function inspectionPort() {
     if (!fastify.repositoryInspection) {
       throw createAppError('Repository inspection is unavailable', 503, 'INSPECTION_UNAVAILABLE');
@@ -1482,9 +1490,20 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       where: { repoId: repo.id },
       orderBy: { name: 'asc' },
     })) as Array<{ name: string; commitSha: string; isProtected: boolean }>;
+    // Attach REAL per-branch head-commit data (author name, unix-second
+    // timestamp, message) from `git log -1 <branch>`, in parallel. Branches
+    // whose ref cannot be resolved carry no enrichment fields — the frontend
+    // renders those rows honestly ("last update unavailable") instead of
+    // the old fabricated "Updated recently by".
+    const enriched = await enrichBranchesWithHeadCommits(
+      rows,
+      branchHeadInspectService,
+      repo.ownerId,
+      repo.name,
+    );
     return reply.send({
       success: true,
-      data: rows.map((branch) => ({
+      data: enriched.map((branch) => ({
         name: branch.name,
         sha: branch.commitSha,
         isDefault: branch.name === repo.defaultBranch,
@@ -1492,6 +1511,11 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         protection: branch.isProtected ? 'require_reviews' : 'none',
         aheadBy: 0,
         behindBy: 0,
+        ...(branch.lastCommitTimestamp !== undefined
+          ? { lastCommitTimestamp: branch.lastCommitTimestamp }
+          : {}),
+        ...(branch.lastCommitAuthor ? { lastCommitAuthor: branch.lastCommitAuthor } : {}),
+        ...(branch.lastCommitMessage ? { lastCommitMessage: branch.lastCommitMessage } : {}),
       })),
     });
   });

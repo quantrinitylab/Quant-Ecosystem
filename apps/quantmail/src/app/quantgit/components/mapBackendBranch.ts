@@ -1,15 +1,25 @@
 import type { BranchItem } from '../types';
+import { formatCommitRelativeTime } from './mapBackendCommit';
 
 /**
  * Map one raw backend branch row to the UI's BranchItem shape.
  *
  * Author/message honesty (same invented-data defect family as the Commits
- * tab's 'Sep 26, 2026' fallback, PR #926): the branches endpoint returns
- * only {name, sha, isDefault, isProtected, protection, aheadBy, behindBy} —
- * it carries NO per-branch last-commit author/message/time fields. When the
- * backend provides none we degrade to honest empty strings so the UI shows
+ * tab's 'Sep 26, 2026' fallback, PR #926): the branches endpoints carry no
+ * invented per-branch data. When the backend provides no last-commit
+ * author/message we degrade to honest empty strings so the UI shows
  * 'Unknown' (BranchesTab's own fallback) and hides the message slot —
  * instead of inventing an author or a message.
+ *
+ * Recency honesty: the OLD `lastCommitTime: b.lastCommitTime || 'recently'`
+ * fallback fired on EVERY real backend row (neither branches endpoint sent
+ * `lastCommitTime`), so every branch rendered the fabricated "Updated
+ * recently by". We now compute real relative time ONLY from the backend's
+ * numeric `lastCommitTimestamp` (Unix seconds, git `%at` of the branch head,
+ * attached by the enriched branches endpoints) via `formatCommitRelativeTime`
+ * — the same helper that fixed the Commits tab's "committed recently" defect
+ * — and degrade to an honest empty string otherwise. BranchesTab renders its
+ * "last update unavailable" slot for those rows. Never a false recency claim.
  *
  * The previous mapping (`lastCommitAuthor: b.lastCommitAuthor ||
  * currentUsername` / `lastCommitMessage: b.lastCommitMessage || 'Update
@@ -31,6 +41,10 @@ export function mapBackendBranchToItem(b: any, defaultBranch?: string): BranchIt
     lastCommitAuthor: b.lastCommitAuthor || '',
     // Never invent a commit message — empty hides the message slot.
     lastCommitMessage: b.lastCommitMessage || '',
-    lastCommitTime: b.lastCommitTime || 'recently',
+    // Never claim recency the backend did not assert: real relative time
+    // from the numeric `lastCommitTimestamp` (Unix seconds, branch-head
+    // `%at`), honest empty string when unavailable. The old `|| 'recently'`
+    // fallback fabricated "Updated recently by" on EVERY branch row.
+    lastCommitTime: b.lastCommitTime || formatCommitRelativeTime(b.lastCommitTimestamp),
   };
 }

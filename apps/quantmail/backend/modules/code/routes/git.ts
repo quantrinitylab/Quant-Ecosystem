@@ -4,6 +4,7 @@ import { createAppError } from '@quant/server-core';
 import type { PrismaClient, Repository } from '@prisma/client';
 import { GitService } from '../services/git.service';
 import { GitInspectService, RepoStorageService } from '../services/git-transport';
+import { enrichBranchesWithHeadCommits } from '../services/branch-head-enrichment';
 
 type RepositoryAccess = Pick<Repository, 'ownerId' | 'name' | 'visibility'>;
 
@@ -225,7 +226,11 @@ export default async function gitRoutes(fastify: FastifyInstance) {
         where: { repoId: repo.id },
         orderBy: { name: 'asc' },
       });
-      return reply.send({ success: true, data: branches });
+      // Real per-branch head-commit data (`git log -1 <branch>`); stale or
+      // unresolvable rows degrade to no enrichment fields so the UI never
+      // fabricates "Updated recently by".
+      const enriched = await enrichBranchesWithHeadCommits(branches, gitInspectService, owner, name);
+      return reply.send({ success: true, data: enriched });
     },
   );
 
