@@ -15,6 +15,7 @@ import type { Email, ComposeEmailRequest } from '../types';
 import { useI18n } from '../i18n';
 import { QuantyToolTimeline } from './QuantyToolTimeline';
 import { QuantyConfirmationCard } from './QuantyConfirmationCard';
+import { ScheduleSendModal, isPastScheduleTime } from './ScheduleSendModal';
 import {
   isToolConfirmationCard,
   isToolExecutionCard,
@@ -116,6 +117,17 @@ export function quantyDraftSendCopy(locale: 'en' | 'hi') {
         ? `भेजने में दिक्कत हुई: ${detail}। कुछ नहीं भेजा गया — दोबारा कोशिश करें या Edit से composer में खोलें।`
         : `Could not send: ${detail}. Nothing was sent — try again or open it in the composer via Edit.`,
     sendFailedToast: hi ? 'ईमेल नहीं भेजा जा सका' : 'Email could not be sent',
+    /**
+     * Schedule-send copy (qm-auto finding: no schedule-send on the copilot's
+     * send path). A scheduled send is NOT a delivery — the note and toast say
+     * "scheduled", never "sent" (same honest-copy rule as successLabel).
+     */
+    scheduledNote: (to: string) =>
+      hi
+        ? `शेड्यूल कर दिया — ${to} को ईमेल तय समय पर जाएगा।`
+        : `Scheduled — the email to ${to} will go out at the scheduled time.`,
+    scheduledToast: (to: string) =>
+      hi ? `ईमेल शेड्यूल हो गया — ${to}` : `Email scheduled — will send to ${to}`,
   };
 }
 
@@ -129,7 +141,22 @@ export interface QuantyDraftSendDeps {
     data?: { id?: string } | null;
     error?: { message?: string } | null;
   }>;
-  sendEmail: (id: string) => Promise<{ success: boolean; error?: { message?: string } | null }>;
+  /**
+   * Same shape as `apiClient.sendEmail`: a second options arg carrying the
+   * schedule. The immediate path calls it with ONE arg (byte-identical to
+   * before — the options object is only passed for scheduled sends).
+   */
+  sendEmail: (
+    id: string,
+    options?: { sendAt?: string },
+  ) => Promise<{ success: boolean; error?: { message?: string } | null }>;
+  /**
+   * ISO future timestamp from the ScheduleSendModal (qm-auto finding: the
+   * copilot's send path had no schedule-send). Carried into
+   * POST /emails/:id/send as `{ sendAt }` — the one sendAt contract shared
+   * with ThreadComposer, DockedComposer and EmailComposer.
+   */
+  scheduledAt?: string;
   appendAssistantNote: (text: string) => void;
   showToast: (toast: { text: string; type: 'success' | 'error' }) => void;
   onSettled: () => void;
@@ -154,6 +181,7 @@ export function buildQuantyDraftSendNow(deps: QuantyDraftSendDeps): () => Promis
     copy,
     composeEmail,
     sendEmail,
+    scheduledAt,
     appendAssistantNote,
     showToast,
     onSettled,
@@ -169,12 +197,22 @@ export function buildQuantyDraftSendNow(deps: QuantyDraftSendDeps): () => Promis
       if (!composeRes.success || !composeRes.data?.id) {
         throw new Error(composeRes.error?.message || copy.composeFailed);
       }
-      const sendRes = await sendEmail(composeRes.data.id);
+      // The one sendAt contract: a scheduledAt from the ScheduleSendModal
+      // travels as POST /emails/:id/send `{ sendAt }`. The immediate path
+      // stays byte-identical (one arg, no options object — same convention
+      // the ThreadComposerUndoSend suite pins for ThreadComposer).
+      const sendRes = scheduledAt
+        ? await sendEmail(composeRes.data.id, { sendAt: scheduledAt })
+        : await sendEmail(composeRes.data.id);
       if (!sendRes.success) {
         throw new Error(sendRes.error?.message || copy.sendFailed);
       }
-      appendAssistantNote(copy.sentNote(to));
-      showToast({ text: `Email sent to ${to}`, type: 'success' });
+      // Honest copy: a scheduled send is NOT a delivery — never say "sent".
+      appendAssistantNote(scheduledAt ? copy.scheduledNote(to) : copy.sentNote(to));
+      showToast({
+        text: scheduledAt ? copy.scheduledToast(to) : `Email sent to ${to}`,
+        type: 'success',
+      });
     } catch (err) {
       const detail = err instanceof Error ? err.message : 'Unknown error';
       appendAssistantNote(copy.failedNote(detail));
@@ -589,6 +627,13 @@ export function QuantyCopilotDrawer({
    */
   const [pendingEmailDraft, setPendingEmailDraft] = useState<QuantySendEmailDraft | null>(null);
   const [draftSending, setDraftSending] = useState(false);
+  /**
+   * Schedule-send modal visibility for the confirmation card (qm-auto
+   * finding: the copilot's send path had no schedule-send). The same
+   * ScheduleSendModal the /compose page's EmailComposer, DockedComposer and
+   * ThreadComposer wire — one contract on every compose surface.
+   */
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const { queueSend } = useUndoSend();
   // BB-P1-11: the drawer previously hardcoded a Hindi summary prompt for every
   // user. Suggestion copy now follows the app locale (English default).
@@ -800,23 +845,46 @@ export function QuantyCopilotDrawer({
    * email. Runs through the same undo-send queue the composer uses, so the
    * 10-second recall window applies here too. Never called without the
    * user's explicit Send tap, and never with an invalid recipient.
+   *
+   * `scheduledAt` (ISO, future, from the ScheduleSendModal) is the one
+   * sendAt contract: it travels in queueSend (scheduledAt + successLabel so
+   * the bar never says "Message sent!" for a future schedule) and into
+   * POST /emails/:id/send as `{ sendAt }`. A scheduled send DEFERS to the
+   * same recall window — it never bypasses it, so Undo genuinely cancels
+   * the schedule before it exists server-side.
    */
-  const confirmSendDraft = () => {
+  const confirmSendDraft = (scheduledAt?: string) => {
     const draft = pendingEmailDraft;
     if (!draft || !draft.toValid || draftSending) return;
+    // Schedule-send: the modal rejects past times and the backend 400s
+    // them — a past scheduledAt must never be queued, or the queue below
+    // would deliver it IMMEDIATELY while the UI claimed "scheduled".
+    // Belt-and-braces here in case the modal's clock raced the confirm
+    // (same convention as ThreadComposer / DockedComposer, PR #908).
+    if (scheduledAt && isPastScheduleTime(new Date(scheduledAt))) {
+      showToast({
+        text: 'That time has already passed — pick a future time to schedule your send.',
+        type: 'error',
+      });
+      return;
+    }
     setDraftSending(true);
     const { to, subject, body } = draft;
     queueSend({
       to,
       subject,
       body,
+      scheduledAt,
+      successLabel: scheduledAt ? 'Email scheduled!' : undefined,
       onSendNow: buildQuantyDraftSendNow({
         to,
         subject,
         body,
+        scheduledAt,
         copy: quantyDraftSendCopy(locale),
         composeEmail: (data) => apiClient.composeEmail(data),
-        sendEmail: (id) => apiClient.sendEmail(id),
+        sendEmail: (id, options) =>
+          options ? apiClient.sendEmail(id, options) : apiClient.sendEmail(id),
         appendAssistantNote,
         showToast,
         onSettled: () => {
@@ -833,6 +901,8 @@ export function QuantyCopilotDrawer({
       onUndo: async () => {
         // Undo inside the recall window: the email was never composed, so
         // there is nothing to retract server-side — just say so honestly.
+        // (Same for a scheduled send: the schedule was never created, so
+        // nothing was delivered either.)
         appendAssistantNote('Send cancel kar diya — kuch nahi bheja gaya.');
         setDraftSending(false);
         setPendingEmailDraft(null);
@@ -1423,11 +1493,43 @@ export function QuantyCopilotDrawer({
                 <div className="mt-3 flex gap-2">
                   <button
                     type="button"
-                    onClick={confirmSendDraft}
+                    onClick={() => confirmSendDraft()}
                     disabled={!pendingEmailDraft.toValid || draftSending}
                     className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg bg-amber-500 px-3 text-xs font-bold text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {draftSending ? 'Bheja ja raha…' : 'Send'}
+                  </button>
+                  {/*
+                    Schedule send — the same ScheduleSendModal the /compose
+                    page's EmailComposer, DockedComposer and ThreadComposer
+                    use. Amber accent to match this confirmation card, icon-only
+                    so the primary Send stays the dominant action, 44px hit
+                    target, disabled until the recipient is valid. Disabled
+                    while the draft is sending — a schedule must never attach
+                    to a send already in flight.
+                  */}
+                  <button
+                    type="button"
+                    onClick={() => setShowScheduleModal(true)}
+                    disabled={!pendingEmailDraft.toValid || draftSending}
+                    data-testid="quanty-draft-schedule-button"
+                    aria-label="Schedule send"
+                    title="Schedule send — pick a future date & time"
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 text-amber-300 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                  >
+                    <svg
+                      className="size-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <circle cx="12" cy="12" r="9" />
+                      <polyline points="12 7 12 12 15.5 14" />
+                    </svg>
                   </button>
                   <button
                     type="button"
@@ -1447,6 +1549,23 @@ export function QuantyCopilotDrawer({
                   </button>
                 </div>
               </motion.div>
+            )}
+            {/*
+              Schedule Send Modal — the same component EmailComposer uses on
+              the /compose page and DockedComposer/ThreadComposer wire (same
+              pick logic, same past-time rejection, same backend contract).
+              Its own fixed z-50 backdrop, so no portal is needed — the pick
+              hands the ISO back to the confirmation gate via confirmSendDraft.
+            */}
+            {showScheduleModal && (
+              <ScheduleSendModal
+                isOpen={showScheduleModal}
+                onClose={() => setShowScheduleModal(false)}
+                onSchedule={(at) => {
+                  setShowScheduleModal(false);
+                  confirmSendDraft(at);
+                }}
+              />
             )}
 
             {/* Bottom Rounded Pill Prompt Input + "Quanty can make mistakes." Disclaimer */}

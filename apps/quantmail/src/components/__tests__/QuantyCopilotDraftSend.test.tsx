@@ -23,11 +23,16 @@
 // ============================================================================
 
 import { describe, it, expect, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   buildQuantyDraftSendNow,
   quantyDraftSendCopy,
   type QuantyDraftSendDeps,
 } from '../QuantyCopilotDrawer';
+
+// qm-auto finding: the copilot's send path had no schedule-send at all.
+const FUTURE_ISO = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
 
 function makeDeps(overrides: Partial<QuantyDraftSendDeps> = {}): QuantyDraftSendDeps & {
   notes: string[];
@@ -117,6 +122,94 @@ describe('buildQuantyDraftSendNow: the onSendNow contract', () => {
   });
 });
 
+describe('buildQuantyDraftSendNow: schedule-send via the one sendAt contract', () => {
+  it('scheduled: carries scheduledAt into sendEmail as { sendAt }, with honest scheduled copy', async () => {
+    const sendMock = vi.fn(async () => ({ success: true }));
+    const deps = makeDeps({ sendEmail: sendMock, scheduledAt: FUTURE_ISO });
+    await buildQuantyDraftSendNow(deps)();
+    expect(deps.settled).toBe(true);
+    // The one sendAt contract: POST /emails/:id/send `{ sendAt }`.
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    expect(sendMock).toHaveBeenCalledWith('email-1', { sendAt: FUTURE_ISO });
+    // Exactly one honest success surface — "scheduled", never "sent".
+    expect(deps.notes).toHaveLength(1);
+    expect(deps.notes[0]).toMatch(/Scheduled/);
+    expect(deps.notes[0]).not.toMatch(/delivered/i);
+    expect(deps.toasts).toEqual([
+      { text: 'Email scheduled — will send to friend@example.com', type: 'success' },
+    ]);
+  });
+
+  it('immediate: sendEmail is called with ONE arg (byte-identical, no options object)', async () => {
+    const sendMock = vi.fn(async () => ({ success: true }));
+    const deps = makeDeps({ sendEmail: sendMock });
+    await buildQuantyDraftSendNow(deps)();
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    expect(sendMock).toHaveBeenCalledWith('email-1');
+    expect(deps.notes[0]).toMatch(/Sent — email delivered to friend@example\.com/);
+    expect(deps.toasts).toEqual([
+      { text: 'Email sent to friend@example.com', type: 'success' },
+    ]);
+  });
+
+  it('scheduled: REJECTS when the scheduled send fails — failure surface still honest', async () => {
+    const deps = makeDeps({
+      sendEmail: async () => ({ success: false, error: { message: 'scheduler full' } }),
+      scheduledAt: FUTURE_ISO,
+    });
+    await expect(buildQuantyDraftSendNow(deps)()).rejects.toThrow('scheduler full');
+    expect(deps.settled).toBe(true);
+    // The schedule was never created — "Nothing was sent" stays honest.
+    expect(deps.notes).toHaveLength(1);
+    expect(deps.notes[0]).toMatch(/Nothing was sent/);
+    expect(deps.toasts[0].type).toBe('error');
+  });
+});
+
+describe('QuantyCopilotDrawer schedule-send wiring (source pins)', () => {
+  // These fail on the pre-fix code, which had no modal import, no schedule
+  // button, and no sendAt/successLabel wiring anywhere on this path.
+  const drawerSource = readFileSync(
+    join(import.meta.dirname, '../QuantyCopilotDrawer.tsx'),
+    'utf8',
+  );
+
+  it('imports the same ScheduleSendModal + isPastScheduleTime the other compose surfaces use', () => {
+    expect(drawerSource).toMatch(
+      /import\s*\{\s*ScheduleSendModal,\s*isPastScheduleTime\s*\}\s*from\s*['"]\.\/ScheduleSendModal['"]/,
+    );
+  });
+
+  it('the confirmation card has a schedule button that opens the modal', () => {
+    expect(drawerSource).toContain('data-testid="quanty-draft-schedule-button"');
+    expect(drawerSource).toContain('aria-label="Schedule send"');
+    expect(drawerSource).toMatch(/onClick=\{\(\)\s*=>\s*setShowScheduleModal\(true\)\}/);
+  });
+
+  it('the modal hands its pick back to the confirmation gate', () => {
+    expect(drawerSource).toMatch(
+      /onSchedule=\{\(at\)\s*=>\s*\{\s*setShowScheduleModal\(false\);\s*confirmSendDraft\(at\);/,
+    );
+  });
+
+  it('confirmSendDraft carries scheduledAt + honest successLabel into the undo-send queue', () => {
+    expect(drawerSource).toContain('scheduledAt,');
+    expect(drawerSource).toContain("successLabel: scheduledAt ? 'Email scheduled!' : undefined");
+    expect(drawerSource).toContain('sendEmail(composeRes.data.id, { sendAt: scheduledAt })');
+  });
+
+  it('a past scheduledAt is rejected before anything is queued (belt-and-braces, PR #908 convention)', () => {
+    expect(drawerSource).toMatch(
+      /if\s*\(scheduledAt\s*&&\s*isPastScheduleTime\(new Date\(scheduledAt\)\)\)/,
+    );
+  });
+
+  it('the primary Send button never passes its click event as the scheduledAt arg', () => {
+    expect(drawerSource).toContain('onClick={() => confirmSendDraft()}');
+    expect(drawerSource).not.toContain('onClick={confirmSendDraft}');
+  });
+});
+
 describe('quantyDraftSendCopy: locale-following send-state copy', () => {
   it('English default has no Hinglish/Roman-script Hindi', () => {
     const copy = quantyDraftSendCopy('en');
@@ -126,6 +219,8 @@ describe('quantyDraftSendCopy: locale-following send-state copy', () => {
       copy.sentNote('a@b.c'),
       copy.failedNote('x'),
       copy.sendFailedToast,
+      copy.scheduledNote('a@b.c'),
+      copy.scheduledToast('a@b.c'),
     ].join(' ');
     expect(all).not.toMatch(/nahi|payi|saka|Bhej|kuch|dobara|karein/i);
     expect(copy.sendFailedToast).toBe('Email could not be sent');
@@ -138,5 +233,14 @@ describe('quantyDraftSendCopy: locale-following send-state copy', () => {
     expect(copy.sendFailedToast).toBe('ईमेल नहीं भेजा जा सका');
     expect(copy.sentNote('a@b.c')).toMatch(/भेज दिया/);
     expect(copy.failedNote('x')).toMatch(/भेजने में दिक्कत हुई/);
+    expect(copy.scheduledNote('a@b.c')).toMatch(/शेड्यूल कर दिया/);
+    expect(copy.scheduledToast('a@b.c')).toMatch(/शेड्यूल हो गया/);
+  });
+
+  it('scheduled copy is honest: "scheduled", never "sent"/"delivered"', () => {
+    const copy = quantyDraftSendCopy('en');
+    expect(copy.scheduledNote('a@b.c')).toMatch(/Scheduled/);
+    expect(copy.scheduledNote('a@b.c')).not.toMatch(/delivered/i);
+    expect(copy.scheduledToast('a@b.c')).toMatch(/Email scheduled/);
   });
 });
