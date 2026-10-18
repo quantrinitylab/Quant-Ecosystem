@@ -95,6 +95,10 @@ export default function ContactsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
+  const contactParam = searchParams.get('contact');
+  // Contact ids already attempted via the ?contact= deep link. A missing or
+  // deleted id toasts once — it is never retried on every list refetch.
+  const deepLinkTriedRef = useRef<Set<string>>(new Set());
 
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -465,6 +469,45 @@ export default function ContactsPage() {
       setShowMobileSheet(true);
     }
   };
+
+  // Deep link: ?contact=<id> (used by universal-search PersonRow deep links).
+  // Selects the contact even when it is not on the currently loaded page —
+  // fetches it by id first, and shows an honest error for a missing id
+  // instead of silently dropping the selection.
+  useEffect(() => {
+    if (!contactParam) return;
+    if (selectedContact?.id === contactParam) return;
+    const select = (contact: Contact) => {
+      setSelectedContact(contact);
+      if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        setShowMobileSheet(true);
+      }
+    };
+    const inPage = displayedContacts.find((c) => c.id === contactParam);
+    if (inPage) {
+      select(inPage);
+      return;
+    }
+    if (deepLinkTriedRef.current.has(contactParam)) return;
+    deepLinkTriedRef.current.add(contactParam);
+    let cancelled = false;
+    void apiClient
+      .getContact(contactParam)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success && res.data) {
+          select(res.data);
+        } else {
+          showToast({ text: 'Contact not found', type: 'error' });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) showToast({ text: 'Could not load this contact', type: 'error' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [contactParam, displayedContacts, selectedContact]);
 
   const handleOpenCreate = useCallback(() => {
     setFormData({ name: '', email: '', phone: '', company: '', tags: '', avatar: '' });

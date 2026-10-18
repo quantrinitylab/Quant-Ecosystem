@@ -11,7 +11,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-import { UniversalSearchResults } from '../app/search/UniversalSearchResults';
+import { UniversalSearchResults, personDetailHref } from '../app/search/UniversalSearchResults';
 import type { UniversalSearchResults as Results } from '../hooks/useUniversalSearch';
 
 function results(overrides: Partial<Results> = {}): Results {
@@ -105,5 +105,23 @@ describe('UniversalSearchResults', () => {
       />,
     );
     expect(html).toContain('Plan');
+  });
+
+  describe('personDetailHref', () => {
+    it('deep-links a person hit to the contacts detail pane via ?contact=<id>', () => {
+      expect(personDetailHref({ id: 'p1', name: 'Ada', email: 'ada@x.co' } as never)).toBe(
+        '/contacts?contact=p1',
+      );
+    });
+
+    it('URL-encodes ids with special characters', () => {
+      expect(personDetailHref({ id: 'a/b?c=1', name: 'X' } as never)).toBe(
+        '/contacts?contact=a%2Fb%3Fc%3D1',
+      );
+    });
+
+    it('falls back to the bare /contacts list when the hit has no id', () => {
+      expect(personDetailHref({ id: '', name: 'Nameless' } as never)).toBe('/contacts');
+    });
   });
 });
