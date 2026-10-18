@@ -152,7 +152,11 @@ function matches(record: any, where: any): boolean {
     const recVal = record[key];
     if (val && typeof val === 'object' && !(val instanceof Date)) {
       if ('in' in val && Array.isArray(val.in)) {
-        if (!val.in.includes(recVal)) return false;
+        const mode = (val as { mode?: string }).mode;
+        if (mode === 'insensitive') {
+          const lower = new Set(val.in.map((e: unknown) => String(e).toLowerCase()));
+          if (!lower.has(String(recVal).toLowerCase())) return false;
+        } else if (!val.in.includes(recVal)) return false;
       }
       if ('not' in val) {
         if (recVal === val.not) return false;
@@ -702,6 +706,8 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
   describe('QM-M39-006 link sharing scope/audience/expiry', () => {
     beforeEach(() => {
       users.push({ id: 'user_carol', email: 'carol@quantmail.in', displayName: 'Carol' });
+      // Legacy row with mixed-case stored email (pre-normalization era).
+      users.push({ id: 'user_legacy', email: 'LegacyCase@quantmail.in', displayName: 'Legacy' });
     });
 
     it('creates an org-scoped link and stores scope', async () => {
@@ -735,6 +741,24 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
       expect(body.share.scope).toBe('specific');
       expect(body.share.audienceEmails).toEqual(['bob@quantmail.in']);
       expect(JSON.parse(driveShares[0].audience as string)).toEqual(['user_bob']);
+    });
+
+    it('matches audience emails case-insensitively against legacy mixed-case rows', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/shares/link',
+        headers: { 'content-type': 'application/json' },
+        payload: {
+          fileId: 'file_spec_1',
+          role: 'viewer',
+          scope: 'specific',
+          audienceEmails: ['legacycase@quantmail.in'],
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.share.scope).toBe('specific');
+      expect(JSON.parse(driveShares[0].audience as string)).toEqual(['user_legacy']);
     });
 
     it('rejects specific-people links with unknown emails (no silent shrink)', async () => {
