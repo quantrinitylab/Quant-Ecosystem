@@ -4419,3 +4419,6 @@ Status: [x] DONE (R23 regression audit complete 2026-10-18 ~23:58 IST; notificat
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. NO FIX AGENTS (P0/P1-only protocol; subagent.list 0 active). findings.md untouched (clean pass).
 - VERDICT-LIVE: HEALTHY. Proxy 127.0.0.1:8888 healthy (google 200 0.74s; hung-chrome signature killed pre-shots per lesson — orphan PID 22206 + renderers, /tmp/chrome-mobile-* cleaned, 9333 verified free). GET /notifications -> 307 -> /login?returnTo=%2Fnotifications (honest auth gate); /api/notifications + /api/notifications/mail-notification-mode -> honest 401 2/2. Desktop 1440x900 + mobile 390x844 (wait_s=14, fully hydrated) /notifications screenshots REVIEWED: clay M-mark current, honest sign-in copy + tri-cards, ONE IDENTITY footer, (c) 2026, pure black, mail-orange accents, zero old-logo flash; white ghost on login 'AI triage' card = standing known issue (not re-filed). Shots reviewed + deleted; chrome orphans cleaned, ports free. Signed-in notification center/delivery/push flows = needs-auth (protocol), not faked.
 Rotation -> QM-SCREEN-016 (settings) ROUND 23 regression, queued.
+
+## QM-SCREEN-016 R23 — Settings regression (ROUND 23)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-016r23, started 2026-10-19 ~00:35 IST; R18 base 569e3f5dd -> origin/main 337af7d5, fresh fetch)
