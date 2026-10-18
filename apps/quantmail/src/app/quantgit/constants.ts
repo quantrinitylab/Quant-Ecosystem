@@ -68,7 +68,7 @@ export const INITIAL_REPOS: Repo[] = [
     checksStatus: 'passing',
     license: 'Proprietary',
     website: 'https://quantmail.in',
-    topics: ['email', 'privacy', 'rust-worker'],
+    topics: ['email', 'privacy'],
     branchCount: 42,
     commitCount: 846,
     branches: ['main', 'feat/offline-sync', 'fix/ses-deliverability'],
