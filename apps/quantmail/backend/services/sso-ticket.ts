@@ -45,6 +45,14 @@ export interface SsoTicketClaims {
   displayName: string;
   clientId?: string;
   returnTo?: string;
+  /**
+   * Epoch seconds of the last strong authentication of the session that
+   * minted this ticket. Carried through to the exchanged access token so the
+   * handoff cannot freshen step-up authority. Absent when the minting session
+   * predates step-up support — the exchange must then treat the resulting
+   * token as stale, never as fresh.
+   */
+  lastStrongAuthAt?: number;
 }
 
 export interface SsoTicketPayload extends SsoTicketClaims {
@@ -83,6 +91,11 @@ export async function mintSsoTicket(claims: SsoTicketClaims): Promise<string> {
     displayName: claims.displayName,
     ...(claims.clientId ? { clientId: claims.clientId } : {}),
     ...(claims.returnTo ? { returnTo: claims.returnTo } : {}),
+    // Only a valid positive timestamp is carried. Anything else stays
+    // absent so the exchange can distinguish "known stale" from "unknown".
+    ...(typeof claims.lastStrongAuthAt === 'number' && claims.lastStrongAuthAt > 0
+      ? { lastStrongAuthAt: claims.lastStrongAuthAt }
+      : {}),
     tokenType: SSO_TICKET_TYPE,
   })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
@@ -122,6 +135,10 @@ export async function verifySsoTicket(ticket: string): Promise<SsoTicketPayload 
       const v = payload[key];
       return typeof v === 'string' && v ? v : undefined;
     };
+    const optNum = (key: string): number | undefined => {
+      const v = payload[key];
+      return typeof v === 'number' && v > 0 ? v : undefined;
+    };
     return {
       jti: payload.jti,
       userId: payload.sub,
@@ -130,6 +147,7 @@ export async function verifySsoTicket(ticket: string): Promise<SsoTicketPayload 
       displayName: str('displayName'),
       clientId: optStr('clientId'),
       returnTo: optStr('returnTo'),
+      lastStrongAuthAt: optNum('lastStrongAuthAt'),
       tokenType: SSO_TICKET_TYPE,
       iss: SSO_TICKET_ISSUER,
       aud: SSO_TICKET_AUDIENCE,

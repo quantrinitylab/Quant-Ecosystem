@@ -125,7 +125,7 @@ export class TokenService {
     scopes: PermissionScope[],
     app: QuantApp,
     tokenId: string,
-    strongAuthAt: number,
+    strongAuthAt: number | null,
     accessKey: JwtKeyVersion,
   ): Promise<string> {
     return new jose.SignJWT({
@@ -134,7 +134,10 @@ export class TokenService {
       role: userInfo.role,
       scopes,
       app,
-      lastStrongAuthAt: strongAuthAt,
+      // `null` omits the claim: step-up guards treat a missing timestamp as
+      // stale (fail closed), never as fresh. Token issuance time must never
+      // become authentication time.
+      ...(strongAuthAt !== null ? { lastStrongAuthAt: strongAuthAt } : {}),
     })
       .setProtectedHeader({ alg: 'HS256', kid: accessKey.kid })
       .setIssuedAt()
@@ -158,11 +161,19 @@ export class TokenService {
     userInfo: { email: string; username: string; role: string },
     scopes: PermissionScope[],
     app: QuantApp,
-    lastStrongAuthAt?: number,
+    /**
+     * Epoch seconds of the last strong authentication to stamp on the token.
+     * `undefined` (default, legacy callers such as login/registration) stamps
+     * now, preserving existing behavior. `null` explicitly omits the claim —
+     * the token is then treated as stale by step-up guards. A number is
+     * carried verbatim: token issuance time must never become authentication
+     * time (SSO ticket exchange passes the minting session's value through).
+     */
+    lastStrongAuthAt?: number | null,
   ): Promise<{ accessToken: string; expiresIn: number; tokenType: 'Bearer' }> {
     const tokenId = generateId('tok');
-    const now = Math.floor(Date.now() / 1000);
-    const strongAuthAt = lastStrongAuthAt ?? now;
+    const strongAuthAt =
+      lastStrongAuthAt === undefined ? Math.floor(Date.now() / 1000) : lastStrongAuthAt;
     const accessKey = await this.kms.getActiveKey('access');
     const accessToken = await this.signAccessToken(
       userId,

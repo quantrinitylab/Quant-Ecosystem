@@ -27,6 +27,7 @@ import { FastifyInstance } from 'fastify';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import prisma from '@quant/auth/lib/prisma';
 import { createTokenService } from '../lib/auth-session';
+import { accountLiveness } from '../lib/account-liveness';
 import {
   consumeSsoTicket,
   mintSsoTicket,
@@ -35,7 +36,7 @@ import {
 } from '../services/sso-ticket';
 
 interface RequestAuth {
-  auth?: { userId?: string; email?: string; username?: string };
+  auth?: { userId?: string; email?: string; username?: string; lastStrongAuthAt?: number };
 }
 
 function readClientCredentials(
@@ -197,6 +198,13 @@ export async function ssoTicketRoutes(fastify: FastifyInstance) {
       displayName,
       ...(clientId ? { clientId } : {}),
       ...(returnTo ? { returnTo } : {}),
+      // Carry the minting session's strong-auth time into the ticket so the
+      // exchange cannot freshen step-up authority. A session without the
+      // claim mints a ticket without it — the exchange then treats the
+      // resulting token as stale, never as fresh.
+      ...(typeof auth.lastStrongAuthAt === 'number' && auth.lastStrongAuthAt > 0
+        ? { lastStrongAuthAt: auth.lastStrongAuthAt }
+        : {}),
     });
     return reply.send({
       ticket,
@@ -243,6 +251,13 @@ export async function ssoTicketRoutes(fastify: FastifyInstance) {
   //    lifetime via its own cookie, exactly like /auth/login's access half
   //  - the token travels only in this POST's JSON response body, never in a
   //    URL (same rule as the rest of the ticket scheme)
+  //  - the minting session's lastStrongAuthAt is carried through the ticket
+  //    into the minted token verbatim: a stale session stays stale across
+  //    the handoff, and a ticket minted before step-up support yields a
+  //    token WITHOUT the claim (step-up guards treat it as stale). Token
+  //    issuance time never becomes authentication time.
+  //  - account liveness is fail-closed: a missing, soft-deleted, suspended
+  //    or deactivated account never receives a token (mirrors /auth/login).
   fastify.post('/sso/ticket/exchange', async (request, reply) => {
     const body = (request.body ?? {}) as Record<string, unknown>;
     const result = await validateTicketGrant(request, body);
@@ -254,20 +269,44 @@ export async function ssoTicketRoutes(fastify: FastifyInstance) {
     }
     const { payload } = result;
 
-    // Role comes from the live user row so the minted token carries the same
-    // claims as a password login. Falls back to 'user' if the row vanished
-    // between mint and exchange (the ticket itself was minted from a live
-    // session seconds ago).
-    let role = 'user';
+    // Fail-closed account liveness, mirroring the login boundary
+    // (routes/auth.ts): the ticket was minted from a live session seconds
+    // ago, but the account may have been deleted, suspended or deactivated
+    // since. A tombstoned row answers exactly like a missing one (same code,
+    // same message) so the tombstone cannot be probed; suspended/deactivated
+    // answer honestly; a DB failure never mints a token.
+    let userRow: { role: string | null; deletedAt: Date | null; status: string | null } | null;
     try {
-      const userRow = await prisma.user.findUnique({
+      userRow = await prisma.user.findUnique({
         where: { id: payload.userId },
-        select: { role: true },
+        select: { role: true, deletedAt: true, status: true },
       });
-      if (userRow?.role) role = userRow.role;
     } catch {
-      // Fall through with the default role.
+      return reply.code(503).send({
+        success: false,
+        error: { code: 'temporarily_unavailable', message: 'temporarily_unavailable', statusCode: 503 },
+      });
     }
+    if (!userRow || userRow.deletedAt) {
+      return reply.code(401).send({
+        success: false,
+        error: { code: 'invalid_grant', message: 'Ticket expired, invalid, or already used', statusCode: 401 },
+      });
+    }
+    const liveness = accountLiveness(userRow);
+    if (liveness === 'suspended') {
+      return reply.code(401).send({
+        success: false,
+        error: { code: 'ACCOUNT_SUSPENDED', message: 'This account is suspended.', statusCode: 401 },
+      });
+    }
+    if (liveness === 'deactivated') {
+      return reply.code(401).send({
+        success: false,
+        error: { code: 'ACCOUNT_DEACTIVATED', message: 'This account is deactivated.', statusCode: 401 },
+      });
+    }
+    const role = userRow.role || 'user';
 
     let minted;
     try {
@@ -280,6 +319,11 @@ export async function ssoTicketRoutes(fastify: FastifyInstance) {
         },
         ['openid', 'profile', 'email'],
         'quantmail' as any,
+        // Carry the minting session's strong-auth time verbatim. `null`
+        // (ticket minted before step-up support) mints a token WITHOUT the
+        // claim so step-up guards treat it as stale — token issuance time
+        // must never become authentication time.
+        payload.lastStrongAuthAt ?? null,
       );
     } catch {
       return reply.code(503).send({
