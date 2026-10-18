@@ -23,6 +23,9 @@ function createMockPrisma() {
       update: vi.fn(),
       updateMany: vi.fn(),
     },
+    ciJob: {
+      deleteMany: vi.fn(),
+    },
   };
 }
 
@@ -241,6 +244,20 @@ describe('PipelineService', () => {
         variables: { ENV: 'ci' },
       });
       expect(retried.status).toBe('PENDING');
+    });
+
+    it('clears the failed attempt\'s CiJob rows before re-dispatching (fix/qm-quantgit-cijob-persist)', async () => {
+      prisma.ciRun.findUnique.mockResolvedValue(FAILED_RUN);
+      prisma.ciRun.update.mockResolvedValue({ ...FAILED_RUN, status: 'PENDING' });
+
+      await service.retryRun('run-7');
+
+      // Stale per-job rows are dropped so the retried run's breakdown is
+      // rebuilt fresh by the queue-events sync — before the re-dispatch.
+      expect(prisma.ciJob.deleteMany).toHaveBeenCalledWith({ where: { runId: 'run-7' } });
+      const deleteOrder = prisma.ciJob.deleteMany.mock.invocationCallOrder[0];
+      const dispatchOrder = ciRunner.dispatch.mock.invocationCallOrder[0];
+      expect(deleteOrder).toBeLessThan(dispatchOrder);
     });
 
     it('re-dispatches with an empty config when the stored row predates the inputs columns', async () => {

@@ -4,6 +4,7 @@ import { startHealthServer } from '@quant/health-server';
 import { CIConfigParser } from './parser.js';
 import { CIJobExecutor } from './executor.js';
 import { LogStreamer } from './log-streamer.js';
+import { type JobExecutionSummary, type PipelineRunResult } from './runner.js';
 
 const CIRunJobSchema = z.object({
   runId: z.string(),
@@ -33,7 +34,7 @@ process.once('SIGINT', shutdownLogPublisher);
 export const ciWorker = createTypedWorker(
   'ci-runs',
   CIRunJobSchema,
-  async (job) => {
+  async (job): Promise<PipelineRunResult> => {
     // Missing execution infrastructure must reject the whole run before parsing
     // or logging. Empty workflows and allowFailure cannot turn it into success.
     executor.assertAvailable();
@@ -44,12 +45,44 @@ export const ciWorker = createTypedWorker(
     // the terminal marker must be anchored to the last job that actually runs.
     const executableJobNames = executionOrder.flat().filter((n) => config.jobs[n]);
 
+    // fix/qm-quantgit-cijob-persist: collect per-job summaries and RETURN them
+    // as the BullMQ job's return value (PipelineRunResult) instead of throwing
+    // on the first hard job failure. The runner never touches the DB by
+    // design; the backend's ci-runs queue-events listener persists these
+    // summaries as CiJob rows + logs from the 'completed' event's return
+    // value. Throwing here would discard every job's result and leave the
+    // per-job breakdown empty for exactly the failed runs users inspect.
+    // Unexpected executor exceptions (infra errors with no per-job data)
+    // still throw, preserving the 'failed' event path for those.
+    const startTime = Date.now();
+    const jobSummaries: Record<string, JobExecutionSummary> = {};
+    let pipelineFailed = false;
+
+    const recordSkipped = (jobName: string): void => {
+      const jobConfig = config.jobs[jobName];
+      if (!jobConfig) return;
+      jobSummaries[jobName] = {
+        name: jobName,
+        stage: jobConfig.stage,
+        status: 'skipped',
+        allowFailure: Boolean(jobConfig.allowFailure),
+      };
+    };
+
     try {
       let jobIndex = 0;
       for (const stageJobs of executionOrder) {
         for (const jobName of stageJobs) {
           const jobConfig = config.jobs[jobName];
           if (!jobConfig) continue;
+
+          if (pipelineFailed) {
+            // An earlier hard failure: this job never ran — record it as
+            // skipped so the per-job breakdown stays complete and honest.
+            recordSkipped(jobName);
+            jobIndex += 1;
+            continue;
+          }
 
           // Only the last job's end is terminal: ending the stream early on a
           // non-final job would close subscribers' live view mid-build.
@@ -76,8 +109,16 @@ export const ciWorker = createTypedWorker(
 
           logStreamer.endStreaming(streamId, { terminal: isLastJob });
 
+          jobSummaries[jobName] = {
+            name: jobName,
+            stage: jobConfig.stage,
+            status: result.status,
+            result,
+            allowFailure: Boolean(jobConfig.allowFailure),
+          };
+
           if (result.status === 'failed' && !jobConfig.allowFailure) {
-            throw new Error(`Job ${jobName} failed with exit code ${result.exitCode}`);
+            pipelineFailed = true;
           }
         }
       }
@@ -88,6 +129,20 @@ export const ciWorker = createTypedWorker(
       await logStreamer.publishTerminal(runId);
       throw err;
     }
+
+    if (pipelineFailed) {
+      // The loop above only marks terminal on the last *executed* job's end,
+      // which never ran for a failed pipeline — terminate the live stream.
+      await logStreamer.publishTerminal(runId);
+    }
+
+    const duration = Math.max(1, Date.now() - startTime);
+    return {
+      runId,
+      status: pipelineFailed ? 'failed' : 'success',
+      jobs: jobSummaries,
+      duration,
+    };
   },
   {
     connection: {

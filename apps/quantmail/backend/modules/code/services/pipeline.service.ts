@@ -239,8 +239,8 @@ export class PipelineService {
   }
 
   /**
-   * Retry a failed run: reset it to PENDING and re-dispatch the exact
-   * pipeline inputs stored at trigger time.
+   * Retry a failed run: reset it to PENDING, clear its stale per-job rows,
+   * and re-dispatch the exact pipeline inputs stored at trigger time.
    *
    * @throws 404 when the run does not exist.
    * @throws 409 when the run is not in FAILED state.
@@ -259,6 +259,11 @@ export class PipelineService {
       where: { id: runId },
       data: { status: 'PENDING', startedAt: null, completedAt: null },
     });
+
+    // fix/qm-quantgit-cijob-persist: drop the failed attempt's per-job rows
+    // so the retried run's job breakdown + logs are rebuilt fresh by the
+    // queue-events sync instead of showing stale rows from the old attempt.
+    await this.prisma.ciJob.deleteMany({ where: { runId } });
 
     await this.dispatchRun(run.id, {
       repoId: run.repoId,

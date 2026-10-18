@@ -19,7 +19,13 @@ export interface TypedJob<TPayload> {
 export function createTypedWorker<TPayload>(
   queueName: string,
   schema: ZodSchema<TPayload>,
-  processor: (job: TypedJob<TPayload>) => Promise<void>,
+  // fix/qm-quantgit-cijob-persist: the processor may return a result payload
+  // (previously forced to void). The return value becomes the BullMQ job's
+  // return value, delivered to QueueEvents 'completed' listeners — this is
+  // how the ci-runner reports its PipelineRunResult so the backend can
+  // persist per-job CiJob rows + logs. Existing void processors keep
+  // working: their return value is simply undefined.
+  processor: (job: TypedJob<TPayload>) => Promise<unknown>,
   opts?: TypedWorkerOptions,
 ): Worker {
   const workerOpts: WorkerOptions = {
@@ -32,7 +38,7 @@ export function createTypedWorker<TPayload>(
     queueName,
     async (job) => {
       const validated = schema.parse(job.data);
-      await processor({
+      return processor({
         id: job.id ?? '',
         name: job.name,
         data: validated,
