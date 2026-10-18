@@ -277,12 +277,16 @@ export default function PersonPage() {
       // Select by thread id so the inbox pre-selects the right row; fall back
       // to the last message id if the thread id is absent. view=inbox is
       // load-bearing: RootPage renders PeopleHome without it, and ?selected=
-      // is only consumed inside InboxPageContent.
+      // is only consumed inside InboxPageContent. The spam lens is carried
+      // along: the inbox pre-selects only rows in the current lens corpus, so
+      // without it `x` from a ?lens=spam thread lands in the inbox with nothing
+      // selected and the thread context silently dropped (same lens-loss class
+      // as the fixed spam-lens dead-end #917).
       const lastMessage = conversation?.messages[conversation.messages.length - 1];
       const selectId = lastMessage?.threadId || lastMessage?.id;
       if (!selectId) return;
-      router.push(inboxSelectTarget(selectId));
-    }, [conversation, router]),
+      router.push(inboxSelectTarget(selectId, isSpamLens ? 'spam' : undefined));
+    }, [conversation, router, isSpamLens]),
     onClose: useCallback(() => {
       router.push(backHref);
     }, [router, backHref]),
