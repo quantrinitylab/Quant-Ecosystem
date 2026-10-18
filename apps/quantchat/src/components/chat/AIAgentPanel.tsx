@@ -161,17 +161,24 @@ export function AIAgentPanel({
           aria-label="Toggle AI auto-reply"
           disabled={pending}
           onClick={handleToggle}
-          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${
-            enabled ? 'bg-violet-500' : 'bg-gray-300 dark:bg-gray-600'
-          }`}
+          className="relative inline-flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-full disabled:opacity-60"
         >
-          <motion.span
-            layout
-            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ${
-              enabled ? 'translate-x-5' : 'translate-x-1'
+          {/* QC-F-489: the button is the >=44px hit-area (min-h-touch); the
+              visible 24px pill lives on this inner track, unchanged. */}
+          <span
+            aria-hidden="true"
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+              enabled ? 'bg-violet-500' : 'bg-gray-300 dark:bg-gray-600'
             }`}
-          />
+          >
+            <motion.span
+              layout
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ${
+                enabled ? 'translate-x-5' : 'translate-x-1'
+              }`}
+            />
+          </span>
         </button>
       </div>
 
