@@ -11,7 +11,7 @@ It is regenerated from the audit loops. Edit it by hand only to correct facts �
 never mark anything done without evidence, per `15-definition-of-done.md`
 (a screenshot, HTTP 200, or green TypeScript check is not done).
 
-- **Last updated:** 2026-10-11 IST (refresh 3)
+- **Last updated:** 2026-10-18 IST (refresh 4)
 - **Audit sources (read-only, not re-run here):**
   - `hidden_files/gap-audit/uiux-gap.md` — 115 spec'd screens, repo @ `abfb2b3` (2026-10-07)
   - `hidden_files/gap-audit/backend-gap.md` — 45 backend domains, repo @ `abfb2b35258bb765c11a34e660cb588cea2d58a3` (merge PR #568, 2026-10-07)
@@ -25,10 +25,23 @@ never mark anything done without evidence, per `15-definition-of-done.md`
     mobile-style, week-planning, chat-power-user). Remediation claims were re-verified
     against `origin/main` via `git grep`/`git show`/`git ls-tree` — merged PRs alone did
     not count as done.
-- **Scoreboard HEAD:** `5727f051` (merge PR #839, 2026-10-11 09:27 IST). Previous scoreboard
-  HEAD was `6b8e75db` (merge PR #577). Statuses below reflect the audits above;
-  remediation in flight (Drive fake-removal PRs #825/#826, Contacts PRs #831/#832 — all
-  OPEN at refresh time) is noted where known, not assumed.
+  - Refresh 2026-10-18 folds in: PR #1293 send-ordering (2026-10-14), PR #1302 QuantChat
+    backend OCI deploy infra (2026-10-18), PR #1304 QuantAI SSO ticket-exchange (2026-10-18),
+    PR #1306 SSO strongauth renewal (2026-10-18), Oracle migration (sites live on OCI
+    2026-10-17 ~19:50 IST), continuous-qa `findings.md` (through 2026-10-18 06:55 IST),
+    lane-1 regression audits 2026-10-17/18 (0 new P0/P1/P2, live HEALTHY), deploy-hold.txt
+    (ACTIVE since 2026-10-16). Remediation claims re-verified against `origin/main`
+    (`git grep`/`git show`) — merged PRs alone did not count as done.
+- **Scoreboard HEAD:** `158e9b370` (merge PR #1306, 2026-10-18). Previous scoreboard HEAD was
+  `5727f051` (merge PR #839, 2026-10-11). Statuses below reflect the audits above;
+  remediation in flight is noted where known, not assumed.
+- **Infra note (2026-10-17):** all three sites (QuantMail, QuantAI, QuantChat) run on Oracle OCI
+  (ap-mumbai-1; vm-app + vm-db Running) since ~19:50 IST 2026-10-17. Old AWS staging is retired.
+  "Staging" references in this doc now mean the OCI compose stack unless noted.
+- **Deploy note (2026-10-18):** `deploy-hold.txt` is ACTIVE since 2026-10-16 ~15:40 IST (#1243
+  keep-vs-revert, user decision pending). Merged-but-NOT-live: PR #1304 (QuantAI one-click SSO),
+  PR #1302 (QuantChat backend deploy infra — image building). A Cloudflare 522 all-night outage
+  (2026-10-17/18) recovered 2026-10-18 03:45 IST.
 - **File numbering note:** `29-` through `32-` were taken by the M39–M41 extension docs, so this
   scoreboard takes `33-`. **Collision warning (2026-10-11):** the architecture intake merge
   (#607) added a second `33-` file (`33-quanty-app-capability-and-tool-registry.md`) and
@@ -49,7 +62,7 @@ never mark anything done without evidence, per `15-definition-of-done.md`
 |---|---|---|---|---|
 | Screens (115 across 9 products) | 72 | 14 | 28 | 0 |
 | Backend domains (45) | 2 | 32 | 9 | 2 |
-| Deep-dive severities (2026-10-07 baseline 17 P0 / 12 P1 / 10 P2) | — | — | — | 10 P0 clusters resolved+verified (see changelog); 1 survivor (BroadcastChannel MOCK_MSGS); new P0s since: Drive preview-auth 401, Drive phantom duplication, QuantChat realtime socket (F16), QuantAI SSO loop, REG-2 mark-unread |
+| Deep-dive severities (2026-10-07 baseline 17 P0 / 12 P1 / 10 P2; refresh 4 @ `158e9b370`) | — | — | — | 10 P0 clusters resolved+verified (see changelogs); survivors: BroadcastChannel `MOCK_MSGS` + `useReels`→`getGuestFeaturedReels()` fallback (both still on main); carried-open from refresh 3: Drive preview-auth 401, Drive phantom duplication, QuantChat realtime socket (F16); QuantAI SSO loop FIXED live 2026-10-18 (CORS origins + #1304). New P1/P2 since 2026-10-11: OIDC JWKS 401 live (P1, deploy-pipeline), Flutter QuantGit fakes (P1, fellow lane), SSO cookie maxAge/TTL mismatch (P2, on un-deployed #1304), follow-up reminders undelivered (P2), drive accent leaks (P2), QuantGit blob-editor error swallowing (P2); REG-2 mark-unread still live-unverified |
 | Structure | — | — | Part A extras REMOVED (#589); duplicates consolidated (#591); retro-spec decision merged (#605); ~578 per-screen spec files landed (#604) | Economy 4-owners → PARTIAL (decision doc; code consolidation unverified); per-app `src/mobile/` copy-paste (K7) still open |
 | Extras (shipped, no spec) | — | — | — | Part A REMOVED; Part B → keep+spec decided in `decisions/extras-retro-spec.md` (#605) |
 
@@ -88,6 +101,28 @@ never mark anything done without evidence, per `15-definition-of-done.md`
 | Regression REG-1 (reply "Re:" strip) | new (2026-10-10 audit) | FIXED in code | `normalizeReplySubject` normalizes to exactly one "Re:" with code comment citing REG-1 (`apps/quantmail/src/app/compose/page.tsx:19-24`) |
 | Regression REG-2 (mark-unread not persisting) | new (2026-10-10 audit) | **OPEN — major regression** | No fix commit found; inbox-triage 2026-10-10 confirms unread state still not persisting. M01/M02 BUILT behavior broken |
 | Regression REG-3 (search URL q= sync) | new (2026-10-10 audit) | FIX in main, live-verify pending | `router.replace` URL sync present in `apps/quantmail/src/app/search/page.tsx:182,287` (#747); audit predates current HEAD |
+
+### Refresh 2026-10-18 — change log (status flips only; all evidence on `origin/main` @ `158e9b370`)
+
+No BUILT→BROKEN major regressions found: lane-1 regression audits 2026-10-17/18 report 0 new
+P0/P1/P2 and live HEALTHY (calendar/drive/login surfaces, honest 401s, no old-logo flash).
+
+| Item | Was | Now | Evidence |
+|---|---|---|---|
+| Infra: hosting | AWS staging (EKS/RDS) | Oracle OCI live | vm-app (A1.Flex 4/24GB, 80.225.234.186) + vm-db (A1.Flex 2/12GB) Running ap-mumbai-1; all three sites live ~19:50 IST 2026-10-17 (migration runbook) |
+| QuantAI login/SSO | BROKEN (backend 403'd forwarded Origin) | FIXED live | Root cause 2026-10-18: `CORS_ORIGINS` lacked quantai/quantchat origins (manual `/etc/quant/secrets.env` fix + backend recreate on OCI; login live-verified) |
+| QuantAI one-click SSO (ticket→token exchange) | MISSING | MERGED, not live | PR #1304 merged 2026-10-18 (gate+full-sweep green); deploy blocked by #1243 hold. **New P2 on it (2026-10-18 audit):** `apps/quantai/src/app/api/auth/sso/ticket/route.ts` sets cookie maxAge 3600 while access token TTL is 900s — user appears signed in while token-gated calls 401 |
+| QuantChat backend on Oracle | never deployed | infra MERGED, not live | PR #1302 merged 2026-10-18 (`deploy-oci.yml` + `compose/quant-stack.yml` quantchat-backend target); image building; deploy blocked by #1243 hold |
+| SSO strongauth | baseline | hardened | PR #1306 merged 2026-10-18 (`routes/sso-tickets.ts` 4-file hardening + 291-line test) |
+| `?token=` carve-out (thread-realtime SSE) | PARTIAL (residual from refresh 3) | RESOLVED | `git grep "query['token']"` → zero hits in `routes/thread-realtime.ts` @ `158e9b370` |
+| Send ordering/idempotency | — | flip-first durable send | PR #1293 merged 2026-10-14: durable sent-flip before external transmit (`email.service.ts`, `outbound-delivery.service.ts`) |
+| Deploys | flowing | BLOCKED | `deploy-hold.txt` ACTIVE since 2026-10-16 ~15:40 IST (#1243 keep-vs-revert, user decision pending). #1302/#1304 merged but not live |
+| REG-2 mark-unread | OPEN — major regression | OPEN (live re-verification pending) | No fix commit since refresh 3; `mutations.markRead/markUnread` exist in `app/page.tsx:3109-3168` @ `158e9b370`. Not re-audited live since 2026-10-10 |
+| Email verification | 3 post-merge bugs in flight (verify/resend 401, code-redeem race, non-atomic registration) | migration + race fixes MERGED | PR #940 (SES), #947 (migration), #952 (verify-code race), #1179 (case-normalize r3); live verification pending; code-entry UI location still open (L239) |
+| OIDC discovery | — | P1 OPEN | 2026-10-15 audit: `GET /api/oauth/jwks` → 401 live (frontend layer not serving `b40c37d17` fix); advertised `jwks_uri` unusable — deploy-pipeline/rollout issue, flagged for orchestrator |
+| Fake survivors (QuantGram) | 1 survivor (BroadcastChannel MOCK_MSGS) | 2 survivors | `BroadcastChannel.tsx` MOCK_MSGS + `useReels.ts`→`getGuestFeaturedReels()` fallback both still on main @ `158e9b370` |
+| New P2s (continuous-qa 2026-10-12..18) | — | OPEN | follow-up reminders never delivered/surfaced (2026-10-15); drive mail-orange accent leaks incl. public share page (2026-10-13/16); QuantGit blob-editor swallows network failure (2026-10-14); search hairline dividers (2026-10-16) |
+| New P1s (2026-10-14) | — | OPEN (fellow lane) | Flutter QuantGit fake repo list + fake Quanty AI responses (`flutter_apps/apps/quant_mail/lib/screens/quantgit/quantgit_pillar_view.dart`) — other account's lane |
 
 ---
 
@@ -468,13 +503,13 @@ BUILT / PARTIAL / MISSING / BROKEN as in the header.
 | Outbox / event spine | `05-data-and-event-architecture.md`: "write domain state and outbox record in one transaction; publish asynchronously" | PARTIAL (was BROKEN at 2026-10-08; producers now exist) | `outbox_events` table (`schema.prisma:1474`), `OutboxPublisher` (`packages/data-plane/src/outbox.ts`), `services/cdc-relay` poller, `services/search-indexer` consumer all exist; **mail backend now writes outbox rows**: `lib/outbox-events.ts`, `lib/mutation-context.ts`, `lib/lifecycle-events.ts`, routes `emails.ts`/`retention.ts`, `services/email.service.ts`/`data-lifecycle.service.ts` (24 files reference outbox, #597, #611) | Spec'd `mail.*.v1` emission coverage not re-verified; consumer starvation (CDC relay → signal-projector → search-indexer) not re-verified; real-time fan-out still partly direct Redis pubsub + synchronous cross-service calls |
 | Economy ownership | `03-product-boundaries-and-domains.md`: "QuantTrinity owns economy policy only" | PARTIAL (was BROKEN; decision doc merged) | `docs/quant-architecture/decisions/economy-single-ownership.md` (#598) | Code consolidation/migration of `packages/payments`, `packages/credits`, `packages/quant-economy`, `packages/creator-economy` (+ `quant-commerce`) and `apps/quantmail/backend/modules/billing/` unverified |
 | Platform adoption | `00-architecture-charter.md`: "platform owns reusable primitives; products may consume them but may not bypass them" | PARTIAL (was BROKEN; remediation merged) | Migration of inline `fetch()` to `@quant/api-client` merged (#595) | Full re-baseline (253 bypasses in 88 files) not re-verified; 8 single-consumer platform packages and 8 copy-pasted `src/mobile/` layers / `AuthGuard` copies still open (K7) |
-| Idempotency | `15-definition-of-done.md` backend checklist | PARTIAL (was MISSING) | `packages/server-core/src/plugins/idempotency.ts` + test, registered in `app.ts:102-105` (#582) | Middleware is opt-in per-route, not global-mandatory; mail-mutation `Idempotency-Key` adoption unverified |
+| Idempotency | `15-definition-of-done.md` backend checklist | PARTIAL (was MISSING) | `packages/server-core/src/plugins/idempotency.ts` + test, registered in `app.ts:102-105` (#582); #1293 (2026-10-14) flip-first durable send ordering in `email.service.ts`/`outbound-delivery.service.ts` | Middleware is opt-in per-route, not global-mandatory; mail-mutation `Idempotency-Key` adoption unverified |
 | SLOs / error budgets | `10-reliability-observability.md`, `sre-slos.md` | PARTIAL (was MISSING) | `apps/quantmail/backend/lib/dependency-health.ts` per-dep health (#601); systematic remote-call timeouts `packages/server-core/src/timeouts/timeouts.ts` (#608) | No SLO definitions, availability/latency targets, error budgets, or circuit breakers evidenced |
-| Auth: `?token=` bearer | Security baseline | PARTIAL (was BROKEN; platform fix merged) | `requireAuth()` accepts only `Authorization: Bearer` header and `quant_access_token` cookie — "Query-string tokens (?token=) are NOT accepted" (`packages/server-core/src/plugins/auth.ts`); test asserts a valid JWT via `?token=` is rejected (`__tests__/app.test.ts`) (#579) | **Residual carve-out:** `apps/quantmail/backend/routes/thread-realtime.ts:15,43-44` still accepts `?token=` as session token; `sse-transport.ts` has a token path |
-| Auth: SSO ticket "verification" | `08-identity-security-trust.md` | RESOLVED (was BROKEN) | Old `verifyHandoffTicket` renamed `decodeUnverifiedHandoffTicket`; new `verifyTokenWithUserInfo` re-verifies the candidate token against `/api/auth/userinfo`, and `consumeHandoffTicket` only stores session from the server-verified userinfo response (`UniversalSSOTokenBridge.ts:304,335,438-459`) (#583) | — |
+| Auth: `?token=` bearer | Security baseline | RESOLVED (was BROKEN; residual carve-out closed 2026-10-18) | `requireAuth()` accepts only `Authorization: Bearer` header and `quant_access_token` cookie — "Query-string tokens (?token=) are NOT accepted" (`packages/server-core/src/plugins/auth.ts`); test asserts a valid JWT via `?token=` is rejected (`__tests__/app.test.ts`) (#579); the `thread-realtime.ts` SSE carve-out is GONE (`git grep "query['token']"` → zero hits @ `158e9b370`) | — |
+| Auth: SSO ticket "verification" | `08-identity-security-trust.md` | RESOLVED (was BROKEN) | Old `verifyHandoffTicket` renamed `decodeUnverifiedHandoffTicket`; new `verifyTokenWithUserInfo` re-verifies the candidate token against `/api/auth/userinfo`, and `consumeHandoffTicket` only stores session from the server-verified userinfo response (`UniversalSSOTokenBridge.ts:304,335,438-459`) (#583); hardened further by #1306 (2026-10-18, `routes/sso-tickets.ts` + `token-service.ts` strongauth renewal) | New P2 (2026-10-18, on un-deployed #1304): QuantAI SSO ticket route sets cookie maxAge 3600 while access token TTL is 900s |
 | Auth: impersonation | `08-identity-security-trust.md` | RESOLVED (was BROKEN) | `requireUserId()` reads only `request.auth.userId`, 401 fail-closed, no client-supplied identity fallback (`apps/quantwave/backend/routes/radar.ts`) (#576) | — |
 | Auth: step-up | `settings-api.md`, `abuse-engine.md` | BUILT (was MISSING) | `STEP_UP_AUTH_WINDOW_SECONDS` (900s) in `packages/server-core/src/plugins/auth.ts` + `__tests__/step-up-auth.test.ts` + wiring in `routes/auth.ts`, `routes/settings-tokens.ts` (#587) | — |
-| DeliveryWorker deployment | `delivery-domain.md` | BROKEN (code BUILT, deployment MISSING) — unchanged 2026-10-11 | `apps/quantmail/backend/worker.ts` entrypoint correct (DKIM-sign → MX → SMTP, fails closed without `DomainAuthKey`); QuantMail internal delivery added (`services/delivery-worker.service.ts`, #691 delivers to QuantMail recipients; inbound pipeline + honest SES #684) | **Zero** k8s/helm manifests reference the external SMTP worker — queue fills, nothing drains it; external outbound mail cannot work on staging. WS gateway manifest landed (#790 `infra/k8s/staging-ws-gateway.yaml`) but not the DeliveryWorker |
+| DeliveryWorker deployment | `delivery-domain.md` | BROKEN (code BUILT, deployment MISSING) — unchanged 2026-10-18 | `apps/quantmail/backend/worker.ts` entrypoint correct (DKIM-sign → MX → SMTP, fails closed without `DomainAuthKey`); QuantMail internal delivery added (`services/delivery-worker.service.ts`, #691 delivers to QuantMail recipients; inbound pipeline + honest SES #684); **no OCI worker evidence either** — `infra/oci` + `compose/quant-stack.yml` @ `158e9b370` contain no DeliveryWorker/worker.ts service entry | Queue fills, nothing drains it; external outbound mail cannot work on OCI staging. WS gateway manifest landed (#790 `infra/k8s/staging-ws-gateway.yaml`) but not the DeliveryWorker |
 
 ---
 
@@ -485,12 +520,13 @@ What follows are the structural items, in build-order phase sequence.
 
 ### Phase 1 — platform kernel
 
-**2026-10-11: all merged.** (K2 keeps a residual `?token=` carve-out in `thread-realtime.ts`/`sse-transport.ts` — see §12.)
+**2026-10-11: all merged. Refresh 2026-10-18: K2's residual `?token=` carve-out in
+`thread-realtime.ts` is also closed — §12 `?token=` row → RESOLVED.**
 
 | ID | Khami | Source | Disposition |
 |---|---|---|---|
 | K1 | Outbox/event spine dead — mail backend writes zero outbox rows (§12) | backend-gap §1a | DONE — #597, #611: `lib/outbox-events.ts`, `lib/mutation-context.ts`, `lib/lifecycle-events.ts`, outbox writes in `routes/emails.ts`/`retention.ts`, `services/email.service.ts`/`data-lifecycle.service.ts`; §12 upgraded to PARTIAL |
-| K2 | `?token=` bearer acceptance (§12) | deepdive §C | DONE — #579 (fake-removal wave S3): platform fallback removed, rejection test in `server-core/__tests__/app.test.ts`; residual carve-out flagged in §12 |
+| K2 | `?token=` bearer acceptance (§12) | deepdive §C | DONE — #579 (fake-removal wave S3): platform fallback removed, rejection test in `server-core/__tests__/app.test.ts`; refresh 2026-10-18: `thread-realtime.ts` residual carve-out GONE (§12 → RESOLVED) |
 | K4 | No global idempotency middleware | backend-gap §1e, deepdive §C | DONE — #582: `packages/server-core/src/plugins/idempotency.ts` (opt-in per-route); §12 → PARTIAL |
 | K5 | 253 inline-fetch bypasses of `@quant/api-client` | structure-gap §V1 | DONE — #595: migration to `@quant/api-client` merged; full re-baseline pending |
 | K6 | No step-up authentication | backend-gap §1b | DONE — #587: 900s step-up window plugin + tests; §12 → BUILT |
@@ -531,6 +567,10 @@ What follows are the structural items, in build-order phase sequence.
 | K14 | 8 products have only one-line inventories; 7 doc planes missing; numbering collisions (16–21, 27, 28); M26–M35 gap; `docs/` root sprawl (~35 ad-hoc files) | structure-gap §4, uiux-gap §A | DONE — #604: ~578 per-screen spec files under `docs/quant-architecture/products/*` with honest IMPLEMENTED/PARTIAL/MISSING grading |
 | K15 | Extras Part B: ~70 unspec'd UI routes + ~60 extra backend route files | extras-to-remove.md Part B | DONE (decision) — #605 `decisions/extras-retro-spec.md` merged (keep+spec vs remove per item) |
 | K29 | Doc-number collisions from intake merge #607: 16–25 and 33 have 2–3 files each (e.g. `20-ecosystem-…` vs `20-m21-privacy.md` vs `20-quantmail-m01-inbox.md`; two `33-*` incl. this scoreboard) | refresh 2026-10-11 | OPEN — doc agents: repair numbering; doc-number references in this scoreboard are ambiguous until then |
+| K30 | Deploy hold blocks everything: #1243 keep-vs-revert user decision pending (deploy-hold.txt since 2026-10-16) | refresh 2026-10-18 | BLOCKED on user — zero deploys until he decides; merged-but-not-live: #1302 (QuantChat backend), #1304 (QuantAI SSO) |
+| K31 | QuantChat backend OCI deploy — infra merged, needs deploy | refresh 2026-10-18 | PR #1302 merged 2026-10-18 (`deploy-oci.yml` + `compose/quant-stack.yml`); image building; deploy after K30 clears |
+| K32 | QuantAI one-click SSO — needs deploy + P2 cookie/TTL fix | refresh 2026-10-18 | PR #1304 merged 2026-10-18 (double-green); P2: SSO ticket route sets cookie maxAge 3600 vs access-token TTL 900s (2026-10-18 audit) — fix before/after deploy |
+| K33 | External DeliveryWorker still undeployed (now on OCI) | refresh 2026-10-18 | `worker.ts` correct but no `infra/oci`/`compose/quant-stack.yml` service entry @ `158e9b370` (§12); external outbound mail cannot drain |
 
 ---
 
@@ -540,9 +580,10 @@ Source: `extras-to-remove.md` (2026-10-07). "Extra" = shipped in code/site but N
 `docs/quant-architecture/` specs. Disposition: **keep+spec** (write the spec first, then it stops
 being an extra) or **remove** (PR per product).
 
-**2026-10-11:** Part A REMOVED via PR #589 (verified on origin/main — all items gone; `?token=`
-residual carve-out in `thread-realtime.ts`/`sse-transport.ts` noted in §12). Part B disposition
-decided: `decisions/extras-retro-spec.md` merged via PR #605 (keep+spec vs remove per item).
+**2026-10-11:** Part A REMOVED via PR #589 (verified on origin/main — all items gone).
+**2026-10-18:** the `?token=` residual carve-out in `thread-realtime.ts` is also GONE
+(verified `git grep` @ `158e9b370`; §12 → RESOLVED). Part B disposition decided:
+`decisions/extras-retro-spec.md` merged via PR #605 (keep+spec vs remove per item).
 
 ### Part A — SAFE TO DELETE (dead, duplicated, or junk; zero live users verified)
 
