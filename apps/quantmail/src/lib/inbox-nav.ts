@@ -50,6 +50,32 @@ export function inboxSelectTarget(threadId: string, lens?: string): string {
 }
 
 /**
+ * Thread-page `x` (select) lens carry (thread-lens-select P1).
+ *
+ * /thread/[id] is opened with `returnTo` encoding the source path — including
+ * `?lens=` when the thread came from a lens view (app/page.tsx builds
+ * `/thread/<id>?returnTo=<encoded currentPath>` and that currentPath carries
+ * `?view=inbox&lens=<spam|groups|contacts...>`; ConversationalThreadView's
+ * pane variant does the same when opening the full thread page). The `x`
+ * shortcut must carry that lens into inboxSelectTarget so the inbox
+ * pre-selects the row in the right corpus; without it, `x` from a
+ * `?lens=spam` thread lands in the default all-lens inbox where the
+ * spam-only threadId has no row and the pre-select silently no-ops — the same
+ * lens-loss class as the fixed spam-lens dead-end #917 and the people-page
+ * sibling fixed via inboxSelectTarget's lens param. Returns the raw lens
+ * value, or undefined when there is none; pass the result straight to
+ * inboxSelectTarget, which drops `all` and falsy values. Never throws.
+ */
+export function lensFromReturnTo(returnTo: string | null): string | undefined {
+  if (!returnTo) return undefined;
+  try {
+    return new URL(returnTo, 'https://quantmail.in').searchParams.get('lens') || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Apply the `q` contract to a URL: a non-empty query sets `q`, an empty query
  * drops it, everything else is preserved.
  *
