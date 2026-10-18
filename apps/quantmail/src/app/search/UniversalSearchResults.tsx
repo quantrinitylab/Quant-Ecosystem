@@ -146,10 +146,24 @@ function MailRow({ email, onOpen }: { email: Email; onOpen: (email: Email) => vo
   );
 }
 
+/**
+ * Deep link for a universal-search person hit. Opens the contact's detail pane
+ * on /contacts — selected via the ?contact= id param — instead of the bare
+ * /contacts list, so the tapped person is never lost (QM 2026-10-19).
+ * Falls back to the bare list when the hit carries no id.
+ */
+export function personDetailHref(person: Contact): string {
+  return person.id ? `/contacts?contact=${encodeURIComponent(person.id)}` : '/contacts';
+}
+
 function PersonRow({ person }: { person: Contact }) {
   const router = useRouter();
   return (
-    <button type="button" onClick={() => router.push('/contacts')} className={rowClass}>
+    <button
+      type="button"
+      onClick={() => router.push(personDetailHref(person))}
+      className={rowClass}
+    >
       <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--quant-muted)] text-sm font-semibold">
         {(person.name || person.email || '?').charAt(0).toUpperCase()}
       </span>
