@@ -269,4 +269,30 @@ describe('QuantChat Userinfo Route Resiliency', () => {
     expect(json.error.code).toBe('UNAUTHORIZED');
     expect(json.data).toBeUndefined();
   });
+
+  it('PIN-502-6 (QC-F-502): upstream 500 passes through verbatim — never rewritten to 200 or 503, no fabricated data', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+      }),
+    } as unknown as Response);
+
+    const req = new Request('http://localhost:3000/api/auth/userinfo', {
+      method: 'GET',
+      headers: {
+        authorization: 'Bearer fresh_valid_jwt',
+      },
+    });
+
+    const res = await GET(req);
+    expect(res.status).toBe(500);
+
+    const json = await res.json();
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('INTERNAL_ERROR');
+    expect(json.data).toBeUndefined();
+  });
 });
