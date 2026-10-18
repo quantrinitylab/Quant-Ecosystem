@@ -43,6 +43,7 @@ import { useRegisterCommands } from '../lib/keyboard/hooks';
 import type { Command } from '../lib/keyboard/command-registry';
 import { THREAD_KEYBOARD_SCOPE } from '../hooks/useThreadViewKeyboard';
 import { useThreadLeaveGuard, type ThreadLeaveGuard } from '../hooks/useThreadLeaveGuard';
+import { useThreadComposerDraft } from '../hooks/useThreadComposerDraft';
 // Re-exported so the thread page keeps importing the guard type from the view.
 export type { ThreadLeaveGuard };
 import {
@@ -565,19 +566,33 @@ export function ConversationalThreadView({
     [toggleHeartReact],
   );
 
-  // Quick reply & AI state
-  const [quickReplyText, setQuickReplyText] = useState('');
+  // Quick reply & AI state. The draft is per-thread: the view instance is
+  // reused across /thread/A → /thread/B navigations, so the hook resets the
+  // bar, the quote chip, the send error and the schedule modal whenever the
+  // threadId changes (browser-chrome back/forward bypasses the leave guard).
+  const {
+    quickReplyText,
+    setQuickReplyText,
+    quotedMessage,
+    setQuotedMessage,
+    replyError,
+    setReplyError,
+    showScheduleModal,
+    setShowScheduleModal,
+    setDraftText,
+  } = useThreadComposerDraft(threadId);
   /*
    * Unsaved-changes guard for the thread leave paths: when the bar holds
    * typed-but-unsent text the branded /compose discard confirm appears
    * instead of the text being silently vaporised (see useThreadLeaveGuard).
    * The page drives it through leaveGuardRef for its edge-swipe / Esc /
    * swipe-to-next-thread paths; the header back button already routes
-   * through onClose, which the page guards.
+   * through onClose, which the page guards. setDraftText (not the raw
+   * setter) so a confirmed discard clears the quote chip too.
    */
   const { dialog: leaveGuardDialog, confirmLeaveIfNeeded } = useThreadLeaveGuard(
     quickReplyText,
-    setQuickReplyText,
+    setDraftText,
     leaveGuardRef,
   );
   // Phones get the short reply placeholder: the keyboard hints (Enter,
@@ -587,18 +602,17 @@ export function ConversationalThreadView({
    * Quoted reply: set when a thread gesture (swipe-right, menu Reply) targets
    * a specific message. The send below replies to this message instead of the
    * latest one, and a chip above the bar shows what is being answered.
+   * (State lives in useThreadComposerDraft; the quote is set here, read by
+   * the send path, cleared by the bar's × / Escape and by thread changes.)
    */
-  const [quotedMessage, setQuotedMessage] = useState<Email | null>(null);
   const quickReplyInputRef = useRef<HTMLInputElement>(null);
   const [isSendingQuickReply, setIsSendingQuickReply] = useState(false);
   const [isQuantyOpen, setIsQuantyOpen] = useState(false);
   // Schedule-send for the quick-reply bar: the same ScheduleSendModal the
   // composers use (one schedule mechanism across compose surfaces). Mail mode
   // has no schedule button — its Send opens the full composer, which owns
-  // scheduling there.
-  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  // scheduling there. (Open state lives in useThreadComposerDraft.)
   const showQuanty = useDeferredMount(isQuantyOpen);
-  const [replyError, setReplyError] = useState<string | null>(null);
   /*
    * The shared undo-send queue from AppShell's UndoSendProvider — the same
    * 10-second recall window the composers send through. Quick reply used to
