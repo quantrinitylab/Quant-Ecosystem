@@ -4,6 +4,14 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { useFocusTrap } from '@quant/shared-ui';
 import type { ContactGroup, Email, EmailAttachment, GroupInviteLink } from '../types';
 import { useConfirm } from '../hooks/useConfirm';
+import { useOptionalAuth } from '../providers/auth-provider';
+import {
+  contactNameAccountKey,
+  ensureContactNamesNamespaceV2,
+  getContactName,
+  saveContactName,
+  windowContactNameStorage,
+} from '../lib/contactNameCache';
 import {
   useCreateGroupInviteLink,
   useDemoteGroupAdmin,
@@ -747,26 +755,29 @@ export function ContactProfileInspector({
   onClose,
   onSaveContactName,
 }: ContactProfileInspectorProps) {
-  const [localName, setLocalName] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = JSON.parse(localStorage.getItem('quantmail_contact_names') || '{}');
-        const key = normalize(email);
-        if (saved[key]) return saved[key];
-      } catch {}
-    }
-    return name?.trim() || displayName(email);
-  });
+  // qm-contact-names-scope (P1): user-renamed contact names are
+  // account-scoped by the backend-verified immutable user id
+  // (lib/contactNameCache). An unknown account fails closed (no
+  // persistence, never the old shared key); the retired unscoped legacy key
+  // is purged rather than migrated. useOptionalAuth: tests can render this
+  // inspector outside an AuthProvider — there it falls back to the
+  // passed-in/prop name.
+  const authUserId = useOptionalAuth()?.user?.id;
+  const accountKey = contactNameAccountKey(authUserId);
+
+  const [localName, setLocalName] = useState(() => name?.trim() || displayName(email));
+
+  useEffect(() => {
+    const store = windowContactNameStorage();
+    if (accountKey) ensureContactNamesNamespaceV2(store);
+    const saved = getContactName(store, accountKey, email);
+    setLocalName(saved || name?.trim() || displayName(email));
+  }, [accountKey, email, name]);
 
   const handleSave = (newName: string) => {
     setLocalName(newName);
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = JSON.parse(localStorage.getItem('quantmail_contact_names') || '{}');
-        saved[normalize(email)] = newName;
-        localStorage.setItem('quantmail_contact_names', JSON.stringify(saved));
-        window.dispatchEvent(new Event('storage'));
-      } catch {}
+    if (saveContactName(windowContactNameStorage(), accountKey, email, newName)) {
+      window.dispatchEvent(new Event('storage'));
     }
     onSaveContactName?.(newName);
   };
