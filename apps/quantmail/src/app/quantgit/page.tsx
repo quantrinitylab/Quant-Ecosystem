@@ -63,6 +63,7 @@ import { PullRequestsTab } from './components/PullRequestsTab';
 import { interpretMergeResult, mergeFailureToast } from './mergeOutcome';
 import { resolveBlobLoadOutcome } from './blobLoadOutcome';
 import { assertBranchCreated, BranchExistsError } from './branchCreate';
+import { assertCommitResponse, toCommitFailure } from './commitBlob';
 import {
   headShaFromBlobPayload,
   newBranchBaseSha,
@@ -2071,24 +2072,14 @@ function QuantGitContent() {  const router = useRouter();
             originalPath: input.originalPath,
           }),
         });
-        payload = await response.json().catch(() => null);
-
-        if (!response.ok || !payload?.success) {
-          if (response.status === 409 || payload?.error?.code === 'STALE_BLOB') {
-            throw new Error('This file changed on the server. Reload it before committing.');
-          }
-          if (response.status !== 404 && payload?.error?.message) {
-            throw new Error(payload.error.message);
-          }
-        }
+        payload = assertCommitResponse(response, await response.json().catch(() => null));
       } catch (err: any) {
-        if (
-          err.message &&
-          !err.message.includes('Failed to fetch') &&
-          !err.message.includes('404')
-        ) {
-          throw err;
-        }
+        // Fail closed (fix/qm-commitblob-false-success): a network failure,
+        // a 404, or an unconfirmed response must NEVER fall through to the
+        // "Committed" toast + closeBlobEditor() below — nothing was
+        // committed, so surface the honest error and keep the blob editor
+        // open with its content intact.
+        throw toCommitFailure(err);
       }
 
       // Handle Delete Action
