@@ -11,6 +11,19 @@ export const SendEmailJobSchema = z.object({
   userId: z.string().optional(),
   cc: z.array(z.string()).optional(),
   bcc: z.array(z.string()).optional(),
+  /**
+   * Additive: ISO timestamp of the scheduled fire time (the route-level `sendAt`).
+   * Presence marks this job as a SCHEDULED send — the delivery worker uses it for
+   * reply-arrival suppression (a scheduled "just following up!" must not fire after
+   * the recipient already replied). Absent for immediate/undo-window sends.
+   */
+  scheduledFor: z.string().optional(),
+  /**
+   * Additive: ISO timestamp of when the scheduled send was queued. Paired with
+   * `scheduledFor`; defines the suppression window (inbound replies arriving
+   * after this moment suppress the send).
+   */
+  scheduledAt: z.string().optional(),
 });
 
 export type SendEmailJob = z.infer<typeof SendEmailJobSchema>;

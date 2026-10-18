@@ -55,6 +55,13 @@ export interface EnqueueSendOptions {
   sentFolderId?: string;
   /** Optional delay before the worker picks up the job (ms) — e.g. undo-send window. */
   delayMs?: number;
+  /**
+   * The route-level scheduled fire time (`sendAt`). When provided, the enqueue
+   * stamps `scheduledFor`/`scheduledAt` on the job payload so the delivery worker
+   * can apply reply-arrival suppression (Superhuman parity: a scheduled follow-up
+   * must not fire after the recipient already replied).
+   */
+  sendAt?: Date;
 }
 
 export interface RedisConnectionOptions {
@@ -221,6 +228,14 @@ export class OutboundDeliveryPipeline {
           userId,
           cc: toAddressList((email as { ccAddresses: unknown }).ccAddresses),
           bcc: toAddressList((email as { bccAddresses: unknown }).bccAddresses),
+          // Reply-arrival suppression contract (see DeliveryWorker): only scheduled
+          // sends carry these fields; their presence marks the job as scheduled.
+          ...(options.sendAt
+            ? {
+                scheduledFor: options.sendAt.toISOString(),
+                scheduledAt: new Date().toISOString(),
+              }
+            : {}),
         };
 
         // Durable job. A deterministic jobId keyed off the email makes the enqueue
