@@ -119,6 +119,43 @@ describe('AiReviewBotService (Task CH-05)', () => {
       expect(findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets')).toBe(false);
     });
 
+    it('flags every standard private-key PEM header, not just RSA/bare', () => {
+      const headers = [
+        '-----BEGIN PRIVATE KEY-----',
+        '-----BEGIN RSA PRIVATE KEY-----',
+        '-----BEGIN EC PRIVATE KEY-----',
+        '-----BEGIN DSA PRIVATE KEY-----',
+        '-----BEGIN OPENSSH PRIVATE KEY-----',
+        '-----BEGIN ENCRYPTED PRIVATE KEY-----',
+        '-----BEGIN PGP PRIVATE KEY BLOCK-----',
+      ];
+      const patch = [
+        'diff --git a/keys/id_rsa b/keys/id_rsa',
+        '@@ -1,1 +1,8 @@',
+        ...headers.map((h) => `+${h}`),
+      ].join('\n');
+
+      const findings = bot.analyzePatch(patch);
+      const secretFindings = findings.filter(
+        (f) => f.ruleId === 'security/no-hardcoded-secrets',
+      );
+      expect(secretFindings).toHaveLength(headers.length);
+      expect(secretFindings.every((f) => f.severity === 'ERROR')).toBe(true);
+    });
+
+    it('does not flag public keys or certificates as private-key leaks', () => {
+      const patch = [
+        'diff --git a/certs/pub.pem b/certs/pub.pem',
+        '@@ -1,1 +1,3 @@',
+        '+-----BEGIN PUBLIC KEY-----',
+        '+-----BEGIN CERTIFICATE-----',
+        '+-----BEGIN PGP PUBLIC KEY BLOCK-----',
+      ].join('\n');
+
+      const findings = bot.analyzePatch(patch);
+      expect(findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets')).toBe(false);
+    });
+
     it('detects debugger statements and console.log', () => {
       const patch = [
         'diff --git a/service.ts b/service.ts',
