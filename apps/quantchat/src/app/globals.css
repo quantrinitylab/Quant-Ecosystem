@@ -13,6 +13,9 @@
 }
 
 :root {
+  /* Browser native widgets (date/time/color pickers, select popups, scrollbars) follow the resolved theme — QC-F-488. */
+  color-scheme: light;
+
   /* Brand System */
   --brand-primary: #4f46e5;
   --brand-primary-hover: #4338ca;
@@ -44,6 +47,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --quant-primary: #34d399;
   --quant-surface: #0f0f14;
   --quant-text: #f8fafc;
