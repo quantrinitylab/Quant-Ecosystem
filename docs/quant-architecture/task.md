@@ -1763,7 +1763,7 @@ STILL-UNVERIFIED: signed-in sessions/grants/PAT/2FA flows live.
 R3 NEW-FINDINGS COUNT: 0 P0 + 0 P1 + 1 P2 (R3-NEW-1; R2-NEW-1/R2-NEW-2 confirmed still present, not re-counted). No fix agents spawned (no P0/P1). Rotation -> QM-SCREEN-017 R3.
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
-Status: [x] DONE — LANE-1, branch lane1-audit-017r15 (2026-10-17 ~19:35–19:50 IST). R15 REGRESSION AUDIT COMPLETE.
+Status: [~] IN PROGRESS — Owner: LANE-1, Branch: lane1-audit-017r17 (2026-10-18 ~05:40 IST). R17 REGRESSION AUDIT CLAIMED (code read-only complete; live check pending).
 
 R15 REGRESSION AUDIT COMPLETE: NET-EFFECT DIFF 7f76a1eca (R14 base)..origin/main 7a8a3ad46 (fresh fetch, 29 first-parent merges: #1294 oci-arm64-build, #1292 qm-contact-suggestions, #1291 qm-1277-r2, #1282 qm-mailfilter-stepup, #1290/#1280/#1269 OCI deploy stack, #1287 qm-repo-migration-fake-shas, #1270 qm-meta-ai-provider, #1271 qm-s3-endpoint-config, #1278/#1279/#1284/#1274/#1268/#1267/#1272/#1266/#1265/#1264/#1263/#1262/#1288/#1293/#1286/#1285/#1276/#1275 fixes). ZERO admin/audit/retention/DLP-path bytes in window (path-filter over */admin/*, *admin*, *audit*, *retention*, *dlp* + name-only grep both EMPTY) → pure re-verification pass. Working tree ignored per stale-tree lesson; all reads from origin/main tree only (git show/git grep).
 #855 PRIOR FIXES BYTE-VERIFIED INTACT on 7a8a3ad46: retention.ts 8× requireStaff; audit-logs.ts zero startsWith('admin'); admin.ts STAFF_ROLES={'ADMIN','MODERATOR'} :32 + 14× requireStaff; AdminGuard wraps /admin layout :21.
