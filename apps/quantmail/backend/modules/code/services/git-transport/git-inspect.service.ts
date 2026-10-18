@@ -42,6 +42,24 @@ export interface GitTreeEntry {
  */
 const MAX_TREE_RECENCY_ENTRIES = 200;
 
+/**
+ * Canonicalizes a `git log --format=%cI` date to a stable UTC ISO-8601 string.
+ *
+ * Git's strict-ISO rendering is version-dependent: older git prints
+ * `2026-06-07T08:09:10+00:00` for UTC while newer git prints
+ * `2026-06-07T08:09:10Z` (both denote the same instant). Normalizing here
+ * keeps the API contract — and the UI label — identical no matter which git
+ * binary runs on the host. Unparseable input is returned untouched: real data
+ * is never invented and never dropped.
+ */
+function canonicalizeGitIsoDate(date: string): string {
+  const t = new Date(date).getTime();
+  if (Number.isNaN(t)) return date;
+  // %cI never carries sub-second precision, so the `.000` that toISOString()
+  // always emits is noise; strip it for the clean `Z` form.
+  return new Date(t).toISOString().replace(/\.000Z$/, 'Z');
+}
+
 export interface GitBlob {
   path: string;
   content: string;
@@ -145,7 +163,7 @@ export class GitInspectService {
       const message = line.slice(0, sep).trim();
       const date = line.slice(sep + 1).trim();
       if (!message || !date) return null;
-      return { message, date };
+      return { message, date: canonicalizeGitIsoDate(date) };
     } catch {
       return null;
     }

@@ -110,7 +110,11 @@ describe('GitInspectService tree recency enrichment', () => {
     const readme = byPath.get('README.md');
     expect(readme).toBeDefined();
     expect(readme!.lastCommit).toBe('chore: refresh readme');
-    expect(readme!.lastCommitDate).toBe('2026-06-07T08:09:10+00:00');
+    // Canonical UTC form: getLastCommitForPath normalizes git's version-
+    // dependent strict-ISO rendering (`+00:00` on old git, `Z` on new git)
+    // to this stable `Z` string — assert the canonical form, not git's raw
+    // output (see canonicalizeGitIsoDate).
+    expect(readme!.lastCommitDate).toBe('2026-06-07T08:09:10Z');
 
     const guide = tree.find((e) => e.path === 'docs');
     // root listing shows the docs/ directory entry (files under it via path=)
@@ -122,7 +126,8 @@ describe('GitInspectService tree recency enrichment', () => {
     const docs = tree.find((e) => e.type === 'tree' && e.path === 'docs');
     expect(docs).toBeDefined();
     expect(docs!.lastCommit).toBe('docs: add deployment guide');
-    expect(docs!.lastCommitDate).toBe('2026-01-02T03:04:05+00:00');
+    // Canonical UTC form (see note above) — stable across git versions.
+    expect(docs!.lastCommitDate).toBe('2026-01-02T03:04:05Z');
   });
 
   it('never fabricates "Update file" or "recently" placeholders', async () => {
