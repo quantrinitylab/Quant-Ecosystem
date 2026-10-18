@@ -224,7 +224,17 @@ export class WorkspaceService {
     const emails = [...new Set(input.emails.map(normalizeEmail))].filter(Boolean);
     const results: Array<{ email: string; status: 'invited' | 'already_member' | 'failed'; inviteId?: string; inviteUrl?: string; emailSent?: boolean; reason?: string }> = [];
     for (const email of emails) {
-      const existingUser = await this.prisma.user.findUnique({ where: { email }, select: { id: true } });
+      // Case-insensitive match, mirroring routes/auth.ts findUserByEmailInsensitive:
+      // legacy user rows predate email normalization and may carry mixed case
+      // (e.g. `LegacyCase@Example.com`), which the lowercased invite email would
+      // never hit with an exact-match findUnique — minting a fresh invite for an
+      // existing account instead of reporting already_member. `deletedAt: null`
+      // matches the auth entry point: a soft-deleted account is treated as a new
+      // invitee, not as the existing user.
+      const existingUser = await this.prisma.user.findFirst({
+        where: { email: { equals: email, mode: 'insensitive' }, deletedAt: null },
+        select: { id: true },
+      });
       if (existingUser) {
         const alreadyMember = await this.prisma.organizationMember.findUnique({ where: { orgId_userId: { orgId, userId: existingUser.id } } });
         if (alreadyMember) { results.push({ email, status: 'already_member' }); continue; }
