@@ -11,13 +11,12 @@ import { showToast } from './InboxToast';
 import {
   safeStorage,
   todayKey,
-  waterLogKey,
-  lifeTrackersKey,
-  loadWaterMl,
-  loadLifeTrackers,
   saveLifeTrackers,
   applyWaterLog,
   applyCreateTracker,
+  resolveTrackerAccount,
+  bindTrackersToAccount,
+  type TrackerAccountBinding,
   type StoredLifeTracker,
 } from '../lib/calendar-trackers-storage';
 import {
@@ -1137,7 +1136,20 @@ export interface CalendarTrackersSubViewProps {
   className?: string;
 }
 
-export function CalendarTrackersSubView({
+export function CalendarTrackersSubView(props: CalendarTrackersSubViewProps) {
+  // Account-keyed remount boundary (QM-FIX-LOOP P1 — same treatment as the
+  // reminders fix for CODEX-REVIEW 6167418183 on #1159): the inner view owns
+  // ALL per-account state — water log, life trackers, add-form fields. Keying
+  // it by the resolved account id guarantees an A->B account transition (or
+  // unresolved->authenticated hydration) can never retain A's state under B's
+  // identity: React unmounts the old instance and mounts a fresh one that
+  // loads the new account's data. No mismatched state can render, and no
+  // stale data can be written under the wrong key.
+  const accountId = resolveTrackerAccount(props.userId);
+  return <CalendarTrackersSubViewInner key={accountId ?? 'unresolved-auth'} {...props} />;
+}
+
+function CalendarTrackersSubViewInner({
   events = [],
   openDedicatedSheet,
   onSelectEvent,
@@ -1149,24 +1161,45 @@ export function CalendarTrackersSubView({
 
   // Health tracker: water log is PERSISTED in localStorage, date-scoped
   // (there is no water/habit backend — a day-old total must not carry over).
-  // Storage keys are derived from userId so they survive a login switch;
-  // note: if userId changes mid-session the keys change too.
-  const waterKey = waterLogKey(userId);
-  const trackersKey = lifeTrackersKey(userId);
+  //
+  // ACCOUNT BINDING (QM-FIX-LOOP P1, CODEX-REVIEW 6167418183 on #1159): water
+  // + life trackers are bound to the resolved account id via
+  // bindTrackersToAccount. The outer boundary remounts this inner view on
+  // every account change; the render-phase rebind below is defense-in-depth
+  // so that even a direct render of the inner view can never commit a frame
+  // — or a write — with one account's data under another account's keys.
+  // React re-renders before committing, so the mismatched data never paints.
   const today = todayKey();
-  const [waterMl, setWaterMl] = useState(() => loadWaterMl(safeStorage(), waterKey, today));
+  const accountId = resolveTrackerAccount(userId);
+  const [binding, setBinding] = useState<TrackerAccountBinding>(() =>
+    bindTrackersToAccount(safeStorage(), userId, today, null),
+  );
+  if (binding.accountId !== accountId) {
+    setBinding(bindTrackersToAccount(safeStorage(), userId, today, binding));
+  }
+
+  // Unresolved auth: the gate below hides every per-account action control,
+  // so null keys are unreachable via UI — but a write without a resolved
+  // account must be impossible even if a handler were ever reached.
+  const requireAccountKeys = (): { waterKey: string; trackersKey: string } | null => {
+    if (!binding.waterKey || !binding.trackersKey) {
+      showToast({ text: 'Sign in to manage trackers', type: 'error' });
+      return null;
+    }
+    return { waterKey: binding.waterKey, trackersKey: binding.trackersKey };
+  };
+
+  const waterMl = binding.waterMl;
   const waterTarget = 2500;
 
   // Custom life trackers state — PERSISTED in localStorage (no backend exists).
   // loadLifeTrackers normalizes category/tone to the valid sets, so the casts
   // below are sound.
-  const [lifeTrackers, setLifeTrackers] = useState<CustomLifeTracker[]>(() =>
-    loadLifeTrackers(safeStorage(), trackersKey).map((t) => ({
-      ...t,
-      category: t.category as CustomLifeTracker['category'],
-      tone: t.tone as CustomLifeTracker['tone'],
-    })),
-  );
+  const lifeTrackers: CustomLifeTracker[] = binding.lifeTrackers.map((t) => ({
+    ...t,
+    category: t.category as CustomLifeTracker['category'],
+    tone: t.tone as CustomLifeTracker['tone'],
+  }));
 
   // Modal / Creator for Custom Tracker
   const [isAddTrackerOpen, setIsAddTrackerOpen] = useState(false);
@@ -1181,22 +1214,26 @@ export function CalendarTrackersSubView({
     // may invoke updaters twice, which double-fired this toast.)
     // The persist/toast decision lives in applyWaterLog so the honesty
     // contract is unit-testable without a DOM.
-    const result = applyWaterLog(safeStorage(), waterKey, today, waterMl);
+    const keys = requireAccountKeys();
+    if (!keys) return;
+    const result = applyWaterLog(safeStorage(), keys.waterKey, today, waterMl);
     if (result.persisted) {
-      setWaterMl(result.nextMl);
+      setBinding({ ...binding, waterMl: result.nextMl });
     }
     showToast(result.toast);
   };
 
   const handleCreateTracker = (e: React.FormEvent) => {
     e.preventDefault();
+    const keys = requireAccountKeys();
+    if (!keys) return;
     if (!newTrackerTitle.trim() || !newTrackerDate) {
       showToast({ text: 'Choose a target date for this tracker', type: 'error' });
       return;
     }
 
     // Persist before celebrating: only claim "added" when the list is stored.
-    const result = applyCreateTracker(safeStorage(), trackersKey, lifeTrackers as StoredLifeTracker[], {
+    const result = applyCreateTracker(safeStorage(), keys.trackersKey, binding.lifeTrackers, {
       title: newTrackerTitle.trim(),
       category: newTrackerCategory,
       targetDate: newTrackerDate,
@@ -1212,13 +1249,7 @@ export function CalendarTrackersSubView({
       showToast(result.toast);
       return;
     }
-    setLifeTrackers(
-      result.next.map((t) => ({
-        ...t,
-        category: t.category as CustomLifeTracker['category'],
-        tone: t.tone as CustomLifeTracker['tone'],
-      })),
-    );
+    setBinding({ ...binding, lifeTrackers: result.next });
     setIsAddTrackerOpen(false);
     setNewTrackerTitle('');
     setNewTrackerNotes('');
@@ -1226,13 +1257,15 @@ export function CalendarTrackersSubView({
   };
 
   const handleDeleteTracker = (id: string) => {
+    const keys = requireAccountKeys();
+    if (!keys) return;
     const next = lifeTrackers.filter((t) => t.id !== id);
-    const persisted = saveLifeTrackers(safeStorage(), trackersKey, next as StoredLifeTracker[]);
+    const persisted = saveLifeTrackers(safeStorage(), keys.trackersKey, next as StoredLifeTracker[]);
     if (!persisted) {
       showToast({ text: 'Could not save change — storage unavailable', type: 'error' });
       return;
     }
-    setLifeTrackers(next);
+    setBinding({ ...binding, lifeTrackers: next });
     showToast({ text: 'Tracker deleted', type: 'info' });
   };
 
@@ -1273,14 +1306,18 @@ export function CalendarTrackersSubView({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsAddTrackerOpen(true)}
-          className="min-h-[44px] px-3.5 py-1.5 rounded-lg text-xs font-semibold text-black bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] shadow-sm flex items-center gap-1.5 transition-all"
-        >
-          <SvgPlus className="size-3.5 text-black" />
-          <span>+ Add Tracker</span>
-        </button>
+        {/* Per-account action — hidden while auth is unresolved so nothing can
+            open the add form against the shared bucket. */}
+        {accountId && (
+          <button
+            type="button"
+            onClick={() => setIsAddTrackerOpen(true)}
+            className="min-h-[44px] px-3.5 py-1.5 rounded-lg text-xs font-semibold text-black bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] shadow-sm flex items-center gap-1.5 transition-all"
+          >
+            <SvgPlus className="size-3.5 text-black" />
+            <span>+ Add Tracker</span>
+          </button>
+        )}
       </div>
 
       {/* Upcoming real calendar events (next 7 days) */}
@@ -1436,14 +1473,23 @@ export function CalendarTrackersSubView({
                   style={{ width: `${Math.min(100, (waterMl / waterTarget) * 100)}%` }}
                 />
               </div>
-              <button
-                type="button"
-                onClick={handleAddWater}
-                className="w-full py-1 rounded-lg text-xs font-medium text-sky-300 bg-sky-950/40 hover:bg-sky-950/70 border border-sky-800/40 flex items-center justify-center gap-1 transition-colors"
-              >
-                <SvgPlus className="size-3 text-sky-300" />
-                <span>Quick Log +250ml Water</span>
-              </button>
+              {/* Water quick-log is per-account: while auth is unresolved the
+                  button is replaced by an honest gate — nothing is read from
+                  or written to the shared bucket. */}
+              {accountId ? (
+                <button
+                  type="button"
+                  onClick={handleAddWater}
+                  className="w-full py-1 rounded-lg text-xs font-medium text-sky-300 bg-sky-950/40 hover:bg-sky-950/70 border border-sky-800/40 flex items-center justify-center gap-1 transition-colors"
+                >
+                  <SvgPlus className="size-3 text-sky-300" />
+                  <span>Quick Log +250ml Water</span>
+                </button>
+              ) : (
+                <p className="text-[11px] text-[var(--quant-muted-foreground)]">
+                  Sign in to log water on this device.
+                </p>
+              )}
               <p className="text-[10px] text-[#64748B]">Saved on this device · resets each day</p>
             </div>
 
@@ -1486,19 +1532,34 @@ export function CalendarTrackersSubView({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsAddTrackerOpen(true)}
-              className="size-7 rounded-lg bg-sky-950/60 border border-sky-800/60 grid place-items-center text-sky-400 hover:text-white transition-colors"
-              title="Add Custom Life Tracker"
-            >
-              <SvgPlus className="size-3.5" />
-            </button>
+            {/* Per-account action — hidden while auth is unresolved so nothing
+                can open the add form against the shared bucket. */}
+            {accountId && (
+              <button
+                type="button"
+                onClick={() => setIsAddTrackerOpen(true)}
+                className="size-7 rounded-lg bg-sky-950/60 border border-sky-800/60 grid place-items-center text-sky-400 hover:text-white transition-colors"
+                title="Add Custom Life Tracker"
+              >
+                <SvgPlus className="size-3.5" />
+              </button>
+            )}
           </div>
 
-          {/* List of Custom Trackers */}
+          {/* List of Custom Trackers.
+              Unresolved auth renders an honest gate instead of the list/add
+              form: trackers are per-account, so nothing is read from or
+              written to a shared bucket while signed out. */}
           <div className="space-y-2.5">
-            {lifeTrackers.length === 0 ? (
+            {!accountId ? (
+              <div className="rounded-xl border border-dashed border-[#2B3444] bg-[var(--quant-surface-subtle)] p-4 text-center">
+                <p className="text-xs font-semibold text-[#E2E8F0]">Sign in to manage life trackers</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-[#64748B]">
+                  Life trackers are saved per account on this device. Sign in to create and manage
+                  yours — nothing is stored while you are signed out.
+                </p>
+              </div>
+            ) : lifeTrackers.length === 0 ? (
               <div className="rounded-xl border border-dashed border-[#2B3444] bg-[var(--quant-surface-subtle)] p-4 text-center">
                 <p className="text-xs font-semibold text-[#E2E8F0]">No life trackers yet</p>
                 <p className="mt-1 text-[11px] leading-relaxed text-[#64748B]">

@@ -157,6 +157,74 @@ export function saveLifeTrackers(storage: StorageLike | null, key: string, track
 }
 
 // ---------------------------------------------------------------------------
+// Account binding (QM-FIX-LOOP P1 — same treatment as the calendar reminders
+// fix, CODEX-REVIEW 6167418183 on #1159).
+//
+// CalendarTrackersSubView used to load waterMl/lifeTrackers once in the
+// useState initializers while recomputing waterKey/trackersKey from the
+// current userId on every render. On a same-instance A->B account transition
+// the stale A values stayed in state while the keys pointed at B — the next
+// add/delete wrote A's data under B's key, destroying B's stored log and
+// trackers (and A's data rendered under B). Unresolved auth fell into the
+// shared 'anon' bucket, so an anon log could be written over an
+// authenticated account's on hydration.
+//
+// The component now binds through resolveTrackerAccount +
+// bindTrackersToAccount: an account-keyed remount boundary around the inner
+// view plus a render-phase rebind as defense-in-depth, and unresolved auth
+// renders an honest gate that never reads or writes the shared bucket.
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the account identity trackers bind to. Returns null when auth is
+ * unresolved (empty/blank id) — callers must GATE (honest sign-in state, no
+ * action controls) instead of touching the shared `anon` bucket.
+ */
+export function resolveTrackerAccount(userId: string | null | undefined): string | null {
+  const raw = userId ?? '';
+  return raw.trim().length > 0 ? raw : null;
+}
+
+export interface TrackerAccountBinding {
+  /** Account the values below were loaded for; null when auth is unresolved. */
+  accountId: string | null;
+  /** Storage key for the water log; null when unresolved (never the anon bucket). */
+  waterKey: string | null;
+  /** Storage key for the life trackers; null when unresolved (never the anon bucket). */
+  trackersKey: string | null;
+  /** Today's water total in ml. 0 — never another account's — while unresolved. */
+  waterMl: number;
+  /** The trackers to render. Empty — never another account's — while unresolved. */
+  lifeTrackers: StoredLifeTracker[];
+}
+
+/**
+ * (Re)binds trackers state to the current account identity. Returns the
+ * existing binding untouched when the account is unchanged, so steady-state
+ * renders never re-read storage. On an account change it loads the NEW
+ * account's water total + trackers fresh — the caller must discard the old
+ * values and never write them under the new keys.
+ */
+export function bindTrackersToAccount(
+  storage: StorageLike | null,
+  userId: string | null | undefined,
+  today: string,
+  current: TrackerAccountBinding | null,
+): TrackerAccountBinding {
+  const accountId = resolveTrackerAccount(userId);
+  if (current && current.accountId === accountId) return current;
+  const waterKey = accountId ? waterLogKey(accountId) : null;
+  const trackersKey = accountId ? lifeTrackersKey(accountId) : null;
+  return {
+    accountId,
+    waterKey,
+    trackersKey,
+    waterMl: waterKey ? loadWaterMl(storage, waterKey, today) : 0,
+    lifeTrackers: trackersKey ? loadLifeTrackers(storage, trackersKey) : [],
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Persist-then-toast action helpers
 //
 // The handlers in CalendarTrackersSubView delegate to these. Keeping the

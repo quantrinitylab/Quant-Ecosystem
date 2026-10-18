@@ -259,10 +259,13 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
       });
 
       it('renders Health Tracker card with sleep, water quick-log, and vitals', () => {
+        // Unresolved auth is gated by design (QM-FIX-LOOP P1): the quick-log
+        // button only renders for a resolved account.
         const html = renderToStaticMarkup(
           <CalendarTrackersSubView
             events={mockEvents}
             openDedicatedSheet={vi.fn()}
+            userId="u-test"
           />,
         );
 
@@ -275,10 +278,13 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
       });
 
       it('renders Custom Life Event Tracker card with + Add Tracker button', () => {
+        // Unresolved auth is gated by design (QM-FIX-LOOP P1): the add-tracker
+        // controls only render for a resolved account.
         const html = renderToStaticMarkup(
           <CalendarTrackersSubView
             events={mockEvents}
             openDedicatedSheet={vi.fn()}
+            userId="u-test"
           />,
         );
 
