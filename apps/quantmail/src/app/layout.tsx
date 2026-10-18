@@ -105,6 +105,27 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+        {/* fix/qm-rail-icon-swap (queue 2026-10-15 P1 [people-home]): the
+            5-pillar rail icons are static webp images
+            (/mascots/<pillar>-sm.webp) mounted by PillarMascotMark. On a
+            cold load the images otherwise only start fetching after the
+            JS bundles load and React mounts the tiles — the rail paints
+            with empty icon slots that pop in seconds later (the residual
+            of the old canvas double-paint swap). Preloading them with
+            document priority means they are decoded by first paint, so the
+            icons render once, in final style, with no mid-load swap.
+            Auth-shell pages (/login, /register, …) never show the rail —
+            they skip these preloads and pay zero extra bytes. */}
+        {!isAuthShell &&
+          (['mail', 'calendar', 'drive', 'contacts', 'quantgit'] as const).map((pillar) => (
+            <link
+              key={pillar}
+              rel="preload"
+              href={`/mascots/${pillar}-sm.webp`}
+              as="image"
+              type="image/webp"
+            />
+          ))}
       </head>
       <body className={`${inter.className} quantmail-root`}>
         <a href="#main-content" className="skip-to-content">
