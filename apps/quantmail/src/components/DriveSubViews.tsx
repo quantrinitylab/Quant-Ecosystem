@@ -4,7 +4,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { formatBytes } from '../lib/format-bytes';
 import { isDocumentDriveId } from '../lib/drive-ids';
 import { useStorageQuota } from '../hooks/useStorageQuota';
-import { FileScanBadge, normalizeScanStatus } from '../app/drive/components/FileScanBadge';
+import { FileScanBadge, normalizeScanStatus } from '../app/(app)/drive/components/FileScanBadge';
 
 // ============================================================================
 // SVG Vector Icons — strictly ZERO raw Unicode emojis

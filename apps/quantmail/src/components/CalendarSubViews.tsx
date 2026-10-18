@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import type { CalendarEventLike, EntryType } from '../app/calendar/types';
-import { MONTH_NAMES, FULL_WEEKDAYS } from '../app/calendar/types';
-import { dayKey, startOf, endOf, hhmm } from '../app/calendar/lib/calendar-geometry';
-import { calendarEventMatchesQuery } from '../app/calendar/lib/calendar-search';
-import { longDayLabel, plural } from '../app/calendar/lib/calendar-copy';
+import type { CalendarEventLike, EntryType } from '../app/(app)/calendar/types';
+import { MONTH_NAMES, FULL_WEEKDAYS } from '../app/(app)/calendar/types';
+import { dayKey, startOf, endOf, hhmm } from '../app/(app)/calendar/lib/calendar-geometry';
+import { calendarEventMatchesQuery } from '../app/(app)/calendar/lib/calendar-search';
+import { longDayLabel, plural } from '../app/(app)/calendar/lib/calendar-copy';
 import type { Holiday } from '../lib/holidays';
 import { showToast } from './InboxToast';
 import {
@@ -31,7 +31,7 @@ import {
 import {
   CalendarWeekView,
   type WeekViewSheetOpts,
-} from '../app/calendar/components/CalendarWeekView';
+} from '../app/(app)/calendar/components/CalendarWeekView';
 
 // ============================================================================
 // SVG Vector Icons — strictly ZERO raw Unicode emojis

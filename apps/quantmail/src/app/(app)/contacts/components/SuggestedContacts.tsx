@@ -1,6 +1,6 @@
 import { Avatar } from '@quant/shared-ui';
 
-import type { ContactActivitySuggestion } from '../../../types';
+import type { ContactActivitySuggestion } from '../../../../types';
 
 /**
  * "Suggested from your mail" — the Gmail Merge & Fix analogue on the contacts

@@ -19,7 +19,7 @@ import {
   fetchDriveLinks,
   type DriveLinkEntry,
   type LinkScope,
-} from '../app/drive/components/link-share-api';
+} from '../app/(app)/drive/components/link-share-api';
 
 /** A Drive file inserted into the composer body as a live share link. */
 export interface DriveComposeLink {

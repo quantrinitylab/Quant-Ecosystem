@@ -13,7 +13,7 @@
 
 import React from 'react';
 import { ECOSYSTEM_APPS, type EcosystemApp } from './ecosystem-apps';
-import { handoffToEcosystemApp } from '../app/sso/ecosystem-app-handoff';
+import { handoffToEcosystemApp } from '../app/(app)/sso/ecosystem-app-handoff';
 
 function ChatGlyph({ className }: { className?: string }) {
   return (

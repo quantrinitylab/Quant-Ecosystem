@@ -29,7 +29,7 @@ import {
   type CalendarCommandId,
   type Command,
 } from '../lib/keyboard/command-registry';
-import type { CalendarView } from '../app/calendar/types';
+import type { CalendarView } from '../app/(app)/calendar/types';
 
 const SCOPE = 'calendar';
 
