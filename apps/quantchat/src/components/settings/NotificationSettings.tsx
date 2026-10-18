@@ -162,32 +162,49 @@ export function NotificationSettings({ initialSettings, onChange }: Notification
               aria-checked={enabled}
               aria-label={`${meta.label} notifications`}
               onClick={() => toggle(category)}
-              className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+              className="relative inline-flex items-center justify-center rounded-full"
               style={{
                 position: 'relative',
                 display: 'inline-flex',
-                height: '1.5rem',
-                width: '2.75rem',
+                minHeight: '2.75rem',
+                minWidth: '2.75rem',
                 alignItems: 'center',
+                justifyContent: 'center',
                 borderRadius: '9999px',
                 border: 'none',
                 cursor: 'pointer',
-                transition: 'background-color 150ms',
-                backgroundColor: enabled ? '#8b5cf6' : '#3f3f46',
               }}
             >
+              {/* QC-F-489: the button above is the >=44px hit-area
+                  (minHeight 2.75rem); the visible 24px pill lives on this
+                  inner track, unchanged. */}
               <span
                 aria-hidden="true"
                 style={{
-                  display: 'inline-block',
-                  height: '1.125rem',
-                  width: '1.125rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  position: 'relative',
+                  height: '1.5rem',
+                  width: '2.75rem',
                   borderRadius: '9999px',
-                  background: '#fff',
-                  transform: enabled ? 'translateX(1.375rem)' : 'translateX(0.1875rem)',
-                  transition: 'transform 150ms',
+                  backgroundColor: enabled ? '#8b5cf6' : '#3f3f46',
+                  transition: 'background-color 150ms',
+                  flexShrink: 0,
                 }}
-              />
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    display: 'inline-block',
+                    height: '1.125rem',
+                    width: '1.125rem',
+                    borderRadius: '9999px',
+                    background: '#fff',
+                    transform: enabled ? 'translateX(1.375rem)' : 'translateX(0.1875rem)',
+                    transition: 'transform 150ms',
+                  }}
+                />
+              </span>
             </button>
           </div>
         );
