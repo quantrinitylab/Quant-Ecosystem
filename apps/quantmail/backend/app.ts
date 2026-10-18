@@ -144,6 +144,9 @@ export function getConfig(): AppConfig {
       // posture as /oauth/token). The mint endpoint stays behind the session
       // auth hook and is deliberately NOT listed here.
       '/sso/ticket/resolve',
+      // SSO ticket exchange is the token-minting sibling of /resolve: same
+      // server-to-server posture, auth enforced inside the handler.
+      '/sso/ticket/exchange',
       // Public booking link availability and booking slots (CAL-03)
       '/calendar/booking',
       '/calendar/booking/*',
