@@ -8,7 +8,7 @@ import { ConversationalThreadView, type ThreadLeaveGuard } from '../../../compon
 import { useMailMutations } from '../../../hooks/useMailMutations';
 import { useEdgeSwipeBack } from '../../../hooks/useEdgeSwipeBack';
 import { useThreadViewKeyboard } from '../../../hooks/useThreadViewKeyboard';
-import { inboxSelectTarget } from '../../../lib/inbox-nav';
+import { inboxSelectTarget, lensFromReturnTo } from '../../../lib/inbox-nav';
 
 function validInternalReturnTo(value: string | null): string | null {
   if (!value) return null;
@@ -37,6 +37,19 @@ export default function ThreadPage() {
     () => validInternalReturnTo(searchParams.get('returnTo')),
     [searchParams],
   );
+
+  /*
+   * Thread-lens-select P1: the source lens for the `x` (select) shortcut.
+   * returnTo encodes the source path — including ?lens= when the thread was
+   * opened from a lens view — but inboxSelectTarget(threadId) with no lens
+   * dropped it, landing `x` from /thread/<id>?returnTo=...&lens=spam in the
+   * default all-lens inbox where the spam-only threadId has no row and the
+   * pre-select silently no-ops. Parsing the lens back out of returnTo keeps
+   * the row pre-selected in the right corpus, the same way backHref/archive
+   * honor returnTo. Absent/other lenses fall back to the bare default target
+   * (unchanged behavior).
+   */
+  const sourceLens = useMemo(() => lensFromReturnTo(returnTo), [returnTo]);
 
   /*
    * BB-P2-6: the header back button names the real destination. The archived
@@ -148,8 +161,11 @@ export default function ThreadPage() {
       // Guarded like every other thread exit: `x` with typed-but-unsent
       // quick-reply text shows the discard confirm instead of silently
       // vaporising the draft.
-      guardedNavigate(() => router.push(inboxSelectTarget(threadId)));
-    }, [threadId, router, guardedNavigate]),
+      // The source lens is threaded back in: without it `x` from a
+      // ?lens=spam thread landed in the all-lens inbox with nothing selected
+      // (thread-lens-select P1 — same class as spam-lens dead-end #917).
+      guardedNavigate(() => router.push(inboxSelectTarget(threadId, sourceLens)));
+    }, [threadId, router, guardedNavigate, sourceLens]),
     onClose: useCallback(() => {
       leaveThread(false);
     }, [leaveThread]),
