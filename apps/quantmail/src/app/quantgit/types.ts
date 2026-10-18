@@ -178,6 +178,10 @@ export type PRDiffFile = {
     header: string;
     lines: PRDiffLine[];
   }[];
+  /** True when the diff entry is a binary blob (no text hunks to render). */
+  binary?: boolean;
+  /** Set when the diff is a rename: the path before the rename. */
+  oldFilename?: string;
 };
 
 export type PRDiffComment = {
@@ -186,6 +190,8 @@ export type PRDiffComment = {
   author: string;
   body: string;
   createdAt: string;
+  /** Diff side the comment was posted on (LEFT = removed line). */
+  side?: 'LEFT' | 'RIGHT';
 };
 
 export type MergeMethod = 'merge' | 'squash' | 'rebase';
