@@ -34,9 +34,19 @@ export function inboxResetTarget(): string {
  * InboxPageContent — a bare `/?selected=<id>` lands on PeopleHome where the
  * param is silently dropped and the row never pre-selects. `view=inbox` is
  * load-bearing here, not cosmetic.
+ *
+ * Lens carry (spam-lens-select-lens P1): the inbox pre-selects only rows in
+ * the current lens corpus (isChecked={selectedIds.has(thread.id)} on the
+ * rendered rows), so a thread that lives in a non-default lens must have that
+ * lens carried as `?lens=` — the inbox understands it via normalizeLensParam
+ * (app/page.tsx). Without it, `x` from a `?lens=spam` person thread lands in
+ * the inbox with no row selected and the thread context silently dropped —
+ * the same lens-loss class as the fixed spam-lens dead-end #917. `all` and
+ * falsy lenses are dropped so the default target stays bare.
  */
-export function inboxSelectTarget(threadId: string): string {
-  return `/?view=inbox&selected=${encodeURIComponent(threadId)}`;
+export function inboxSelectTarget(threadId: string, lens?: string): string {
+  const lensPart = lens && lens !== 'all' ? `&lens=${encodeURIComponent(lens)}` : '';
+  return `/?view=inbox${lensPart}&selected=${encodeURIComponent(threadId)}`;
 }
 
 /**

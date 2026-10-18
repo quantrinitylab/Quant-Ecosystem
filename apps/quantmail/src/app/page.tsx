@@ -1425,7 +1425,10 @@ function InboxPageContent() {
 
   /*
    * CUST-P1-4: `x` (select) in a thread view navigates here with
-   * `?view=inbox&selected=<threadId>` (see inboxSelectTarget). Pre-select that
+   * `?view=inbox&selected=<threadId>` (see inboxSelectTarget), plus
+   * `&lens=spam` when the source thread was opened in the spam lens — the
+   * pre-select only matches rows in the current lens corpus, so without the
+   * lens a spam-only thread would pre-select nothing. Pre-select that
    * conversation for bulk actions, then drop the param so a refresh does not
    * re-select.
    */
