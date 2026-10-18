@@ -81,8 +81,14 @@ interface AuthGateCoreProps {
  * closed rendering — is identical for every route in the app.
  */
 export function AuthGateCore({ pathname, suffix, suffixReady, onRedirect, children }: AuthGateCoreProps) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, error } = useAuth();
   const [sessionTimedOut, setSessionTimedOut] = useState(false);
+  // QC-F-502: useAuth records an HTTP 5xx userinfo failure as the stable
+  // string 'userinfo failed: 5xx'. That is a SERVER error, not a signed-out
+  // visitor: bouncing to /login here is what produced the redirect loop
+  // (each bounce re-mounted useAuth instances that failed the same way).
+  const hasServerError =
+    typeof error === 'string' && /^userinfo failed: 5\d{2}$/.test(error.trim());
 
   // Re-hydrate the apiClient bearer from the stored token on first mount so
   // authed data fetches carry the JWT after a page reload.
@@ -115,16 +121,22 @@ export function AuthGateCore({ pathname, suffix, suffixReady, onRedirect, childr
   // corrects it. While waiting, the render below keeps showing the
   // "Redirecting to sign in..." state — no protected content flashes.
   useEffect(() => {
-    if (isGated && !isLoading && !isAuthenticated && suffixReady !== false) {
+    if (isGated && !isLoading && !isAuthenticated && !hasServerError && suffixReady !== false) {
       onRedirect(buildLoginRedirect(pathname, suffix));
     }
-  }, [isGated, isLoading, isAuthenticated, suffixReady, onRedirect, pathname, suffix]);
+  }, [isGated, isLoading, isAuthenticated, hasServerError, suffixReady, onRedirect, pathname, suffix]);
 
   if (!isGated) return <>{children}</>;
   if (isLoading) {
     if (sessionTimedOut) return <SessionCheckTimeout onRetry={() => window.location.reload()} />;
     return <LoadingState variant="spinner" text="Verifying your session..." />;
   }
+  // QC-F-502: on a 5xx the visitor may well hold a valid session — the
+  // server simply failed to verify it. Show the honest error/retry state;
+  // never 'Redirecting to sign in...' (the loop) and never the children
+  // (no verified identity exists right now).
+  if (!isAuthenticated && hasServerError)
+    return <SessionServerError onRetry={() => window.location.reload()} />;
   if (!isAuthenticated) return <LoadingState variant="spinner" text="Redirecting to sign in..." />;
   return <>{children}</>;
 }
@@ -161,6 +173,36 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     <AuthGateCore pathname={pathname} suffix={suffix} suffixReady={suffixReady} onRedirect={onRedirect}>
       {children}
     </AuthGateCore>
+  );
+}
+
+/**
+ * QC-F-502: honest state when the auth server itself answered 5xx during
+ * the session check. The visitor is not signed out — the server failed —
+ * so this says so plainly and offers a retry instead of bouncing to
+ * /login (which looped) or inventing a session (which would be a lie).
+ */
+function SessionServerError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      className="flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center"
+      role="alert"
+    >
+      <p className="text-base font-semibold text-[var(--quant-foreground)]">
+        Something went wrong on our side
+      </p>
+      <p className="max-w-sm text-sm text-[var(--quant-muted-foreground)]">
+        The server couldn&apos;t verify your session right now. Your sign-in is saved — please try
+        again in a moment.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="min-h-[44px] rounded-xl bg-[var(--brand-primary)] px-6 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+      >
+        Try again
+      </button>
+    </div>
   );
 }
 
