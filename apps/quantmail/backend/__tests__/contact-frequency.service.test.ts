@@ -26,42 +26,69 @@ describe('ContactService — frequency tracking', () => {
   });
 
   describe('recordInteraction', () => {
-    it('upserts keyed by (userId,email): create freq=1, update increments', async () => {
-      prisma.contact.upsert.mockResolvedValue({ id: 'c1', frequency: 1 });
+    it('case-folds the key: create stores the canonical lowercase email', async () => {
+      prisma.contact.findFirst.mockResolvedValue(null);
+      prisma.contact.create.mockResolvedValue({ id: 'c1', frequency: 1 });
       await service.recordInteraction('u1', '  Alice@Example.com  ', 'Alice');
 
-      const arg = prisma.contact.upsert.mock.calls[0]![0] as {
-        where: Record<string, unknown>;
-        create: Record<string, unknown>;
-        update: Record<string, unknown>;
+      expect(prisma.contact.findFirst).toHaveBeenCalledWith({
+        where: { userId: 'u1', email: { equals: 'alice@example.com', mode: 'insensitive' } },
+      });
+      const arg = prisma.contact.create.mock.calls[0]![0] as {
+        data: Record<string, unknown>;
       };
-      expect(arg.where).toEqual({ userId_email: { userId: 'u1', email: 'Alice@Example.com' } });
-      expect(arg.create).toMatchObject({
+      expect(arg.data).toMatchObject({
         userId: 'u1',
-        email: 'Alice@Example.com',
+        email: 'alice@example.com',
         frequency: 1,
         name: 'Alice',
       });
-      expect(arg.update).toMatchObject({ frequency: { increment: 1 }, name: 'Alice' });
+      expect(arg.data.lastContactedAt).toBeInstanceOf(Date);
+      expect(prisma.contact.update).not.toHaveBeenCalled();
+    });
+
+    it('updates the existing row on a case-variant match (one row per person)', async () => {
+      prisma.contact.findFirst.mockResolvedValue({ id: 'c1', userId: 'u1', email: 'Alice@Example.com' });
+      prisma.contact.update.mockResolvedValue({ id: 'c1', frequency: 3 });
+      await service.recordInteraction('u1', 'alice@example.com', 'Alice');
+
+      const arg = prisma.contact.update.mock.calls[0]![0] as {
+        where: Record<string, unknown>;
+        data: Record<string, unknown>;
+      };
+      expect(arg.where).toEqual({ id: 'c1' });
+      expect(arg.data).toMatchObject({ frequency: { increment: 1 }, name: 'Alice' });
+      expect(arg.data.lastContactedAt).toBeInstanceOf(Date);
+      // The legacy mixed-case row is updated in place — no second row created.
+      expect(prisma.contact.create).not.toHaveBeenCalled();
     });
 
     it('falls back to email as name when no name is given', async () => {
-      prisma.contact.upsert.mockResolvedValue({ id: 'c1' });
+      prisma.contact.findFirst.mockResolvedValue(null);
+      prisma.contact.create.mockResolvedValue({ id: 'c1' });
       await service.recordInteraction('u1', 'bob@example.com');
-      const arg = prisma.contact.upsert.mock.calls[0]![0] as {
-        create: Record<string, unknown>;
-        update: Record<string, unknown>;
+      const arg = prisma.contact.create.mock.calls[0]![0] as {
+        data: Record<string, unknown>;
       };
-      expect(arg.create).toMatchObject({ name: 'bob@example.com' });
-      // no name refresh on update when none provided
-      expect(arg.update).not.toHaveProperty('name');
+      expect(arg.data).toMatchObject({ name: 'bob@example.com' });
+    });
+
+    it('does not refresh the name on update when none is provided', async () => {
+      prisma.contact.findFirst.mockResolvedValue({ id: 'c1', userId: 'u1' });
+      prisma.contact.update.mockResolvedValue({ id: 'c1' });
+      await service.recordInteraction('u1', 'bob@example.com');
+      const arg = prisma.contact.update.mock.calls[0]![0] as {
+        data: Record<string, unknown>;
+      };
+      expect(arg.data).not.toHaveProperty('name');
     });
 
     it('rejects a blank email', async () => {
       await expect(service.recordInteraction('u1', '   ')).rejects.toMatchObject({
         code: 'INVALID_EMAIL',
       });
-      expect(prisma.contact.upsert).not.toHaveBeenCalled();
+      expect(prisma.contact.findFirst).not.toHaveBeenCalled();
+      expect(prisma.contact.create).not.toHaveBeenCalled();
     });
   });
 
@@ -89,16 +116,23 @@ describe('ContactService — frequency tracking', () => {
 
   describe('recordInteraction — recency stamp', () => {
     it('stamps lastContactedAt on both create and update', async () => {
-      prisma.contact.upsert.mockResolvedValue({ id: 'c1' });
+      prisma.contact.findFirst.mockResolvedValue(null);
+      prisma.contact.create.mockResolvedValue({ id: 'c1' });
       await service.recordInteraction('u1', 'carol@example.com');
-      const arg = prisma.contact.upsert.mock.calls[0]![0] as {
-        create: { lastContactedAt: unknown };
-        update: { lastContactedAt: unknown };
+      const createArg = prisma.contact.create.mock.calls[0]![0] as {
+        data: { lastContactedAt: unknown };
+      };
+      expect(createArg.data.lastContactedAt).toBeInstanceOf(Date);
+
+      prisma.contact.findFirst.mockResolvedValue({ id: 'c1', userId: 'u1' });
+      prisma.contact.update.mockResolvedValue({ id: 'c1' });
+      await service.recordInteraction('u1', 'carol@example.com');
+      const updateArg = prisma.contact.update.mock.calls[0]![0] as {
+        data: { lastContactedAt: unknown };
       };
       // Without this, "frequent" could only ever be ordered by `updatedAt`,
       // which any edit to the row bumps.
-      expect(arg.create.lastContactedAt).toBeInstanceOf(Date);
-      expect(arg.update.lastContactedAt).toBeInstanceOf(Date);
+      expect(updateArg.data.lastContactedAt).toBeInstanceOf(Date);
     });
   });
 });
@@ -249,6 +283,77 @@ describe('ContactService — ownership and empty patches', () => {
 });
 
 /**
+ * The duplicate-row class: contact write paths must case-fold email, because
+ * the (userId, email) unique constraint is case-sensitive. Before this fix,
+ * emailing Alice@x.com then alice@x.com (or one-click-adding a suggestion
+ * whose casing differed from an existing row) created a second row for the
+ * same person, split frequency across the duplicates, and slipped past the
+ * 409 CONTACT_EXISTS guard.
+ */
+describe('ContactService — email case-folding on write', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: ContactService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new ContactService(prisma as never);
+  });
+
+  it('addContact stores the canonical lowercase email', async () => {
+    prisma.contact.findFirst.mockResolvedValue(null);
+    prisma.contact.create.mockResolvedValue({ id: 'c1' });
+
+    await service.addContact({ userId: 'u1', name: 'Alice', email: '  Alice@Example.COM ' });
+
+    expect(prisma.contact.findFirst).toHaveBeenCalledWith({
+      where: { userId: 'u1', email: { equals: 'alice@example.com', mode: 'insensitive' } },
+    });
+    expect(prisma.contact.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ userId: 'u1', email: 'alice@example.com' }),
+      }),
+    );
+  });
+
+  it('addContact 409s on a case-variant of an existing row', async () => {
+    prisma.contact.findFirst.mockResolvedValue({ id: 'c1', email: 'Alice@Example.com' });
+
+    await expect(
+      service.addContact({ userId: 'u1', name: 'Alice', email: 'ALICE@example.com' }),
+    ).rejects.toMatchObject({ code: 'CONTACT_EXISTS', statusCode: 409 });
+    expect(prisma.contact.create).not.toHaveBeenCalled();
+  });
+
+  it('updateContact canonicalizes a case-variant email patch', async () => {
+    prisma.contact.findUnique.mockResolvedValue({ id: 'c1', userId: 'u1' });
+    prisma.contact.update.mockResolvedValue({ id: 'c1' });
+
+    await service.updateContact('c1', 'u1', { email: 'Ada@Example.COM' });
+
+    expect(prisma.contact.update).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: { email: 'ada@example.com' },
+    });
+  });
+
+  it('recordInteraction case-folds before the uniqueness lookup', async () => {
+    prisma.contact.findFirst.mockResolvedValue(null);
+    prisma.contact.create.mockResolvedValue({ id: 'c1' });
+
+    await service.recordInteraction('u1', 'BOB@Example.COM');
+
+    expect(prisma.contact.findFirst).toHaveBeenCalledWith({
+      where: { userId: 'u1', email: { equals: 'bob@example.com', mode: 'insensitive' } },
+    });
+    expect(prisma.contact.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ email: 'bob@example.com', name: 'bob@example.com' }),
+      }),
+    );
+  });
+});
+
+/**
  * The send paths call this once per sent message. It is the only reason
  * `frequency` is ever non-zero, and it runs *after* a message has already gone
  * out — so its most important property is the one it must never have: throwing.
@@ -260,13 +365,25 @@ describe('ContactService — recordRecipients', () => {
   beforeEach(() => {
     prisma = createMockPrisma();
     service = new ContactService(prisma as never);
-    prisma.contact.upsert.mockResolvedValue({ id: 'c1' });
+    // No row exists yet: every distinct address creates its canonical row.
+    prisma.contact.findFirst.mockResolvedValue(null);
+    prisma.contact.create.mockImplementation((arg: unknown) => {
+      const data = (arg as { data: Record<string, unknown> }).data;
+      return Promise.resolve({ id: `c-${data.email}`, ...data });
+    });
   });
 
-  function recordedAddresses(): string[] {
-    return prisma.contact.upsert.mock.calls.map((call) => {
-      const arg = call[0] as { where: { userId_email: { email: string } } };
-      return arg.where.userId_email.email;
+  function createdEmails(): string[] {
+    return prisma.contact.create.mock.calls.map((call) => {
+      const arg = call[0] as { data: { email: string } };
+      return arg.data.email;
+    });
+  }
+
+  function lookupEmails(): string[] {
+    return prisma.contact.findFirst.mock.calls.map((call) => {
+      const arg = call[0] as { where: { email: { equals: string } } };
+      return arg.where.email.equals;
     });
   }
 
@@ -278,17 +395,32 @@ describe('ContactService — recordRecipients', () => {
     ]);
 
     // The same person in To and Cc received one message, so one interaction.
-    expect(recordedAddresses()).toEqual([
-      'ada@example.com',
-      'grace@example.com',
-      'linus@example.com',
-    ]);
+    expect(createdEmails()).toEqual(['ada@example.com', 'grace@example.com', 'linus@example.com']);
     expect(result).toEqual({ recorded: 3, failed: 0, total: 3 });
   });
 
   it('de-duplicates case-insensitively, keeping the first spelling', async () => {
     await service.recordRecipients('u1', [['Ada@Example.com'], ['ada@example.com']]);
-    expect(recordedAddresses()).toEqual(['Ada@Example.com']);
+    expect(createdEmails()).toEqual(['ada@example.com']);
+  });
+
+  it('case-folds every lookup, so the upsert-key stays canonical', async () => {
+    await service.recordRecipients('u1', [['  Grace@Example.COM  ']]);
+    expect(lookupEmails()).toEqual(['grace@example.com']);
+  });
+
+  it('updates a legacy mixed-case row in place instead of creating a duplicate', async () => {
+    prisma.contact.findFirst.mockResolvedValue({ id: 'c-legacy', userId: 'u1', email: 'Ada@Example.com' });
+    prisma.contact.update.mockResolvedValue({ id: 'c-legacy' });
+
+    const result = await service.recordRecipients('u1', [['ada@example.com']]);
+
+    expect(prisma.contact.create).not.toHaveBeenCalled();
+    expect(prisma.contact.update).toHaveBeenCalledWith({
+      where: { id: 'c-legacy' },
+      data: expect.objectContaining({ frequency: { increment: 1 } }),
+    });
+    expect(result).toEqual({ recorded: 1, failed: 0, total: 1 });
   });
 
   it('skips blanks, whitespace and non-strings without touching the database', async () => {
@@ -298,20 +430,23 @@ describe('ContactService — recordRecipients', () => {
       undefined,
     ]);
 
-    expect(recordedAddresses()).toEqual(['ada@example.com']);
+    expect(createdEmails()).toEqual(['ada@example.com']);
     expect(result.total).toBe(1);
   });
 
   it('does nothing at all when there is nobody to record', async () => {
     const result = await service.recordRecipients('u1', [[], undefined]);
-    expect(prisma.contact.upsert).not.toHaveBeenCalled();
+    expect(prisma.contact.findFirst).not.toHaveBeenCalled();
     expect(result).toEqual({ recorded: 0, failed: 0, total: 0 });
   });
 
   it('never throws, and one failure does not cost the others their interaction', async () => {
-    prisma.contact.upsert
+    prisma.contact.create
       .mockRejectedValueOnce(new Error('deadlock detected'))
-      .mockResolvedValue({ id: 'c2' });
+      .mockImplementation((arg: unknown) => {
+        const data = (arg as { data: Record<string, unknown> }).data;
+        return Promise.resolve({ id: `c-${data.email}`, ...data });
+      });
 
     const result = await service.recordRecipients('u1', [
       ['ada@example.com', 'grace@example.com', 'linus@example.com'],
