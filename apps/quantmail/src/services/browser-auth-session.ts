@@ -47,6 +47,24 @@ async function purgeLegacySearchHistory(): Promise<void> {
   }
 }
 
+// QM fix qm-contact-names-scope (P1, same leak class as the three above):
+// logout must also drop the legacy UNSCOPED contact-rename key
+// (`quantmail_contact_names`, an email-normalized map of user-renamed
+// contact display names) — it is not attributable to any account, so the
+// next account on this browser could read the previous account's private
+// contact renames. Account-scoped v2 keys
+// (`quantmail_contact_names.v2.<immutable-id>`) partition safely and
+// survive logout for the account's own next sign-in.
+async function purgeLegacyContactNames(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const mod = await import('../lib/contactNameCache');
+    mod.purgeLegacyContactNameKeys(mod.windowContactNameStorage());
+  } catch {
+    // Best effort: a storage failure must never strand a logout.
+  }
+}
+
 // QM fix qm-drive-doc-cache-scope (P1, same leak class as the draft P0
 // above): logout must also drop legacy unscoped doc-content cache keys
 // (`quant_doc_<docId>`) — they are NOT attributable to any account, so the
@@ -288,6 +306,9 @@ export const browserAuthSession = {
       // qm-search-history-scope: the legacy unscoped recent-search key is
       // the same leak class — purge it too. v2 account-scoped keys survive.
       await purgeLegacySearchHistory();
+      // qm-contact-names-scope: the legacy unscoped contact-rename key is
+      // the same leak class — purge it too. v2 account-scoped keys survive.
+      await purgeLegacyContactNames();
     }
   },
 
