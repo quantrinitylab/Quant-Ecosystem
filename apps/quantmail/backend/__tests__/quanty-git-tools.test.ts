@@ -149,12 +149,27 @@ describe('Quanty Git Tools', () => {
       const { ctx, prisma } = ctxWithRepo();
       (prisma.repository.findFirst as any).mockResolvedValue(null); // no duplicate
       (prisma.repository.create as any).mockImplementation(async (a: any) => ({ id: 'repo-2', ...a.data }));
-      (prisma.branch.upsert as any).mockResolvedValue({});
       const res = await tool('create_repo').handler({ name: 'new-repo', private: true }, ctx);
       expect(res.success).toBe(true);
       expect((res.data as any).name).toBe('new-repo');
       expect(prisma.repository.create).toHaveBeenCalled();
       expect(prisma.auditLog.create).toHaveBeenCalled();
+    });
+
+    it('mints zero branch rows — never a null-SHA ref — for a fresh repo', async () => {
+      // Regression: a fresh repo has no commits, so no branch row may exist.
+      // A branch row with the null object id (40 zeros) would be invented data.
+      const { ctx, prisma } = ctxWithRepo();
+      (prisma.repository.findFirst as any).mockResolvedValue(null); // no duplicate
+      (prisma.repository.create as any).mockImplementation(async (a: any) => ({ id: 'repo-3', ...a.data }));
+      // branch.create is not part of the GitToolsPrisma branch surface the
+      // tools use; attach a spy to prove no other branch-write path fires.
+      const branchCreate = vi.fn();
+      (prisma.branch as any).create = branchCreate;
+      const res = await tool('create_repo').handler({ name: 'empty-repo', private: true }, ctx);
+      expect(res.success).toBe(true);
+      expect(prisma.branch.upsert).not.toHaveBeenCalled();
+      expect(branchCreate).not.toHaveBeenCalled();
     });
 
     it('rejects duplicate names', async () => {

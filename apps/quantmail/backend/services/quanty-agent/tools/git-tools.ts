@@ -347,15 +347,15 @@ const createRepoTool: QuantyTool = {
       },
     });
 
-    await ctx.prisma.branch.upsert({
-      where: { repoId_name: { repoId: repo.id, name: 'main' } },
-      update: {},
-      create: {
-        repoId: repo.id,
-        name: 'main',
-        commitSha: '0000000000000000000000000000000000000000',
-      },
-    });
+    // A fresh repo has no commits yet, so it gets ZERO branch rows: the null
+    // object id (40 zeros) points at a git object that exists nowhere, so
+    // persisting it as a branch ref would be invented data (same class as the
+    // importRepository fake-SHA bug and the fork-of-branchless-repo bug). The
+    // repository row keeps its defaultBranch name as metadata — exactly like
+    // the HTTP create-repo route's convention (branch rows exist only for
+    // real commit SHAs) — and branch-dependent operations already report
+    // honestly when the branch row is absent (get_repo_stats filters
+    // all-zero SHAs and returns lastCommitSha: null).
 
     await logToolAction(ctx, 'create_repo', 'repository', repo.id, { name });
     return ok(repoSummary(repo), `Repository "${name}" created.`);
