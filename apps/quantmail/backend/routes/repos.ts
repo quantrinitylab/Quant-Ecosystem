@@ -737,6 +737,59 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     return fastify.repositoryInspection;
   }
 
+  /**
+   * Real per-branch head-commit data for the branches list (defect family:
+   * the endpoints used to send no last-commit fields, so the frontend
+   * fabricated "Updated recently by" on every row). Resolves via the
+   * boundary-respecting inspection port (`git log -1 <branch>` under the
+   * hood), in parallel; branches whose ref cannot be resolved get NO
+   * enrichment fields — never an invented timestamp/author.
+   *
+   * This lives here (not in modules/code) because the QuantCode <-> mail
+   * SRP boundary (Requirement 6.2) forbids the mail domain from importing
+   * the QuantCode module; the inspection port is the shared seam.
+   */
+  async function enrichBranchesWithHeadCommits<
+    T extends { name: string },
+  >(
+    rows: T[],
+    owner: string,
+    repoName: string,
+  ): Promise<Array<T & { lastCommitTimestamp?: number; lastCommitAuthor?: string; lastCommitMessage?: string }>> {
+    const port = inspectionPort();
+    return Promise.all(
+      rows.map(async (row) => {
+        try {
+          const commits = await port.listCommits({
+            owner,
+            name: repoName,
+            ref: row.name,
+            limit: 1,
+          });
+          const head = commits?.[0];
+          if (!head) return { ...row };
+          const enriched: T & {
+            lastCommitTimestamp?: number;
+            lastCommitAuthor?: string;
+            lastCommitMessage?: string;
+          } = { ...row };
+          // A corrupt/non-positive timestamp is data corruption, not recency:
+          // omit it and let the frontend degrade honestly.
+          if (typeof head.timestamp === 'number' && Number.isFinite(head.timestamp) && head.timestamp > 0) {
+            enriched.lastCommitTimestamp = head.timestamp;
+          }
+          if (head.author?.name) enriched.lastCommitAuthor = head.author.name;
+          if (head.message) enriched.lastCommitMessage = head.message;
+          return enriched;
+        } catch {
+          // Stale branch row / unreadable git storage: degrade honestly,
+          // never invent head-commit data.
+          return { ...row };
+        }
+      }),
+    );
+  }
+
   function provisioningPort() {
     if (!fastify.repositoryProvisioning) {
       throw createAppError('Repository storage is unavailable', 503, 'STORAGE_UNAVAILABLE');
@@ -1482,9 +1535,19 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       where: { repoId: repo.id },
       orderBy: { name: 'asc' },
     })) as Array<{ name: string; commitSha: string; isProtected: boolean }>;
+    // Attach REAL per-branch head-commit data (author name, unix-second
+    // timestamp, message) from `git log -1 <branch>`, in parallel. Branches
+    // whose ref cannot be resolved carry no enrichment fields — the frontend
+    // renders those rows honestly ("last update unavailable") instead of
+    // the old fabricated "Updated recently by".
+    const enriched = await enrichBranchesWithHeadCommits(
+      rows,
+      repo.ownerId,
+      repo.name,
+    );
     return reply.send({
       success: true,
-      data: rows.map((branch) => ({
+      data: enriched.map((branch) => ({
         name: branch.name,
         sha: branch.commitSha,
         isDefault: branch.name === repo.defaultBranch,
@@ -1492,6 +1555,11 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         protection: branch.isProtected ? 'require_reviews' : 'none',
         aheadBy: 0,
         behindBy: 0,
+        ...(branch.lastCommitTimestamp !== undefined
+          ? { lastCommitTimestamp: branch.lastCommitTimestamp }
+          : {}),
+        ...(branch.lastCommitAuthor ? { lastCommitAuthor: branch.lastCommitAuthor } : {}),
+        ...(branch.lastCommitMessage ? { lastCommitMessage: branch.lastCommitMessage } : {}),
       })),
     });
   });

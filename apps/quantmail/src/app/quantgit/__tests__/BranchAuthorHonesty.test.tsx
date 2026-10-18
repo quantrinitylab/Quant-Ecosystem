@@ -40,7 +40,10 @@ describe('mapBackendBranchToItem — no invented branch authors or messages', ()
     expect(item.sha).toBe('a1b2c3d4e5f6000000000000000000000000000001');
     expect(item.lastCommitAuthor).toBe('');
     expect(item.lastCommitMessage).toBe('');
-    expect(item.lastCommitTime).toBe('recently');
+    // No false recency claim: the backend sends no time data, so the time
+    // degrades to honest empty (the old `'recently'` fallback fabricated
+    // "Updated recently by" on every row).
+    expect(item.lastCommitTime).toBe('');
     // The viewer's identity must never leak into the mapped item.
     expect(JSON.stringify(item)).not.toContain(VIEWER);
     expect(JSON.stringify(item)).not.toContain(INVENTED_MESSAGE);
@@ -58,6 +61,36 @@ describe('mapBackendBranchToItem — no invented branch authors or messages', ()
     expect(item.lastCommitAuthor).toBe('devone');
     expect(item.lastCommitMessage).toBe('fix: real commit');
     expect(item.lastCommitTime).toBe('2 days ago');
+  });
+
+  it('computes real relative time from the backend numeric lastCommitTimestamp', () => {
+    // 5 hours ago — safely inside the "X hours ago" bucket, no boundary risk.
+    const fiveHoursAgo = Math.floor(Date.now() / 1000) - 5 * 3600;
+    const item = mapBackendBranchToItem(
+      makeBackendBranch({ lastCommitTimestamp: fiveHoursAgo }),
+      'main',
+    );
+    expect(item.lastCommitTime).toBe('5 hours ago');
+  });
+
+  it('accepts a numeric-string lastCommitTimestamp', () => {
+    const twoDaysAgo = String(Math.floor(Date.now() / 1000) - 2 * 86400);
+    const item = mapBackendBranchToItem(makeBackendBranch({ lastCommitTimestamp: twoDaysAgo }), 'main');
+    expect(item.lastCommitTime).toBe('2 days ago');
+  });
+
+  it('never invents recency from missing, zero, negative or future timestamps', () => {
+    for (const bad of [undefined, null, 0, -1, Number.NaN, 'not-a-number']) {
+      expect(
+        mapBackendBranchToItem(makeBackendBranch({ lastCommitTimestamp: bad }), 'main').lastCommitTime,
+      ).toBe('');
+    }
+    // A future-dated timestamp is data corruption, not recency.
+    const oneHourFuture = Math.floor(Date.now() / 1000) + 3600;
+    expect(
+      mapBackendBranchToItem(makeBackendBranch({ lastCommitTimestamp: oneHourFuture }), 'main')
+        .lastCommitTime,
+    ).toBe('');
   });
 
   it('honours explicit isDefault/isProtected and sha fallbacks', () => {
@@ -93,6 +126,29 @@ describe('BranchesTab — branch rows never misattribute authorship', () => {
     expect(html).not.toContain(INVENTED_MESSAGE);
     // The viewer must never appear as a branch's last-commit author.
     expect(html).not.toContain(VIEWER);
+  });
+
+  it('never renders a fabricated "Updated recently by" — unknown time degrades honestly', () => {
+    // mappedBranches() items have '' lastCommitTime (no backend time data).
+    const html = renderToStaticMarkup(
+      <BranchesTab repo={repo} branches={mappedBranches()} currentUsername={VIEWER} />,
+    );
+    expect(html).not.toContain('Updated recently');
+    expect(html).not.toContain('recently by');
+    expect(html).toContain('Last update unavailable');
+  });
+
+  it('renders the real computed relative time when the backend supplies a timestamp', () => {
+    const fiveHoursAgo = Math.floor(Date.now() / 1000) - 5 * 3600;
+    const item = mapBackendBranchToItem(
+      makeBackendBranch({ name: 'feature/fresh', lastCommitTimestamp: fiveHoursAgo }),
+      'main',
+    );
+    const html = renderToStaticMarkup(
+      <BranchesTab repo={repo} branches={[item]} currentUsername={VIEWER} />,
+    );
+    expect(html).toContain('Updated 5 hours ago by');
+    expect(html).not.toContain('Last update unavailable');
   });
 
   it('still renders real author/message data supplied by the backend', () => {
