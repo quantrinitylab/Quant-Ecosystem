@@ -566,7 +566,7 @@ describe('Wave 8 — Phase M & Contacts Parity Suite (Developer 1)', () => {
       expect(response.statusCode).toBe(200);
       const json = response.json();
       expect(json.success).toBe(true);
-      expect(json.mergedCount).toBe(1);
+      expect(json.data.mergedCount).toBe(1);
 
       // Verify duplicate row was deleted
       const deletedDup = await prisma.contact.findUnique({ where: { id: dup.id } });
@@ -582,7 +582,11 @@ describe('Wave 8 — Phase M & Contacts Parity Suite (Developer 1)', () => {
       expect(merged?.isFavorite).toBe(true);
     });
 
-    it('merges contacts matching normalized phone numbers', async () => {
+    it('does NOT merge contacts whose phone strings differ but normalize to the same digits', async () => {
+      // P1 regression (wizard/bulk parity): the old bulk path merged on
+      // digits-only last-10 phone matching, so these two merged silently even
+      // though the wizard (exact phone-string match, different names/emails)
+      // never listed them. Bulk must merge exactly the wizard groups.
       const c1 = await prisma.contact.create({
         data: {
           id: 'contact-phone-1',
@@ -601,7 +605,7 @@ describe('Wave 8 — Phase M & Contacts Parity Suite (Developer 1)', () => {
           userId: 'user-1',
           name: 'John Doe Work',
           email: 'johndoe.work@example.com',
-          phone: '15552345678', // Same normalized digits
+          phone: '15552345678', // Same normalized digits, different raw string
           tags: ['work'],
           frequency: 1,
         },
@@ -614,13 +618,13 @@ describe('Wave 8 — Phase M & Contacts Parity Suite (Developer 1)', () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json().success).toBe(true);
-      expect(response.json().mergedCount).toBe(1);
+      expect(response.json().data.mergedCount).toBe(0);
 
-      // One should remain, one deleted
+      // Both survive — the wizard never listed this pair, so bulk must not
+      // delete either record.
       const remaining = await prisma.contact.findMany({ where: { userId: 'user-1' } });
-      expect(remaining).toHaveLength(1);
-      expect(remaining[0]?.tags).toContain('mobile');
-      expect(remaining[0]?.tags).toContain('work');
+      expect(remaining).toHaveLength(2);
+      expect(remaining.map((c: { id: string }) => c.id).sort()).toEqual([c1.id, c2.id].sort());
     });
 
     it('returns mergedCount: 0 when no duplicates exist', async () => {
@@ -647,7 +651,7 @@ describe('Wave 8 — Phase M & Contacts Parity Suite (Developer 1)', () => {
       });
 
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ success: true, mergedCount: 0 });
+      expect(response.json()).toEqual({ success: true, data: { mergedCount: 0 } });
     });
   });
 

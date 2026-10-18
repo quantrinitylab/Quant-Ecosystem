@@ -472,7 +472,7 @@ export default async function contactsRoutes(fastify: FastifyInstance) {
     const service = new ContactService(prisma as never);
     const result = await service.deduplicateContacts(userId);
 
-    return reply.send({ success: true, mergedCount: result.mergedCount });
+    return reply.send({ success: true, data: { mergedCount: result.mergedCount } });
   });
 
   // POST /contacts/import (Tasks X03, D20)

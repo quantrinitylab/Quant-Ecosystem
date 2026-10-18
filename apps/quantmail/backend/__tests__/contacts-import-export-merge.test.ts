@@ -263,4 +263,162 @@ describe('ContactService - Import/Export & Deduplication (Tasks QC-01, QC-02)', 
       expect(deletedIds[0]).not.toBe('c1');
     });
   });
+
+  describe('Task QC-02: deduplicateContacts merges exactly the wizard groups (P1)', () => {
+    const makeContact = (id: string, overrides: Record<string, unknown> = {}) => ({
+      id,
+      userId: 'user-1',
+      name: 'Some Name',
+      email: `some-${id}@example.com`,
+      phone: null,
+      company: null,
+      tags: [],
+      frequency: 1,
+      lastContactedAt: null,
+      isFavorite: false,
+      createdAt: new Date(1000),
+      updatedAt: new Date(1000),
+      ...overrides,
+    });
+
+    const mockContactsForMerge = (contacts: any[]) => {
+      mockPrisma.contact.findMany.mockResolvedValue(contacts);
+      mockPrisma.contact.findUnique.mockImplementation((args: any) =>
+        Promise.resolve(contacts.find((c) => c.id === args.where.id) ?? null),
+      );
+      mockPrisma.contact.update.mockImplementation((args: any) =>
+        Promise.resolve({
+          ...contacts.find((c) => c.id === args.where.id),
+          ...args.data,
+        }),
+      );
+      mockPrisma.contact.delete.mockResolvedValue({});
+      mockPrisma.dismissedDuplicatePair.findMany.mockResolvedValue([]);
+    };
+
+    const deletedIds = () =>
+      mockPrisma.contact.delete.mock.calls.map((call: any) => call[0].where.id);
+
+    it('does NOT merge contacts whose phone strings differ but last-10 digits match', async () => {
+      // P1 regression: the old bulk union-find normalized phones to digits-only
+      // last-10, so these two merged silently even though the wizard (exact
+      // phone-string match) never listed them as duplicates.
+      mockContactsForMerge([
+        makeContact('c1', {
+          name: 'John Doe',
+          email: 'john@work.com',
+          phone: '+1 (555) 123-4567',
+        }),
+        makeContact('c2', {
+          name: 'Jane Smith',
+          email: 'jane@work.com',
+          phone: '555-123-4567',
+        }),
+      ]);
+
+      const wizard = await service.findDuplicates('user-1');
+      expect(wizard).toHaveLength(0);
+
+      const result = await service.deduplicateContacts('user-1');
+      expect(result.mergedCount).toBe(0);
+      expect(mockPrisma.contact.delete).not.toHaveBeenCalled();
+    });
+
+    it('does NOT merge an A-B/B-C chain the wizard never grouped', async () => {
+      // P1 regression: the old transitive union-find merged c3 into c1/c2 via
+      // the shared phone with c2, even though the wizard's email phase already
+      // claimed c1+c2 and the name phase never grouped c3 with them.
+      mockContactsForMerge([
+        makeContact('c1', { name: 'John', email: 'shared@example.com' }),
+        makeContact('c2', {
+          name: 'John',
+          email: 'shared@example.com',
+          phone: '999-0001',
+        }),
+        makeContact('c3', {
+          name: 'John',
+          email: 'other@example.com',
+          phone: '999-0001',
+        }),
+      ]);
+
+      const wizard = await service.findDuplicates('user-1');
+      expect(wizard).toHaveLength(1);
+      expect(wizard[0]?.duplicates.map((c: any) => c.id)).toEqual(['c2']);
+
+      const result = await service.deduplicateContacts('user-1');
+      expect(result.mergedCount).toBe(1);
+      // c3 is the contact the wizard never listed — it must survive.
+      expect(deletedIds()).toEqual(['c2']);
+    });
+
+    it('merges name+company groups the wizard lists (bulk was narrower before)', async () => {
+      // The wizard has always grouped same-name + same-company pairs; the old
+      // bulk path (email/phone union-find only) silently skipped them. Parity
+      // means the bulk path now merges exactly these groups too.
+      mockContactsForMerge([
+        makeContact('c1', {
+          name: 'Bob Ray',
+          email: 'bob1@example.com',
+          company: 'Acme',
+        }),
+        makeContact('c2', {
+          name: 'Bob Ray',
+          email: 'bob2@example.com',
+          company: 'acme',
+        }),
+      ]);
+
+      const wizard = await service.findDuplicates('user-1');
+      expect(wizard).toHaveLength(1);
+      expect(wizard[0]?.reason).toBe('name');
+
+      const result = await service.deduplicateContacts('user-1');
+      expect(result.mergedCount).toBe(1);
+      expect(mockPrisma.contact.delete).toHaveBeenCalledWith({ where: { id: 'c2' } });
+    });
+
+    it('bulk merges exactly the wizard-listed duplicate ids across mixed groups', async () => {
+      mockContactsForMerge([
+        makeContact('g1a', { name: 'Amy Lane', email: 'amy@example.com' }),
+        makeContact('g1b', { name: 'Amy L.', email: 'AMY@example.com' }),
+        makeContact('g2a', {
+          name: 'Bob Ray',
+          email: 'bob1@example.com',
+          phone: '999-0001',
+        }),
+        makeContact('g2b', {
+          name: 'Bob Ray',
+          email: 'bob2@example.com',
+          phone: '999-0001',
+        }),
+        makeContact('lone', { name: 'Cara', email: 'cara@example.com' }),
+      ]);
+
+      const wizard = await service.findDuplicates('user-1');
+      const wizardDuplicateIds = wizard
+        .flatMap((g) => g.duplicates.map((c: any) => c.id))
+        .sort();
+      expect(wizard).toHaveLength(2);
+      expect(wizardDuplicateIds).toEqual(['g1b', 'g2b']);
+
+      const result = await service.deduplicateContacts('user-1');
+      expect(result.mergedCount).toBe(2);
+      expect(deletedIds().sort()).toEqual(wizardDuplicateIds);
+    });
+
+    it('never groups contacts on an empty email', async () => {
+      mockContactsForMerge([
+        makeContact('c1', { name: 'No Mail A', email: '' }),
+        makeContact('c2', { name: 'No Mail B', email: '' }),
+      ]);
+
+      const wizard = await service.findDuplicates('user-1');
+      expect(wizard).toHaveLength(0);
+
+      const result = await service.deduplicateContacts('user-1');
+      expect(result.mergedCount).toBe(0);
+      expect(mockPrisma.contact.delete).not.toHaveBeenCalled();
+    });
+  });
 });

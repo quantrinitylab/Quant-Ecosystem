@@ -91,14 +91,17 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
     try {
       const res = await apiClient.deduplicateContacts();
       if (res.success) {
-        const count = res.data?.mergedCount ?? (res as any).mergedCount ?? 0;
+        const count = res.data?.mergedCount ?? 0;
         showToast({
           text: `Merged ${count} duplicate contact${count === 1 ? '' : 's'}`,
           type: 'success',
         });
-        setClusters([]);
+        // Auto-merge merges exactly the groups the wizard listed (same
+        // grouping algorithm server-side). Reload the list instead of closing
+        // immediately so the post-merge state stays visible — the empty state
+        // confirms everything the wizard showed is now merged.
+        await loadDuplicates();
         onMerged();
-        onClose();
       } else {
         showToast({ text: res.error?.message || 'Auto-merge failed', type: 'error' });
       }
