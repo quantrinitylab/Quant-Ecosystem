@@ -11,7 +11,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-import { UniversalSearchResults } from '../app/search/UniversalSearchResults';
+import { UniversalSearchResults, fileDetailHref } from '../app/search/UniversalSearchResults';
 import type { UniversalSearchResults as Results } from '../hooks/useUniversalSearch';
 
 function results(overrides: Partial<Results> = {}): Results {
@@ -105,5 +105,21 @@ describe('UniversalSearchResults', () => {
       />,
     );
     expect(html).toContain('Plan');
+  });
+
+  describe('fileDetailHref', () => {
+    it('deep-links a file hit to the drive preview via ?file=<id>', () => {
+      expect(fileDetailHref({ id: 'f1', name: 'invoice.pdf' })).toBe('/drive?file=f1');
+    });
+
+    it('URL-encodes ids with special characters', () => {
+      expect(fileDetailHref({ id: 'a/b?c=1', name: 'x.pdf' })).toBe(
+        '/drive?file=a%2Fb%3Fc%3D1',
+      );
+    });
+
+    it('falls back to the bare /drive list when the hit has no id', () => {
+      expect(fileDetailHref({ id: '', name: 'Nameless' })).toBe('/drive');
+    });
   });
 });

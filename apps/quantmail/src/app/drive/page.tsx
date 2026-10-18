@@ -340,6 +340,7 @@ function DrivePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabFromQuery = searchParams?.get('tab');
+  const fileParam = searchParams?.get('file');
 
   const normalizeTab = useCallback((t: string | null | undefined): DriveSubTab => {
     if (!t) return 'home';
@@ -915,6 +916,68 @@ function DrivePageContent() {
   }, [activeTab, loadShares, loadSentShares]);
 
   const items = (files ?? []) as unknown as DriveItem[];
+
+  // Deep link: ?file=<id> (used by universal-search FileRow deep links).
+  // Opens the file's preview even when it is not in the currently loaded
+  // folder — fetches its metadata by id first, and shows an honest error for
+  // a missing id instead of silently landing on the generic /drive root.
+  // Mirrors the contacts page's ?contact= deep-link pattern.
+  const deepLinkFileTriedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!fileParam) return;
+    if (previewItem?.id === fileParam) return;
+    const inList = items.find((i) => i.id === fileParam);
+    if (inList) {
+      handlePreviewItem(inList);
+      return;
+    }
+    if (deepLinkFileTriedRef.current.has(fileParam)) return;
+    deepLinkFileTriedRef.current.add(fileParam);
+    // Projected doc-editor documents are not drive rows — route them to the
+    // editor like DocumentRow does; the editor shows its own honest error
+    // for a deleted id.
+    if (isDocumentDriveId(fileParam)) {
+      openDocumentItem(fileParam);
+      return;
+    }
+    let cancelled = false;
+    void browserApiRequest(`/api/drive/files/${encodeURIComponent(fileParam)}/details`)
+      .then(async (res) => {
+        if (cancelled) return;
+        if (res.status === 404) {
+          showToast({ text: 'File not found', type: 'error' });
+          return;
+        }
+        if (!res.ok) throw new Error(`details ${res.status}`);
+        const d = (await res.json()) as {
+          id: string;
+          name: string;
+          type: 'file' | 'folder';
+          mimeType: string;
+          size: number;
+          modifiedAt: string;
+        };
+        if (d.type === 'folder') {
+          navigateToFolder(d.id, d.name);
+        } else {
+          handlePreviewItem({
+            id: d.id,
+            name: d.name,
+            type: 'file',
+            mimeType: d.mimeType,
+            size: d.size,
+            modifiedAt: d.modifiedAt,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) showToast({ text: 'Could not load this file', type: 'error' });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileParam, previewItem?.id, handlePreviewItem, openDocumentItem, navigateToFolder]);
 
   const filteredItems = useMemo(() => {
     let result = items;
