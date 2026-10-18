@@ -13,6 +13,7 @@ import {
   useReducedMotion,
 } from '@quant/shared-ui';
 import { AppShell } from '../components/AppShell';
+import { QuickGroupChatDeck } from '../components/QuickGroupChatDeck';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
 import {
@@ -1577,7 +1578,9 @@ function InboxPageContent() {
   /** Instant WhatsApp-style quick group chat target */
   const [quickGroupChatTarget, setQuickGroupChatTarget] = useState<ContactGroup | null>(null);
   const [quickChatMessage, setQuickChatMessage] = useState('');
-  const [isSendingQuickChat, setIsSendingQuickChat] = useState(false);
+  // NOTE: the in-flight flag for the quick group-chat deck lives inside
+  // QuickGroupChatDeck now (the deck sends through the shared undo queue,
+  // so the API call fires up to 10s after Send is pressed).
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [selectedThread, setSelectedThread] = useState<ConversationThread | null>(null);
@@ -4518,132 +4521,21 @@ function InboxPageContent() {
 
       {/* WhatsApp-Style Quick Group Chat Modal */}
       {quickGroupChatTarget !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-full max-w-lg bg-[var(--quant-surface-elevated)] border border-[#3A404D]/80 rounded-2xl overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.7)] flex flex-col">
-            {/* Header with WhatsApp-style group info */}
-            <div className="flex items-center justify-between gap-3 p-4 bg-[var(--quant-surface-elevated)] border-b border-[var(--quant-surface-elevated)]">
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="size-11 rounded-full flex items-center justify-center text-[var(--quant-surface)] font-bold shrink-0 shadow"
-                  style={{ background: quickGroupChatTarget.color ?? 'var(--quant-primary)' }}
-                >
-                  <svg
-                    className="size-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                  >
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-white truncate">
-                    {quickGroupChatTarget.name}
-                  </h3>
-                  <p className="text-[11px] text-[var(--quant-muted-foreground)] truncate">
-                    {quickGroupChatTarget.emails.length} participants:{' '}
-                    {quickGroupChatTarget.emails.join(', ')}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setQuickGroupChatTarget(null)}
-                className="size-8 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] flex items-center justify-center transition-colors"
-                aria-label="Close group chat"
-              >
-                <MailIcon name="close" className="size-4" />
-              </button>
-            </div>
-
-            {/* Chat conversation preview */}
-            <div className="p-4 min-h-[140px] max-h-[240px] overflow-y-auto bg-[var(--quant-background)]/70 flex flex-col justify-end space-y-3">
-              <div className="mx-auto text-center px-3 py-1 rounded-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] text-[10px] text-[var(--quant-muted-foreground)]">
-                Delivered to all {quickGroupChatTarget.emails.length} group members
-              </div>
-              <div className="bg-[var(--quant-surface-elevated)]/80 border border-[var(--quant-surface-elevated)] rounded-xl p-3 text-xs text-[var(--quant-muted-foreground)] text-center">
-                Send a quick message or update to everyone in{' '}
-                <strong className="text-white">{quickGroupChatTarget.name}</strong>.
-              </div>
-            </div>
-
-            {/* WhatsApp-style Input Deck */}
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!quickChatMessage.trim() || isSendingQuickChat) return;
-                setIsSendingQuickChat(true);
-                try {
-                  const res = await apiClient.composeEmail({
-                    to: quickGroupChatTarget.emails.map((email) => ({ email })),
-                    subject: `[Group] ${quickGroupChatTarget.name}`,
-                    bodyText: quickChatMessage.trim(),
-                    bodyHtml: `<p>${quickChatMessage.trim()}</p>`,
-                    isDraft: false,
-                    messageKind: 'chat',
-                  });
-                  if (res.success && res.data?.id) {
-                    await apiClient.sendEmail(res.data.id);
-                    invalidateMailLists(queryClient);
-                    showToast({
-                      text: `Message sent to ${quickGroupChatTarget.name}`,
-                      type: 'success',
-                    });
-                    setQuickChatMessage('');
-                    setQuickGroupChatTarget(null);
-                    await refetch();
-                  } else {
-                    throw new Error(res.error?.message || 'Failed to send message');
-                  }
-                } catch (err) {
-                  showToast({
-                    text: err instanceof Error ? err.message : 'Could not send message to group',
-                    type: 'error',
-                  });
-                } finally {
-                  setIsSendingQuickChat(false);
-                }
-              }}
-              className="p-3 bg-[var(--quant-surface)] border-t border-[var(--quant-surface-elevated)] flex items-center gap-2"
-            >
-              <input
-                type="text"
-                value={quickChatMessage}
-                onChange={(e) => setQuickChatMessage(e.target.value)}
-                placeholder={`Message ${quickGroupChatTarget.name}…`}
-                autoFocus
-                className="flex-1 min-h-touch bg-[var(--quant-background)] border border-[var(--quant-surface-elevated)] focus:border-[var(--quant-primary)] rounded-xl px-3.5 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={!quickChatMessage.trim() || isSendingQuickChat}
-                className="px-4 min-h-touch rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] active:bg-[var(--brand-primary-pressed)] text-[var(--quant-background)] text-xs font-bold transition-all disabled:opacity-40 flex items-center gap-1.5 shadow-sm"
-              >
-                {isSendingQuickChat ? (
-                  'Sending…'
-                ) : (
-                  <>
-                    <span>Send</span>
-                    <svg
-                      className="size-3.5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                    >
-                      <line x1="22" y1="2" x2="11" y2="13" />
-                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                    </svg>
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-        </div>
+        <QuickGroupChatDeck
+          target={quickGroupChatTarget}
+          message={quickChatMessage}
+          onMessageChange={setQuickChatMessage}
+          onClose={() => setQuickGroupChatTarget(null)}
+          onRestore={(restoredTarget, restoredMessage) => {
+            // Undo (or a failed send) hands the words back: reopen this exact
+            // deck with the message intact, so nothing is silently eaten.
+            setQuickGroupChatTarget(restoredTarget);
+            setQuickChatMessage((prev) => (prev.trim() ? prev : restoredMessage));
+          }}
+          onSent={() => {
+            void refetch();
+          }}
+        />
       )}
       {/* Superhuman Docked Composer */}
       <DockedComposer
