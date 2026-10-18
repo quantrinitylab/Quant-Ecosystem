@@ -11,12 +11,19 @@ import { SearchClearButton } from '../../components/SearchClearButton';
 import { UnreadDot } from '../../components/UnreadDot';
 import { useSearchEmails } from '../../hooks/useSearchEmails';
 import { useUniversalSearch, type UniversalSearchScope } from '../../hooks/useUniversalSearch';
+import { useAuth } from '../../providers/auth-provider';
+import {
+  clearRecentSearches,
+  ensureSearchHistoryNamespaceV2,
+  getRecentSearches,
+  saveRecentSearch,
+  searchHistoryAccountKey,
+  windowSearchHistoryStorage,
+} from '../../lib/searchHistory';
 import { UniversalSearchResults } from './UniversalSearchResults';
 import { listContainerVariants, listItemVariants } from '../../lib/motion-variants';
 import type { Email, SearchEmailRequest } from '../../types';
 
-const RECENT_SEARCHES_KEY = 'quantmail_recent_searches';
-const MAX_RECENT_SEARCHES = 5;
 const EXAMPLE_SEARCHES = ['invoice', 'design feedback', 'meeting follow-up'];
 
 // K10/M13: universal scope tabs. Only sources with real backend search
@@ -106,30 +113,14 @@ const relativeDate = (value?: string | Date): string => {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
 };
 
-function getRecentSearches(): string[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveRecentSearch(query: string): void {
-  if (typeof window === 'undefined' || !query.trim()) return;
-  try {
-    const existing = getRecentSearches();
-    const filtered = existing.filter((s) => s !== query);
-    const updated = [query, ...filtered].slice(0, MAX_RECENT_SEARCHES);
-    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
-  } catch {
-    // localStorage may be unavailable
-  }
-}
+// Recent-search persistence is account-scoped (lib/searchHistory): the
+// namespace key carries the immutable user id, an unknown account fails
+// closed (no persistence at all — never the old shared key), and the
+// retired unscoped legacy key is purged rather than migrated.
 
 export default function SearchPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<UniversalSearchScope>('all');
   const [activeFilters, setActiveFilters] = useState<SearchFilter[]>([]);
@@ -137,10 +128,17 @@ export default function SearchPage() {
   const [filterInput, setFilterInput] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  // The backend-verified immutable user id is the namespace segment; an
+  // unknown/empty account means no recent-search persistence at all.
+  const accountKey = searchHistoryAccountKey(user?.id);
 
   useEffect(() => {
-    setRecentSearches(getRecentSearches());
-  }, []);
+    const store = windowSearchHistoryStorage();
+    // qm-search-history-scope: retire the pre-fix unscoped namespace once
+    // per page load under an authenticated session — never migrated.
+    ensureSearchHistoryNamespaceV2(store);
+    setRecentSearches(getRecentSearches(store, accountKey));
+  }, [accountKey]);
 
   const searchParams: Partial<SearchEmailRequest> | null =
     hasSearched && query.trim()
@@ -178,8 +176,9 @@ export default function SearchPage() {
       if (!trimmed) return;
       setQuery(trimmed);
       setHasSearched(true);
-      saveRecentSearch(trimmed);
-      setRecentSearches(getRecentSearches());
+      const store = windowSearchHistoryStorage();
+      saveRecentSearch(store, accountKey, trimmed);
+      setRecentSearches(getRecentSearches(store, accountKey));
       // BB-P1-10: the page seeds from ?q= on mount but never wrote it back,
       // so the URL went stale (back button / copy-link / refresh lost the
       // query). Keep it in sync; replace (not push) so typing one search
@@ -190,7 +189,7 @@ export default function SearchPage() {
         router.replace(url.pathname + url.search, { scroll: false });
       }
     },
-    [router],
+    [router, accountKey],
   );
 
   const handleSearch = useCallback(() => {
@@ -304,13 +303,9 @@ export default function SearchPage() {
   }, [router]);
 
   const clearRecent = useCallback(() => {
-    try {
-      localStorage.removeItem(RECENT_SEARCHES_KEY);
-    } catch {
-      // ignore
-    }
+    clearRecentSearches(windowSearchHistoryStorage(), accountKey);
     setRecentSearches([]);
-  }, []);
+  }, [accountKey]);
 
   const handleEmailClick = useCallback(
     (email: Email) => {

@@ -31,6 +31,22 @@ async function purgeUnscopedThreadDrafts(): Promise<void> {
   }
 }
 
+// QM fix qm-search-history-scope (P1, same leak class as the two above):
+// logout must also drop the legacy UNSCOPED recent-search key
+// (`quantmail_recent_searches`) — it is not attributable to any account, so
+// the next account on this browser could read the previous account's search
+// queries. Account-scoped v2 keys (`quantmail_searches.v2.<immutable-id>`)
+// partition safely and survive logout for the account's own next sign-in.
+async function purgeLegacySearchHistory(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const mod = await import('../lib/searchHistory');
+    mod.purgeLegacyRecentSearchKeys(mod.windowSearchHistoryStorage());
+  } catch {
+    // Best effort: a storage failure must never strand a logout.
+  }
+}
+
 // QM fix qm-drive-doc-cache-scope (P1, same leak class as the draft P0
 // above): logout must also drop legacy unscoped doc-content cache keys
 // (`quant_doc_<docId>`) — they are NOT attributable to any account, so the
@@ -269,6 +285,9 @@ export const browserAuthSession = {
       // qm-drive-doc-cache-scope: legacy unscoped doc-content cache keys are
       // the same leak class — purge them too. v2 account-scoped keys survive.
       await purgeUnscopedDocCaches();
+      // qm-search-history-scope: the legacy unscoped recent-search key is
+      // the same leak class — purge it too. v2 account-scoped keys survive.
+      await purgeLegacySearchHistory();
     }
   },
 
