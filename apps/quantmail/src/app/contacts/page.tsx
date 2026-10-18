@@ -8,6 +8,8 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { ContactsLetterIndex } from '../../components/ContactsLetterIndex';
 import { ContactsPagination } from '../../components/ContactsPagination';
 import { getContactPageCorrection } from '../../lib/contacts-pagination';
+import { useSlowLoadNotice } from '../../lib/use-slow-load';
+import { ContactsSlowLoadNotice } from './components/ContactsSlowLoadNotice';
 import {
   buildLetterIndexGroups,
   indexLetterTotals,
@@ -164,6 +166,11 @@ export default function ContactsPage() {
   const pagination = contactPage?.pagination;
   const pageCorrection = !isFetching && !error ? getContactPageCorrection(page, pagination) : null;
   const isLoading = pageLoading || pageCorrection !== null;
+  // QM 2026-10-15 P1 (mobile /contacts): on a slow cold load the list sat on
+  // skeleton placeholders indefinitely. Past 10s of continuous loading the
+  // stream swaps skeletons for an honest notice with Retry — list or honest
+  // state, never stranded placeholders.
+  const slowLoad = useSlowLoadNotice(isLoading);
 
   // Companies tab: groups are aggregated SERVER-SIDE across ALL contacts
   // (GET /contacts/companies). Grouping from the paginated list page dropped
@@ -1172,12 +1179,19 @@ export default function ContactsPage() {
                     showScrubRail ? (railEarnsThumb ? 'pr-7' : 'pr-7') : ''
                   }`}
                 >
-                  {isLoading && (
+                  {isLoading && !slowLoad && (
                     <div className="space-y-3">
                       {Array.from({ length: 7 }).map((_, i) => (
                         <Skeleton key={i} variant="rect" width="100%" height="56px" />
                       ))}
                     </div>
+                  )}
+
+                  {/* QM 2026-10-15 P1: the load outlasted the skeleton window —
+                      say so honestly and offer a way out instead of stranding
+                      the user on placeholders. */}
+                  {isLoading && slowLoad && (
+                    <ContactsSlowLoadNotice onRetry={() => void refetch()} />
                   )}
 
                   {error && <ErrorState message={error.message} onRetry={() => void refetch()} />}
