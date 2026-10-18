@@ -1878,6 +1878,98 @@ export default async function calendarRoutes(
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
 
+  // ========================================================================
+  // Organizer RSVP notifications (fix/qm-calendar-rsvp-organizer-notify).
+  //
+  // RSVPing used to persist the guest's response into the event attendee JSON
+  // and stop there — the organizer had to open the event to discover any
+  // response. This helper is the honest mail path: when a guest accepts,
+  // declines or tentatively accepts, the organizer gets a real notification
+  // email through SES (Gmail parity: RSVP response emails).
+  //
+  // It never throws: the RSVP write already succeeded before this runs, so
+  // a mail outage must not fail the response. Failure is reported in the
+  // returned status ({ notified: false, reason }) and logged.
+  // ========================================================================
+  type RsvpNotificationStatus = {
+    notified: boolean;
+    count: number;
+    reason?:
+      | 'sent'
+      | 'self-rsvp'
+      | 'not-a-response'
+      | 'no-organizer-email'
+      | 'mail-not-configured'
+      | 'send-failed';
+  };
+
+  const notifyOrganizerOfRsvp = async (
+    prisma: any,
+    event: EventRow,
+    guest: { name?: string; email?: string } | null,
+    status: 'accepted' | 'declined' | 'tentative' | 'pending',
+    rsvpUserId: string,
+    request: unknown,
+  ): Promise<RsvpNotificationStatus> => {
+    const log = (request as { log?: { warn: (...args: unknown[]) => void } })?.log;
+    // 'pending' is the unset state, not a response — notifying on it would
+    // spam the organizer with non-news.
+    if (status === 'pending') {
+      return { notified: false, count: 0, reason: 'not-a-response' };
+    }
+    // The organizer changing their own status is not news to the organizer.
+    if (String(event.userId ?? '') === String(rsvpUserId ?? '')) {
+      return { notified: false, count: 0, reason: 'self-rsvp' };
+    }
+    const organizer = await getOrganizerInfo(prisma, String(event.userId ?? ''));
+    if (!organizer?.email || !isEmailShaped(organizer.email)) {
+      return { notified: false, count: 0, reason: 'no-organizer-email' };
+    }
+    if (!isSesConfigured()) {
+      return { notified: false, count: 0, reason: 'mail-not-configured' };
+    }
+    const guestName =
+      String(guest?.name ?? '').trim() ||
+      String(guest?.email ?? '').trim() ||
+      'A guest';
+    const guestEmail = String(guest?.email ?? '').trim();
+    const verb =
+      status === 'accepted' ? 'accepted' : status === 'declined' ? 'declined' : 'tentatively accepted';
+    const when = formatEventWhen(new Date(event.startTime), new Date(event.endTime));
+    const subject = `${guestName} ${verb}: ${event.title}`;
+    const bodyText =
+      `${guestName} has ${verb} "${event.title}".\n\n` +
+      `When: ${when}\n` +
+      `${event.location ? `Where: ${event.location}\n` : ''}` +
+      `\nYou're receiving this because you're the organizer of this event.`;
+    const bodyHtml =
+      `<p><strong>${escapeHtml(guestName)}</strong> has ${escapeHtml(verb)} ` +
+      `<strong>${escapeHtml(event.title)}</strong>.</p>` +
+      `<p>When: ${escapeHtml(when)}${event.location ? `<br>Where: ${escapeHtml(event.location)}` : ''}</p>` +
+      `<p>You're receiving this because you're the organizer of this event.</p>`;
+    try {
+      // Sent from the product identity (never impersonate the guest — their
+      // address is not a verified SES identity); replyTo routes the
+      // organizer's reply straight to the guest.
+      await sendViaSes({
+        from:
+          process.env['CALENDAR_RSVP_NOTIFY_FROM'] ?? 'QuantMail Calendar <no-reply@quantmail.in>',
+        to: [organizer.email],
+        ...(isEmailShaped(guestEmail) ? { replyTo: guestEmail } : {}),
+        subject,
+        bodyText,
+        bodyHtml,
+      });
+      return { notified: true, count: 1, reason: 'sent' };
+    } catch (err) {
+      log?.warn(
+        { err, eventId: event.id, status },
+        'Organizer RSVP notification email failed to send',
+      );
+      return { notified: false, count: 0, reason: 'send-failed' };
+    }
+  };
+
   fastify.get<{ Params: { id: string } }>('/events/:id/ics', async (request, reply) => {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
@@ -2802,7 +2894,8 @@ export default async function calendarRoutes(
     const { parentId: eventId, occurrenceIso } = splitEventId(request.params.id);
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     const email = String(user?.email ?? '').toLowerCase();
-    const { updated, attendees, recurrenceRule } = await prisma.$transaction(async (tx: any) => {
+    const { updated, attendees, recurrenceRule, rsvpGuest } = await prisma.$transaction(
+      async (tx: any) => {
       // The attendee list is a JSON column written read-modify-write: without
       // a row lock, two simultaneous RSVPs both read the same list and the
       // second write silently drops the first attendee's response. SELECT ...
@@ -2812,11 +2905,18 @@ export default async function calendarRoutes(
       const event = await tx.event.findUnique({ where: { id: eventId } });
       if (!event) throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
       let matched = false;
+      let matchedGuest: StoredAttendee | null = null;
       const next = toStoredAttendees(parseJsonArray(event.attendees) as AttendeeInput[]).map(
         (attendee) => {
           if (attendee.userId !== userId && attendee.email.toLowerCase() !== email) return attendee;
           matched = true;
-          return { ...attendee, userId: attendee.userId || userId, status: parsed.data.status };
+          const withStatus = {
+            ...attendee,
+            userId: attendee.userId || userId,
+            status: parsed.data.status,
+          };
+          matchedGuest = withStatus;
+          return withStatus;
         },
       );
       if (!matched)
@@ -2825,9 +2925,27 @@ export default async function calendarRoutes(
         where: { id: eventId },
         data: { attendees: JSON.stringify(next), updatedAt: new Date() },
       });
-      return { updated: saved, attendees: next, recurrenceRule: event.recurrenceRule };
-    });
+      return {
+        updated: saved,
+        attendees: next,
+        recurrenceRule: event.recurrenceRule,
+        rsvpGuest: matchedGuest,
+      };
+      },
+    );
     const appliesTo = recurrenceRule ? 'series' : 'event';
+    // Gmail parity (fix/qm-calendar-rsvp-organizer-notify): the guest's
+    // response landed — now tell the organizer by real email. Runs after the
+    // write and never throws: a mail outage must not fail the RSVP itself;
+    // the honest outcome rides in the response as rsvpNotification.
+    const rsvpNotification = await notifyOrganizerOfRsvp(
+      prisma,
+      updated,
+      rsvpGuest,
+      parsed.data.status,
+      userId,
+      request,
+    );
     return reply.send({
       success: true,
       data: {
@@ -2838,6 +2956,7 @@ export default async function calendarRoutes(
           appliesTo,
           fromOccurrence: occurrenceIso,
         },
+        rsvpNotification,
       },
     });
   });
