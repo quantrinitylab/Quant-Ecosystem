@@ -225,6 +225,25 @@ describe('browserAuthSession', () => {
     );
   });
 
+  it('purges the legacy unscoped recent-search key on logout but keeps v2 keys', async () => {
+    // qm-search-history-scope: the pre-fix shared key is not attributable
+    // to any account, so logout must drop it; the account-scoped v2 key
+    // partitions safely and survives for the account's own next sign-in.
+    const storageKeys = ['quantmail_recent_searches', 'quantmail_searches.v2.user-1'];
+    localStorage.length = storageKeys.length;
+    localStorage.key = vi.fn((i: number) => storageKeys[i] ?? null);
+
+    fetchMock.mockResolvedValueOnce(authResponse({ accessToken: 'access-old', expiresIn: 900 }));
+    await browserAuthSession.login('user@quantmail.in', 'password');
+    fetchMock.mockReset();
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+
+    await browserAuthSession.logout();
+
+    expect(localStorage.removeItem).toHaveBeenCalledWith('quantmail_recent_searches');
+    expect(localStorage.removeItem).not.toHaveBeenCalledWith('quantmail_searches.v2.user-1');
+  });
+
   it('aborts a hung request after the global timeout', async () => {
     vi.useFakeTimers();
     try {

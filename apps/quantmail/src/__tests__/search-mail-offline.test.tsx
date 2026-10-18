@@ -47,6 +47,14 @@ vi.mock('next/navigation', () => ({
   useRouter: () => stableRouter,
 }));
 
+// The page calls useAuth() at render (account-scoped recent-search
+// persistence needs the immutable user id). The test shell has no
+// AuthProvider, so the real hook throws — mock it like the sibling suites
+// (person-thread-page-load.test.tsx) with a stable test account.
+vi.mock('../providers/auth-provider', () => ({
+  useAuth: () => ({ user: { id: 'u1', email: 'me@quantmail.in' } }),
+}));
+
 vi.mock('../hooks/useSearchEmails', () => ({
   useSearchEmails: () => ({ ...mailSearchState }),
 }));
