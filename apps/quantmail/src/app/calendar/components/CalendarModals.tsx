@@ -6,6 +6,10 @@ import { IconCheck, IconClock, IconMapPin, IconVideoCall } from '../../../compon
 import type { CalendarEventLike, FormState } from '../types';
 import { NOTIFICATION_SLIDER_VALUES, RECURRENCE_OPTIONS, TIMEZONES } from '../types';
 import { endOf, startOf } from '../lib/calendar-geometry';
+// fix/qm-quant-meta-strip: the stored __QUANT_META__ description header must
+// never render as raw text in the in-calendar detail modal — mirror the
+// standalone event-detail page, which strips it via this same helper.
+import { stripQuantMeta } from '../event/event-detail-utils';
 import {
   buildCustomRRule,
   fromRRule,
@@ -75,6 +79,14 @@ export function CalendarModals({
   const activeLabel = /^[A-Z]+=/.test(formState.recurrence ?? '')
     ? fromRRule(formState.recurrence)
     : formState.recurrence;
+
+  // fix/qm-quant-meta-strip: strip the stored __QUANT_META__ header for
+  // display (the standalone event-detail page does the same). When the
+  // description holds ONLY a header, this is '' and the block below hides —
+  // an honest empty state instead of a raw JSON blob.
+  const strippedSelectedDescription = selectedEvent
+    ? stripQuantMeta(selectedEvent.description)
+    : '';
 
   return (
     <>
@@ -363,9 +375,9 @@ export function CalendarModals({
               </div>
             )}
 
-            {selectedEvent.description && (
+            {strippedSelectedDescription && (
               <div className="pt-2 border-t border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)]">
-                {selectedEvent.description}
+                {strippedSelectedDescription}
               </div>
             )}
 
