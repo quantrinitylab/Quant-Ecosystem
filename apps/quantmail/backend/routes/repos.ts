@@ -3324,12 +3324,23 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       });
     } else if (parsed.data.email) {
       if (typeof prisma.user?.findFirst === 'function') {
+        // Case-insensitive match: legacy User rows predate email normalization
+        // and may carry mixed case (e.g. `LegacyCase@quantmail.in`), so a
+        // case-exact lookup 404s a real account. Mirrors
+        // routes/auth.ts findUserByEmailInsensitive and the drive share-link
+        // audience fix (PR #1336).
         targetUser = await prisma.user.findFirst({
-          where: { email: parsed.data.email },
+          where: { email: { equals: parsed.data.email, mode: 'insensitive' } },
           select: { id: true, displayName: true, email: true, avatarUrl: true },
         });
       }
       if (!targetUser && typeof prisma.user?.findUnique === 'function') {
+        // Fallback for prisma doubles that only implement findUnique. Kept
+        // case-exact on purpose: Prisma rejects `mode` inside findUnique's
+        // unique filter ("Argument `email`: Invalid value provided. Expected
+        // String, provided Object"), so an insensitive filter here would 500
+        // on a real client. Real lookups are already handled
+        // case-insensitively by findFirst above.
         targetUser = await prisma.user.findUnique({
           where: { email: parsed.data.email },
           select: { id: true, displayName: true, email: true, avatarUrl: true },
