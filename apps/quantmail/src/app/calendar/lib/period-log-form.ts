@@ -23,6 +23,11 @@
  */
 import type { CalendarEventLike, EntryType, FormState } from '../types';
 import { toRecurrenceRule } from './recurrence';
+// fix/qm-quant-meta-strip: the payload builder always prepends exactly one
+// fresh __QUANT_META__ header, so the user text it carries must be
+// header-free — otherwise a stale header stacked into the body survives as
+// visible text and headers accumulate one per edit.
+import { stripQuantMeta } from '../event/event-detail-utils';
 
 export type PeriodHealthFieldState = Pick<
   FormState,
@@ -117,7 +122,12 @@ export function buildSheetSavePayload(input: SheetSavePayloadInput) {
     formState.pain.length > 0 ? `Pain: ${formState.pain.join(', ')}` : '',
     formState.energy ? `Energy: ${formState.energy}` : '',
   ].filter(Boolean);
-  const userDesc = formState.description || (isPeriod ? healthBits.join(' | ') : '');
+  const userDesc =
+    // fix/qm-quant-meta-strip: strip any stale header the form text may
+    // carry (defense in depth — openEditSheet already seeds stripped text),
+    // so the fresh metaHeader below is the ONLY header in the payload.
+    stripQuantMeta(formState.description || '') ||
+    (isPeriod ? healthBits.join(' | ') : '');
   const finalDescription = metaHeader + userDesc;
 
   return {

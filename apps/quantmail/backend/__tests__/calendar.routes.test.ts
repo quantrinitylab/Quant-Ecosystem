@@ -1154,6 +1154,31 @@ describe('driveLink — the sheet has always sent it; the schema silently droppe
     expect(res.statusCode).toBe(200);
     expect(storedMeta(updateData()).driveLink).toBe('https://drive.quantmail.in/file/abc123');
   });
+
+  it('collapses stacked duplicate headers to exactly one on update (fix/qm-quant-meta-strip)', async () => {
+    const app = await buildApp();
+    // Legacy rows edited through the old calendar sheet carry one stale
+    // header copy per save (the sheet prepended a fresh header to a
+    // description that still held the old one). An update through the
+    // header writers must collapse them so storage keeps exactly one.
+    const stacked =
+      '__QUANT_META__:{"type":"event"}:__END_QUANT_META__\n' +
+      '__QUANT_META__:{"type":"event"}:__END_QUANT_META__\n' +
+      'agenda';
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: stacked });
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/events/e1',
+      payload: { description: stacked, driveLink: 'https://drive.quantmail.in/file/abc123' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const desc = updateData().description as string;
+    expect((desc.match(/__QUANT_META__:/g) || []).length).toBe(1);
+    // The human-readable body survives the collapse.
+    expect(desc).toContain('agenda');
+    expect(storedMeta(updateData()).driveLink).toBe('https://drive.quantmail.in/file/abc123');
+  });
 });
 
 describe('sheet-type round-trip — Task/Birthday/Period meta survives toEventDto', () => {

@@ -43,6 +43,11 @@ import type { GuestNotificationStatus } from '../../types';
 import { CalendarHeader } from './components/CalendarHeader';
 import { CalendarEventForm } from './components/CalendarEventForm';
 import { CalendarModals } from './components/CalendarModals';
+// fix/qm-quant-meta-strip: openEditSheet seeds the edit form with the
+// header-stripped description (mirroring the standalone event-detail page),
+// so the raw __QUANT_META__ JSON blob never shows as editable text and a
+// save never stacks another header copy onto the stored one.
+import { stripQuantMeta } from './event/event-detail-utils';
 import { BookingLinksModal } from './components/BookingLinksModal';
 import { QuickAddPopover } from './components/QuickAddPopover';
 import { decodeEmailDraft } from '../../lib/emailToEvent';
@@ -963,7 +968,11 @@ function CalendarPageContent() {
       // the sheet shows the form default and a save silently rewrites it.
       timezone: ev.timezone || ev.timeZone || prev.timezone,
       location: ev.location || '',
-      description: ev.description || '',
+      // fix/qm-quant-meta-strip: seed the header-stripped body (see import
+      // note above) — the edit form shows only the user's text, and the
+      // backend re-attaches the stored header on save via preserveMetaHeader
+      // while buildSheetSavePayload prepends exactly one fresh header.
+      description: stripQuantMeta(ev.description || ''),
       // The backend returns driveLink parsed from the stored __QUANT_META__
       // header; restore it so editing never silently drops the attached link.
       driveLink: ev.driveLink || '',

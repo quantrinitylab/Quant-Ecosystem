@@ -369,6 +369,23 @@ function stripQuantMeta(raw: string): string {
 }
 
 /**
+ * Remove EVERY __QUANT_META__ header, not just the first.
+ * fix/qm-quant-meta-strip: rows edited through the old calendar sheet carry
+ * N stale header copies (one stacked per save). Header writers collapse
+ * through this so storage keeps exactly one header; the read path
+ * (matchQuantMeta, first/newest wins) is untouched.
+ */
+function stripAllQuantMeta(raw: string): string {
+  let out = raw;
+  let prev: string;
+  do {
+    prev = out;
+    out = stripQuantMeta(out);
+  } while (out !== prev);
+  return out;
+}
+
+/**
  * Persist a top-level `driveLink` payload field inside the __QUANT_META__
  * description header — the established store for type/priority/subtasks, and
  * the only place Event can carry the link (there is no driveLink column).
@@ -402,7 +419,7 @@ function setMetaDriveLink(description: string, driveLink: string | undefined): s
     delete meta.driveLink;
   }
   const header = `__QUANT_META__:${JSON.stringify(meta)}:__END_QUANT_META__`;
-  const body = stripQuantMeta(raw).trim();
+  const body = stripAllQuantMeta(raw).trim();  // fix/qm-quant-meta-strip: collapse stale stacked headers so storage keeps exactly one
   return body ? `${header}\n${body}` : `${header}\n`;
 }
 
@@ -478,7 +495,7 @@ function setMetaSheetFields(description: string, patch: Record<string, unknown> 
   if (JSON.stringify(meta) === before && match) return raw;
   if (JSON.stringify(meta) === '{}' && !match) return raw;
   const header = `__QUANT_META__:${JSON.stringify(meta)}:__END_QUANT_META__`;
-  const body = stripQuantMeta(raw).trim();
+  const body = stripAllQuantMeta(raw).trim();  // fix/qm-quant-meta-strip: collapse stale stacked headers so storage keeps exactly one
   return body ? `${header}\n${body}` : `${header}\n`;
 }
 

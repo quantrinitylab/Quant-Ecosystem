@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { initPeriodHealthFields, buildSheetSavePayload } from '../period-log-form';
+import { stripQuantMeta } from '../../event/event-detail-utils';
 import type { CalendarEventLike, FormState } from '../../types';
 
 /**
@@ -272,5 +273,70 @@ describe('buildSheetSavePayload — the actual save contract', () => {
     expect(eventPayload.moods).toBeUndefined();
     expect(eventPayload.periodDays).toBeUndefined();
     expect(eventPayload.sendUpdate).toBeUndefined();
+  });
+});
+
+describe('fix/qm-quant-meta-strip — __QUANT_META__ header idempotency', () => {
+  const STORED_HEADER = '__QUANT_META__:{"type":"event","priority":"high"}:__END_QUANT_META__';
+  const STORED = `${STORED_HEADER}\nTeam standup notes`;
+
+  /** The exact seeding expression openEditSheet (calendar/page.tsx) now uses. */
+  function seedEditDescription(stored: string): string {
+    return stripQuantMeta(stored || '');
+  }
+
+  function saveEvent(formState: FormState, editingEventId: string | null = 'E') {
+    return buildSheetSavePayload({
+      formState,
+      sheetType: 'event',
+      editingEventId,
+      startIso: '2026-10-18T10:00:00.000Z',
+      endIso: '2026-10-18T11:00:00.000Z',
+      finalTitle: 'Standup',
+      sendUpdate: false,
+    });
+  }
+
+  function headerCount(description: string): number {
+    return (description.match(/__QUANT_META__:/g) || []).length;
+  }
+
+  it('edit-sheet seeding strips the stored header — the form holds only user text', () => {
+    expect(seedEditDescription(STORED)).toBe('Team standup notes');
+    expect(seedEditDescription(STORED_HEADER)).toBe('');
+    expect(seedEditDescription('plain note')).toBe('plain note');
+  });
+
+  it('a seeded edit saves exactly one header with the user body intact', () => {
+    const payload = saveEvent(makeFormState({ description: seedEditDescription(STORED) }));
+    expect(headerCount(payload.description)).toBe(1);
+    expect(payload.description).toContain('Team standup notes');
+    expect(payload.description).not.toContain('"priority":"high"');
+  });
+
+  it('a stale header in the form text is dropped, not stacked (belt-and-braces save idempotency)', () => {
+    // Simulates the OLD buggy seeding (raw stored description in the form):
+    // even then, the payload must carry exactly one fresh header.
+    const payload = saveEvent(makeFormState({ description: STORED }));
+    expect(headerCount(payload.description)).toBe(1);
+    expect(payload.description).toContain('Team standup notes');
+    expect(payload.description).not.toContain('"priority":"high"');
+  });
+
+  it('repeated edits never accumulate headers (edit → save → edit → save)', () => {
+    let stored: string = STORED;
+    for (let i = 0; i < 3; i++) {
+      const payload = saveEvent(makeFormState({ description: seedEditDescription(stored) }));
+      stored = payload.description;
+      expect(headerCount(stored)).toBe(1);
+    }
+    expect(stored).toContain('Team standup notes');
+  });
+
+  it('stacked legacy headers collapse to one on the next save', () => {
+    const stacked = `${STORED_HEADER}\n${STORED_HEADER}\nTeam standup notes`;
+    const payload = saveEvent(makeFormState({ description: seedEditDescription(stacked) }));
+    expect(headerCount(payload.description)).toBe(1);
+    expect(payload.description).toContain('Team standup notes');
   });
 });
