@@ -5,41 +5,37 @@
 // Tasks W39-CAL01 & W39-CAL02
 // ============================================================================
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { showToast } from '../../../components/InboxToast';
 import { IconLink, IconX, IconCalendar, IconClock, IconClipboard, IconCheck, IconTrash } from '../../../components/icons';
 import { apiFetchRaw } from '@quant/api-client';
 import { TIMEZONES } from '../types';
+import {
+  bookingLinksAccountKey,
+  ensureBookingLinksNamespaceV2,
+  getBookingLinks,
+  saveBookingLinks,
+  windowBookingLinksStorage,
+  type BookingLinkItem,
+} from '../../../lib/bookingLinks';
 
-export interface BookingLinkItem {
-  id: string;
-  slug: string;
-  title: string;
-  description?: string;
-  duration: number; // in minutes (15, 30, 45, 60)
-  startHour: number; // 0..23 (default 9)
-  endHour: number; // 1..24 (default 17)
-  availableDays: number[]; // 0 = Sun, 1 = Mon ... 6 = Sat
-  /**
-   * IANA timezone anchoring the availability window
-   * (fix/qm-booking-tz-availability-2). startHour/endHour/availableDays are
-   * wall-clock values in this zone — never server-local. 'UTC' when unset.
-   */
-  timezone: string;
-  isActive: boolean;
-  createdAt: string;
-  /**
-   * Honest sync marker: true when this link lives only on this device because
-   * the server never accepted it. Rendered as a "This device only" badge —
-   * never silently presented as shareable.
-   */
-  pendingSync?: boolean;
-}
+// The booking-link type and the persisted-cache parsing live in the
+// framework-free lib module (qm-booking-links-scope: account-scoped offline
+// cache on the immutable user id, legacy unscoped key purged). Re-exported
+// here so existing import sites (booking-page tests) keep working unchanged.
+export type { BookingLinkItem } from '../../../lib/bookingLinks';
+export { parseStoredBookingLinks } from '../../../lib/bookingLinks';
 
 export interface BookingLinksModalProps {
   isOpen: boolean;
   onClose: () => void;
   userEmail?: string;
+  /**
+   * Backend-verified immutable user id (from useAuth) — namespaces the
+   * offline booking-links cache (qm-booking-links-scope). Never the mutable
+   * email.
+   */
+  userId?: string;
 }
 
 /**
@@ -74,58 +70,8 @@ export function slugify(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-// NOTE (2026-10-11, fix/qm-bookinglinks-fake-data): the 3 hardcoded sample
-// booking links ("30 Min Strategy Session", "15 Min Quick Sync", "60 Min
-// Technical Deep Dive") that used to live here were REMOVED. They were
-// presented as the user's own links on first load — fake data. The honest
-// first-run state is an empty list; the modal already renders a "No booking
-// links created yet" empty state for that case. Seeded samples that a user's
-// browser persisted earlier are filtered out by parseStoredBookingLinks so
-// they never masquerade as real user data again.
-
-/**
- * Exact id|slug pairs of the sample links the old version seeded.
- * Only these exact pairs are treated as seeded fake data — a user's own
- * link can never collide because created ids are `link-${Date.now()}-...`.
- */
-const SEEDED_SAMPLE_LINK_KEYS = new Set([
-  'link-30-min|30-min-strategy-session',
-  'link-15-min|15-min-quick-sync',
-  'link-60-min|60-min-deep-dive',
-]);
-
-/**
- * Parse the persisted booking-links value into a validated list.
- * Returns [] for missing/corrupt/non-array values, and strips out any
- * seeded sample links from the old fake-data version.
- */
-export function parseStoredBookingLinks(raw: string | null | undefined): BookingLinkItem[] {
-  if (!raw) return [];
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(parsed)) return [];
-  return parsed
-    .filter(
-      (l): l is BookingLinkItem =>
-        !!l &&
-        typeof l === 'object' &&
-        typeof (l as BookingLinkItem).slug === 'string' &&
-        !SEEDED_SAMPLE_LINK_KEYS.has(
-          `${(l as BookingLinkItem).id}|${(l as BookingLinkItem).slug}`,
-        ),
-    )
-    // Links cached before the timezone field existed carry no timezone —
-    // default them honestly to 'UTC' (fix/qm-booking-tz-availability-2).
-    .map((l) => ({
-      ...l,
-      timezone:
-        typeof l.timezone === 'string' && l.timezone.trim() ? l.timezone : 'UTC',
-    }));
-}
+// The seeded-fake-data filter and cache parsing moved to lib/bookingLinks
+// (re-exported above) — qm-booking-links-scope.
 
 /**
  * Honest result of a booking-link server sync.
@@ -326,13 +272,13 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
   // real email (from useAuth). When it is absent we show an honest
   // "Not signed in" in the footer instead of inventing an identity.
   userEmail,
+  userId,
 }) => {
-  const [links, setLinks] = useState<BookingLinkItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      return parseStoredBookingLinks(localStorage.getItem('quant_calendar_booking_links'));
-    }
-    return [];
-  });
+  // qm-booking-links-scope: the offline cache namespace key carries the
+  // backend-verified IMMUTABLE user id. An unknown/empty account means no
+  // persistence at all (fail closed — never the old shared key).
+  const accountKey = bookingLinksAccountKey(userId);
+  const [links, setLinks] = useState<BookingLinkItem[]>([]);
 
   const [activeTab, setActiveTab] = useState<'list' | 'create'>('list');
 
@@ -357,12 +303,26 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
   const [serverSyncError, setServerSyncError] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // qm-booking-links-scope: offline cache is account-scoped
+  // (`quant_calendar_booking_links.v2.<immutable-user-id>`); the legacy
+  // unscoped key is purged once per page load (never read, never migrated).
+  // `linksBelongToAccount` guards the write path: on an account switch the
+  // persist effect must never write the previous account's in-memory links
+  // under the new account's key before the reload effect runs.
+  const linksBelongToAccount = useRef<string>('');
+  useEffect(() => {
+    const store = windowBookingLinksStorage();
+    ensureBookingLinksNamespaceV2(store);
+    setLinks(getBookingLinks(store, accountKey));
+    linksBelongToAccount.current = accountKey;
+  }, [accountKey]);
+
   // Sync to localStorage (offline cache only — the server is the source of truth)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('quant_calendar_booking_links', JSON.stringify(links));
-    }
-  }, [links]);
+    if (!accountKey) return; // fail closed: unknown account persists nothing
+    if (linksBelongToAccount.current !== accountKey) return; // mid-switch guard
+    saveBookingLinks(windowBookingLinksStorage(), accountKey, links);
+  }, [accountKey, links]);
 
   // Load the host's links from the backend every time the modal opens.
   // Without this, backend-created links (and links made on other devices)

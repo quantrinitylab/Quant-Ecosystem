@@ -1621,6 +1621,7 @@ function CalendarPageContent() {
           isOpen={isBookingLinksOpen}
           onClose={() => setIsBookingLinksOpen(false)}
           userEmail={currentUserEmail}
+          userId={user?.id}
         />
 
         {/* fix/qm-calendar-nlp-quickadd: `q` NLP quick-add ("Lunch with Sam 1pm"). */}
