@@ -155,6 +155,80 @@ export function duplicatePairKey(contactIdA: string, contactIdB: string): string
   return [contactIdA, contactIdB].sort().join('::');
 }
 
+/**
+ * The wizard's grouping algorithm, shared by findDuplicates (what the dedupe
+ * modal lists) and deduplicateContacts (POST /contacts/deduplicate).
+ *
+ * Both paths MUST use the same grouping: "Auto-Merge All" merges exactly the
+ * groups the wizard surfaced — never a different, wider set. The old bulk
+ * path ran a union-find over normalized email (trim+lower) AND normalized
+ * phone (digits-only, last-10, min 7) with full transitivity, so one click
+ * could merge pairs the wizard never displayed (last-10-digit phone matches
+ * with differing full strings, or A-B/B-C chains the wizard never grouped).
+ * That is now impossible by construction: the bulk path consumes this helper.
+ *
+ * Grouping rules (unchanged from the wizard):
+ *  1. Same email, trimmed + case-insensitive (empty emails never group).
+ *  2. Among the rest: same exact name (trimmed, case-insensitive) AND at
+ *     least one pair in the name-bucket sharing the exact phone string or
+ *     the same company (case-insensitive).
+ * Each contact appears in at most one group; groups never chain across keys.
+ */
+function buildDuplicateGroups(contacts: Contact[]): DuplicateGroup[] {
+  const groups: DuplicateGroup[] = [];
+  const groupedIds = new Set<string>();
+
+  // 1. Group by email (case-insensitive)
+  const byEmail = new Map<string, Contact[]>();
+  for (const c of contacts) {
+    const emailKey = (c.email ?? '').trim().toLowerCase();
+    if (!emailKey) continue;
+    const list = byEmail.get(emailKey) ?? [];
+    list.push(c);
+    byEmail.set(emailKey, list);
+  }
+  for (const [, list] of byEmail) {
+    if (list.length > 1) {
+      const primary = list[0]!;
+      const dups = list.slice(1);
+      groups.push({ primaryContact: primary, duplicates: dups, reason: 'email' });
+      list.forEach((c) => groupedIds.add(c.id));
+    }
+  }
+
+  // 2. Group by exact Name + same Company or Phone
+  const remaining = contacts.filter((c) => !groupedIds.has(c.id));
+  const byName = new Map<string, Contact[]>();
+  for (const c of remaining) {
+    const name = (c.name ?? '').trim().toLowerCase();
+    const list = byName.get(name) ?? [];
+    list.push(c);
+    byName.set(name, list);
+  }
+  for (const [, list] of byName) {
+    if (list.length > 1) {
+      const hasMatching = list.some((c1, i) =>
+        list.some(
+          (c2, j) =>
+            i !== j &&
+            ((c1.phone && c1.phone === c2.phone) ||
+              (c1.company &&
+                c2.company &&
+                c1.company.toLowerCase() === c2.company.toLowerCase())),
+        ),
+      );
+      if (hasMatching) {
+        const primary = list[0]!;
+        const dups = list.slice(1);
+        groups.push({ primaryContact: primary, duplicates: dups, reason: 'name' });
+        list.forEach((c) => groupedIds.add(c.id));
+      }
+    }
+  }
+
+  return groups;
+}
+
 export class ContactService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -968,55 +1042,9 @@ export class ContactService {
     const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
     const contacts = await contactModel.findMany({ where: { userId } });
 
-    const groups: DuplicateGroup[] = [];
-    const groupedIds = new Set<string>();
-
-    // 1. Group by email (case-insensitive)
-    const byEmail = new Map<string, Contact[]>();
-    for (const c of contacts) {
-      const email = c.email.trim().toLowerCase();
-      const list = byEmail.get(email) ?? [];
-      list.push(c);
-      byEmail.set(email, list);
-    }
-    for (const [, list] of byEmail) {
-      if (list.length > 1) {
-        const primary = list[0]!;
-        const dups = list.slice(1);
-        groups.push({ primaryContact: primary, duplicates: dups, reason: 'email' });
-        list.forEach((c) => groupedIds.add(c.id));
-      }
-    }
-
-    // 2. Group by exact Name + same Company or Phone
-    const remaining = contacts.filter((c) => !groupedIds.has(c.id));
-    const byName = new Map<string, Contact[]>();
-    for (const c of remaining) {
-      const name = c.name.trim().toLowerCase();
-      const list = byName.get(name) ?? [];
-      list.push(c);
-      byName.set(name, list);
-    }
-    for (const [, list] of byName) {
-      if (list.length > 1) {
-        const hasMatching = list.some((c1, i) =>
-          list.some(
-            (c2, j) =>
-              i !== j &&
-              ((c1.phone && c1.phone === c2.phone) ||
-                (c1.company &&
-                  c2.company &&
-                  c1.company.toLowerCase() === c2.company.toLowerCase())),
-          ),
-        );
-        if (hasMatching) {
-          const primary = list[0]!;
-          const dups = list.slice(1);
-          groups.push({ primaryContact: primary, duplicates: dups, reason: 'name' });
-          list.forEach((c) => groupedIds.add(c.id));
-        }
-      }
-    }
+    // The SAME grouping the bulk auto-merge path uses — what the wizard lists
+    // is what "Auto-Merge All" will merge.
+    const groups = buildDuplicateGroups(contacts);
 
     // A pair the user explicitly marked "keep separate" must not reappear on
     // rescan. Dismissal is per pair, not per group: a group that still has
@@ -1121,62 +1149,12 @@ export class ContactService {
       return { mergedCount: 0 };
     }
 
-    const normEmail = (email: string) => email.trim().toLowerCase();
-    const normPhone = (phone: string | null | undefined): string => {
-      if (!phone) return '';
-      const digits = phone.replace(/\D/g, '');
-      if (digits.length >= 10) {
-        return digits.slice(-10);
-      }
-      return digits;
-    };
-
-    const n = contacts.length;
-    const parent = Array.from({ length: n }, (_, i) => i);
-    const find = (i: number): number => {
-      if (parent[i] === i) return i;
-      parent[i] = find(parent[i]!);
-      return parent[i]!;
-    };
-    const union = (i: number, j: number) => {
-      const rootI = find(i);
-      const rootJ = find(j);
-      if (rootI !== rootJ) {
-        parent[rootJ] = rootI;
-      }
-    };
-
-    const emailToIdx = new Map<string, number>();
-    const phoneToIdx = new Map<string, number>();
-
-    for (let i = 0; i < n; i++) {
-      const c = contacts[i]!;
-      const emailKey = normEmail(c.email);
-      if (emailKey) {
-        if (emailToIdx.has(emailKey)) {
-          union(i, emailToIdx.get(emailKey)!);
-        } else {
-          emailToIdx.set(emailKey, i);
-        }
-      }
-
-      const phoneKey = normPhone(c.phone);
-      if (phoneKey && phoneKey.length >= 7) {
-        if (phoneToIdx.has(phoneKey)) {
-          union(i, phoneToIdx.get(phoneKey)!);
-        } else {
-          phoneToIdx.set(phoneKey, i);
-        }
-      }
-    }
-
-    const groups = new Map<number, Contact[]>();
-    for (let i = 0; i < n; i++) {
-      const root = find(i);
-      const list = groups.get(root) ?? [];
-      list.push(contacts[i]!);
-      groups.set(root, list);
-    }
+    // Bulk "Auto-Merge All" merges EXACTLY the groups the wizard surfaced:
+    // the same buildDuplicateGroups algorithm the dedupe modal lists. The old
+    // union-find (normalized email + digits-only last-10 phone, fully
+    // transitive) could merge pairs the wizard never displayed, so it was
+    // removed entirely.
+    const groups = buildDuplicateGroups(contacts);
 
     // A pair the user explicitly marked "keep separate" must never be
     // union-merged by the bulk path either. findDuplicates filters dismissed
@@ -1186,35 +1164,34 @@ export class ContactService {
     const dismissed = await this.getDismissedPairKeys(userId);
 
     let mergedCount = 0;
-    for (const [, list] of groups) {
-      if (list.length > 1) {
-        list.sort((a, b) => {
-          if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
-          if (a.frequency !== b.frequency) return b.frequency - a.frequency;
-          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return timeA - timeB;
-        });
+    for (const group of groups) {
+      const members = [group.primaryContact, ...group.duplicates];
+      members.sort((a, b) => {
+        if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
+        if (a.frequency !== b.frequency) return b.frequency - a.frequency;
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeA - timeB;
+      });
 
-        // Greedily keep only contacts with no dismissed "keep separate" pair
-        // against any already-kept contact. findDuplicates filters per-pair
-        // against the primary; the bulk path must go one step further because
-        // union-find chains can pull a dismissed pair into one group via a
-        // shared email/phone (e.g. A keeps-separate-from B, both share an
-        // email with C). Merging both A and B into C would still collapse the
-        // dismissed pair into one contact, so they must not all merge.
-        const kept: Contact[] = [];
-        for (const c of list) {
-          const conflicts = kept.some((k) => dismissed.has(duplicatePairKey(k.id, c.id)));
-          if (!conflicts) kept.push(c);
-        }
+      // Greedily keep only contacts with no dismissed "keep separate" pair
+      // against any already-kept contact. findDuplicates filters per-pair
+      // against the primary; the bulk path must go one step further because
+      // dismissed pairs can sit inside a larger wizard group (e.g. A
+      // keeps-separate-from B, both share an email with C). Merging both A
+      // and B into C would still collapse the dismissed pair into one
+      // contact, so they must not all merge.
+      const kept: Contact[] = [];
+      for (const c of members) {
+        const conflicts = kept.some((k) => dismissed.has(duplicatePairKey(k.id, c.id)));
+        if (!conflicts) kept.push(c);
+      }
 
-        const primary = kept[0]!;
-        const duplicateIds = kept.slice(1).map((c) => c.id);
-        if (duplicateIds.length > 0) {
-          await this.mergeContacts(userId, primary.id, duplicateIds);
-          mergedCount += duplicateIds.length;
-        }
+      const primary = kept[0]!;
+      const duplicateIds = kept.slice(1).map((c) => c.id);
+      if (duplicateIds.length > 0) {
+        await this.mergeContacts(userId, primary.id, duplicateIds);
+        mergedCount += duplicateIds.length;
       }
     }
 
