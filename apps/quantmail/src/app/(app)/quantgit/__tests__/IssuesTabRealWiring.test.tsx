@@ -104,7 +104,7 @@ afterEach(() => {
 describe('IssuesTab real backend wiring (no alert stubs)', () => {
   it('the two data-loss alert() stubs are gone — typed input can no longer be wiped by a native dialog', () => {
     const src = readFileSync(
-      path.resolve(process.cwd(), 'src/app/quantgit/components/IssuesTab.tsx'),
+      path.resolve(process.cwd(), 'src/app/(app)/quantgit/components/IssuesTab.tsx'),
       'utf8',
     );
     // The comment-posting stub.

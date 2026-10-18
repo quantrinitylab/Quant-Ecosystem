@@ -25,7 +25,7 @@ import path from 'node:path';
  */
 
 const QUANTGIT_ROOT = fileURLToPath(new URL('../', import.meta.url));
-const APP_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+const APP_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 
 const FABRICATED_CLONE_MARKERS = [
   'git@quantmail.in',

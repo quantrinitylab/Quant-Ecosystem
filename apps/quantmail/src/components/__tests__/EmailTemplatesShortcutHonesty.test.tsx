@@ -43,7 +43,7 @@ describe('template :shortcut is honestly described as display-only', () => {
   });
 
   it('globals.css never promises typing-recall for .template-shortcut', () => {
-    const css = read('app', 'app', 'globals.css');
+    const css = read('app', 'app', 'app.css');
     const marker = css.indexOf('.template-shortcut');
     expect(marker, '.template-shortcut rule exists').toBeGreaterThan(-1);
     // Inspect the comment block immediately above the rule.

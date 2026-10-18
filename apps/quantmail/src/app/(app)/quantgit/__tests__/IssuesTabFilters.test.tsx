@@ -124,7 +124,7 @@ afterEach(() => {
 describe('IssuesTab real filter dropdowns (no alert stubs)', () => {
   it('the filter alert() stub is gone from the component source', () => {
     const src = readFileSync(
-      path.resolve(process.cwd(), 'src/app/quantgit/components/IssuesTab.tsx'),
+      path.resolve(process.cwd(), 'src/app/(app)/quantgit/components/IssuesTab.tsx'),
       'utf8',
     );
     expect(src).not.toContain('Filter by ${flt}');
