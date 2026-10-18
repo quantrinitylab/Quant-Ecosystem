@@ -4403,3 +4403,6 @@ Status: [x] DONE (R22 regression audit complete 2026-10-18 ~23:00 IST; 0 new fin
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents spawned (P0/P1-only protocol; subagent.list 0 active). findings.md untouched.
 - VERDICT-LIVE: HEALTHY. Proxy 127.0.0.1:8888 healthy (google 200 0.48s). / -> 307; /quanty -> honest branded 404 (unchanged since R6); /api/quanty/popup -> 401 honest auth error; /api/quanty + /api/quanty/chat -> 404 API_ROUTE_NOT_FOUND; /api/quanty/tasks GET -> 405, POST -> 400 (unchanged vs R18 — expected pre-deploy state). Desktop 1440x900 + mobile 390x844 (wait_s=14 hydrated) /quanty screenshots REVIEWED: branded 'This page doesn't exist' + honest 'Here is where everything actually lives' nav links, pure black, mail-orange error glyph, zero old-logo flash. Shots reviewed + deleted; chrome orphans cleaned. Signed-in Quanty (drawer/copilot/live agent) = needs-auth (protocol), not faked.
 - Rotation -> QM-SCREEN-015 (notifications) ROUND 23 regression, queued.
+
+## QM-SCREEN-015 R23 — Notifications regression (ROUND 23)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-015r23, started 2026-10-18 ~23:38 IST; R18 base 1462f8c8 -> origin/main bc5df197b, fresh fetch + ls-remote verified)
