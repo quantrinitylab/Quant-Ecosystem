@@ -287,7 +287,17 @@ function fakePrisma() {
         return null;
       }),
       findFirst: vi.fn().mockImplementation(async ({ where }: any) => {
-        if (where?.email === 'kundan@example.test' || where?.id === 'user-1') {
+        // Routes may pass the email filter as a plain string or as
+        // `{ equals, mode: 'insensitive' }`. This double emulates the
+        // Postgres case-insensitive semantics by comparing lowercased values,
+        // so a legacy mixed-case row resolves from a lowercase lookup.
+        const emailArg =
+          typeof where?.email === 'object' && where.email !== null
+            ? where.email.equals
+            : where?.email;
+        const email =
+          typeof emailArg === 'string' ? emailArg.toLowerCase() : undefined;
+        if (email === 'kundan@example.test' || where?.id === 'user-1') {
           return {
             id: 'user-1',
             username: 'kundan',
@@ -296,7 +306,7 @@ function fakePrisma() {
             avatarUrl: 'https://example.test/avatar.png',
           };
         }
-        if (where?.email === 'collab@example.test' || where?.id === 'user-2') {
+        if (email === 'collab@example.test' || where?.id === 'user-2') {
           return {
             id: 'user-2',
             username: 'collab',
@@ -305,12 +315,22 @@ function fakePrisma() {
             avatarUrl: 'https://example.test/avatar.png',
           };
         }
-        if (where?.email === 'collab-admin@example.test' || where?.id === 'user-3') {
+        if (email === 'collab-admin@example.test' || where?.id === 'user-3') {
           return {
             id: 'user-3',
             username: 'collabadmin',
             displayName: 'Collaborator Admin',
             email: 'collab-admin@example.test',
+            avatarUrl: null,
+          };
+        }
+        // Legacy row predating email normalization: mixed case on disk.
+        if (email === 'legacycase@quantmail.in' || where?.id === 'user-legacy') {
+          return {
+            id: 'user-legacy',
+            username: 'legacycase',
+            displayName: 'Legacy Case',
+            email: 'LegacyCase@quantmail.in',
             avatarUrl: null,
           };
         }
@@ -1742,6 +1762,47 @@ describe('QuantGit Database-Backed Repos Routes', () => {
         },
       },
     });
+  });
+
+  it('POST /repos/:id/collaborators resolves a legacy mixed-case user by email case-insensitively', async () => {
+    const app = await buildApp('user-1');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        email: 'legacycase@quantmail.in',
+        role: 'WRITE',
+      },
+    });
+
+    // The seeded row stores `LegacyCase@quantmail.in` (mixed case, predating
+    // email normalization). A case-exact lookup would 404 with
+    // USER_NOT_FOUND; the insensitive lookup must resolve it.
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toEqual({
+      success: true,
+      data: {
+        id: expect.any(String),
+        userId: 'user-legacy',
+        role: 'WRITE',
+        user: {
+          displayName: 'Legacy Case',
+          email: 'LegacyCase@quantmail.in',
+          avatarUrl: null,
+        },
+      },
+    });
+
+    // The lookup must go out as a case-insensitive Postgres filter, not a
+    // case-exact match on the raw input.
+    expect(prisma.user.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          email: { equals: 'legacycase@quantmail.in', mode: 'insensitive' },
+        },
+      }),
+    );
   });
 
   it('POST /repos/:id/collaborators updates an existing collaborator role and returns 200', async () => {
