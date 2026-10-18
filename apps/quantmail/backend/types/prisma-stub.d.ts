@@ -28,6 +28,11 @@ declare module '@prisma/client' {
     isPinned?: boolean;
     isDraft: boolean;
     isSent: boolean;
+    // schema.prisma Email.isSpam (Boolean @default(false)) — filter-spam routing
+    // sets this via applyFilterActions; keep in sync with the Email model — this
+    // stub shadows the generated @prisma/client types for the whole backend
+    // compilation unit.
+    isSpam: boolean;
     isTrash: boolean;
     receivedAt: Date;
     sentAt: Date | null;
