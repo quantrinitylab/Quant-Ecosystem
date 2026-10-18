@@ -10,11 +10,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { QuantMailLogo } from './QuantMailLogo';
-import { QuantCalendarLogo } from './QuantCalendarLogo';
-import { QuantDriveLogo } from './QuantDriveLogo';
-import { QuantContactsLogo } from './QuantContactsLogo';
-import { QuantGitLogo } from './QuantGitLogo';
 import { QuantGitUserIdModal } from './QuantGitUserIdModal';
 import { Quanty } from './Quanty';
 import { AccountBadge } from './AccountBadge';
