@@ -2,9 +2,11 @@
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { BubbleAvatar } from '@quant/shared-ui';
+import { useI18n } from '../../i18n';
 import {
   TASK_STATUS_DOT,
   TASK_STATUS_LABEL,
+  TASK_STATUS_LABEL_HI,
   TASK_STATUS_TO_BUBBLE,
   type QuantyTaskStatus,
 } from './types';
@@ -20,7 +22,7 @@ export interface QuantyAvatarProps {
   status?: QuantyTaskStatus;
   /**
    * Live action line shown in the pill under the avatar, e.g.
-   * "5 emails archive kar raha...". Falls back to the status label.
+   * "Archiving 5 emails…". Falls back to the status label.
    */
   actionLabel?: string;
   /** Tapping the avatar opens the 5-tab inspector popup. */
@@ -63,7 +65,14 @@ export function QuantyAvatar({
 
   const isWorking = status === 'working' || status === 'thinking';
   const needsConfirm = status === 'waiting-confirm';
-  const caption = actionLabel ?? TASK_STATUS_LABEL[status];
+  // Locale-consistency: status captions and the avatar hint previously
+  // hardcoded Roman-script Hinglish ("Quanty taiyaar hai", "Tap karke
+  // details dekhein.") for every user, leaking into an otherwise English UI.
+  // Copy now follows the app locale (English default, Devanagari for 'hi'),
+  // same convention as the QuantyModeChooser locale fix (PR #868).
+  const { locale } = useI18n();
+  const caption = actionLabel ?? (locale === 'hi' ? TASK_STATUS_LABEL_HI[status] : TASK_STATUS_LABEL[status]);
+  const tapHint = locale === 'hi' ? 'टैप करके विवरण देखें।' : 'Tap for details.';
 
   return (
     <AnimatePresence>
@@ -80,7 +89,7 @@ export function QuantyAvatar({
           <motion.button
             type="button"
             onClick={onToggle}
-            aria-label={`Quanty — ${caption}. Tap karke details dekhein.`}
+            aria-label={`Quanty — ${caption}. ${tapHint}`}
             title={`Quanty — ${caption}`}
             className="pointer-events-auto relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             animate={
