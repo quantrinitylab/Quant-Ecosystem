@@ -76,6 +76,51 @@ function makeFakePrisma() {
   };
   let seq = 0;
 
+  // QC-F-511: same atomic-write fake semantics as the service test —
+  // every credential mutation applies in ONE synchronous step (the
+  // fake's model of a single atomic SQL statement, HG-511-5).
+  type CredData = Omit<Partial<MemoriesVaultCredentialRecord>, 'failedAttempts'> & {
+    failedAttempts?: number | { increment: number } | { set: number };
+  };
+  function applyCredentialData(data: CredData): void {
+    if (!state.credential) return;
+    const { failedAttempts, ...rest } = data;
+    Object.assign(state.credential, rest);
+    if (failedAttempts !== undefined) {
+      state.credential.failedAttempts =
+        typeof failedAttempts === 'number'
+          ? failedAttempts
+          : 'increment' in failedAttempts
+            ? state.credential.failedAttempts + failedAttempts.increment
+            : failedAttempts.set;
+    }
+  }
+  function lockoutMatches(value: Date | null, cond: unknown): boolean {
+    if (cond === null) return value === null;
+    const c = cond as { lte?: Date; gt?: Date; not?: unknown };
+    if (c.not === null && value === null) return false;
+    if (c.lte !== undefined) return value !== null && value.getTime() <= c.lte.getTime();
+    if (c.gt !== undefined) return value !== null && value.getTime() > c.gt.getTime();
+    return true;
+  }
+  function credentialMatches(where: Record<string, unknown>): boolean {
+    const cred = state.credential;
+    if (!cred) return false;
+    if (where['userId'] !== undefined && cred.userId !== where['userId']) return false;
+    if ('lockoutUntil' in where && !lockoutMatches(cred.lockoutUntil, where['lockoutUntil']))
+      return false;
+    const or = where['OR'] as Array<Record<string, unknown>> | undefined;
+    if (
+      or &&
+      !or.some(
+        (clause) =>
+          !('lockoutUntil' in clause) || lockoutMatches(cred.lockoutUntil, clause['lockoutUntil']),
+      )
+    )
+      return false;
+    return true;
+  }
+
   const prisma = {
     memory: {
       create: async (args: unknown) => {
@@ -134,9 +179,15 @@ function makeFakePrisma() {
         return { ...state.credential };
       },
       update: async (args: unknown) => {
-        const { data } = args as { data: Partial<MemoriesVaultCredentialRecord> };
-        Object.assign(state.credential as object, data);
+        const { data } = args as { data: CredData };
+        applyCredentialData(data);
         return { ...(state.credential as MemoriesVaultCredentialRecord) };
+      },
+      updateMany: async (args: unknown) => {
+        const { where, data } = args as { where: Record<string, unknown>; data: CredData };
+        if (!credentialMatches(where)) return { count: 0 };
+        applyCredentialData(data);
+        return { count: 1 };
       },
       delete: async () => {
         const gone = state.credential as MemoriesVaultCredentialRecord;
@@ -178,6 +229,9 @@ function makeFakePrisma() {
         return state.users.get(where.id) ?? null;
       },
     },
+    // Pass-through: fake atomicity is per statement, not row locking
+    // (QC-F-511 HG-511-5 — same note as the service test fake).
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
   };
 
   return { prisma, state };
