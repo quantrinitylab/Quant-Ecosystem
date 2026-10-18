@@ -166,9 +166,9 @@ describe('qm-dedup-cluster: legacy pair without allRecords keeps exact pre-fix c
 
 describe('qm-dedup-cluster: merge action wiring (source pins)', () => {
   const subViewsSrc = () =>
-    readFileSync(new URL('../app/contacts/components/ContactsSubViews.tsx', import.meta.url), 'utf8');
+    readFileSync(new URL('../app/(app)/contacts/components/ContactsSubViews.tsx', import.meta.url), 'utf8');
   const pageSrc = () =>
-    readFileSync(new URL('../app/contacts/page.tsx', import.meta.url), 'utf8');
+    readFileSync(new URL('../app/(app)/contacts/page.tsx', import.meta.url), 'utf8');
 
   it('wizard merge button calls onMerge with the collision id', () => {
     expect(subViewsSrc()).toContain('onClick={() => onMerge(collision.id)}');

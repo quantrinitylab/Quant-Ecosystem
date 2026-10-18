@@ -97,8 +97,8 @@ describe('Settings security section copy honesty', () => {
   const settingsSource = readFileSync(
     (function findSettingsSource(): string {
       const rels = [
-        'src/app/settings/page.tsx',
-        'apps/quantmail/src/app/settings/page.tsx',
+        'src/app/(app)/settings/page.tsx',
+        'apps/quantmail/src/app/(app)/settings/page.tsx',
       ];
       let dir = process.cwd();
       for (let depth = 0; depth < 8; depth++) {
@@ -111,7 +111,7 @@ describe('Settings security section copy honesty', () => {
         dir = parent;
       }
       throw new Error(
-        `auth-copy-honesty: could not locate src/app/settings/page.tsx from ${process.cwd()}`,
+        `auth-copy-honesty: could not locate src/app/(app)/settings/page.tsx from ${process.cwd()}`,
       );
     })(),
     'utf8',
@@ -255,8 +255,8 @@ describe('Auth brand-subtitle "assisted drafting" copy honesty', () => {
   const loginSkeletonUserFacing = stripComments(
     readFileSync(
       findSource(
-        'src/app/login/login-skeleton.tsx',
-        'apps/quantmail/src/app/login/login-skeleton.tsx',
+        'src/app/(auth)/login/login-skeleton.tsx',
+        'apps/quantmail/src/app/(auth)/login/login-skeleton.tsx',
       ),
       'utf8',
     ),
@@ -265,8 +265,8 @@ describe('Auth brand-subtitle "assisted drafting" copy honesty', () => {
   const registerUserFacing = stripComments(
     readFileSync(
       findSource(
-        'src/app/register/register-skeleton.tsx',
-        'apps/quantmail/src/app/register/register-skeleton.tsx',
+        'src/app/(auth)/register/register-skeleton.tsx',
+        'apps/quantmail/src/app/(auth)/register/register-skeleton.tsx',
       ),
       'utf8',
     ),

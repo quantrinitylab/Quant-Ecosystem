@@ -88,7 +88,7 @@ describe('register skeleton markup', () => {
 
 describe('server-rendered shell structure (source scans)', () => {
   it('page.tsx is a server component (no use-client directive)', () => {
-    const src = readSource('app/register/page.tsx');
+    const src = readSource('app/(auth)/register/page.tsx');
     expect(src).not.toMatch(/^'use client'/m);
     expect(src).toContain("from './register-form'");
     expect(src).toContain("from './register-skeleton'");
@@ -97,7 +97,7 @@ describe('server-rendered shell structure (source scans)', () => {
   });
 
   it('register-form.tsx is the single client island', () => {
-    const src = readSource('app/register/register-form.tsx');
+    const src = readSource('app/(auth)/register/register-form.tsx');
     expect(src).toMatch(/^'use client'/m);
     expect(src).toContain('export function RegisterForm');
     // The island must not drag the static shell into the client bundle.
@@ -106,12 +106,12 @@ describe('server-rendered shell structure (source scans)', () => {
   });
 
   it('register-skeleton.tsx is server-safe (no use-client directive)', () => {
-    const src = readSource('app/register/register-skeleton.tsx');
+    const src = readSource('app/(auth)/register/register-skeleton.tsx');
     expect(src).not.toMatch(/^'use client'/m);
   });
 
   it('loading.tsx shows the instant skeleton, not the RouteSplash spinner', () => {
-    const src = readSource('app/register/loading.tsx');
+    const src = readSource('app/(auth)/register/loading.tsx');
     expect(src).toContain('RegisterSkeleton');
     expect(src).not.toContain('RouteSplash');
   });

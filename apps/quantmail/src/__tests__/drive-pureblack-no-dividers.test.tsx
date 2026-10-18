@@ -12,7 +12,7 @@ import { DriveRecentSubView } from '../app/(app)/drive/components/DriveRecentSub
 // This suite fails loudly if any Drive surface file reintroduces a divider
 // class, an <hr>, or a GitHub-dark #0D1117 surface.
 
-const DRIVE_DIR = path.resolve(__dirname, '../app/drive');
+const DRIVE_DIR = path.resolve(__dirname, '../app/(app)/drive');
 
 function driveSourceFiles(): string[] {
   const out: string[] = [];

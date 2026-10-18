@@ -22,9 +22,9 @@ const noop = () => {};
 
 function dedupSourceFiles(): string[] {
   return [
-    '../app/contacts/components/ContactsSubViews.tsx',
-    '../app/contacts/components/ContactsDedupeModal.tsx',
-    '../app/contacts/page.tsx',
+    '../app/(app)/contacts/components/ContactsSubViews.tsx',
+    '../app/(app)/contacts/components/ContactsDedupeModal.tsx',
+    '../app/(app)/contacts/page.tsx',
     // Shared chrome that also names the dedup entry point:
     '../components/QuantPillarTopBar.tsx',
     '../components/desktopContextTabs.tsx',

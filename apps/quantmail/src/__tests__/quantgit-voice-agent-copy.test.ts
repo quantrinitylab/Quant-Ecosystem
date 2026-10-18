@@ -9,7 +9,7 @@ import {
   INITIAL_REPOS,
   MOCK_FILES,
   INITIAL_DISCUSSIONS,
-} from '../app/quantgit/constants';
+} from '../app/(app)/quantgit/constants';
 
 const VOICE_AI_AGENT_CLAIM = /voice[-\s]*ai[-\s]*agent|voice\s+agents|voice-ai|voice-bot|voicebot/i;
 

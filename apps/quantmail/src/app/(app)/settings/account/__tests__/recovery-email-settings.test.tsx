@@ -109,7 +109,7 @@ describe('recovery email wiring (source scans)', () => {
 });
 
 describe('forgot-password form recovery copy (source scans)', () => {
-  const src = () => readSource('app/forgot-password/forgot-password-form.tsx');
+  const src = () => readSource('app/(auth)/forgot-password/forgot-password-form.tsx');
 
   it('tells the user where the link goes, honestly', () => {
     // The recovery channel is named before submit (no post-submit surprise),

@@ -98,7 +98,7 @@ describe('forgot-password skeleton markup', () => {
 
 describe('server-rendered shell structure (source scans)', () => {
   it('page.tsx is a server component (no use-client directive)', () => {
-    const src = readSource('app/forgot-password/page.tsx');
+    const src = readSource('app/(auth)/forgot-password/page.tsx');
     expect(src).not.toMatch(/^'use client'/m);
     expect(src).toContain("from './forgot-password-form'");
     expect(src).toContain("from './forgot-password-skeleton'");
@@ -107,7 +107,7 @@ describe('server-rendered shell structure (source scans)', () => {
   });
 
   it('forgot-password-form.tsx is the single client island', () => {
-    const src = readSource('app/forgot-password/forgot-password-form.tsx');
+    const src = readSource('app/(auth)/forgot-password/forgot-password-form.tsx');
     expect(src).toMatch(/^'use client'/m);
     expect(src).toContain('export function ForgotPasswordForm');
     // The island must not drag the static shell into the client bundle.
@@ -116,7 +116,7 @@ describe('server-rendered shell structure (source scans)', () => {
   });
 
   it('api-client is dynamically imported on submit, not in the page chunk', () => {
-    const src = readSource('app/forgot-password/forgot-password-form.tsx');
+    const src = readSource('app/(auth)/forgot-password/forgot-password-form.tsx');
     // The 2352-line api-client must not be a static import (page chunk).
     expect(src).not.toMatch(/^import\s+.*\bfrom\s+['"][^'"]*services\/api-client['"]/m);
     // It loads only when the user submits the form.
@@ -124,12 +124,12 @@ describe('server-rendered shell structure (source scans)', () => {
   });
 
   it('forgot-password-skeleton.tsx is server-safe (no use-client directive)', () => {
-    const src = readSource('app/forgot-password/forgot-password-skeleton.tsx');
+    const src = readSource('app/(auth)/forgot-password/forgot-password-skeleton.tsx');
     expect(src).not.toMatch(/^'use client'/m);
   });
 
   it('loading.tsx shows the instant skeleton, not the RouteSplash spinner', () => {
-    const src = readSource('app/forgot-password/loading.tsx');
+    const src = readSource('app/(auth)/forgot-password/loading.tsx');
     expect(src).toContain('ForgotPasswordSkeleton');
     expect(src).not.toContain('RouteSplash');
   });

@@ -48,7 +48,7 @@ const FABRICATED_MARKERS = [
 
 function sourceOfComponent(): string {
   return readFileSync(
-    new URL('../app/contacts/components/ContactsSubViews.tsx', import.meta.url),
+    new URL('../app/(app)/contacts/components/ContactsSubViews.tsx', import.meta.url),
     'utf8',
   );
 }

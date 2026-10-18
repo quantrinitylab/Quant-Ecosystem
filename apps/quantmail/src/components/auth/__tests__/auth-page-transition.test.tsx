@@ -116,10 +116,10 @@ describe('AuthPageTransition', () => {
 
 describe('auth pages carry no framer-motion', () => {
   const authPages = [
-    'app/login/page.tsx',
-    'app/register/page.tsx',
-    'app/forgot-password/page.tsx',
-    'app/reset-password/page.tsx',
+    'app/(auth)/login/page.tsx',
+    'app/(auth)/register/page.tsx',
+    'app/(auth)/forgot-password/page.tsx',
+    'app/(auth)/reset-password/page.tsx',
   ];
 
   for (const page of authPages) {
@@ -135,7 +135,7 @@ describe('auth pages carry no framer-motion', () => {
 });
 
 describe('auth-page-enter CSS parity with PageTransition', () => {
-  const css = readFileSync(findSource('app/globals.css'), 'utf8');
+  const css = readFileSync(findSource('app/(auth)/auth.css'), 'utf8');
 
   it('defines @keyframes auth-page-enter with opacity 0→1 and translateY(20px→0)', () => {
     const block = css.match(/@keyframes auth-page-enter\s*\{[^}]*\{[^}]*\}[^}]*\}/s);

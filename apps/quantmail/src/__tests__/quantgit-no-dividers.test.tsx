@@ -11,7 +11,7 @@ import { QuantGitRowSkeleton } from '../app/(app)/quantgit/components/QuantGitSk
 // if any QuantGit surface file reintroduces a divider utility class, an <hr>,
 // or a border-t-transparent CSS spinner.
 
-const QUANTGIT_DIR = path.resolve(__dirname, '../app/quantgit');
+const QUANTGIT_DIR = path.resolve(__dirname, '../app/(app)/quantgit');
 
 function quantgitSourceFiles(): string[] {
   const out: string[] = [];

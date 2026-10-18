@@ -31,7 +31,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const composePageSource = readFileSync(
-  fileURLToPath(new URL('../app/compose/page.tsx', import.meta.url)),
+  fileURLToPath(new URL('../app/(app)/compose/page.tsx', import.meta.url)),
   'utf8',
 );
 

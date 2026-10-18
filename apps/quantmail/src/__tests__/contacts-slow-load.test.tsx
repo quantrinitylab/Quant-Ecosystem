@@ -18,7 +18,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { useSlowLoadNotice } from '../lib/use-slow-load';
-import { ContactsSlowLoadNotice } from '../app/contacts/components/ContactsSlowLoadNotice';
+import { ContactsSlowLoadNotice } from '../app/(app)/contacts/components/ContactsSlowLoadNotice';
 
 // React 19's act(...) requires this flag in the test environment.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

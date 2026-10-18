@@ -96,7 +96,7 @@ describe('drive page wiring (lying toast removed)', () => {
   it('page.tsx no longer contains the lying share toast', async () => {
     const fs = await import('fs');
     const path = await import('path');
-    const pageSource = fs.readFileSync(path.join(__dirname, '../app/drive/page.tsx'), 'utf-8');
+    const pageSource = fs.readFileSync(path.join(__dirname, '../app/(app)/drive/page.tsx'), 'utf-8');
     expect(pageSource).not.toContain('Share link created for');
     // onShareItem now opens the real modal via shareTarget state
     expect(pageSource).toContain('setShareTarget');

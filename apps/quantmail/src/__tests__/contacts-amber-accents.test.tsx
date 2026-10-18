@@ -27,15 +27,15 @@ import { ContactsLetterIndex } from '../components/ContactsLetterIndex';
  */
 
 const SUBVIEWS = readFileSync(
-  new URL('../app/contacts/components/ContactsSubViews.tsx', import.meta.url),
+  new URL('../app/(app)/contacts/components/ContactsSubViews.tsx', import.meta.url),
   'utf8',
 );
 const DEDUP_MODAL = readFileSync(
-  new URL('../app/contacts/components/ContactsDedupeModal.tsx', import.meta.url),
+  new URL('../app/(app)/contacts/components/ContactsDedupeModal.tsx', import.meta.url),
   'utf8',
 );
 const PAGE = readFileSync(
-  new URL('../app/contacts/page.tsx', import.meta.url),
+  new URL('../app/(app)/contacts/page.tsx', import.meta.url),
   'utf8',
 );
 const LETTER_INDEX = readFileSync(

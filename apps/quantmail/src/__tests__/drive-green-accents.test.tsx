@@ -31,7 +31,7 @@ import type { SentShareItem } from '../hooks/useDrive';
  * a separate concern; there are no such palettes in these files today).
  */
 
-const DRIVE_DIR = new URL('../app/drive', import.meta.url);
+const DRIVE_DIR = new URL('../app/(app)/drive', import.meta.url);
 const COMPONENTS_DIR = join(DRIVE_DIR.pathname, 'components');
 
 const TSX_FILES: { name: string; src: string }[] = [];
@@ -43,7 +43,7 @@ for (const f of readdirSync(COMPONENTS_DIR)) {
     });
   }
 }
-const PAGE = readFileSync(new URL('../app/drive/page.tsx', import.meta.url), 'utf8');
+const PAGE = readFileSync(new URL('../app/(app)/drive/page.tsx', import.meta.url), 'utf8');
 
 // QM-SCREEN-010/011 R3: these drive-lib files had #60A5FA leaks that are now
 // driven to var(--app-accent) (drive green on /drive routes). DriveSubViews

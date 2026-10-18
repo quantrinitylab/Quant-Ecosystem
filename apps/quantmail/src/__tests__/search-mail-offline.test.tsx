@@ -63,7 +63,7 @@ vi.mock('../hooks/useUniversalSearch', () => ({
   useUniversalSearch: () => ({ data: null, isLoading: false, error: null }),
 }));
 
-vi.mock('../app/search/UniversalSearchResults', () => ({
+vi.mock('../app/(app)/search/UniversalSearchResults', () => ({
   UniversalSearchResults: () => null,
 }));
 

@@ -98,7 +98,7 @@ describe('reset-password skeleton markup', () => {
 
 describe('server-rendered shell structure (source scans)', () => {
   it('page.tsx is a server component (no use-client directive)', () => {
-    const src = readSource('app/reset-password/page.tsx');
+    const src = readSource('app/(auth)/reset-password/page.tsx');
     expect(src).not.toMatch(/^'use client'/m);
     expect(src).toContain("from './reset-password-form'");
     expect(src).toContain("from './reset-password-skeleton'");
@@ -107,7 +107,7 @@ describe('server-rendered shell structure (source scans)', () => {
   });
 
   it('reset-password-form.tsx is the single client island', () => {
-    const src = readSource('app/reset-password/reset-password-form.tsx');
+    const src = readSource('app/(auth)/reset-password/reset-password-form.tsx');
     expect(src).toMatch(/^'use client'/m);
     expect(src).toContain('export function ResetPasswordForm');
     // The island must not drag the static shell into the client bundle.
@@ -116,7 +116,7 @@ describe('server-rendered shell structure (source scans)', () => {
   });
 
   it('api-client is dynamically imported on submit, not in the page chunk', () => {
-    const src = readSource('app/reset-password/reset-password-form.tsx');
+    const src = readSource('app/(auth)/reset-password/reset-password-form.tsx');
     // The 2352-line api-client must not be a static import (page chunk).
     expect(src).not.toMatch(/^import\s+.*\bfrom\s+['"][^'"]*services\/api-client['"]/m);
     // It loads only when the user submits the form.
@@ -124,12 +124,12 @@ describe('server-rendered shell structure (source scans)', () => {
   });
 
   it('reset-password-skeleton.tsx is server-safe (no use-client directive)', () => {
-    const src = readSource('app/reset-password/reset-password-skeleton.tsx');
+    const src = readSource('app/(auth)/reset-password/reset-password-skeleton.tsx');
     expect(src).not.toMatch(/^'use client'/m);
   });
 
   it('loading.tsx shows the instant skeleton, not the RouteSplash spinner', () => {
-    const src = readSource('app/reset-password/loading.tsx');
+    const src = readSource('app/(auth)/reset-password/loading.tsx');
     expect(src).toContain('ResetPasswordSkeleton');
     expect(src).not.toContain('RouteSplash');
   });

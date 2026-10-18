@@ -16,7 +16,7 @@ const CANVAS_SOURCES = [
   '../../components/QuantDriveLogo.tsx',
   '../../components/AgentOfficeCanvas.tsx',
   '../../components/Interactive3DLogo.tsx',
-  '../../app/lab/marks/DinosaurMarkCandidate.tsx',
+  '../../app/(app)/lab/marks/DinosaurMarkCandidate.tsx',
 ];
 
 const CANVAS_ASSIGN_RE =
