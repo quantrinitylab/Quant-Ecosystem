@@ -193,7 +193,7 @@ async function resolveLinkAudience(prisma: any, scope: LinkScope, emails?: strin
       'AUDIENCE_REQUIRED',
     );
   const users = await prisma.user.findMany({
-    where: { email: { in: list } },
+    where: { email: { in: list, mode: 'insensitive' } },
     select: { id: true, email: true },
   });
   const found = new Set(users.map((u: any) => String(u.email).toLowerCase()));
