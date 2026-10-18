@@ -19,6 +19,14 @@ import { createAppError } from '@quant/server-core';
 
 export type MemoryMediaType = 'PHOTO' | 'VIDEO';
 
+/**
+ * QC-F-450 — which side of the 'My Eyes Only' vault a listing reads.
+ * 'public' is the default everywhere: private rows are excluded at the
+ * row level (no masked placeholders — a placeholder would leak existence,
+ * date, and media type).
+ */
+export type MemorySection = 'public' | 'private';
+
 export interface MemoryRecord {
   id: string;
   userId: string;
@@ -28,6 +36,8 @@ export interface MemoryRecord {
   location: string | null;
   createdAt: Date;
   deletedAt: Date | null;
+  /** QC-F-450 — true when the item lives behind the vault passcode. */
+  isPrivate: boolean;
 }
 
 export interface CreateMemoryInput {
@@ -36,6 +46,18 @@ export interface CreateMemoryInput {
   mediaType: MemoryMediaType;
   caption?: string | null;
   location?: string | null;
+  /** QC-F-450 — create directly inside the vault (route gates this). */
+  isPrivate?: boolean;
+}
+
+/**
+ * QC-F-450 — optional privacy scope for delete/restore lookups. When
+ * `isPrivate` is set, the lookup only matches rows on that side of the
+ * vault, so a private row is indistinguishable from a missing one (404)
+ * to a caller without a valid unlock.
+ */
+export interface MemoryPrivacyScope {
+  isPrivate?: boolean;
 }
 
 /** Search filters for the Memories vault (Task 13.3). */
@@ -77,10 +99,15 @@ export interface MemoryPrismaClient {
 export function buildMemoryWhere(
   userId: string,
   filters: MemorySearchFilters = {},
+  section: MemorySection = 'public',
 ): Record<string, unknown> {
   const where: Record<string, unknown> = {
     userId,
     deletedAt: null,
+    // QC-F-450 — the vault gate lives here so it can never be forgotten by
+    // a caller: a public listing NEVER matches private rows, and a private
+    // listing (reachable only with a valid unlock token) matches only them.
+    isPrivate: section === 'private',
   };
 
   if (filters.from || filters.to) {
@@ -113,6 +140,7 @@ export class MemoryService {
         mediaType: input.mediaType,
         caption: input.caption ?? null,
         location: input.location ?? null,
+        isPrivate: input.isPrivate ?? false,
       },
     });
   }
@@ -120,11 +148,38 @@ export class MemoryService {
   /**
    * Task 13.1 / 13.3 — list a user's non-deleted memories, newest first,
    * with optional date-range / location / caption search filters.
+   * QC-F-450 — `section` selects the vault side; the default 'public'
+   * listing can never contain a private row (see {@link buildMemoryWhere}).
    */
-  async list(userId: string, filters: MemorySearchFilters = {}): Promise<MemoryRecord[]> {
+  async list(
+    userId: string,
+    filters: MemorySearchFilters = {},
+    section: MemorySection = 'public',
+  ): Promise<MemoryRecord[]> {
     return this.prisma.memory.findMany({
-      where: buildMemoryWhere(userId, filters),
+      where: buildMemoryWhere(userId, filters, section),
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * QC-F-450 — move an item across the vault boundary. Idempotent: moving
+   * an item that is already on the target side returns it unchanged.
+   * Ownership is enforced; a missing/foreign item is a 404.
+   */
+  async setPrivate(userId: string, id: string, isPrivate: boolean): Promise<MemoryRecord> {
+    const existing = await this.prisma.memory.findFirst({
+      where: { id, userId, deletedAt: null },
+    });
+    if (!existing) {
+      throw createAppError('Memory not found', 404, 'MEMORY_NOT_FOUND');
+    }
+    if (existing.isPrivate === isPrivate) {
+      return existing;
+    }
+    return this.prisma.memory.update({
+      where: { id },
+      data: { isPrivate },
     });
   }
 
@@ -132,10 +187,17 @@ export class MemoryService {
    * Task 13.4 — soft-delete a memory (sets `deletedAt`). The row remains
    * recoverable via {@link restore} until the undo window elapses and
    * {@link permanentDelete} runs. Ownership is enforced.
+   * QC-F-450 — with a privacy scope, a row on the other side of the vault
+   * does not match and surfaces as the same 404 as a missing row.
    */
-  async softDelete(userId: string, id: string): Promise<MemoryRecord> {
+  async softDelete(userId: string, id: string, scope: MemoryPrivacyScope = {}): Promise<MemoryRecord> {
     const existing = await this.prisma.memory.findFirst({
-      where: { id, userId, deletedAt: null },
+      where: {
+        id,
+        userId,
+        deletedAt: null,
+        ...(scope.isPrivate !== undefined ? { isPrivate: scope.isPrivate } : {}),
+      },
     });
     if (!existing) {
       throw createAppError('Memory not found', 404, 'MEMORY_NOT_FOUND');
@@ -149,10 +211,16 @@ export class MemoryService {
   /**
    * Task 13.4 — undo a soft-delete within the window by clearing `deletedAt`.
    * Only succeeds while the memory is still soft-deleted (not yet purged).
+   * QC-F-450 — same privacy-scope rule as {@link softDelete}.
    */
-  async restore(userId: string, id: string): Promise<MemoryRecord> {
+  async restore(userId: string, id: string, scope: MemoryPrivacyScope = {}): Promise<MemoryRecord> {
     const existing = await this.prisma.memory.findFirst({
-      where: { id, userId, deletedAt: { not: null } },
+      where: {
+        id,
+        userId,
+        deletedAt: { not: null },
+        ...(scope.isPrivate !== undefined ? { isPrivate: scope.isPrivate } : {}),
+      },
     });
     if (!existing) {
       throw createAppError('Memory not available to restore', 404, 'MEMORY_NOT_FOUND');

@@ -17,16 +17,36 @@ import { useMemories, MEMORY_UNDO_WINDOW_MS, type Memory } from '../../hooks/use
 import { MemoryGrid } from './components/MemoryGrid';
 import { MemorySearch } from './components/MemorySearch';
 import { MemoryViewer } from './components/MemoryViewer';
+import { PasscodePad, LockIcon } from './components/PasscodePad';
 import { navItems, routes } from '../../lib/navigation';
 
 const SPRING = { type: 'spring' as const, stiffness: 400, damping: 30 };
 
 export default function MemoriesPage() {
   const router = useRouter();
-  const { memories, isLoading, filters, setFilters, clearFilters, deleteMemory, restoreMemory } =
-    useMemories();
+  const {
+    memories,
+    isLoading,
+    filters,
+    setFilters,
+    clearFilters,
+    deleteMemory,
+    restoreMemory,
+    section,
+    setSection,
+    vaultStatus,
+    isUnlocked,
+    unlockVault,
+    setPasscode,
+    changePasscode,
+    resetPasscode,
+    lockVault,
+    moveToPrivate,
+    moveToPublic,
+  } = useMemories();
 
   const [selected, setSelected] = useState<Memory | null>(null);
+  const [padOpen, setPadOpen] = useState(false);
   const [undo, setUndo] = useState<{ id: string; remaining: number } | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -70,6 +90,30 @@ export default function MemoriesPage() {
 
   useEffect(() => clearUndoTimer, [clearUndoTimer]);
 
+  // QC-F-450 — moving an item into the vault requires an unlock first; when
+  // the vault is locked, opening the passcode pad is the honest next step
+  // (the move itself is retried by the user once the vault is open).
+  const handleMoveToPrivate = useCallback(
+    async (id: string) => {
+      if (!isUnlocked) {
+        setPadOpen(true);
+        return;
+      }
+      await moveToPrivate(id);
+    },
+    [isUnlocked, moveToPrivate],
+  );
+
+  const handleMoveToPublic = useCallback(
+    async (id: string) => {
+      await moveToPublic(id);
+    },
+    [moveToPublic],
+  );
+
+  const inPrivateSection = section === 'private';
+  const showLockedPanel = inPrivateSection && !isUnlocked;
+
   return (
     <div className="min-h-dvh bg-gradient-to-b from-black via-zinc-950 to-black text-white">
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 pb-20">
@@ -92,7 +136,70 @@ export default function MemoriesPage() {
 
         <MemorySearch filters={filters} onChange={setFilters} onClear={clearFilters} />
 
-        {isLoading && memories.length === 0 ? (
+        {/* QC-F-450 — 'My Eyes Only' entry: always visible (passcode set or
+            not). Locked it opens the passcode pad; unlocked it enters the
+            private section, where Lock is one tap away. */}
+        {inPrivateSection ? (
+          <div className="flex items-center justify-between rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <LockIcon className="h-5 w-5 text-fuchsia-300" />
+              <div>
+                <p className="text-sm font-semibold text-white">My Eyes Only</p>
+                <p className="text-xs text-gray-400">Only visible while unlocked.</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSection('public')}
+                className="rounded-full bg-white/10 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-white/20 active:scale-95"
+              >
+                Back to Memories
+              </button>
+              <button
+                type="button"
+                onClick={() => void lockVault()}
+                className="rounded-full bg-gradient-to-r from-fuchsia-500 to-violet-500 px-4 py-1.5 text-sm font-semibold text-white active:scale-95"
+              >
+                Lock
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => (isUnlocked ? setSection('private') : setPadOpen(true))}
+            className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:bg-white/10 active:scale-[0.99]"
+          >
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-fuchsia-500/15 text-fuchsia-300">
+              <LockIcon className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold text-white">My Eyes Only</span>
+              <span className="block text-xs text-gray-400">
+                {vaultStatus?.hasPasscode
+                  ? isUnlocked
+                    ? 'Unlocked — tap to open your private memories.'
+                    : 'Passcode-locked private memories.'
+                  : 'Set a passcode to keep private memories locked.'}
+              </span>
+            </span>
+          </button>
+        )}
+
+        {showLockedPanel ? (
+          <div className="flex flex-col items-center gap-3 py-24 text-center">
+            <LockIcon className="h-10 w-10 text-fuchsia-300" />
+            <p className="text-sm text-gray-300">My Eyes Only is locked.</p>
+            <button
+              type="button"
+              onClick={() => setPadOpen(true)}
+              className="rounded-full bg-gradient-to-r from-fuchsia-500 to-violet-500 px-5 py-2 text-sm font-semibold text-white active:scale-95"
+            >
+              Enter passcode
+            </button>
+          </div>
+        ) : isLoading && memories.length === 0 ? (
           <div className="flex justify-center py-24">
             <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-fuchsia-400" />
           </div>
@@ -101,7 +208,25 @@ export default function MemoriesPage() {
         )}
       </div>
 
-      <MemoryViewer memory={selected} onClose={() => setSelected(null)} onDelete={handleDelete} />
+      <MemoryViewer
+        memory={selected}
+        onClose={() => setSelected(null)}
+        onDelete={handleDelete}
+        onMoveToPrivate={handleMoveToPrivate}
+        onMoveToPublic={handleMoveToPublic}
+      />
+
+      <PasscodePad
+        open={padOpen}
+        vaultStatus={vaultStatus}
+        onClose={() => setPadOpen(false)}
+        onSet={setPasscode}
+        onVerify={async (passcode) => {
+          await unlockVault(passcode);
+        }}
+        onChange={changePasscode}
+        onReset={resetPasscode}
+      />
 
       {/* Undo toast — Task 13.4 */}
       <AnimatePresence>

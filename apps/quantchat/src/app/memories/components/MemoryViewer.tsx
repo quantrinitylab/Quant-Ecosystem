@@ -13,11 +13,20 @@ interface MemoryViewerProps {
   memory: Memory | null;
   onClose: () => void;
   onDelete: (id: string) => void;
+  /** QC-F-450 — move the open item across the 'My Eyes Only' boundary. */
+  onMoveToPrivate?: (id: string) => void;
+  onMoveToPublic?: (id: string) => void;
 }
 
 const SPRING = { type: 'spring' as const, stiffness: 400, damping: 32 };
 
-export function MemoryViewer({ memory, onClose, onDelete }: MemoryViewerProps) {
+export function MemoryViewer({
+  memory,
+  onClose,
+  onDelete,
+  onMoveToPrivate,
+  onMoveToPublic,
+}: MemoryViewerProps) {
   const handleShareToStories = useCallback(() => {
     if (!memory) return;
     // Re-share to stories surface (Task 13.2). Wired to the stories composer.
@@ -100,11 +109,58 @@ export function MemoryViewer({ memory, onClose, onDelete }: MemoryViewerProps) {
                 {memory.location && <span>· 📍 {memory.location}</span>}
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <ActionButton label="Re-share" icon="🔁" onClick={handleShareToStories} />
-                <ActionButton label="Send" icon="📤" onClick={handleSend} />
-                <ActionButton label="Download" icon="⬇️" onClick={handleDownload} />
-              </div>
+              {/* QC-F-450: a private ('My Eyes Only') item is never re-shared
+                  or sent from here — those paths carry the mediaUrl into
+                  stories/messages, which have no passcode gate, so that
+                  would leak straight out of the vault. Download stays: it
+                  is the owner's own item on their own device. */}
+              {memory.isPrivate ? (
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-1 gap-2">
+                    <ActionButton label="Download" icon="⬇️" onClick={handleDownload} />
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    This memory is in My Eyes Only — move it out of My Eyes Only before sharing
+                    it.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  <ActionButton label="Re-share" icon="🔁" onClick={handleShareToStories} />
+                  <ActionButton label="Send" icon="📤" onClick={handleSend} />
+                  <ActionButton label="Download" icon="⬇️" onClick={handleDownload} />
+                </div>
+              )}
+
+              {/* QC-F-450 — vault move for the open item. Moving IN needs an
+                  unlock (the page opens the passcode pad first when the
+                  vault is locked); moving OUT always needs the unlock too
+                  (the item is only visible while unlocked anyway). */}
+              {memory.isPrivate
+                ? onMoveToPublic && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onMoveToPublic(memory.id);
+                        onClose();
+                      }}
+                      className="mt-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 active:scale-95"
+                    >
+                      Move out of My Eyes Only
+                    </button>
+                  )
+                : onMoveToPrivate && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onMoveToPrivate(memory.id);
+                        onClose();
+                      }}
+                      className="mt-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 active:scale-95"
+                    >
+                      Move to My Eyes Only
+                    </button>
+                  )}
 
               <button
                 type="button"
