@@ -47,19 +47,28 @@ async function purgeLegacySearchHistory(): Promise<void> {
   }
 }
 
-// QM fix qm-contact-names-scope (P1, same leak class as the three above):
-// logout must also drop the legacy UNSCOPED contact-rename key
-// (`quantmail_contact_names`, an email-normalized map of user-renamed
-// contact display names) — it is not attributable to any account, so the
-// next account on this browser could read the previous account's private
-// contact renames. Account-scoped v2 keys
-// (`quantmail_contact_names.v2.<immutable-id>`) partition safely and
-// survive logout for the account's own next sign-in.
 async function purgeLegacyContactNames(): Promise<void> {
   if (typeof window === 'undefined') return;
   try {
     const mod = await import('../lib/contactNameCache');
     mod.purgeLegacyContactNameKeys(mod.windowContactNameStorage());
+  } catch {
+    // Best effort: a storage failure must never strand a logout.
+  }
+}
+
+// QM fix qm-booking-links-scope (P1, same leak class as the three above):
+// logout must also drop the legacy UNSCOPED booking-links key
+// (`quant_calendar_booking_links`) — it is not attributable to any account,
+// so the next account on this browser could read the previous account's
+// shareable booking-link slugs/titles. Account-scoped v2 keys
+// (`quant_calendar_booking_links.v2.<immutable-id>`) partition safely and
+// survive logout for the account's own next sign-in.
+async function purgeLegacyBookingLinks(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const mod = await import('../lib/bookingLinks');
+    mod.purgeLegacyBookingLinksKeys(mod.windowBookingLinksStorage());
   } catch {
     // Best effort: a storage failure must never strand a logout.
   }
@@ -309,6 +318,10 @@ export const browserAuthSession = {
       // qm-contact-names-scope: the legacy unscoped contact-rename key is
       // the same leak class — purge it too. v2 account-scoped keys survive.
       await purgeLegacyContactNames();
+      // qm-booking-links-scope: the legacy unscoped booking-links key is the
+      // same leak class (shareable meeting slugs/titles) — purge it too. v2
+      // account-scoped keys survive.
+      await purgeLegacyBookingLinks();
     }
   },
 
