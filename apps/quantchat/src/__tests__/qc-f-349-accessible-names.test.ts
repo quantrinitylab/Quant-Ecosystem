@@ -189,11 +189,18 @@ describe('QC-F-349 accessible names for shipped form controls', () => {
     expect(htmlFor, 'SelectRow label must carry htmlFor={...}').not.toBeNull();
     expect(id, 'SelectRow select must carry id={...}').not.toBeNull();
     expect(htmlFor![1].trim()).toBe(id![1].trim());
-    // The component renders the three privacy selects — all three call
-    // sites keep their visible label, so all three inherit the binding.
+    // The component renders the privacy selects — every call site keeps
+    // its visible label, so all of them inherit the binding. (Count 3 → 4:
+    // QC-F-467 added the "Who can see my birthday" SelectRow, which uses
+    // this same component and binding.)
     const callSites = src.match(/<SelectRow/g) ?? [];
-    expect(callSites.length).toBe(3);
-    for (const label of ['Who can message me', 'Who can see my story', 'Who can see my location']) {
+    expect(callSites.length).toBe(4);
+    for (const label of [
+      'Who can message me',
+      'Who can see my story',
+      'Who can see my location',
+      'Who can see my birthday',
+    ]) {
       expect(src).toContain(`label="${label}"`);
     }
   });
