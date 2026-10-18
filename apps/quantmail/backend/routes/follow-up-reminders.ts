@@ -14,6 +14,13 @@
 // the conversation list, Superhuman/Gmail-nudge style — so the backend never
 // has to mutate on read. One active reminder per (user, thread): POST upserts
 // on the existing active row instead of stacking duplicates.
+//
+// Reply-aware lifecycle (fix/qm-followup-auto-dismiss-2): an inbound message
+// in a thread with an active reminder auto-dismisses it (dismiss-on-reply in
+// InboundIngestAdapter) — a thread that got a reply never resurfaces. GET
+// additionally skips rows whose thread got an inbound reply after the
+// reminder was set, covering rows that predate the ingest hook and rows
+// written by importers that bypass ingest.
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -46,7 +53,91 @@ function getPrisma(fastify: FastifyInstance) {
       create: (args: unknown) => Promise<Record<string, unknown>>;
       update: (args: unknown) => Promise<Record<string, unknown>>;
     };
+    email: {
+      findFirst: (args: unknown) => Promise<Record<string, unknown> | null>;
+    };
   };
+}
+
+/**
+ * Delivery-time reply guard (fix/qm-followup-auto-dismiss-2).
+ *
+ * An ACTIVE reminder whose thread received an inbound reply (isSent: false)
+ * AFTER the reminder was set is treated as resolved: it is skipped from the
+ * response and opportunistically dismissed so it never resurfaces in the
+ * People-home "Due reminders" strip or the thread banner. This covers rows
+ * that predate dismiss-on-reply in the ingest path and rows written by
+ * importers that bypass ingest (imap-importer, mbox-parser).
+ *
+ * Fail-open: a lookup fault keeps the row (a stale nudge is better than a
+ * silently dropped reminder the user explicitly set).
+ */
+async function hasInboundReplyAfterSet(
+  prisma: {
+    email: { findFirst: (args: unknown) => Promise<Record<string, unknown> | null> };
+  },
+  userId: string,
+  row: Record<string, unknown>,
+): Promise<boolean> {
+  const createdAtRaw = row['createdAt'];
+  const createdAt =
+    createdAtRaw instanceof Date ? createdAtRaw : new Date(createdAtRaw as string);
+  if (Number.isNaN(createdAt.getTime())) return false;
+
+  const replyWhere = { userId, isSent: false, receivedAt: { gt: createdAt } };
+
+  const threadId = row['threadId'];
+  if (typeof threadId === 'string' && threadId.length > 0) {
+    const hit = await prisma.email.findFirst({ where: { ...replyWhere, threadId } });
+    return hit !== null;
+  }
+
+  // Legacy threadId-null row: resolve the sent email's thread first.
+  const sent = await prisma.email.findFirst({
+    where: { userId, id: row['emailId'] as string },
+  });
+  const sentThreadId = sent?.['threadId'];
+  if (typeof sentThreadId !== 'string' || sentThreadId.length === 0) return false;
+  const hit = await prisma.email.findFirst({
+    where: { ...replyWhere, threadId: sentThreadId },
+  });
+  return hit !== null;
+}
+
+async function filterOutRepliedReminders(
+  prisma: {
+    followUpReminder: {
+      update: (args: unknown) => Promise<Record<string, unknown>>;
+    };
+    email: { findFirst: (args: unknown) => Promise<Record<string, unknown> | null> };
+  },
+  userId: string,
+  rows: Record<string, unknown>[],
+): Promise<Record<string, unknown>[]> {
+  if (rows.length === 0) return rows;
+  const kept: Record<string, unknown>[] = [];
+  for (const row of rows) {
+    let replied = false;
+    try {
+      replied = await hasInboundReplyAfterSet(prisma, userId, row);
+    } catch {
+      replied = false; // fail-open: keep the row
+    }
+    if (!replied) {
+      kept.push(row);
+      continue;
+    }
+    // Opportunistic dismiss: best-effort, never blocks the response.
+    try {
+      await prisma.followUpReminder.update({
+        where: { id: row['id'] as string },
+        data: { dismissedAt: new Date() },
+      });
+    } catch {
+      // The row is still skipped this time; the next GET retries the dismiss.
+    }
+  }
+  return kept;
 }
 
 function toWire(row: Record<string, unknown>) {
@@ -116,6 +207,9 @@ export default async function followUpReminderRoutes(fastify: FastifyInstance) {
   });
 
   // GET /follow-up-reminders — the caller's active reminders, soonest first.
+  // Delivery-time reply guard: rows whose thread got an inbound reply after
+  // the reminder was set are treated as resolved (skipped + opportunistically
+  // dismissed), so the People-home strip never nudges about a replied thread.
   fastify.get('/', async (request, reply) => {
     const userId = getUserId(request);
     const prisma = getPrisma(fastify);
@@ -124,7 +218,8 @@ export default async function followUpReminderRoutes(fastify: FastifyInstance) {
       where: { userId, dismissedAt: null },
       orderBy: { remindAt: 'asc' },
     });
-    return reply.send({ success: true, data: rows.map(toWire) });
+    const live = await filterOutRepliedReminders(prisma, userId, rows);
+    return reply.send({ success: true, data: live.map(toWire) });
   });
 
   // DELETE /follow-up-reminders/:id — dismiss (tenant-walled, 404 when not owned).
