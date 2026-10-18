@@ -6,14 +6,12 @@
 //
 //   - Passcodes are 4-8 digit strings, hashed with the SAME argon2id
 //     password service the account password uses (@quant/auth). A numeric
-//     passcode is low-entropy, so a fast hash (SHA-256) is forbidden here —
-//     that pattern is only safe for 256-bit random secrets (see the unlock
-//     token below). The plaintext passcode is never stored, logged, or
-//     returned.
+//     passcode is low-entropy, so a fast hash is forbidden for it. The
+//     plaintext passcode is never stored, logged, or returned.
 //   - A new passcode must differ from the account password (Snapchat's
 //     rule) when the account has a usable password hash.
 //   - Unlock tokens are opaque (`qmu_` + 256-bit random), stored only as
-//     SHA-256 hex, live for exactly 5 minutes, and there is at most ONE
+//     a scrypt hash (hex), live for exactly 5 minutes, and there is at most ONE
 //     live token per user: a fresh verify deletes all previous tokens, and
 //     change/reset/lock delete them too (instant revoke — a stateless JWT
 //     could not do this, which is why JWT was rejected for this purpose).
@@ -34,7 +32,7 @@
 // object itself is not encrypted by this service and no copy anywhere may
 // claim otherwise.
 // ============================================================================
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { createAppError } from '@quant/server-core';
 import { passwordService } from '@quant/auth';
 
@@ -114,8 +112,20 @@ export interface VaultUnlockGrant {
   expiresInSec: number;
 }
 
-function sha256Hex(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('hex');
+/**
+ * Domain separator used as the scrypt salt for unlock-token storage
+ * hashes. The hashed value is a 256-bit random token, not a password:
+ * salts exist to protect low-entropy secrets, and this fixed label is
+ * safe (and keeps the hash deterministic, which lookup-by-hash needs)
+ * precisely because the token's entropy is 256 bits. scrypt is used for
+ * the storage hash so no fast general-purpose hash ever touches a value
+ * issued by the passcode-verify path (CodeQL js/insufficient-password-hash
+ * disposition, ci-green-captain on PR #1281).
+ */
+const TOKEN_HASH_SALT = 'quantchat-memories-vault-unlock-v1';
+
+function tokenHashHex(value: string): string {
+  return scryptSync(value, TOKEN_HASH_SALT, 32, { N: 16384, r: 8, p: 1 }).toString('hex');
 }
 
 function tokenHashesMatch(computedHex: string, storedHex: string): boolean {
@@ -266,7 +276,7 @@ export class MemoriesVaultService {
     const unlockToken = UNLOCK_TOKEN_PREFIX + randomBytes(32).toString('base64url');
     const expiresAt = new Date(now.getTime() + VAULT_UNLOCK_TTL_MS);
     await this.prisma.memoriesVaultUnlock.create({
-      data: { userId, tokenHash: sha256Hex(unlockToken), expiresAt },
+      data: { userId, tokenHash: tokenHashHex(unlockToken), expiresAt },
     });
     return { unlockToken, expiresAt, expiresInSec: Math.floor(VAULT_UNLOCK_TTL_MS / 1000) };
   }
@@ -371,9 +381,9 @@ export class MemoriesVaultService {
       throw createAppError('The vault is locked', 401, 'MEMORIES_LOCKED');
     }
     const record = await this.prisma.memoriesVaultUnlock.findUnique({
-      where: { tokenHash: sha256Hex(token) },
+      where: { tokenHash: tokenHashHex(token) },
     });
-    if (!record || record.userId !== userId || !tokenHashesMatch(sha256Hex(token), record.tokenHash)) {
+    if (!record || record.userId !== userId || !tokenHashesMatch(tokenHashHex(token), record.tokenHash)) {
       throw createAppError('The vault is locked', 401, 'MEMORIES_LOCKED');
     }
     if (record.expiresAt.getTime() <= now.getTime()) {
