@@ -335,6 +335,29 @@ export function AppShell({
    */
   const pillarSearchVisible = topBar === undefined && isMainSuiteRoute && !customHeader;
 
+  /*
+   * Mobile drawer dead-end fix (mobile-inbox P1 follow-up, 2026-10-18).
+   *
+   * The pillar top bar below is the mobile drawer's only touch opener, but it
+   * renders solely on main suite routes (`isMainSuiteRoute && !customHeader`).
+   * Every other route that mounts the drawer (`sidebar` prop — /labels, /sent,
+   * /drafts, /trash, /scheduled, /archive, /search, /settings, /notifications,
+   * /pipelines, /security, /workspaces, /admin/*, /people/*) left a touch user
+   * with the drawer in the DOM and zero ways to open it: tapping "Labels" in
+   * the drawer closed it onto /labels with no hamburger, no bottom bar, and
+   * no back affordance in the page's own header — a nav dead-end (browser-back
+   * was the only escape, and in the installed PWA there is none).
+   *
+   * This slim mobile-only header covers exactly those routes: a hamburger that
+   * dispatches the same `quant:sidebar:toggle` the pillar bar uses (sharing
+   * `menuTriggerRef`, so the drawer's focus-return keeps working on every
+   * route), plus a back chevron for secondary pages that have no back link of
+   * their own. Pages keep their own headers — this bar carries no title, so
+   * nothing duplicates. Desktop is untouched (`md:hidden`).
+   */
+  const showMobileSecondaryHeader =
+    Boolean(sidebar) && topBar === undefined && !(isMainSuiteRoute && !customHeader);
+
   useEffect(() => {
     try {
       setIsPinned(window.localStorage.getItem(PIN_STORAGE_KEY) === '1');
@@ -887,6 +910,73 @@ export function AppShell({
             )}
 
             {/* Super-App 5-Pillar Top Switcher or custom topBar (mobile only — desktop uses the left context sidebar + right app rail) */}
+            {showMobileSecondaryHeader && (
+              <div className="md:hidden">
+                <header
+                  aria-label="Page navigation"
+                  className="flex items-center gap-1 bg-black px-2 py-1"
+                >
+                  {/*
+                    Drawer opener for routes the pillar bar doesn't cover. Same
+                    toggle event the pillar hamburger and the `[` shortcut use;
+                    `menuTriggerRef` shared so the drawer's focus-return works.
+                  */}
+                  <button
+                    type="button"
+                    ref={menuTriggerRef}
+                    onClick={() =>
+                      window.dispatchEvent(new CustomEvent('quant:sidebar:toggle'))
+                    }
+                    aria-label="Open navigation menu"
+                    aria-expanded={isSidebarOpen}
+                    title="Open navigation menu"
+                    data-testid="shell-mobile-menu-button"
+                    className="flex size-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-[#232938] bg-[#16181F] text-[#CBD5E1] outline-none transition active:scale-95 hover:border-[var(--quant-primary)]/60 hover:text-white focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                  >
+                    <svg
+                      className="size-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      aria-hidden="true"
+                    >
+                      <line x1="4" y1="7" x2="20" y2="7" />
+                      <line x1="4" y1="12" x2="20" y2="12" />
+                      <line x1="4" y1="17" x2="20" y2="17" />
+                    </svg>
+                  </button>
+                  {/*
+                    Back affordance for secondary pages (/labels, /settings, …)
+                    whose own headers carry no back link. Honest history-back —
+                    identical to the browser back gesture, and the only escape
+                    in the installed PWA where no browser chrome exists.
+                  */}
+                  <button
+                    type="button"
+                    onClick={() => router.back()}
+                    aria-label="Go back"
+                    title="Go back"
+                    data-testid="shell-mobile-back-button"
+                    className="flex size-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-[#232938] bg-[#16181F] text-[#CBD5E1] outline-none transition active:scale-95 hover:border-[var(--quant-primary)]/60 hover:text-white focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                  >
+                    <svg
+                      className="size-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="m15 18-6-6 6-6" />
+                    </svg>
+                  </button>
+                </header>
+              </div>
+            )}
             {topBar !== undefined ? (
               topBar
             ) : isMainSuiteRoute && !customHeader ? (
