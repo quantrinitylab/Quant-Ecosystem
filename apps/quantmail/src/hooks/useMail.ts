@@ -25,6 +25,12 @@ import { mailboxKey, readMailbox, writeMailbox, patchEmail } from '../lib/offlin
 import { InboxCursorPager } from '../lib/inbox-cursor-pager';
 import { enqueue, type MailMutationKind } from '../lib/offline/outbox';
 import { dismissToast, showToast } from '../lib/toast-bus';
+import {
+  applyLabelRequest,
+  removeLabelRequest,
+  withLabelAdded,
+  withLabelRemoved,
+} from '../lib/email-labels';
 import { apiRequestError, backoffInterval } from '../lib/query-retry';
 import { getFts5Indexer, type Fts5SearchResult, type Fts5SearchOptions } from '../lib/sqlite-fts5';
 import type { Email, EmailCategory, EmailThread, SearchEmailRequest } from '../types';
@@ -157,8 +163,17 @@ export interface UseEmailReturn {
   unstarEmail: (emailId: string) => Promise<void>;
   markRead: (emailId: string) => Promise<void>;
   markUnread: (emailId: string) => Promise<void>;
-  addLabel: (emailId: string, label: string) => Promise<void>;
-  removeLabel: (emailId: string, label: string) => Promise<void>;
+  /**
+   * Apply a label to an email by label ID — routes through the working
+   * POST /api/labels/apply (labelId-based). Email.labels stores label IDs,
+   * not names.
+   */
+  addLabel: (emailId: string, labelId: string) => Promise<void>;
+  /**
+   * Remove a label from an email by label ID — routes through the working
+   * POST /api/labels/remove.
+   */
+  removeLabel: (emailId: string, labelId: string) => Promise<void>;
   snoozeEmail: (emailId: string, until: Date) => Promise<void>;
   undoSend: (messageId: string) => Promise<boolean>;
   moveToCategory: (emailId: string, newCategory: string) => Promise<void>;
@@ -965,38 +980,35 @@ export function useEmail(options: UseEmailOptions = {}): UseEmailReturn {
     }
   }, []);
 
-  const addLabel = useCallback(async (emailId: string, labelName: string) => {
-    setEmails((prev) =>
-      prev.map((e) => (e.id === emailId ? { ...e, labels: [...e.labels, labelName] } : e)),
-    );
+  const addLabel = useCallback(async (emailId: string, labelId: string) => {
+    // Optimistic add of the label ID (deduped). POST /api/labels/apply is the
+    // working labelId-based endpoint — the old POST /api/emails/{id}/labels
+    // shape had no route on either side and 404'd on every call.
+    setEmails((prev) => withLabelAdded(prev, emailId, labelId));
     try {
-      await apiRequest(`/api/emails/${emailId}/labels`, {
-        method: 'POST',
-        body: JSON.stringify({ label: labelName }),
-      });
+      await applyLabelRequest(emailId, labelId);
     } catch (err) {
-      setEmails((prev) =>
-        prev.map((e) =>
-          e.id === emailId ? { ...e, labels: e.labels.filter((l) => l !== labelName) } : e,
-        ),
-      );
+      // Roll the optimistic update back so the row never shows a label the
+      // server did not store.
+      setEmails((prev) => withLabelRemoved(prev, emailId, labelId));
     }
   }, []);
 
-  const removeLabel = useCallback(async (emailId: string, labelName: string) => {
-    setEmails((prev) =>
-      prev.map((e) =>
-        e.id === emailId ? { ...e, labels: e.labels.filter((l) => l !== labelName) } : e,
-      ),
-    );
+  const removeLabel = useCallback(async (emailId: string, labelId: string) => {
+    // Optimistic removal of the label ID. POST /api/labels/remove is the
+    // working labelId-based endpoint — the old
+    // DELETE /api/emails/{id}/labels/{name} shape had no route and 404'd.
+    setEmails((prev) => withLabelRemoved(prev, emailId, labelId));
     try {
-      await apiRequest(`/api/emails/${emailId}/labels/${encodeURIComponent(labelName)}`, {
-        method: 'DELETE',
-      });
+      await removeLabelRequest(emailId, labelId);
     } catch (err) {
-      setEmails((prev) =>
-        prev.map((e) => (e.id === emailId ? { ...e, labels: [...e.labels, labelName] } : e)),
-      );
+      // Best-effort restore of the optimistically removed label. withLabelAdded
+      // dedupes, so a label re-added through another path while the request was
+      // in flight is not duplicated. (If the remove was a no-op because the
+      // label was never present, the label is added here and reconciled on the
+      // next refresh — same optimistic-rollback convention as the other
+      // mutations in this hook.)
+      setEmails((prev) => withLabelAdded(prev, emailId, labelId));
     }
   }, []);
 
