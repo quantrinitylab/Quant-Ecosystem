@@ -25,6 +25,8 @@ import {
 } from './QuantGitIcons';
 import { QuantGitRowSkeleton, QuantGitEmptyState } from './QuantGitSkeletons';
 import { apiFetchRaw } from '@quant/api-client';
+import { parseUnifiedDiff } from './prDiffParser';
+import { PRDiffViewer } from './PRDiffViewer';
 
 export interface SecurityCheckItem {
   id: string;
@@ -315,9 +317,76 @@ export function PullRequestsTab({
     };
   }, [selectedPR, repoId]);
 
+  // Load the REAL unified diff from GET /:id/pulls/:number/diff whenever the
+  // selected PR changes. The endpoint computes `git diff -p base..head`
+  // server-side; the text is parsed client-side into per-file hunks. Results
+  // are cached per PR key so switching back never refetches. On any failure
+  // or empty payload the section keeps the honest "not available" state —
+  // diff content is never invented.
+  const diffFetchedFor = React.useRef<Set<string>>(new Set());
+  const [prDiffByKey, setPrDiffByKey] = useState<
+    Record<string, { status: 'loading' | 'loaded' | 'empty' | 'error'; files: PRDiffFile[] }>
+  >({});
+  const diffFetchKey = selectedPR
+    ? `${repoId}:${(selectedPR as any).number || selectedPR.id}`
+    : null;
+  const prDiff = diffFetchKey ? (prDiffByKey[diffFetchKey] ?? null) : null;
+  const prDiffTotals = React.useMemo(() => {
+    if (!prDiff || prDiff.status !== 'loaded') return null;
+    let additions = 0;
+    let deletions = 0;
+    for (const f of prDiff.files) {
+      additions += f.additions;
+      deletions += f.deletions;
+    }
+    return { additions, deletions };
+  }, [prDiff]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedPR || !diffFetchKey) return;
+    if (diffFetchedFor.current.has(diffFetchKey)) return;
+    diffFetchedFor.current.add(diffFetchKey);
+    setPrDiffByKey((prev) => ({ ...prev, [diffFetchKey]: { status: 'loading', files: [] } }));
+    (async () => {
+      try {
+        const prNumber = (selectedPR as any).number || selectedPR.id;
+        const res = await apiFetchRaw(
+          `/api/repos/${encodeURIComponent(repoId ?? '')}/pulls/${prNumber}/diff`,
+        );
+        const json = await res.json().catch(() => null);
+        if (cancelled) return;
+        const text = res.ok && json?.success ? json.data : null;
+        if (typeof text === 'string' && text.trim().length > 0) {
+          const files = parseUnifiedDiff(text);
+          setPrDiffByKey((prev) => ({
+            ...prev,
+            [diffFetchKey]: { status: files.length > 0 ? 'loaded' : 'empty', files },
+          }));
+        } else {
+          setPrDiffByKey((prev) => ({
+            ...prev,
+            [diffFetchKey]: { status: 'empty', files: [] },
+          }));
+        }
+      } catch {
+        if (!cancelled)
+          setPrDiffByKey((prev) => ({
+            ...prev,
+            [diffFetchKey]: { status: 'error', files: [] },
+          }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPR, repoId, diffFetchKey]);
+
   // Inline diff comments — empty until real data arrives. Never invent
-  // comments or reviewers.
-  const [activeCommentLineId, setActiveCommentLineId] = useState<string | null>(null);
+  // comments or reviewers. The open comment box is keyed by the viewer's
+  // unique line key (PRDiffLine.id); the backend line reference
+  // (`filePath-l<line>`) plus side is what gets POSTed.
+  const [activeCommentLineKey, setActiveCommentLineKey] = useState<string | null>(null);
   const [lineCommentText, setLineCommentText] = useState<string>('');
   const [diffComments, setDiffComments] = useState<Record<string, PRDiffComment[]>>({});
 
@@ -325,7 +394,7 @@ export function PullRequestsTab({
     selectedPR && selectedPR.author && currentUsername && selectedPR.author === currentUsername,
   );
 
-  const handleAddInlineComment = async (lineId: string) => {
+  const handleAddInlineComment = async (lineId: string, side: 'LEFT' | 'RIGHT' = 'RIGHT') => {
     const body = lineCommentText.trim();
     if (!body) return;
     const prNumber = selectedPR ? (selectedPR as any).number || selectedPR.id : null;
@@ -347,7 +416,8 @@ export function PullRequestsTab({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath: match[1], line, side: 'RIGHT', body }),
+          // side is LEFT for removed lines (old line number), RIGHT otherwise.
+          body: JSON.stringify({ filePath: match[1], line, side, body }),
         },
       );
       const json = await res.json().catch(() => null);
@@ -360,13 +430,14 @@ export function PullRequestsTab({
           author: created.author?.username || currentUsername,
           body: created.body ?? body,
           createdAt: created.createdAt ? new Date(created.createdAt).toLocaleString() : 'Just now',
+          side,
         };
         setDiffComments((prev) => ({
           ...prev,
           [lineId]: [...(prev[lineId] || []), newComment],
         }));
         setLineCommentText('');
-        setActiveCommentLineId(null);
+        setActiveCommentLineKey(null);
         showToast?.('Inline review comment added');
       } else {
         showToast?.(json?.error?.message || 'Could not add inline comment');
@@ -1027,25 +1098,54 @@ export function PullRequestsTab({
             </div>
           </div>
 
-          {/* Diff section: honest state only. No per-file diff endpoint exists
-              yet (only stats from /api/repos/<id>/pulls/<n>), so the
-              Unified/Split mode toggle is deliberately not rendered — it
-              would promise a working diff viewer that cannot be delivered. */}
+          {/* Diff section: renders the REAL per-file diff fetched from
+              GET /api/repos/:id/pulls/:number/diff (server-side
+              `git diff -p base..head`, parsed client-side into file hunks).
+              No view-mode toggle is rendered here on purpose — PR #1090
+              removed the dead mode toggles and they stay removed. */}
           <div className="space-y-4" data-testid="diff-viewer">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-xs text-[#E6EDF3]">
                 Files changed ({selectedPR?.changedFiles ?? '—'})
               </span>
+              {prDiffTotals && (
+                <span className="text-[11px] font-mono">
+                  <span className="text-[#3FB950]">+{prDiffTotals.additions}</span>{' '}
+                  <span className="text-[#F85149]">-{prDiffTotals.deletions}</span>
+                </span>
+              )}
             </div>
 
             {/* Only a real measured zero means "no files changed". Unknown
-                (null/undefined) shows the honest not-available state. */}
+                (null/undefined) or an empty/failed diff fetch shows the
+                honest not-available state — never invented file contents. */}
             {selectedPR?.changedFiles === 0 ? (
               <div
                 data-testid="diff-empty"
                 className="rounded-xl bg-[#0D1117] border border-dashed border-[#30363D] p-8 text-center"
               >
                 <p className="text-xs text-[#8D96A0]">No files changed in this pull request.</p>
+              </div>
+            ) : prDiff?.status === 'loaded' ? (
+              <PRDiffViewer
+                files={prDiff.files}
+                activeLineKey={activeCommentLineKey}
+                lineCommentText={lineCommentText}
+                diffComments={diffComments}
+                onOpenLine={setActiveCommentLineKey}
+                onCancelLine={() => {
+                  setActiveCommentLineKey(null);
+                  setLineCommentText('');
+                }}
+                onChangeCommentText={setLineCommentText}
+                onSubmitComment={handleAddInlineComment}
+              />
+            ) : prDiff?.status === 'loading' ? (
+              <div
+                data-testid="diff-loading"
+                className="rounded-xl bg-[#0D1117] border border-dashed border-[#30363D] p-8 text-center"
+              >
+                <p className="text-xs text-[#8D96A0]">Loading diff…</p>
               </div>
             ) : (
               <div
