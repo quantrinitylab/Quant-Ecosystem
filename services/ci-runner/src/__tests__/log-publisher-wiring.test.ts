@@ -110,21 +110,61 @@ describe('ci-runner log publisher wiring (fix/qm-ci-logs-redis-publish)', () => 
     ]);
   });
 
-  it('publishes a terminal marker when a non-final job fails', async () => {
+  it('returns a failed run result (not a throw) when a non-final job fails', async () => {
     state.multiJob = true;
     vi.resetModules();
     state.published = [];
     await import('../main.js');
 
-    await expect(
-      state.processor!({
-        data: { runId: 'run-42', repoId: 'repo-1', configYaml: 'jobs: {}' },
-      }),
-    ).rejects.toThrow('Job job-a failed');
+    // fix/qm-quantgit-cijob-persist: the worker RETURNs the per-job run
+    // summary as the BullMQ job's return value instead of throwing, so the
+    // backend can persist CiJob rows + logs from the 'completed' event.
+    const result = (await state.processor!({
+      data: { runId: 'run-42', repoId: 'repo-1', configYaml: 'jobs: {}' },
+    })) as {
+      runId: string;
+      status: string;
+      duration: number;
+      jobs: Record<
+        string,
+        {
+          name: string;
+          stage: string;
+          status: string;
+          allowFailure: boolean;
+          result?: { status: string; stdout: string; exitCode: number };
+        }
+      >;
+    };
+
+    expect(result.runId).toBe('run-42');
+    expect(result.status).toBe('failed');
+    expect(result.duration).toBeGreaterThanOrEqual(1);
+
+    // Per-job breakdown: job-a failed hard; job-b never ran and is skipped.
+    const jobA = result.jobs['job-a'];
+    expect(jobA).toBeDefined();
+    expect(jobA).toMatchObject({
+      name: 'job-a',
+      stage: 'test',
+      status: 'failed',
+      allowFailure: false,
+    });
+    expect(jobA!.result).toMatchObject({
+      status: 'failed',
+      stdout: 'boom\n',
+      exitCode: 1,
+    });
+    expect(result.jobs['job-b']).toMatchObject({
+      name: 'job-b',
+      stage: 'test',
+      status: 'skipped',
+      allowFailure: false,
+    });
 
     // job-a's end ran with terminal:false (entries flushed, no isEnd); the
-    // catch path then published the build-level terminal marker so SSE
-    // subscribers don't hang on "live" forever.
+    // failed-pipeline path then published the build-level terminal marker so
+    // SSE subscribers don't hang on "live" forever.
     expect(state.published.length).toBeGreaterThanOrEqual(2);
     for (const { channel } of state.published) {
       expect(channel).toBe('channel:ci:build:run-42:logs');
