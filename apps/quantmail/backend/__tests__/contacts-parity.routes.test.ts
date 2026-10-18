@@ -624,7 +624,7 @@ describe('Wave 8 — Phase M & Contacts Parity Suite (Developer 1)', () => {
       // delete either record.
       const remaining = await prisma.contact.findMany({ where: { userId: 'user-1' } });
       expect(remaining).toHaveLength(2);
-      expect(remaining.map((c) => c.id).sort()).toEqual([c1.id, c2.id].sort());
+      expect(remaining.map((c: { id: string }) => c.id).sort()).toEqual([c1.id, c2.id].sort());
     });
 
     it('returns mergedCount: 0 when no duplicates exist', async () => {
