@@ -190,6 +190,38 @@ function makeFakePrisma(users: FakeUser[]) {
         if (where['deletedAt'] === null && row.deletedAt) return null;
         return row;
       },
+      async findMany({ where, take }: { where: Record<string, unknown>; take?: number }) {
+        // QC-F-501: password login now queries with { equals, mode:
+        // 'insensitive' } conditions (findMany, take: 2). Match them
+        // faithfully — case-insensitive equality, the deletedAt: null
+        // filter and take exactly like Prisma would. (Harness plumbing
+        // only: every QC-F-041 assertion in this file is unchanged.)
+        const matchesField = (stored: string | null, cond: unknown): boolean => {
+          if (typeof cond === 'string') return stored === cond;
+          if (cond && typeof cond === 'object' && 'equals' in (cond as Record<string, unknown>)) {
+            const { equals, mode } = cond as { equals: unknown; mode?: string };
+            if (stored === null || typeof equals !== 'string') return false;
+            return mode === 'insensitive'
+              ? stored.toLowerCase() === equals.toLowerCase()
+              : stored === equals;
+          }
+          return false;
+        };
+        let rows = users;
+        if (Array.isArray(where['OR'])) {
+          const or = where['OR'] as Record<string, unknown>[];
+          rows = rows.filter((u) =>
+            or.some((branch) => {
+              if ('email' in branch) return matchesField(u.email, branch['email']);
+              if ('username' in branch) return matchesField(u.username, branch['username']);
+              if ('phoneNumber' in branch) return matchesField(u.phoneNumber, branch['phoneNumber']);
+              return false;
+            }),
+          );
+        }
+        if (where['deletedAt'] === null) rows = rows.filter((u) => !u.deletedAt);
+        return typeof take === 'number' ? rows.slice(0, take) : rows;
+      },
       async create({ data }: { data: Record<string, unknown> }) {
         if (users.some((u) => u.email === data['email'])) throw uniqueViolation();
         if (data['phoneNumber'] && users.some((u) => u.phoneNumber === data['phoneNumber'])) {

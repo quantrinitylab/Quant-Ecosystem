@@ -91,6 +91,33 @@ const updateProfileSchema = z
 /** Marker for an unusable password (phone-OTP users never log in by password). */
 const UNUSABLE_PASSWORD = '!phone-otp-no-password';
 
+/**
+ * QC-F-501: shared wording with QuantMail login (apps/quantmail/backend/
+ * routes/auth.ts EMAIL_CASE_CONFLICT_MESSAGE) — two rows that differ only by
+ * identifier capitalisation are a data-corruption state; sign-in pauses with
+ * an honest 409 instead of silently picking one account.
+ */
+const EMAIL_CASE_CONFLICT_MESSAGE =
+  'This email address is registered on more than one account with different capitalisation. ' +
+  'Sign-in is paused for these accounts until the addresses are merged — contact support.';
+
+/**
+ * QC-F-501: classify a stored password hash for server-side diagnostics
+ * WITHOUT ever exposing its value — only the algorithm class is returned
+ * (the caller also logs the length). Used when argon2 rejects a malformed
+ * stored hash: the class is the recovery signal, the value is a credential.
+ */
+function storedHashClass(passwordHash: string): string {
+  if (passwordHash.startsWith('$argon2id$')) return 'argon2id';
+  if (passwordHash.startsWith('$argon2i$')) return 'argon2i';
+  if (passwordHash.startsWith('$argon2d$')) return 'argon2d';
+  if (passwordHash.startsWith('$2a$') || passwordHash.startsWith('$2b$') || passwordHash.startsWith('$2y$')) {
+    return 'bcrypt';
+  }
+  if (passwordHash.startsWith('!')) return 'unusable-marker';
+  return 'other';
+}
+
 function decorations(fastify: FastifyInstance) {
   return fastify as unknown as {
     prisma: PrismaClient;
@@ -312,9 +339,22 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const { identifier, password } = parsed.data;
     const normalized = identifier.trim().toLowerCase();
 
-    const user = await prisma.user.findFirst({
+    // QC-F-501 (Slice-1C): case-INSENSITIVE lookup on email/username, the
+    // QuantMail findUserByEmailInsensitive shape. The old exact match on the
+    // lowercased identifier could NEVER find a legacy row stored with mixed
+    // case (rows predate identifier normalisation; QuantMail's migration
+    // note documents them), so every such account 401'd here while the same
+    // credentials worked on QuantMail. The phone branch stays exact, and
+    // deletedAt: null stays — a tombstone remains invisible (its recovery
+    // is the Slice-1A data path, never a login bypass). take: 2 exists only
+    // to detect the case-duplicate corruption state below.
+    const matches = await prisma.user.findMany({
       where: {
-        OR: [{ email: normalized }, { username: normalized }, { phoneNumber: identifier.trim() }],
+        OR: [
+          { email: { equals: normalized, mode: 'insensitive' } },
+          { username: { equals: normalized, mode: 'insensitive' } },
+          { phoneNumber: identifier.trim() },
+        ],
         deletedAt: null,
       },
       select: {
@@ -326,7 +366,24 @@ export default async function authRoutes(fastify: FastifyInstance) {
         passwordHash: true,
         role: true,
       },
+      take: 2,
     });
+
+    // Two live rows matching one identifier (legacy rows differing only by
+    // case) must never be resolved by silently picking one — a stranger's
+    // correct password for the OTHER row would otherwise sign them into it.
+    // QuantMail answers this state 409 EMAIL_CASE_CONFLICT; so does this.
+    if (matches.length > 1) {
+      return reply.status(409).send({
+        success: false,
+        error: {
+          code: 'EMAIL_CASE_CONFLICT',
+          message: EMAIL_CASE_CONFLICT_MESSAGE,
+          statusCode: 409,
+        },
+      });
+    }
+    const user = matches[0] ?? null;
 
     const DUMMY_HASH = '$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHQ$c29tZXNhbHQ';
     if (!user || !user.passwordHash || user.passwordHash.startsWith('!')) {
@@ -341,7 +398,27 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const isValid = await passwordService.verify(user.passwordHash, password);
+    // QC-F-501 (Slice-1D): a malformed stored hash makes argon2.verify THROW;
+    // uncaught, that throw escaped as a 500 INTERNAL_ERROR for a row whose
+    // only honest answer is a failed credential check. QuantMail's
+    // two-factor route states the contract: "a malformed stored hash is a
+    // failed check, not a 500". The verify DECISION is unchanged — a valid
+    // PHC with the wrong password was 401 before and is 401 now; a valid PHC
+    // with the right password never throws. The warn log carries only the
+    // hash class + length (the recovery diagnostic), never the value.
+    let isValid = false;
+    try {
+      isValid = await passwordService.verify(user.passwordHash, password);
+    } catch {
+      request.log.warn(
+        {
+          storedHashClass: storedHashClass(user.passwordHash),
+          storedHashLength: user.passwordHash.length,
+        },
+        'QC-F-501: stored password hash is malformed; answering INVALID_CREDENTIALS',
+      );
+      isValid = false;
+    }
     if (!isValid) {
       return reply.status(401).send({
         success: false,
