@@ -38,6 +38,43 @@ describe('AiReviewBotService (Task CH-05)', () => {
   });
 
   describe('analyzePatch', () => {
+    it('flags a GitHub fine-grained PAT (github_pat_<22>_<59>) as a leaked secret', () => {
+      // Real GitHub fine-grained PAT shape: github_pat_ + 22 [A-Za-z0-9_]
+      // chars + _ + 59 [A-Za-z0-9_] chars.
+      const fineGrainedPat = `github_pat_${'A1b2C3d4E5f6G7h8I9j0K1'}_${'x'.repeat(59)}`;
+      const patch = [
+        'diff --git a/config.ts b/config.ts',
+        '@@ -1,1 +1,2 @@',
+        `+const token = "${fineGrainedPat}";`,
+      ].join('\n');
+
+      const findings = bot.analyzePatch(patch);
+      expect(findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets')).toBe(true);
+      expect(findings[0]?.severity).toBe('ERROR');
+    });
+
+    it('still flags the classic ghp_ token shape', () => {
+      const patch = [
+        'diff --git a/config.ts b/config.ts',
+        '@@ -1,1 +1,2 @@',
+        '+const token = "ghp_' + 'a'.repeat(36) + '";',
+      ].join('\n');
+
+      const findings = bot.analyzePatch(patch);
+      expect(findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets')).toBe(true);
+    });
+
+    it('does not flag a truncated github_pat_ prefix without the full token body', () => {
+      const patch = [
+        'diff --git a/config.ts b/config.ts',
+        '@@ -1,1 +1,2 @@',
+        '+const tokenPrefix = "github_pat_";',
+      ].join('\n');
+
+      const findings = bot.analyzePatch(patch);
+      expect(findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets')).toBe(false);
+    });
+
     it('detects leaked secrets and tokens', () => {
       const patch = [
         'diff --git a/config.ts b/config.ts',

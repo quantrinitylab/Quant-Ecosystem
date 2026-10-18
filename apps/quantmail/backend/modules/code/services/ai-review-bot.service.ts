@@ -141,7 +141,7 @@ export class AiReviewBotService {
 
         // Check 1: Leaked Secrets / Keys
         if (
-          /(AKIA[0-9A-Z]{16})|(ghp_[0-9a-zA-Z]{36})|(qcp_[0-9a-f]{24}_[A-Za-z0-9_-]{43})|-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----/.test(
+          /(AKIA[0-9A-Z]{16})|(ghp_[0-9a-zA-Z]{36})|(github_pat_[A-Za-z0-9_]{22}_[A-Za-z0-9_]{59})|(qcp_[0-9a-f]{24}_[A-Za-z0-9_-]{43})|-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----/.test(
             content,
           )
         ) {
