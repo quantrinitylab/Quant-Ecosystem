@@ -449,9 +449,19 @@ async function deliverStoredMessage(
       }
       // QM-UIUX-052: new inbound mail → in-app notification so the bell fires.
       // Quarantined (spam/virus/DMARC-fail) mail never notifies — same as Gmail.
+      // Server-side filters can also spam or delete the message: applyFilterActions
+      // records that on the ingest()'s returned finalEmail (isSpam/isTrash), and
+      // Gmail parity demands that mail never notifies either — the filter's
+      // routing decision is the last word, not the SES-level quarantine flag.
       // A notification failure must never lose mail, so it is contained here.
-      if (!quarantine) {
+      const filterSuppressed = email.isSpam === true || email.isTrash === true;
+      if (!quarantine && !filterSuppressed) {
         await createNewMailNotification(log, user.id, email);
+      } else if (!quarantine && filterSuppressed) {
+        log.info(
+          { key, userId: user.id, emailId: email.id },
+          '[inbound] notification skipped — filter routed mail to spam/trash',
+        );
       }
     } catch (error) {
       failures.push(user.id);

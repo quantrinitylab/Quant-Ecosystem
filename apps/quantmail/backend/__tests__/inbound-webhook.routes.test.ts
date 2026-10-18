@@ -843,6 +843,91 @@ describe('POST /webhook/inbound — new mail creates an in-app notification (QM-
     expect(state.notifications).toHaveLength(0);
   });
 
+  it('does not notify when a user filter spams the mail — the mail still lands', async () => {
+    state.users.push(localUser());
+    // The ingest pipeline already applied the user's filters and returned the
+    // filter-suppressed row (applyFilterActions sets isSpam on finalEmail).
+    const ingestedEmail = {
+      id: 'email-1',
+      threadId: 'thread-1',
+      subject: 'Numbers',
+      fromName: 'Ada Lovelace',
+      fromAddress: 'ada@example.com',
+      snippet: 'Hello Bob.',
+      isSpam: true,
+    };
+    ingest.mockResolvedValueOnce(ingestedEmail);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+    // Suppressing the notification must not suppress delivery: the copy was ingested.
+    expect(ingest).toHaveBeenCalledTimes(1);
+    expect(state.notifications).toHaveLength(0);
+  });
+
+  it('does not notify when a user filter deletes the mail — the mail still lands', async () => {
+    state.users.push(localUser());
+    // Filter delete action: applyFilterActions sets isTrash on finalEmail.
+    const ingestedEmail = {
+      id: 'email-1',
+      threadId: 'thread-1',
+      subject: 'Numbers',
+      fromName: 'Ada Lovelace',
+      fromAddress: 'ada@example.com',
+      snippet: 'Hello Bob.',
+      isTrash: true,
+    };
+    ingest.mockResolvedValueOnce(ingestedEmail);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+    expect(ingest).toHaveBeenCalledTimes(1);
+    expect(state.notifications).toHaveLength(0);
+  });
+
+  it('still notifies when the filter left the mail alone (isSpam/isTrash false)', async () => {
+    state.users.push(localUser());
+    // Filters ran but matched nothing actionable — the row carries explicit
+    // false flags; the notification gate must fail open to "notify".
+    const ingestedEmail = {
+      id: 'email-1',
+      threadId: 'thread-1',
+      subject: 'Numbers',
+      fromName: 'Ada Lovelace',
+      fromAddress: 'ada@example.com',
+      snippet: 'Hello Bob.',
+      isSpam: false,
+      isTrash: false,
+    };
+    ingest.mockResolvedValueOnce(ingestedEmail);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(state.notifications).toHaveLength(1);
+    expect(state.notifications[0]).toMatchObject({
+      userId: 'u-bob',
+      type: 'new_email',
+      sourceEntityId: 'email-1',
+    });
+  });
+
   it('does not create a duplicate notification on SNS redelivery', async () => {
     state.users.push(localUser());
     // A previous delivery already notified for this email.
