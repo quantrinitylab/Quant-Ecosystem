@@ -156,10 +156,20 @@ async function resolveLocalUsers(addresses: string[]): Promise<LocalUser[]> {
   const db = prisma as unknown as {
     user: { findMany(args: unknown): Promise<LocalUser[]> };
   };
+  // Case-insensitive match, mirroring routes/auth.ts findUserByEmailInsensitive
+  // and services/inbound-ingest.service.ts resolveRecipientUser: legacy user
+  // rows predate email/username normalization and may carry mixed case
+  // (e.g. `LegacyCase@quantmail.in`), which the lowercased address/handle
+  // would never hit with an exact-match `in` — dropping their SES-delivered
+  // mail with "no local recipient". New rows are normalized at register, so
+  // the case-sensitive @unique constraints keep enforcing real uniqueness.
   return db.user.findMany({
     where: {
       deletedAt: null,
-      OR: [{ email: { in: local } }, { username: { in: handles } }],
+      OR: [
+        { email: { in: local, mode: 'insensitive' } },
+        { username: { in: handles, mode: 'insensitive' } },
+      ],
     },
     select: { id: true, email: true, username: true },
   });
