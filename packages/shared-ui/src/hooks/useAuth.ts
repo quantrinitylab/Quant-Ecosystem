@@ -126,7 +126,10 @@ export function useAuth(): UseAuthReturn {
       }
       try {
         const userData = await fetchUserFromToken(token);
-        if (!cancelled) setUser(userData);
+        if (!cancelled) {
+          setUser(userData);
+          setError(null);
+        }
       } catch (err) {
         const isAuthError =
           err instanceof Error &&
@@ -136,6 +139,18 @@ export function useAuth(): UseAuthReturn {
         if (isAuthError) {
           clearStoredTokens();
           if (!cancelled) setUser(null);
+        } else if (isUserinfoServerError(err)) {
+          // QC-F-502: an HTTP 5xx RESPONSE arrived — the server answered and
+          // failed. That is NOT a network outage: minting the offline
+          // placeholder here would open the app on an identity the backend
+          // never verified and mask the server error. Fail honestly: no
+          // session, a stable 5xx error for the gate to show, and the stored
+          // token is KEPT (it is not at fault — once the server recovers,
+          // the same token resolves again).
+          if (!cancelled) {
+            setUser(null);
+            setError(err instanceof Error ? err.message : 'userinfo failed: 500');
+          }
         } else {
           // Network error or server unreachable. Don't log out if we have a token.
           if (!cancelled) {
@@ -229,6 +244,7 @@ export function useAuth(): UseAuthReturn {
       // Re-resolve identity; if the token is no longer valid, fail closed.
       const userData = await fetchUserFromToken(token);
       setUser(userData);
+      setError(null);
     } catch (err) {
       const isAuthError =
         err instanceof Error &&
@@ -238,7 +254,15 @@ export function useAuth(): UseAuthReturn {
       if (isAuthError) {
         clearStoredTokens();
         setUser(null);
+      } else if (isUserinfoServerError(err)) {
+        // QC-F-502: same honesty rule as checkAuth — an HTTP 5xx response
+        // drops the (unverifiable) session and records the error; the
+        // stored token is kept, and no offline identity is minted.
+        setUser(null);
+        setError(err instanceof Error ? err.message : 'userinfo failed: 500');
       }
+      // Any other failure (no HTTP response at all) keeps the current
+      // state — the pre-existing offline tolerance is unchanged.
     }
   }, []);
 
@@ -257,6 +281,17 @@ export function useAuth(): UseAuthReturn {
 // ---------------------------------------------------------------------------
 // Real identity resolution + token storage (no fabrication anywhere)
 // ---------------------------------------------------------------------------
+
+/**
+ * QC-F-502: true only when userinfo produced an actual HTTP 5xx RESPONSE
+ * (`userinfo failed: 5xx` is thrown by fetchUserFromToken for a non-ok
+ * response). A rejected fetch / timeout throws a different shape and means
+ * NO response arrived — callers keep the pre-existing offline tolerance for
+ * that case and must not confuse the two.
+ */
+function isUserinfoServerError(err: unknown): boolean {
+  return err instanceof Error && /^userinfo failed: 5\d{2}$/.test(err.message.trim());
+}
 
 /**
  * Ask the backend userinfo endpoint to VERIFY the token and return the user.
