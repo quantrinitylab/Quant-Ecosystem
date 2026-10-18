@@ -69,10 +69,13 @@ describe('POST /auth/login (Dual Password Auth)', () => {
   });
 
   it('rejects nonexistent identifier with 401 INVALID_CREDENTIALS', async () => {
-    // Mock user.findFirst on app.prisma if unconfigured in test environment
-    const originalFindFirst = (app as any).prisma?.user?.findFirst;
+    // Mock user.findMany on app.prisma if unconfigured in test environment
+    // (QC-F-501: login's lookup is a findMany since the case-insensitive
+    // fix; the assertion below is unchanged — a nonexistent identifier is
+    // still an honest 401 INVALID_CREDENTIALS.)
+    const originalFindMany = (app as any).prisma?.user?.findMany;
     if ((app as any).prisma?.user) {
-      (app as any).prisma.user.findFirst = async () => null;
+      (app as any).prisma.user.findMany = async () => [];
     }
 
     const res = await app.inject({
@@ -84,8 +87,8 @@ describe('POST /auth/login (Dual Password Auth)', () => {
       },
     });
 
-    if ((app as any).prisma?.user && originalFindFirst) {
-      (app as any).prisma.user.findFirst = originalFindFirst;
+    if ((app as any).prisma?.user && originalFindMany) {
+      (app as any).prisma.user.findMany = originalFindMany;
     }
 
     expect(res.statusCode).toBe(401);
