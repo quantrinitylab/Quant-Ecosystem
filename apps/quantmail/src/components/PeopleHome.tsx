@@ -13,6 +13,7 @@ import {
 } from '../lib/peopleGrouping';
 import { PeopleWorldTabs } from './PeopleWorldTabs';
 import { PeopleList } from './PeopleList';
+import { PeopleDueReminders } from './PeopleDueReminders';
 import { MailboxViewToggle } from './MailboxViewToggle';
 
 /**
@@ -134,16 +135,31 @@ export function PeopleHome() {
               </p>
             </div>
           ) : (
-            <PeopleList
-              conversations={visible}
-              onSelect={handleSelect}
-              searchQuery={searchQuery}
-              onSearchQuery={setSearchQuery}
-              loading={isLoading}
-              onLoadMore={() => void loadMore()}
-              hasMore={hasMore}
-              loadingMore={isLoadingMore}
-            />
+            <>
+              {/*
+                fix/qm-followup-resurface (P1 inbox-people): due-date
+                DELIVERY. Due follow-up reminders resurface here, at the top
+                of the scrollable home, Gmail-nudge/Superhuman style — the
+                persistence half landed earlier, this is the half that
+                actually nudges the user. Matching runs against ALL
+                conversations (every world), not just the active tab's, so
+                a due reminder in Groups still surfaces. Inside the scroll
+                container so it scrolls with the list instead of pinning.
+              */}
+              {!isError && (
+                <PeopleDueReminders conversations={conversations} onSelect={handleSelect} />
+              )}
+              <PeopleList
+                conversations={visible}
+                onSelect={handleSelect}
+                searchQuery={searchQuery}
+                onSearchQuery={setSearchQuery}
+                loading={isLoading}
+                onLoadMore={() => void loadMore()}
+                hasMore={hasMore}
+                loadingMore={isLoadingMore}
+              />
+            </>
           )}
         </div>
       </div>
