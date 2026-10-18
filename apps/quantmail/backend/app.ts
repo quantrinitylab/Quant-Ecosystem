@@ -34,6 +34,7 @@ import { quantyMcpRoutes } from './routes/quanty-mcp';
 // `routes/phone.ts` (SMS send-otp/verify) was deleted; OTP is email-based only.
 import { authRoutes } from './routes/auth';
 import { twoFactorRoutes } from './routes/two-factor';
+import { twoFactorRecoveryRoutes } from './routes/two-factor-recovery';
 import { passwordResetRoutes } from './routes/password-reset';
 import { accountRecoveryRoutes } from './routes/account-recovery';
 import settingsTokenRoutes from './routes/settings-tokens';
@@ -401,6 +402,7 @@ export async function buildApp(config?: AppConfig) {
 
   await app.register(authRoutes);
   await app.register(twoFactorRoutes);
+  await app.register(twoFactorRecoveryRoutes);
   await app.register(passwordResetRoutes);
   await app.register(accountRecoveryRoutes);
   await app.register(settingsTokenRoutes);

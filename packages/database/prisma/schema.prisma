@@ -81,6 +81,7 @@ model User {
   passwordResetTokens  PasswordResetToken[]
   emailVerificationCodes EmailVerificationCode[]
   recoveryEmailVerifications RecoveryEmailVerification[]
+  twoFactorRecoveryChallenges TwoFactorRecoveryChallenge[]
   followUpReminders FollowUpReminder[]
   personalAccessTokens PersonalAccessToken[]
   oauthClients       OAuthClient[]        @relation("UserOwnedClients")
@@ -382,6 +383,46 @@ model RecoveryEmailVerification {
   @@index([userId])
   @@index([expiresAt])
   @@map("recovery_email_verifications")
+}
+
+/**
+ * 2FA recovery challenge (fix/qm-2fa-recovery-flow, migration 0103): the
+ * both-factors-lost lockout. Password-reset deliberately never clears 2FA
+ * (mailbox control is not the second factor, and it issues no session), so a
+ * user who loses the authenticator AND the backup codes needs a dedicated
+ * channel: the VERIFIED recovery email. No session exists in this flow, so
+ * there is no step-up to require; instead the channel is strongly re-verified
+ * at challenge time with a fresh single-use, 15-minute-bounded,
+ * attempt-capped code — the same contract as RecoveryEmailVerification.
+ *
+ * Lifecycle: POST /auth/2fa/recover mints one live challenge per user (older
+ * pendings are replaced) and mails the code to the VERIFIED recoveryEmail,
+ * answering non-committally so the endpoint is not an account-existence
+ * oracle. POST /auth/2fa/recover/confirm re-proves the password AND consumes
+ * the code; only then is the TOTP secret disabled, backup codes burned,
+ * sessions revoked, an audit row written, and the primary inbox notified.
+ * Disabling TOTP is an explicit, separately-confirmed action — never a side
+ * effect of password reset.
+ */
+model TwoFactorRecoveryChallenge {
+  id         String    @id @default(cuid())
+  userId     String
+  // The recovery address the code was mailed to. Confirm re-checks it against
+  // the account's CURRENT verified recoveryEmail: a challenge mailed to an
+  // address the owner has since replaced is inert.
+  email      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  usedAt     DateTime?
+  requestedIp String?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("two_factor_recovery_challenges")
 }
 
 /**
