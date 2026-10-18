@@ -80,6 +80,18 @@ vi.mock('@quant/shared-ui', () => ({
   ),
 }));
 
+// fix/qm-followup-resurface: PeopleHome now mounts PeopleDueReminders, which
+// reads GET /follow-up-reminders on mount. These pagination tests are about
+// the corpus pager, not delivery — keep the endpoint empty here so no real
+// network is attempted and the strip stays out of the assertions.
+vi.mock('../services/api-client', () => ({
+  apiClient: {
+    listFollowUpReminders: () => Promise.resolve({ success: true, data: [] }),
+    dismissFollowUpReminder: () =>
+      Promise.resolve({ success: true, data: { message: 'Reminder dismissed' } }),
+  },
+}));
+
 import { PeopleHome } from '../components/PeopleHome';
 
 let seq = 0;
