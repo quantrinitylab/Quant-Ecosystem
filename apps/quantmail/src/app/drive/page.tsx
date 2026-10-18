@@ -976,7 +976,8 @@ function DrivePageContent() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // NOTE: no react-hooks/exhaustive-deps disable here — that rule is not
+    // configured in this repo's ESLint setup, and referencing it breaks CI.
   }, [fileParam, previewItem?.id, handlePreviewItem, openDocumentItem, navigateToFolder]);
 
   const filteredItems = useMemo(() => {
