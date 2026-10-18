@@ -18,6 +18,7 @@ import {
   subscribeToQuantGitRoute,
   type QuantGitRoute,
 } from '../../lib/quantgit-route';
+import { mapTreeItemToFileNode } from './lib/map-tree-item';
 
 import type {
   MainDeckTab,
@@ -781,15 +782,7 @@ function QuantGitContent() {  const router = useRouter();
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-            const mappedFiles: FileNode[] = json.data.map((item: any) => ({
-              name: item.name || item.path?.split('/').pop() || 'file',
-              path: item.path || item.name,
-              type: item.type === 'tree' || item.type === 'dir' ? 'dir' : 'file',
-              size: item.size ? `${Math.round(item.size / 1024)} KB` : undefined,
-              lastCommit: item.lastCommit || 'Update file',
-              lastCommitDate: item.lastCommitDate || 'recently',
-            }));
-            setFiles(mappedFiles);
+            setFiles(json.data.map(mapTreeItemToFileNode));
             return;
           }
         }

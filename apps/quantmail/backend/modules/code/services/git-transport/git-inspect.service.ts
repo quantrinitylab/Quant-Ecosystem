@@ -21,7 +21,26 @@ export interface GitTreeEntry {
   size: number;
   path: string;
   name: string;
+  /**
+   * Real last-commit message subject touching this path (`git log -1` on the
+   * listed ref). Absent when the ref does not resolve or git cannot determine
+   * one (empty repo, unborn branch, enrichment failure) — callers must render
+   * an honest empty state and never fabricate a message in its place.
+   */
+  lastCommit?: string;
+  /**
+   * ISO 8601 committer date of `lastCommit`. Absent whenever `lastCommit`
+   * is absent.
+   */
+  lastCommitDate?: string;
 }
+
+/**
+ * Upper bound on per-path `git log -1` calls for a single tree listing.
+ * Bounds latency on huge directory roots; entries beyond the cap keep
+ * `lastCommit` absent (honest empty) instead of slowing the response.
+ */
+const MAX_TREE_RECENCY_ENTRIES = 200;
 
 export interface GitBlob {
   path: string;
@@ -73,7 +92,7 @@ export class GitInspectService {
       });
 
       if (!stdout.trim()) return [];
-      return stdout
+      const entries = stdout
         .split('\n')
         .filter(Boolean)
         .flatMap((line): GitTreeEntry[] => {
@@ -92,9 +111,67 @@ export class GitInspectService {
             },
           ];
         });
+
+      await this.enrichTreeWithLastCommits(repoPath, ref, entries);
+      return entries;
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Real per-file last-commit lookup: the newest commit touching `path` on
+   * `ref` (subject + ISO 8601 committer date), or null when unknowable.
+   * The pathspec comes from `git ls-tree` output (repo content, not user
+   * input), but it is still passed after `--` with `--end-of-options` on the
+   * ref, so a leading `-` in a filename can never become a git flag.
+   */
+  private async getLastCommitForPath(
+    repoPath: string,
+    ref: string,
+    path: string,
+  ): Promise<{ message: string; date: string } | null> {
+    const safePath = path.startsWith('-') ? `./${path}` : path;
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['log', '-1', '--format=%s%x1f%cI', '--end-of-options', ref, '--', safePath],
+        { cwd: repoPath, maxBuffer: MAX_GIT_OUTPUT_BUFFER, env: GIT_CHILD_ENV },
+      );
+      const line = stdout.trim();
+      if (!line) return null;
+      const sep = line.indexOf('\x1f');
+      if (sep === -1) return null;
+      const message = line.slice(0, sep).trim();
+      const date = line.slice(sep + 1).trim();
+      if (!message || !date) return null;
+      return { message, date };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Attaches real last-commit data to tree entries in place (same enrichment
+   * pattern as the branch-head recency fix). Failures stay silent: an entry
+   * that cannot be resolved keeps `lastCommit` absent so the UI can render an
+   * honest empty state instead of a fabricated "Update file".
+   */
+  private async enrichTreeWithLastCommits(
+    repoPath: string,
+    ref: string,
+    entries: GitTreeEntry[],
+  ): Promise<void> {
+    const targets = entries.slice(0, MAX_TREE_RECENCY_ENTRIES);
+    await Promise.all(
+      targets.map(async (entry) => {
+        const last = await this.getLastCommitForPath(repoPath, ref, entry.path);
+        if (last) {
+          entry.lastCommit = last.message;
+          entry.lastCommitDate = last.date;
+        }
+      }),
+    );
   }
 
   async getBlob(owner: string, name: string, ref: string, filePath: string): Promise<GitBlob> {
