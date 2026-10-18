@@ -2,9 +2,12 @@ import type { Metadata, Viewport } from 'next';
 import { cookies, headers } from 'next/headers';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import './shell.css';
-import './overrides.css';
-import './workplace.css';
+// fix/qm-auth-css-payload-7: the root layout imports ONLY the core stylesheet
+// (theme tokens, Tailwind, base resets, shared utilities). App-only styles
+// (app.css, shell.css, overrides.css, workplace.css) load from the (app)
+// route-group layout, and auth-shell styles from the (auth) route-group
+// layout — so the public auth pages (e.g. /login) never ship the ~250KB of
+// app CSS. Do not re-add app stylesheets here.
 import { quantMailBrandMetadata } from '../brand/identity';
 import { AUTH_SHELL_HEADER, REFRESH_COOKIE_NAME } from '../lib/edge-public-paths';
 import { AuthGuard } from '../components/AuthGuard';

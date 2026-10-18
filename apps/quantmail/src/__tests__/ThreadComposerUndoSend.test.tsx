@@ -50,7 +50,7 @@ const composerSource = readFileSync(
   'utf8',
 );
 const personPageSource = readFileSync(
-  join(import.meta.dirname, '../app/people/[personId]/page.tsx'),
+  join(import.meta.dirname, '../app/(app)/people/[personId]/page.tsx'),
   'utf8',
 );
 

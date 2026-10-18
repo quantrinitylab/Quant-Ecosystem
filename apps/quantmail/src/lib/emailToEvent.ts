@@ -15,7 +15,7 @@
  */
 
 import type { Email } from '../types';
-import { parseQuickAdd } from '../app/calendar/lib/nlpEventParser';
+import { parseQuickAdd } from '../app/(app)/calendar/lib/nlpEventParser';
 
 export type EmailDraftEntryType = 'event' | 'task';
 

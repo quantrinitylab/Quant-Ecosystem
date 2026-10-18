@@ -15,7 +15,7 @@ vi.mock('next/navigation', () => ({
   redirect: (url: string) => redirect(url),
 }));
 
-import LegacyDocumentShareRedirect from '../app/documents/public/share/[token]/page';
+import LegacyDocumentShareRedirect from '../app/(app)/documents/public/share/[token]/page';
 
 describe('legacy document share redirect', () => {
   beforeEach(() => {

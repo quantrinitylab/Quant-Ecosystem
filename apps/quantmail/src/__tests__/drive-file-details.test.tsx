@@ -15,7 +15,7 @@ import {
   FileDetailsView,
   humanType,
   type FileDetailsResponse,
-} from '../app/drive/components/FileDetailsPanel';
+} from '../app/(app)/drive/components/FileDetailsPanel';
 
 function baseDetails(overrides: Partial<FileDetailsResponse> = {}): FileDetailsResponse {
   return {

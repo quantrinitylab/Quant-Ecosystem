@@ -28,7 +28,7 @@ import { PILLAR_SUB_CONFIGS } from '../components/desktopContextTabs';
 import {
   DriveMobileTabStrip,
   DriveVaultSubView,
-} from '../app/drive/components';
+} from '../app/(app)/drive/components';
 import { QuantPillarTopBar } from '../components/QuantPillarTopBar';
 import { QuantMailSuperAppHeader } from '../components/Navigation/QuantMailSuperAppHeader';
 import { PostcardCanvas } from '../components/postcard/PostcardCanvas';

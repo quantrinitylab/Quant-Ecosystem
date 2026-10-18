@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { blocksToMarkdown, markdownToBlocks } from '../app/drive/doc/[docId]/markdown-serializer';
-import { SLASH_COMMANDS } from '../app/drive/doc/[docId]/SlashMenu';
-import type { EditorBlock } from '../app/drive/doc/[docId]/types';
+import { blocksToMarkdown, markdownToBlocks } from '../app/(app)/drive/doc/[docId]/markdown-serializer';
+import { SLASH_COMMANDS } from '../app/(app)/drive/doc/[docId]/SlashMenu';
+import type { EditorBlock } from '../app/(app)/drive/doc/[docId]/types';
 
 describe('QuantDrive Block Editor & Markdown Serialization (Gate N-G2)', () => {
   it('has all required in-house slash commands defined in Gate N-G2', () => {

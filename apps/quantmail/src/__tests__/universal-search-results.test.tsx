@@ -11,7 +11,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-import { UniversalSearchResults } from '../app/search/UniversalSearchResults';
+import { UniversalSearchResults } from '../app/(app)/search/UniversalSearchResults';
 import type { UniversalSearchResults as Results } from '../hooks/useUniversalSearch';
 
 function results(overrides: Partial<Results> = {}): Results {

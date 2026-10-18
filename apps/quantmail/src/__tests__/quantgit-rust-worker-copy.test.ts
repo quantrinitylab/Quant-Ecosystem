@@ -5,7 +5,7 @@
 // mail client) has no Rust worker. Same invented-capability class as the
 // ONNX claims (quantgit-onnx-copy.test.ts). Honest demo copy only.
 import { describe, it, expect } from 'vitest';
-import { INITIAL_REPOS, MOCK_FILES, INITIAL_DISCUSSIONS } from '../app/quantgit/constants';
+import { INITIAL_REPOS, MOCK_FILES, INITIAL_DISCUSSIONS } from '../app/(app)/quantgit/constants';
 
 const UNSHIPPED_RUST_CLAIM = /rust-worker|rust worker|rust_native|rusty-mail/i;
 

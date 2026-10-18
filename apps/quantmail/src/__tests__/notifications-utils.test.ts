@@ -9,7 +9,7 @@ import {
   formatTime,
   isSecurityType,
   safeInternalPath,
-} from '../app/notifications/notifications-utils';
+} from '../app/(app)/notifications/notifications-utils';
 
 describe('priorityTone', () => {
   it('marks URGENT and HIGH distinctly from the rest', () => {

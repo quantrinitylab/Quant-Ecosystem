@@ -40,12 +40,12 @@ vi.mock('@quant/api-client', () => ({
   apiFetchRaw: (...args: unknown[]) => apiFetchRaw(...args),
 }));
 
-import { LinkShareDialog } from '../app/drive/components/LinkShareDialog';
+import { LinkShareDialog } from '../app/(app)/drive/components/LinkShareDialog';
 import {
   createDriveLink,
   revokeDriveLink,
   fetchDriveLinks,
-} from '../app/drive/components/link-share-api';
+} from '../app/(app)/drive/components/link-share-api';
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
   return {

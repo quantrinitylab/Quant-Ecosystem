@@ -13,17 +13,17 @@ import {
   DriveFilesSubView,
   DriveStarredSubView,
   type DriveItem,
-} from '../app/drive/components';
+} from '../app/(app)/drive/components';
 import {
   FileScanBadge,
   FileScanDetail,
   normalizeScanStatus,
-} from '../app/drive/components/FileScanBadge';
+} from '../app/(app)/drive/components/FileScanBadge';
 import {
   DriveRecentSubView,
   DriveSharedByMeSubView,
   type RecentItem,
-} from '../app/drive/components';
+} from '../app/(app)/drive/components';
 import {
   DriveHomeSubView,
   DriveFeedSubView,

@@ -3,8 +3,8 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { DriveStarredSubView } from '../app/drive/components/DriveStarredSubView';
-import { DriveRecentSubView } from '../app/drive/components/DriveRecentSubView';
+import { DriveStarredSubView } from '../app/(app)/drive/components/DriveStarredSubView';
+import { DriveRecentSubView } from '../app/(app)/drive/components/DriveRecentSubView';
 
 // QM-FIX-LOOP — Drive pure-black / no-divider-lines design lock.
 // The user-locked QuantMail rule: pure-black surfaces, NO divider lines;
@@ -12,7 +12,7 @@ import { DriveRecentSubView } from '../app/drive/components/DriveRecentSubView';
 // This suite fails loudly if any Drive surface file reintroduces a divider
 // class, an <hr>, or a GitHub-dark #0D1117 surface.
 
-const DRIVE_DIR = path.resolve(__dirname, '../app/drive');
+const DRIVE_DIR = path.resolve(__dirname, '../app/(app)/drive');
 
 function driveSourceFiles(): string[] {
   const out: string[] = [];

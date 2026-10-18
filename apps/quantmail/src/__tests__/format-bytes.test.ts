@@ -3,7 +3,7 @@ import { formatBytes } from '../lib/format-bytes';
 
 /**
  * `formatBytes` replaced four divergent copies of `formatFileSize` that lived in
- * `app/drive/page.tsx`, `EmailComposer.tsx`, `QuantDrivePickerModal.tsx` and
+ * `app/(app)/drive/page.tsx`, `EmailComposer.tsx`, `QuantDrivePickerModal.tsx` and
  * `components/FileManager.tsx`. They disagreed about zero, about rounding, and
  * about how many decimals a gigabyte gets, so the same file could read `1 GB` on
  * one screen and `1.00 GB` on another. These cases pin the single answer.

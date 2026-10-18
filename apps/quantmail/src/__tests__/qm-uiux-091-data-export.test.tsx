@@ -47,7 +47,7 @@ vi.mock('../services/api-client', () => ({
   },
 }));
 
-import { DataExportSettings } from '../app/settings/account/DataExportSettings';
+import { DataExportSettings } from '../app/(app)/settings/account/DataExportSettings';
 import type {
   DataExportManifest,
   DataExportRequestRecord,

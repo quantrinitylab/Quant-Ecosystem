@@ -10,7 +10,7 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CalendarFeedSubView } from '../components/CalendarSubViews';
-import type { CalendarEventLike } from '../app/calendar/types';
+import type { CalendarEventLike } from '../app/(app)/calendar/types';
 
 const ev: CalendarEventLike = {
   id: 'ev-1',

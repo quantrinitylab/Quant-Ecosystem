@@ -30,8 +30,8 @@ import {
 } from '../lib/keyboard/command-registry';
 import { buildHelpGroups } from '../lib/keyboard/help-model';
 import { useCalendarKeyboard } from '../hooks/useCalendarKeyboard';
-import { buildUndoCreatePayload } from '../app/calendar/lib/calendar-undo';
-import { CalendarHeader } from '../app/calendar/components/CalendarHeader';
+import { buildUndoCreatePayload } from '../app/(app)/calendar/lib/calendar-undo';
+import { CalendarHeader } from '../app/(app)/calendar/components/CalendarHeader';
 
 // React 19's act(...) requires this flag in the test environment.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

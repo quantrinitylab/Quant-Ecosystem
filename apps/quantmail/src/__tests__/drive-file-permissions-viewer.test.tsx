@@ -39,8 +39,8 @@ vi.mock('@quant/api-client', () => ({
 }));
 
 import { apiFetchRaw } from '@quant/api-client';
-import { FileAccessView } from '../app/drive/components/FilePermissionsViewer';
-import { fetchFileAccess } from '../app/drive/components/file-access-api';
+import { FileAccessView } from '../app/(app)/drive/components/FilePermissionsViewer';
+import { fetchFileAccess } from '../app/(app)/drive/components/file-access-api';
 
 const mockFetch = vi.mocked(apiFetchRaw);
 

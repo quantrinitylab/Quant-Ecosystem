@@ -13,10 +13,10 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { CalendarDayView, eventsForDay } from '../app/calendar/components/CalendarDayView';
-import { calendarRouteForTab } from '../app/calendar/lib/calendar-route';
-import { plural, durationLabel, attendeeIdentity } from '../app/calendar/lib/calendar-copy';
-import type { CalendarEventLike } from '../app/calendar/types';
+import { CalendarDayView, eventsForDay } from '../app/(app)/calendar/components/CalendarDayView';
+import { calendarRouteForTab } from '../app/(app)/calendar/lib/calendar-route';
+import { plural, durationLabel, attendeeIdentity } from '../app/(app)/calendar/lib/calendar-copy';
+import type { CalendarEventLike } from '../app/(app)/calendar/types';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

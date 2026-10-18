@@ -65,8 +65,8 @@ vi.mock('../lib/offline/outbox', () => ({
   startOutbox: () => () => {},
 }));
 
-import ArchivePage from '../app/archive/page';
-import StarredPage from '../app/starred/page';
+import ArchivePage from '../app/(app)/archive/page';
+import StarredPage from '../app/(app)/starred/page';
 import { KeyboardProvider } from '../components/KeyboardProvider';
 
 let root: Root | null = null;

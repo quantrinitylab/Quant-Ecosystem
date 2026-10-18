@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const markLabSource = readFileSync(
-  new URL('../app/lab/marks/MarkLab.tsx', import.meta.url),
+  new URL('../app/(app)/lab/marks/MarkLab.tsx', import.meta.url),
   'utf8',
 );
 const appShellSource = readFileSync(new URL('../components/AppShell.tsx', import.meta.url), 'utf8');

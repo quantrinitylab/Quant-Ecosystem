@@ -10,7 +10,7 @@ import {
   toSecretScanningAlert,
   toCodeQLAlert,
   normalizeSecurityAlertsPayload,
-} from '../app/quantgit/components/SecurityTab';
+} from '../app/(app)/quantgit/components/SecurityTab';
 
 const SERVER_SECRET_ROW = {
   id: 'sec-1',

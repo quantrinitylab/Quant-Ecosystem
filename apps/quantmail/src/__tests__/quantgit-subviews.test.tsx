@@ -15,7 +15,7 @@ import {
   type IssueTrackItem,
   type WorkflowRun,
   type ContextSubViewTab,
-} from '../app/quantgit/components/QuantGitSubViews';
+} from '../app/(app)/quantgit/components/QuantGitSubViews';
 
 // Explicit test fixtures (passed as props — never fabricated component defaults).
 const FIXTURE_FEED_EVENTS: FeedEventItem[] = [

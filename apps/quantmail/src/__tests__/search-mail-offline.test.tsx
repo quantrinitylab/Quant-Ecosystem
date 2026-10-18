@@ -63,7 +63,7 @@ vi.mock('../hooks/useUniversalSearch', () => ({
   useUniversalSearch: () => ({ data: null, isLoading: false, error: null }),
 }));
 
-vi.mock('../app/search/UniversalSearchResults', () => ({
+vi.mock('../app/(app)/search/UniversalSearchResults', () => ({
   UniversalSearchResults: () => null,
 }));
 
@@ -149,7 +149,7 @@ vi.mock('../lib/motion-variants', () => ({
   listItemVariants: {},
 }));
 
-import SearchPage from '../app/search/page';
+import SearchPage from '../app/(app)/search/page';
 
 function makeEmail(id: string, subject: string): Email {
   return {

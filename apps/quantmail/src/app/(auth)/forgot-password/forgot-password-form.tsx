@@ -1,0 +1,161 @@
+'use client';
+
+// ============================================================================
+// Account recovery — interactive form island (fix/qm-auth-pages-paint).
+//
+// The whole-page 'use client' shell from before is gone: page.tsx is a SERVER
+// component that renders the static auth shell, and only this form island
+// ships JS and hydrates (see ../login/login-form.tsx for the same pattern).
+//
+// The 2352-line services/api-client is NOT in this page's static import
+// graph: it is dynamically imported inside the submit handler, so the page
+// chunk stays lean for first paint and the API client loads only when the
+// user actually submits.
+// ============================================================================
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { QUANT_MAIL_DOMAIN } from '../../../config/identity';
+
+export function ForgotPasswordForm() {
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setEmailError(null);
+    setRequestError(null);
+
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setEmailError('Enter your QuantMail address.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    let response;
+    try {
+      const { apiClient } = await import('../../../services/api-client');
+      response = await apiClient.requestPasswordReset(normalizedEmail);
+    } catch {
+      setIsSubmitting(false);
+      setRequestError('Something went wrong. Check your connection and try again.');
+      return;
+    }
+    setIsSubmitting(false);
+
+    if (!response.success && response.error?.code === 'NETWORK_ERROR') {
+      setRequestError('We could not reach QuantMail. Check your connection and try again.');
+      return;
+    }
+
+    setIsComplete(true);
+  }
+
+  return (
+    <div>
+      <div className="mb-8">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
+          Account recovery
+        </p>
+        <h1 className="text-[28px] font-semibold tracking-[-0.035em] text-[var(--quant-foreground)] sm:text-[30px]">
+          Reset your password
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
+          Enter your full QuantMail address to request reset instructions. The link goes to the
+          account&apos;s email — and to its recovery email, if one was set in Settings → Account.
+        </p>
+      </div>
+
+      {isComplete ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-2xl border border-[var(--quant-success)]/30 bg-[var(--quant-success)]/10 p-5"
+        >
+          <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">Check your email</h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
+            If an eligible account matches that address, password reset instructions were sent to its email — and to its recovery email, if one was set. We do not confirm whether an account exists.
+          </p>
+          <Link
+            href="/login"
+            /* The only way forward from the sent-confirmation state, so it gets a real target. */
+            className="mt-5 inline-flex min-h-[44px] items-center text-sm font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+          >
+            Return to sign in
+          </Link>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} noValidate className="space-y-5">
+          <div>
+            <label htmlFor="reset-email" className="mb-2 block text-[13px] font-medium">
+              QuantMail address
+            </label>
+            <input
+              id="reset-email"
+              type="email"
+              required
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder={`you@${QUANT_MAIL_DOMAIN}`}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              aria-invalid={Boolean(emailError)}
+              aria-describedby={emailError ? 'reset-email-error' : 'reset-email-hint'}
+              className={`w-full rounded-xl border bg-[var(--quant-surface)] px-3.5 py-3 text-sm outline-none transition-[border-color,box-shadow] placeholder:text-[var(--quant-muted-foreground)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 motion-reduce:transition-none ${emailError ? 'border-[var(--quant-destructive)]' : 'border-[var(--quant-border)]'}`}
+            />
+            {emailError ? (
+              <p id="reset-email-error" className="mt-1.5 text-xs text-[var(--quant-destructive)]">
+                {emailError}
+              </p>
+            ) : (
+              <p
+                id="reset-email-hint"
+                className="mt-1.5 text-xs text-[var(--quant-muted-foreground)]"
+              >
+                Use the full address associated with your account.
+              </p>
+            )}
+          </div>
+
+          {requestError ? (
+            <div
+              role="alert"
+              className="rounded-xl border border-[var(--quant-destructive)]/30 bg-[var(--quant-destructive)]/10 px-4 py-3 text-sm text-[var(--quant-destructive)]"
+            >
+              {requestError}
+            </div>
+          ) : null}
+
+          <p className="sr-only" role="status" aria-live="polite">
+            {isSubmitting ? 'Requesting password reset instructions.' : ''}
+          </p>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="auth-primary-action w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
+          >
+            {isSubmitting ? 'Submitting request…' : 'Request reset instructions'}
+          </button>
+        </form>
+      )}
+
+      {!isComplete ? (
+        <p className="mt-7 text-center text-sm text-[var(--quant-muted-foreground)]">
+          Remember your password?{' '}
+          <Link
+            href="/login"
+            /* Padding for a 44px hit area, negative margin so the line keeps its height. */
+            className="-my-3.5 inline-flex items-center px-1.5 py-3.5 font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+          >
+            Sign in
+          </Link>
+        </p>
+      ) : null}
+    </div>
+  );
+}
