@@ -788,6 +788,9 @@ export class EmailService {
           await this.pipeline.enqueueSend(userId, emailId, {
             sentFolderId,
             delayMs: options?.delayMs,
+            // Reply-arrival suppression: mark the job as a scheduled send so the
+            // delivery worker holds it when an inbound reply lands first.
+            sendAt: options?.sendAt,
           });
           enqueued = true;
         } catch (error) {

@@ -16,6 +16,7 @@ import { sendViaSes, isSesConfigured, buildMultipartBody } from '../lib/ses-send
 import { resolveOutboundAttachments, type OutboundAttachmentDb } from '../lib/outbound-attachments';
 import { QUANT_INTERNAL_DOMAINS } from '../lib/domains';
 import { EmailService } from './email.service';
+import { MailOutboxEvents, emitOutbox } from '../lib/outbox-events';
 
 /**
  * Delivery worker `processDelivery` (QuantMail SuperHub — Pillar 1, Phase 2, task 6.2).
@@ -317,6 +318,28 @@ interface DeliveryPrisma {
   };
 }
 
+/** Structural row for an inbound reply candidate (reply-arrival suppression). */
+interface InboundReplyRow {
+  id: string;
+  fromAddress: string;
+  receivedAt: Date | null;
+}
+
+/** Structural delegates for reply-arrival suppression (avoids the generated client). */
+interface SuppressionPrisma {
+  email: {
+    findFirst(args: {
+      where: Record<string, unknown>;
+      orderBy?: Record<string, unknown>;
+      select?: Record<string, unknown>;
+    }): Promise<InboundReplyRow | null>;
+  };
+  emailFolder: {
+    findFirst(args: { where: Record<string, unknown> }): Promise<{ id: string } | null>;
+    create(args: { data: Record<string, unknown> }): Promise<{ id: string }>;
+  };
+}
+
 export class DeliveryWorker {
   private readonly now: () => Date;
   private readonly retryBackoffMs: number;
@@ -366,6 +389,38 @@ export class DeliveryWorker {
     const recipients = uniqueAddresses(toAddrs, ccAddrs, bccAddrs);
     if (recipients.length === 0) {
       throw createAppError('Email has no recipients', 400, 'NO_RECIPIENTS');
+    }
+
+    // Fire-gate: a queued job can outlive its send. The user may have cancelled
+    // via POST /emails/:id/cancel-send (which swallows queue-remove failures, so
+    // the job can still fire), the job may be a manual BullMQ retry, or a
+    // crash-retry may run after the row already reached a terminal state.
+    // Firing then would transmit a message the user cancelled — or double-send.
+    // Only a still-`queued` row may fire; `deferred` stays allowed so BullMQ
+    // backoff retries keep working.
+    const fireStatus = (email as unknown as EmailDeliveryFields).deliveryStatus ?? 'queued';
+    if (
+      fireStatus === 'draft' ||
+      fireStatus === 'sent' ||
+      fireStatus === 'delivered' ||
+      fireStatus === 'bounced'
+    ) {
+      return { emailId: email.id, deliveryStatus: fireStatus, recipients: [] };
+    }
+
+    // Reply-arrival suppression for scheduled sends (Superhuman parity): if an
+    // inbound reply from the conversation landed after the send was scheduled,
+    // hold the message — firing a "just following up!" after the recipient
+    // already replied is the exact awkwardness this prevents. The send is
+    // returned to Drafts (mirroring cancel-send) and `mail.outbound.cancelled.v1`
+    // is emitted. Only jobs carrying `scheduledFor` are scheduled sends;
+    // immediate and undo-window sends are untouched.
+    if (data.scheduledFor) {
+      const reply = await this.findSuppressingReply(email, recipients, data.scheduledAt);
+      if (reply) {
+        const suppressUserId = data.userId ?? (email as { userId?: string }).userId ?? '';
+        return this.suppressScheduledSend(email, suppressUserId, reply, data.scheduledFor);
+      }
     }
 
     // Ensure a stable RFC 5322 Message-ID exists before signing.
@@ -662,6 +717,126 @@ export class DeliveryWorker {
     } catch (err) {
       return { outcome: 'deferred', response: `451 SMTP error: ${(err as Error).message}` };
     }
+  }
+
+  /**
+   * Reply-arrival suppression check: find the earliest inbound message from the
+   * conversation that arrived AFTER the scheduled send was queued.
+   *
+   * A scheduled send is normally a follow-up inside a thread, so the check is
+   * thread-scoped: any non-self inbound message in the same thread suppresses
+   * it (a reply from anyone in the conversation makes a "just following up!"
+   * awkward). A scheduled send with no thread (fresh compose) falls back to
+   * recipient matching: an inbound message FROM one of the recipients
+   * suppresses it — matching Superhuman's described rule ("if you receive a
+   * reply from the recipient before your scheduled message is sent").
+   *
+   * Returns the suppressing reply, or null when the send may fire. Fails OPEN
+   * (returns null) when the schedule moment is unknown — suppressing without
+   * evidence would silently drop user mail.
+   */
+  private async findSuppressingReply(
+    email: Email,
+    recipients: string[],
+    scheduledAt: string | undefined,
+  ): Promise<InboundReplyRow | null> {
+    const scheduleMoment = scheduledAt ? new Date(scheduledAt) : null;
+    if (!scheduleMoment || Number.isNaN(scheduleMoment.getTime())) {
+      return null;
+    }
+    const threadId = (email as { threadId?: string | null }).threadId ?? null;
+    const db = this.prisma as unknown as SuppressionPrisma;
+    // Inbound ingest stamps receivedAt; legacy rows may only carry createdAt —
+    // either one past the schedule moment proves the reply arrived in time.
+    const arrivedAfterSchedule = {
+      OR: [{ receivedAt: { gt: scheduleMoment } }, { createdAt: { gt: scheduleMoment } }],
+    };
+    const base = {
+      userId: email.userId,
+      isSent: false,
+      isDraft: false,
+      isTrash: false,
+      id: { not: email.id },
+    };
+    const where: Record<string, unknown> = threadId
+      ? {
+          ...base,
+          threadId,
+          // The user's own messages are outbound (isSent) — this excludes the
+          // edge case of an inbound-looking self copy (e.g. a self-sent note)
+          // cancelling the user's own scheduled reminder.
+          NOT: {
+            fromAddress: {
+              equals: (email.fromAddress ?? '').toLowerCase(),
+              mode: 'insensitive',
+            },
+          },
+          ...arrivedAfterSchedule,
+        }
+      : {
+          ...base,
+          fromAddress: { in: recipients, mode: 'insensitive' },
+          ...arrivedAfterSchedule,
+        };
+    return db.email.findFirst({
+      where,
+      orderBy: { receivedAt: 'asc' },
+      select: { id: true, fromAddress: true, receivedAt: true },
+    });
+  }
+
+  /**
+   * Suppress a scheduled send whose recipient already replied: return it to
+   * Drafts (mirroring POST /emails/:id/cancel-send) and emit
+   * `mail.outbound.cancelled.v1` with the suppressing reply's identity, so
+   * consumers (notifications, timeline) can tell the user WHY it did not send.
+   * The domain write and the outbox row commit in ONE transaction (K1).
+   */
+  private async suppressScheduledSend(
+    email: Email,
+    userId: string,
+    reply: InboundReplyRow,
+    scheduledFor: string,
+  ): Promise<DeliveryReceipt> {
+    const db = this.prisma as unknown as SuppressionPrisma;
+    let draftsFolder = await db.emailFolder.findFirst({
+      where: { userId, OR: [{ name: 'Drafts' }, { type: 'DRAFTS' }] },
+    });
+    if (!draftsFolder) {
+      draftsFolder = await db.emailFolder.create({
+        data: { userId, name: 'Drafts', type: 'DRAFTS' },
+      });
+    }
+    const draftsFolderId = draftsFolder.id;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.email.update({
+        where: { id: email.id },
+        // QM-BACK-002: keep the version column truthful on system writes.
+        data: {
+          isDraft: true,
+          isSent: false,
+          sentAt: null,
+          deliveryStatus: 'draft',
+          folderId: draftsFolderId,
+          version: { increment: 1 },
+        } as never,
+      });
+      await emitOutbox(tx as object, {
+        event: MailOutboxEvents.outboundCancelled,
+        aggregateType: 'Email',
+        aggregateId: email.id,
+        payload: {
+          userId,
+          scheduledFor,
+          reason: 'inbound_reply',
+          suppressedByReplyId: reply.id,
+          replyFrom: reply.fromAddress,
+        },
+      });
+    });
+
+    return { emailId: email.id, deliveryStatus: 'draft', recipients: [] };
   }
 
   /**

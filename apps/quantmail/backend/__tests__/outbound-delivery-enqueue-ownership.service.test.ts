@@ -127,8 +127,46 @@ describe('OutboundDeliveryPipeline.enqueueSend — ownership rejection (Req 4.2 
   });
 });
 
-describe('resolveRedisConnection', () => {
-  it('uses REDIS_URL credentials, database, and TLS for producer/worker parity', () => {
+describe('OutboundDeliveryPipeline.enqueueSend — scheduled-send payload contract', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let queue: ReturnType<typeof createMockQueue>;
+  let pipeline: OutboundDeliveryPipeline;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    queue = createMockQueue();
+    pipeline = new OutboundDeliveryPipeline(prisma as never, queue as never);
+  });
+
+  it('stamps scheduledFor/scheduledAt on the job payload when sendAt is provided', async () => {
+    prisma.email.findUnique.mockResolvedValue(makeEmail({ userId: 'user-A' }));
+    queue.add.mockResolvedValue('outbound-delivery-email-1');
+    prisma.email.update.mockResolvedValue(makeEmail({ deliveryStatus: 'queued' }));
+
+    const fireAt = new Date('2026-10-10T08:00:00.000Z');
+    await pipeline.enqueueSend('user-A', 'email-1', { sendAt: fireAt });
+
+    const payload = queue.add.mock.calls[0][1] as Record<string, unknown>;
+    expect(payload.scheduledFor).toBe('2026-10-10T08:00:00.000Z');
+    expect(typeof payload.scheduledAt).toBe('string');
+    // The schedule moment must not be in the future.
+    expect(new Date(payload.scheduledAt as string).getTime()).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('omits scheduledFor/scheduledAt for immediate sends (no suppression check)', async () => {
+    prisma.email.findUnique.mockResolvedValue(makeEmail({ userId: 'user-A' }));
+    queue.add.mockResolvedValue('outbound-delivery-email-1');
+    prisma.email.update.mockResolvedValue(makeEmail({ deliveryStatus: 'queued' }));
+
+    await pipeline.enqueueSend('user-A', 'email-1');
+
+    const payload = queue.add.mock.calls[0][1] as Record<string, unknown>;
+    expect(payload.scheduledFor).toBeUndefined();
+    expect(payload.scheduledAt).toBeUndefined();
+  });
+});
+
+describe('resolveRedisConnection', () => {  it('uses REDIS_URL credentials, database, and TLS for producer/worker parity', () => {
     expect(
       resolveRedisConnection({
         REDIS_URL: 'rediss://queue-user:queue-password@redis.internal:6380/4',
