@@ -85,8 +85,12 @@ export interface MemoriesVaultPrismaClient {
     findUnique(args: unknown): Promise<MemoriesVaultCredentialRecord | null>;
     create(args: unknown): Promise<MemoriesVaultCredentialRecord>;
     update(args: unknown): Promise<MemoriesVaultCredentialRecord>;
+    updateMany(args: unknown): Promise<{ count: number }>;
     delete(args: unknown): Promise<MemoriesVaultCredentialRecord>;
   };
+  $transaction: <T>(
+    fn: (tx: MemoriesVaultPrismaClient) => Promise<T>,
+  ) => Promise<T>;
   memoriesVaultUnlock: {
     create(args: unknown): Promise<MemoriesVaultUnlockRecord>;
     findUnique(args: unknown): Promise<MemoriesVaultUnlockRecord | null>;
@@ -178,30 +182,64 @@ export class MemoriesVaultService {
    * Count one failed proof against the shared counter, tripping the
    * 15-minute lockout at the threshold. An already-expired lockout starts
    * the counter fresh (the lockout having passed is the reset).
+   *
+   * QC-F-511: the count is a database statement, never arithmetic on a
+   * snapshot read before the (slow) argon2 proof — N parallel failures
+   * used to all read the same snapshot and each write back snapshot+1, so
+   * a whole burst moved the counter by one and the lockout never tripped.
+   * Inside one transaction: (i) an expired lockout is reset by a
+   * conditional updateMany (a live lockout or no lockout is a no-op),
+   * (ii) an atomic `{ increment: 1 }` whose returned row is the
+   * authoritative count, (iii) the lockout trips on that count. The
+   * transaction keeps another attempt from slipping between (i) and (ii).
    */
-  private async registerFailedAttempt(
-    credential: MemoriesVaultCredentialRecord,
-    now: Date,
-  ): Promise<void> {
-    const lockoutExpired =
-      credential.lockoutUntil !== null && credential.lockoutUntil.getTime() <= now.getTime();
-    const attempts = (lockoutExpired ? 0 : credential.failedAttempts) + 1;
-    await this.prisma.memoriesVaultCredential.update({
-      where: { userId: credential.userId },
-      data: {
-        failedAttempts: attempts,
-        lockoutUntil: attempts >= VAULT_MAX_FAILED_ATTEMPTS ? new Date(now.getTime() + VAULT_LOCKOUT_MS) : lockoutExpired ? null : credential.lockoutUntil,
-      },
+  private async registerFailedAttempt(userId: string, now: Date): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.memoriesVaultCredential.updateMany({
+        where: { userId, lockoutUntil: { not: null, lte: now } },
+        data: { failedAttempts: 0, lockoutUntil: null },
+      });
+      const row = await tx.memoriesVaultCredential.update({
+        where: { userId },
+        data: { failedAttempts: { increment: 1 } },
+      });
+      if (row.failedAttempts >= VAULT_MAX_FAILED_ATTEMPTS) {
+        await tx.memoriesVaultCredential.update({
+          where: { userId },
+          data: { lockoutUntil: new Date(now.getTime() + VAULT_LOCKOUT_MS) },
+        });
+      }
     });
   }
 
-  private async clearFailedAttempts(credential: MemoriesVaultCredentialRecord): Promise<void> {
-    if (credential.failedAttempts !== 0 || credential.lockoutUntil !== null) {
-      await this.prisma.memoriesVaultCredential.update({
-        where: { userId: credential.userId },
-        data: { failedAttempts: 0, lockoutUntil: null },
-      });
+  /**
+   * Clear the counter after a successful proof — conditionally, so a
+   * lockout that tripped (in parallel) while this proof was being checked
+   * is NEVER erased by the success path (QC-F-511). Only a row with no
+   * lockout, or one whose lockout has already expired, is cleared.
+   */
+  private async clearFailedAttempts(userId: string, now: Date): Promise<void> {
+    await this.prisma.memoriesVaultCredential.updateMany({
+      where: { userId, OR: [{ lockoutUntil: null }, { lockoutUntil: { lte: now } }] },
+      data: { failedAttempts: 0, lockoutUntil: null },
+    });
+  }
+
+  /**
+   * Re-check the lockout on a FRESH row after a proof succeeds, before any
+   * side effect (token issue, hash rotation, hard delete). The entry
+   * snapshot can be stale by the time the slow argon2 proof finishes: a
+   * lockout tripped in between must still refuse the success path —
+   * during a lockout even the correct secret is refused (QC-F-511).
+   */
+  private async assertStillNotLockedOut(userId: string, now: Date): Promise<void> {
+    const fresh = await this.getCredential(userId);
+    if (!fresh) {
+      // A parallel successful reset deleted the credential mid-proof:
+      // no side effects; answer exactly as the entry check would have.
+      throw createAppError('No vault passcode is set', 409, 'PASSCODE_NOT_SET');
     }
+    this.assertNotLockedOut(fresh, now);
   }
 
   private async revokeAllUnlocks(userId: string): Promise<void> {
@@ -266,10 +304,11 @@ export class MemoriesVaultService {
 
     const ok = await passwordService.verify(credential.passcodeHash, passcode).catch(() => false);
     if (!ok) {
-      await this.registerFailedAttempt(credential, now);
+      await this.registerFailedAttempt(credential.userId, now);
       throw createAppError('Incorrect passcode', 401, 'INVALID_PASSCODE');
     }
-    await this.clearFailedAttempts(credential);
+    await this.assertStillNotLockedOut(userId, now);
+    await this.clearFailedAttempts(userId, now);
 
     // One live token per user: issuing a new one revokes every older one.
     await this.revokeAllUnlocks(userId);
@@ -301,9 +340,10 @@ export class MemoriesVaultService {
 
     const ok = await passwordService.verify(credential.passcodeHash, currentPasscode).catch(() => false);
     if (!ok) {
-      await this.registerFailedAttempt(credential, now);
+      await this.registerFailedAttempt(credential.userId, now);
       throw createAppError('Incorrect passcode', 401, 'INVALID_PASSCODE');
     }
+    await this.assertStillNotLockedOut(userId, now);
     if (newPasscode === currentPasscode) {
       throw createAppError('The new passcode must be different from the current one', 400, 'VALIDATION_ERROR');
     }
@@ -321,8 +361,11 @@ export class MemoriesVaultService {
     const passcodeHash = await passwordService.hash(newPasscode);
     await this.prisma.memoriesVaultCredential.update({
       where: { userId },
-      data: { passcodeHash, failedAttempts: 0, lockoutUntil: null },
+      data: { passcodeHash },
     });
+    // Conditional clear (QC-F-511): a lockout tripped in parallel while
+    // this change was being proven must survive the success write.
+    await this.clearFailedAttempts(userId, now);
     await this.revokeAllUnlocks(userId);
   }
 
@@ -351,10 +394,13 @@ export class MemoriesVaultService {
     }
     const ok = await passwordService.verify(passwordHash, accountPassword).catch(() => false);
     if (!ok) {
-      await this.registerFailedAttempt(credential, now);
+      await this.registerFailedAttempt(credential.userId, now);
       throw createAppError('Incorrect account password', 401, 'INVALID_ACCOUNT_PASSWORD');
     }
 
+    // Before the destructive half (hard delete): a lockout tripped in
+    // parallel while the password proof ran must stop the reset here.
+    await this.assertStillNotLockedOut(userId, now);
     const privateItems = await this.prisma.memory.findMany({
       where: { userId, isPrivate: true },
       select: { id: true },
