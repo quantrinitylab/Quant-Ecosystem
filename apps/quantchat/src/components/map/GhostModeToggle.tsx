@@ -33,23 +33,30 @@ export function GhostModeToggle({ enabled, onToggle }: GhostModeToggleProps) {
         )}
       </AnimatePresence>
 
-      {/* Toggle switch */}
+      {/* Toggle switch — QC-F-489: the button is the >=44px hit-area
+          (min-h-touch); the visible 24px pill lives on the inner track,
+          unchanged. */}
       <button
         onClick={() => onToggle(!enabled)}
-        className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${
-          enabled ? 'bg-purple-600' : 'bg-gray-600'
-        }`}
+        className="relative flex min-h-touch min-w-touch items-center justify-center"
         aria-label={enabled ? 'Disable ghost mode' : 'Enable ghost mode'}
         role="switch"
         aria-checked={enabled}
       >
-        <motion.div
-          className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md flex items-center justify-center text-[10px]"
-          animate={{ left: enabled ? '26px' : '2px' }}
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        <span
+          aria-hidden="true"
+          className={`relative block h-6 w-12 rounded-full transition-colors duration-200 ${
+            enabled ? 'bg-purple-600' : 'bg-gray-600'
+          }`}
         >
-          {enabled ? '&#128123;' : '&#128065;'}
-        </motion.div>
+          <motion.div
+            className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md flex items-center justify-center text-[10px]"
+            animate={{ left: enabled ? '26px' : '2px' }}
+            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          >
+            {enabled ? '&#128123;' : '&#128065;'}
+          </motion.div>
+        </span>
       </button>
     </div>
   );
