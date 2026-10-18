@@ -3828,14 +3828,17 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         });
       }
     } else {
-      await prisma.branch.create({
-        data: {
-          repoId: forkedRepo.id,
-          name: repo.defaultBranch || 'main',
-          commitSha: (repo as any).latestCommitSha || '0000000000000000000000000000000000000000',
-          isProtected: false,
-        },
-      });
+      // The source repo has no branches (empty repo). An honest empty fork
+      // gets ZERO branch rows: the null object id (40 zeros) points at a git
+      // object that exists nowhere, so persisting it as a branch ref would
+      // be invented data (the importRepository fake-SHA bug class). The
+      // forked row keeps its defaultBranch name as metadata — exactly like a
+      // freshly-created empty repo — and branch-dependent operations already
+      // report honestly when the branch row is absent.
+      request.log.info(
+        { forkedRepoId: forkedRepo.id, sourceRepoId: repo.id },
+        'fork of branchless repo: no branch rows created (honest empty fork)',
+      );
     }
 
     // Atomically increment parent forkCount

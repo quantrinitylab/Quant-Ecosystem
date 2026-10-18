@@ -3132,6 +3132,49 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       expect(prisma.branch.create).toHaveBeenCalled();
     });
 
+    it('POST /repos/:id/forks of a branchless repo creates ZERO branch rows — never the null SHA', async () => {
+      // Forking a repo with no branches must NOT mint a branch row pointing
+      // at the null object id (the `(repo as any).latestCommitSha || 000...`
+      // fallback always fired because the model has no latestCommitSha
+      // field — invented SHA, same class as the importRepository fake-SHA
+      // bug). An honest empty fork gets zero branch rows.
+      const app = await buildApp('user-2');
+      prisma.repository.create.mockResolvedValueOnce({
+        ...MOCK_REPO,
+        id: 'repo-fork-branchless',
+        ownerId: 'user-2',
+        name: 'Quant-Ecosystem',
+        description: 'The unified ecosystem monorepo [forked from Quant-Ecosystem]',
+        forkCount: 0,
+        starCount: 0,
+        storagePathUrl: null,
+        branches: [],
+      });
+      // The source repo has no branch rows (empty repo): the first findMany
+      // feeds the "replicate branches" step, the second feeds the response.
+      prisma.branch.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/forks',
+        payload: {},
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.id).toBe('repo-fork-branchless');
+      expect(body.data.isFork).toBe(true);
+
+      // No branch row is ever created for a branchless fork.
+      expect(prisma.branch.create).not.toHaveBeenCalled();
+
+      // The response honestly reports an empty branch list — no fabricated
+      // 'main' branch with a null SHA.
+      expect(body.data.branches ?? []).toEqual([]);
+      expect(body.data.latestCommitSha ?? '').not.toContain('00000000');
+    });
+
     it('POST /repos/:id/forks provisions real git storage and clones the source history', async () => {
       // Real end-to-end storage: a real bare source repo under GIT_REPOS_PATH
       // with one real commit, and the REAL provisioning adapter (not the mock).
