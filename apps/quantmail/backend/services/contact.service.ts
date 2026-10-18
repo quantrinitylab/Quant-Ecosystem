@@ -232,9 +232,23 @@ function buildDuplicateGroups(contacts: Contact[]): DuplicateGroup[] {
 export class ContactService {
   constructor(private readonly prisma: PrismaClient) {}
 
+  /**
+   * Canonical email form for every contact write path: trimmed + case-folded.
+   * Contact dedupe is keyed on (userId, email) under a case-SENSITIVE unique
+   * constraint, so storing the mixed-case variant is what produced duplicate
+   * rows for the same person (Alice@x.com vs alice@x.com): frequency split
+   * across the duplicates and a 409 CONTACT_EXISTS guard that never fired.
+   */
+  private static canonicalEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+
   async addContact(input: AddContactInput): Promise<Contact> {
+    const email = ContactService.canonicalEmail(input.email);
+    // Case-insensitive check: a legacy mixed-case row for the same person
+    // still trips the 409 guard instead of silently creating a duplicate.
     const existing = await (this.prisma as unknown as { contact: ContactModel }).contact.findFirst({
-      where: { userId: input.userId, email: input.email },
+      where: { userId: input.userId, email: { equals: email, mode: 'insensitive' } },
     });
 
     if (existing) {
@@ -245,7 +259,7 @@ export class ContactService {
       data: {
         userId: input.userId,
         name: input.name,
-        email: input.email,
+        email,
         avatar: input.avatar ?? null,
         phone: input.phone ?? null,
         company: input.company ?? null,
@@ -539,15 +553,25 @@ export class ContactService {
       throw createAppError('No updatable fields were supplied', 400, 'EMPTY_UPDATE');
     }
 
+    // A case-variant email patch must canonicalize like every other write
+    // path, or the update itself creates the duplicate-row problem.
+    const patch: ContactWritableFields =
+      data.email !== undefined ? { ...data, email: ContactService.canonicalEmail(data.email) } : data;
+
     return contactModel.update({
       where: { id: contactId },
-      data,
+      data: patch,
     });
   }
 
   /**
    * Record an interaction with a contact (e.g. when an email is sent to them).
-   * Upserts the contact keyed by the (userId, email) unique constraint:
+   * Keyed on the case-folded (userId, email): the upsert key and every stored
+   * value are canonicalized, and the lookup is case-insensitive so a legacy
+   * mixed-case row still accumulates frequency on one row instead of spawning
+   * a duplicate. (Postgres's (userId, email) unique constraint is
+   * case-sensitive, so a blind upsert would create the second row the blind
+   * read then misses.)
    *  - on create: frequency starts at 1 (and name is stored if provided)
    *  - on update: frequency is incremented by 1 (and name refreshed if provided)
    *
@@ -555,7 +579,7 @@ export class ContactService {
    * field meaningful, powering "frequently contacted" ordering.
    */
   async recordInteraction(userId: string, email: string, name?: string): Promise<Contact> {
-    const normalizedEmail = email.trim();
+    const normalizedEmail = ContactService.canonicalEmail(email);
     if (!normalizedEmail) {
       throw createAppError('Email is required', 400, 'INVALID_EMAIL');
     }
@@ -564,19 +588,28 @@ export class ContactService {
     const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
     const now = new Date();
 
-    return contactModel.upsert({
-      where: { userId_email: { userId, email: normalizedEmail } },
-      create: {
+    const existing = await contactModel.findFirst({
+      where: { userId, email: { equals: normalizedEmail, mode: 'insensitive' } },
+    });
+
+    if (existing) {
+      return contactModel.update({
+        where: { id: existing.id },
+        data: {
+          frequency: { increment: 1 },
+          lastContactedAt: now,
+          ...(trimmedName && trimmedName.length > 0 ? { name: trimmedName } : {}),
+        },
+      });
+    }
+
+    return contactModel.create({
+      data: {
         userId,
         email: normalizedEmail,
         name: trimmedName && trimmedName.length > 0 ? trimmedName : normalizedEmail,
         frequency: 1,
         lastContactedAt: now,
-      },
-      update: {
-        frequency: { increment: 1 },
-        lastContactedAt: now,
-        ...(trimmedName && trimmedName.length > 0 ? { name: trimmedName } : {}),
       },
     });
   }

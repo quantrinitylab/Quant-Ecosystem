@@ -337,7 +337,7 @@ export class CardDavService {
       (parsed.given || parsed.family
         ? `${parsed.given || ''} ${parsed.family || ''}`.trim()
         : 'Unnamed Contact');
-    const email = parsed.email || '';
+    const email = (parsed.email || '').trim().toLowerCase();
     const phone = parsed.phone || null;
     const company = parsed.org || null;
 
@@ -364,7 +364,7 @@ export class CardDavService {
               id: cleanId,
               userId,
               name: fn,
-              email: email || `${cleanId}@contact.local`,
+              email: email || `${cleanId.toLowerCase()}@contact.local`,
               phone,
               company,
               tags: ['carddav'],
