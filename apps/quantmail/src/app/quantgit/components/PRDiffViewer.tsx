@@ -44,7 +44,7 @@ function statusChipClass(file: PRDiffFile): string {
 function lineRowClass(type: 'addition' | 'deletion' | 'context'): string {
   if (type === 'addition') return 'bg-[#238636]/15';
   if (type === 'deletion') return 'bg-[#DA3633]/15';
-  return 'hover:bg-[#161B22]';
+  return 'hover:bg-[var(--quant-surface-elevated)]';
 }
 
 function lineMarker(type: 'addition' | 'deletion' | 'context'): string {
@@ -105,7 +105,7 @@ export function PRDiffViewer({
             <div className="overflow-x-auto font-mono text-[11px] leading-5 py-1">
               {file.hunks.map((hunk, hunkIdx) => (
                 <div key={hunkIdx}>
-                  <div className="px-3 py-1 text-[#6E7681] bg-[#161B22] select-none whitespace-pre">
+                  <div className="px-3 py-1 text-[#6E7681] bg-[var(--quant-surface-elevated)] select-none whitespace-pre">
                     {hunk.header}
                   </div>
                   {hunk.lines.map((line) => {
@@ -161,7 +161,7 @@ export function PRDiffViewer({
                               <div
                                 key={c.id}
                                 data-testid={`diff-line-comment-${c.id}`}
-                                className="rounded-lg bg-[#161B22] border border-[#30363D] px-3 py-2"
+                                className="rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D] px-3 py-2"
                               >
                                 <div className="text-[11px] mb-0.5">
                                   <span className="font-semibold text-[#E6EDF3]">{c.author}</span>
@@ -186,7 +186,7 @@ export function PRDiffViewer({
                               onChange={(e) => onChangeCommentText(e.target.value)}
                               placeholder="Add a review comment on this line…"
                               rows={2}
-                              className="w-full bg-[#161B22] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] outline-none resize-y"
+                              className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] outline-none resize-y"
                             />
                             <div className="flex justify-end gap-2 mt-2">
                               <button
