@@ -484,6 +484,45 @@ async function getPrCommentsCount(prisma: any, prId: string): Promise<number | n
 }
 
 const memorySecurityAlertsStore = new Map<string, BackendSecurityAlert[]>();
+
+// Shared POST /:id/pulls response payload — used both for a freshly created PR
+// and for the idempotent dedup response (existing OPEN PR returned instead of
+// creating a duplicate). Diff stats stay null (unknown) unless the detail
+// endpoint computes them from git — never invented zeros.
+function toPullRequestPayload(
+  pr: {
+    number: number;
+    title: string;
+    body: string | null;
+    status: string;
+    sourceBranch: string;
+    targetBranch: string;
+    author?: { username: string } | null;
+    createdAt: Date;
+  },
+  commentsCount: number | null,
+) {
+  return {
+    id: pr.number,
+    number: pr.number,
+    title: pr.title,
+    body: pr.body ?? '',
+    state: pr.status.toLowerCase(),
+    status: pr.status.toLowerCase(),
+    author: pr.author?.username ?? 'user',
+    branchSource: pr.sourceBranch,
+    branchTarget: pr.targetBranch,
+    checksStatus: 'none',
+    // A freshly created PR has no review comments yet; for a deduped existing
+    // PR the caller passes the real measured count (or null when unknown).
+    commentsCount,
+    createdAt: pr.createdAt.toISOString(),
+    // No computed diff stats on this path — report explicit unknown (null).
+    additions: null,
+    deletions: null,
+    changedFiles: null,
+  };
+}
 const memorySecretAlertsStore = new Map<string, BackendSecretAlert[]>();
 const memoryCodeqlAlertsStore = new Map<string, BackendCodeqlAlert[]>();
 const memoryBranchRulesStore = new Map<string, any>();
@@ -1825,6 +1864,50 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
 
+    const targetBranch = parsed.data.targetBranch ?? repo.defaultBranch ?? 'main';
+
+    // Idempotency guard (fix/qm-commit-double-pr): commit-to-new-branch used
+    // to fire two creation calls for one user action (the commit handler AND
+    // the commit modal each created the PR), producing PRs N and N+1. The
+    // frontend now has a single creation site, but the endpoint itself must
+    // also refuse to create a duplicate OPEN PR for the same source/target
+    // branch pair — it returns the existing one instead (GitHub behaves the
+    // same way). This keeps the endpoint idempotent for any retried or
+    // double-fired request. NOTE: concurrent racing requests share a small
+    // check-then-create window; the frontend dedupes first and this covers
+    // the sequential double-fire case.
+    const existingOpen = (await prisma.pullRequest.findFirst({
+      where: {
+        repoId: repo.id,
+        sourceBranch: parsed.data.sourceBranch,
+        targetBranch,
+        status: 'OPEN',
+      },
+      include: {
+        author: { select: { username: true, displayName: true } },
+      },
+    })) as {
+      id: string;
+      number: number;
+      title: string;
+      body: string | null;
+      status: string;
+      sourceBranch: string;
+      targetBranch: string;
+      createdAt: Date;
+      author?: { username: string; displayName: string | null } | null;
+    } | null;
+    if (existingOpen) {
+      // Real comment count from the review_comments relation — never a
+      // hardcoded 0 on a PR that may already have discussion.
+      const commentsCount = await getPrCommentsCount(prisma, existingOpen.id);
+      return reply.status(200).send({
+        success: true,
+        deduplicated: true,
+        data: toPullRequestPayload(existingOpen, commentsCount),
+      });
+    }
+
     const latest = await prisma.pullRequest.findFirst({
       where: { repoId: repo.id },
       orderBy: { number: 'desc' },
@@ -1839,7 +1922,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         body: parsed.data.body ?? '',
         authorId: userId,
         sourceBranch: parsed.data.sourceBranch,
-        targetBranch: parsed.data.targetBranch ?? repo.defaultBranch ?? 'main',
+        targetBranch,
         status: 'OPEN',
       },
       include: {
@@ -1849,26 +1932,20 @@ export default async function reposRoutes(fastify: FastifyInstance) {
 
     return reply.status(201).send({
       success: true,
-      data: {
-        id: pr.number,
-        number: pr.number,
-        title: pr.title,
-        body: pr.body,
-        state: pr.status.toLowerCase(),
-        status: pr.status.toLowerCase(),
-        author: pr.author?.username ?? 'user',
-        branchSource: pr.sourceBranch,
-        branchTarget: pr.targetBranch,
-        checksStatus: 'none',
+      data: toPullRequestPayload(
+        pr as {
+          number: number;
+          title: string;
+          body: string | null;
+          status: string;
+          sourceBranch: string;
+          targetBranch: string;
+          author?: { username: string } | null;
+          createdAt: Date;
+        },
         // Genuinely 0: this PR was just created, so no review comments exist yet.
-        commentsCount: 0,
-        createdAt: pr.createdAt.toISOString(),
-        // A freshly created PR has no computed diff stats yet — report
-        // explicit unknown (null), never invented zeros.
-        additions: null,
-        deletions: null,
-        changedFiles: null,
-      },
+        0,
+      ),
     });
   });
 

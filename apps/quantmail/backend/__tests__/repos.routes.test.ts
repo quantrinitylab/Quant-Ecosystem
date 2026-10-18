@@ -962,6 +962,8 @@ describe('QuantGit Database-Backed Repos Routes', () => {
 
   it('POST /repos/:id/pulls creates a real pull request in database', async () => {
     const app = await buildApp();
+    // Idempotency guard miss: no OPEN PR exists for this branch pair.
+    prisma.pullRequest.findFirst.mockResolvedValueOnce(null);
     const res = await app.inject({
       method: 'POST',
       url: '/repos/repo-1/pulls',
@@ -975,8 +977,63 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(res.statusCode).toBe(201);
     const body = res.json();
     expect(body.success).toBe(true);
+    expect(body.deduplicated).toBeFalsy();
     expect(body.data.branchSource).toBe('feat/test');
     expect(prisma.pullRequest.create).toHaveBeenCalled();
+  });
+
+  it('POST /repos/:id/pulls is idempotent: an existing OPEN PR for the same source/target branch pair is returned instead of creating a duplicate', async () => {
+    const app = await buildApp();
+    // Default mock: pullRequest.findFirst resolves MOCK_PR (OPEN,
+    // feat/test -> main) — the guard hits for this branch pair.
+    const createsBefore = prisma.pullRequest.create.mock.calls.length;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/pulls',
+      payload: {
+        title: 'Duplicate attempt',
+        body: 'Should not create PR #2',
+        sourceBranch: 'feat/test',
+        targetBranch: 'main',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.deduplicated).toBe(true);
+    expect(body.data.number).toBe(1);
+    expect(body.data.branchSource).toBe('feat/test');
+    expect(body.data.branchTarget).toBe('main');
+    // The sequential double-fire (commit handler + modal) must not consume
+    // another PR number: create must not have run for this request.
+    expect(prisma.pullRequest.create.mock.calls.length).toBe(createsBefore);
+  });
+
+  it('POST /repos/:id/pulls still creates (201) when the existing PR is CLOSED or the branch pair differs', async () => {
+    const app = await buildApp();
+    // Guard miss: no OPEN PR on this branch pair.
+    prisma.pullRequest.findFirst.mockResolvedValueOnce(null);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/pulls',
+      payload: {
+        title: 'Second PR',
+        body: 'Different branch pair',
+        sourceBranch: 'feat/other',
+        targetBranch: 'main',
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().success).toBe(true);
+    expect(res.json().deduplicated).toBeFalsy();
+    expect(prisma.pullRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          sourceBranch: 'feat/other',
+          targetBranch: 'main',
+        }),
+      }),
+    );
   });
 
   it('POST /repos/:id/star is idempotent and derives the count from the star table', async () => {
