@@ -99,6 +99,12 @@ export interface CalendarEventLike {
   weight?: string;
   customTags?: string[];
   cycleDay?: number;
+  // fix/qm-period-log-silent-drop-2: sheet-collected period/birthday detail
+  // the backend folds into the __QUANT_META__ header and returns on the DTO.
+  periodDays?: number;
+  cycleLength?: number;
+  pms?: boolean;
+  giftIdeas?: string;
   accountEmail?: string;
   driveLink?: string;
   timezone?: string;

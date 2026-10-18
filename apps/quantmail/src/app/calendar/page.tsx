@@ -986,6 +986,28 @@ function CalendarPageContent() {
       flowIntensity: ev.flowIntensity || 'medium',
       spottingColor: ev.spottingColor || 'red',
       currentCycleDay: ev.cycleDay || prev.currentCycleDay,
+      // fix/qm-period-log-silent-drop-2: the rest of the sheet-collected
+      // period detail now comes back on the DTO (backend folds the top-level
+      // payload fields into the __QUANT_META__ header and parses them back
+      // out). Without restoring them the form keeps stale/default values and
+      // a re-save silently resets what the user had entered.
+      collectionMethod:
+        typeof ev.collectionMethod === 'string' && ev.collectionMethod
+          ? ev.collectionMethod
+          : prev.collectionMethod,
+      sleep: typeof ev.sleep === 'string' && ev.sleep ? ev.sleep : prev.sleep,
+      sexLife: typeof ev.sexLife === 'string' && ev.sexLife ? ev.sexLife : prev.sexLife,
+      intimateHealth:
+        typeof ev.intimateHealth === 'string' && ev.intimateHealth
+          ? ev.intimateHealth
+          : prev.intimateHealth,
+      hotFlashes:
+        typeof ev.hotFlashes === 'string' && ev.hotFlashes ? ev.hotFlashes : prev.hotFlashes,
+      bbt: typeof ev.bbt === 'string' ? ev.bbt : prev.bbt,
+      weight: typeof ev.weight === 'string' ? ev.weight : prev.weight,
+      customTags: Array.isArray(ev.customTags) ? ev.customTags : prev.customTags,
+      periodDays: typeof ev.periodDays === 'number' ? ev.periodDays : prev.periodDays,
+      cycleLength: typeof ev.cycleLength === 'number' ? ev.cycleLength : prev.cycleLength,
     }));
 
     setSelectedEvent(null);
@@ -1171,6 +1193,12 @@ function CalendarPageContent() {
       weight: activeSheetType === 'period' ? formState.weight : undefined,
       customTags: activeSheetType === 'period' ? formState.customTags : undefined,
       cycleDay: activeSheetType === 'period' ? formState.currentCycleDay : undefined,
+      // fix/qm-period-log-silent-drop-2: these were collected by the sheet
+      // (period-length / cycle-length sliders) but never sent — the values
+      // vanished on save. The backend folds them into the __QUANT_META__
+      // header like the other top-level sheet fields.
+      periodDays: activeSheetType === 'period' ? formState.periodDays : undefined,
+      cycleLength: activeSheetType === 'period' ? formState.cycleLength : undefined,
     };
 
     isSavingRef.current = true;

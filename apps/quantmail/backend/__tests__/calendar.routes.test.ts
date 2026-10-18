@@ -1271,6 +1271,211 @@ describe('sheet-type round-trip — Task/Birthday/Period meta survives toEventDt
   });
 });
 
+describe('period/birthday sheet silent-drop — every sheet-collected field survives save → reload', () => {
+  // The defect (fix/qm-period-log-silent-drop-2): the period sheet sent
+  // collectionMethod/moods/sleep/sexLife/intimateHealth/hotFlashes/bbt/
+  // weight/customTags top-level and Zod stripped them silently; periodDays/
+  // cycleLength never even left the form. The user filled a full
+  // health-tracking form and most of it vanished on reload with no error.
+  // The backend now accepts every sheet-collected field and folds it into
+  // the __QUANT_META__ description header (setMetaSheetFields), and
+  // toEventDto parses it back out so the edit sheet restores the form.
+  const PERIOD_PAYLOAD = {
+    title: 'Period Log (Day 3, medium flow)',
+    start: '2026-10-10T00:00:00.000Z',
+    end: '2026-10-10T23:59:59.000Z',
+    description:
+      '__QUANT_META__:{"type":"period","flowIntensity":"medium","cycleDay":3}:__END_QUANT_META__',
+    type: 'period',
+    collectionMethod: 'Pad',
+    moods: ['Happy', 'Calm'],
+    sleep: 'Woke up refreshed',
+    sexLife: 'Protected',
+    intimateHealth: 'Normal / Good',
+    hotFlashes: 'None today',
+    bbt: '36.6',
+    weight: '58',
+    customTags: ['cramps-day', 'work-from-home'],
+    periodDays: 5,
+    cycleLength: 28,
+  };
+  const PERIOD_META =
+    '__QUANT_META__:{"type":"period","flowIntensity":"medium","cycleDay":3,"collectionMethod":"Pad","moods":["Happy","Calm"],"sleep":"Woke up refreshed","sexLife":"Protected","intimateHealth":"Normal / Good","hotFlashes":"None today","bbt":"36.6","weight":"58","customTags":["cramps-day","work-from-home"],"periodDays":5,"cycleLength":28}:__END_QUANT_META__';
+
+  /** Parse the __QUANT_META__ header out of the description handed to Prisma. */
+  function storedMeta(data: Record<string, unknown>): Record<string, unknown> {
+    const desc = data.description;
+    expect(typeof desc).toBe('string');
+    const match = /__QUANT_META__:([\s\S]*?):__END_QUANT_META__/.exec(desc as string);
+    expect(match).not.toBeNull();
+    return JSON.parse(match![1] as string) as Record<string, unknown>;
+  }
+
+  it('folds every sheet-sent top-level field into the __QUANT_META__ header on create', async () => {
+    const app = await buildApp();
+    const res = await app.inject({ method: 'POST', url: '/events', payload: PERIOD_PAYLOAD });
+
+    expect(res.statusCode).toBe(201);
+    const data = createData();
+    // Event has no columns for these: handing them to Prisma would throw.
+    for (const key of [
+      'collectionMethod',
+      'moods',
+      'sleep',
+      'sexLife',
+      'intimateHealth',
+      'hotFlashes',
+      'bbt',
+      'weight',
+      'customTags',
+      'periodDays',
+      'cycleLength',
+    ]) {
+      expect(data).not.toHaveProperty(key);
+    }
+    expect(storedMeta(data)).toMatchObject({
+      type: 'period',
+      collectionMethod: 'Pad',
+      moods: ['Happy', 'Calm'],
+      sleep: 'Woke up refreshed',
+      sexLife: 'Protected',
+      intimateHealth: 'Normal / Good',
+      hotFlashes: 'None today',
+      bbt: '36.6',
+      weight: '58',
+      customTags: ['cramps-day', 'work-from-home'],
+      periodDays: 5,
+      cycleLength: 28,
+    });
+  });
+
+  it('returns every stored period field on the DTO so the edit sheet restores the form', async () => {
+    const app = await buildApp();
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: PERIOD_META });
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toMatchObject({
+      type: 'period',
+      flowIntensity: 'medium',
+      cycleDay: 3,
+      collectionMethod: 'Pad',
+      moods: ['Happy', 'Calm'],
+      sleep: 'Woke up refreshed',
+      sexLife: 'Protected',
+      intimateHealth: 'Normal / Good',
+      hotFlashes: 'None today',
+      bbt: '36.6',
+      weight: '58',
+      customTags: ['cramps-day', 'work-from-home'],
+      periodDays: 5,
+      cycleLength: 28,
+    });
+  });
+
+  it('merges sheet fields into stored meta on update without touching other header keys', async () => {
+    const app = await buildApp();
+    const existing =
+      '__QUANT_META__:{"type":"period","driveLink":"https://drive.quantmail.in/file/x"}:__END_QUANT_META__';
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: existing });
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/events/e1',
+      payload: { sleep: 'Restless', weight: '58.5' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(storedMeta(updateData())).toMatchObject({
+      type: 'period',
+      driveLink: 'https://drive.quantmail.in/file/x',
+      sleep: 'Restless',
+      weight: '58.5',
+    });
+  });
+
+  it('leaves stored sheet fields intact on a partial update that does not send them', async () => {
+    const app = await buildApp();
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: PERIOD_META });
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/events/e1',
+      payload: { title: 'Renamed log' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    // No sheet fields in the payload and no description sent: the handler
+    // must not include description in the Prisma update at all, so the
+    // stored header survives untouched in the database.
+    expect(updateData()).not.toHaveProperty('description');
+  });
+
+  it('clears a stored sheet field when the form sends an empty value', async () => {
+    const app = await buildApp();
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: PERIOD_META });
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/events/e1',
+      payload: { weight: '', customTags: [] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const meta = storedMeta(updateData());
+    expect(meta).not.toHaveProperty('weight');
+    expect(meta).not.toHaveProperty('customTags');
+    // Sibling fields are untouched.
+    expect(meta).toMatchObject({ sleep: 'Woke up refreshed', bbt: '36.6', periodDays: 5 });
+  });
+
+  it('drops garbage sheet-meta values instead of echoing them to the client', async () => {
+    const app = await buildApp();
+    const junk =
+      '__QUANT_META__:{"type":"period","collectionMethod":42,"sleep":"","periodDays":"twelve","cycleLength":999,"customTags":"nope","pms":"yes","giftIdeas":"   "}:__END_QUANT_META__';
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: junk });
+    const res = await app.inject({ method: 'GET', url: '/events/e1' });
+
+    expect(res.statusCode).toBe(200);
+    const data = res.json().data;
+    expect(data.type).toBe('period');
+    expect(data.collectionMethod).toBeUndefined();
+    expect(data.sleep).toBeUndefined();
+    expect(data.periodDays).toBeUndefined();
+    expect(data.cycleLength).toBeUndefined();
+    expect(data.customTags).toBeUndefined();
+    expect(data.pms).toBeUndefined();
+    expect(data.giftIdeas).toBeUndefined();
+  });
+
+  it('round-trips a period log through create → read: nothing the sheet sent is lost', async () => {
+    const app = await buildApp();
+    prisma.event.create.mockResolvedValue({ ...ROW, description: PERIOD_META });
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/events',
+      payload: PERIOD_PAYLOAD,
+    });
+    expect(createRes.statusCode).toBe(201);
+    const storedDesc = String(createData().description);
+
+    // …and the DTO on read exposes every field again, so the edit sheet
+    // reopens with the full health-tracking form intact.
+    prisma.event.findUnique.mockResolvedValue({ ...ROW, description: storedDesc });
+    const getRes = await app.inject({ method: 'GET', url: '/events/e1' });
+    expect(getRes.statusCode).toBe(200);
+    expect(getRes.json().data).toMatchObject({
+      collectionMethod: 'Pad',
+      sleep: 'Woke up refreshed',
+      sexLife: 'Protected',
+      intimateHealth: 'Normal / Good',
+      hotFlashes: 'None today',
+      bbt: '36.6',
+      weight: '58',
+      customTags: ['cramps-day', 'work-from-home'],
+      periodDays: 5,
+      cycleLength: 28,
+    });
+  });
+});
+
 describe('POST /events/:id/rsvp — recurring occurrence ids resolve to the parent', () => {
   // The defect: the handler ran findUnique/update on request.params.id
   // verbatim, so RSVPing from any <parentId>_<iso> occurrence detail page

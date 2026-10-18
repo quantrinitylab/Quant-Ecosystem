@@ -53,6 +53,27 @@ const eventCollectionFields = {
   // __QUANT_META__ description header (see setMetaDriveLink), never as a
   // Prisma column.
   driveLink: z.string().max(2000).optional(),
+  // fix/qm-period-log-silent-drop-2 — the period/birthday sheets collect
+  // these and send them top-level; Zod used to strip them silently and the
+  // data never reached storage. Every sheet-collected field is now accepted
+  // and folded into the __QUANT_META__ description header (see
+  // setMetaSheetFields), the same store driveLink uses — there are no Event
+  // columns for them. (moods is the sheet's alias for feelings; pms and
+  // giftIdeas have no inputs yet but are accepted so a future input persists
+  // instead of vanishing.)
+  collectionMethod: z.string().max(100).optional(),
+  moods: z.array(z.string().max(100)).max(30).optional(),
+  sleep: z.string().max(100).optional(),
+  sexLife: z.string().max(100).optional(),
+  intimateHealth: z.string().max(100).optional(),
+  hotFlashes: z.string().max(100).optional(),
+  bbt: z.string().max(20).optional(),
+  weight: z.string().max(20).optional(),
+  customTags: z.array(z.string().max(100)).max(50).optional(),
+  periodDays: z.number().int().min(1).max(15).optional(),
+  cycleLength: z.number().int().min(15).max(60).optional(),
+  pms: z.boolean().optional(),
+  giftIdeas: z.string().max(2000).optional(),
 };
 const eventCreateSchema = z.object({
   title: z.string().min(1).max(300),
@@ -386,6 +407,91 @@ function setMetaDriveLink(description: string, driveLink: string | undefined): s
 }
 
 /**
+ * fix/qm-period-log-silent-drop-2 — the top-level sheet fields Zod now
+ * accepts (collectionMethod, moods, sleep, sexLife, intimateHealth,
+ * hotFlashes, bbt, weight, customTags, periodDays, cycleLength, pms,
+ * giftIdeas) live in the __QUANT_META__ description header like driveLink
+ * does, because Event has no columns for them. Only keys present in the
+ * payload are touched, so a partial update never clears fields the edit
+ * screen didn't send. An empty string / empty array clears a previously
+ * stored value so a cleared form field never leaves stale data behind —
+ * the same principle as setMetaDriveLink.
+ */
+const SHEET_META_FIELD_KEYS = [
+  'collectionMethod',
+  'moods',
+  'sleep',
+  'sexLife',
+  'intimateHealth',
+  'hotFlashes',
+  'bbt',
+  'weight',
+  'customTags',
+  'periodDays',
+  'cycleLength',
+  'pms',
+  'giftIdeas',
+] as const;
+
+/** Extract the sheet-meta patch: only payload keys that were actually sent. */
+function sheetMetaPatch(data: Record<string, unknown>): Record<string, unknown> | null {
+  let patch: Record<string, unknown> | null = null;
+  for (const key of SHEET_META_FIELD_KEYS) {
+    const value = data[key];
+    if (value !== undefined) {
+      patch ??= {};
+      patch[key] = value;
+    }
+  }
+  return patch;
+}
+
+/**
+ * Merge a sheet-meta patch into the __QUANT_META__ header. Returns the
+ * description unchanged when there is nothing to write or clear, so
+ * unrelated updates never rewrite the header.
+ */
+function setMetaSheetFields(description: string, patch: Record<string, unknown> | null): string {
+  if (!patch) return description;
+  const raw = description ?? '';
+  const match = matchQuantMeta(raw);
+  let meta: Record<string, unknown>;
+  if (match) {
+    try {
+      meta = JSON.parse(match.json) as Record<string, unknown>;
+    } catch {
+      // Corrupt header: only rewrite when the patch has something to store.
+      meta = {};
+    }
+  } else {
+    meta = {};
+  }
+  const before = JSON.stringify(meta);
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === '' || (Array.isArray(value) && value.length === 0)) {
+      // Cleared form field: drop the stored value instead of keeping stale data.
+      delete meta[key];
+    } else {
+      meta[key] = value;
+    }
+  }
+  if (JSON.stringify(meta) === before && match) return raw;
+  if (JSON.stringify(meta) === '{}' && !match) return raw;
+  const header = `__QUANT_META__:${JSON.stringify(meta)}:__END_QUANT_META__`;
+  const body = stripQuantMeta(raw).trim();
+  return body ? `${header}\n${body}` : `${header}\n`;
+}
+
+/**
+ * Convenience wrapper: fold the sheet's top-level period/birthday fields
+ * into the __QUANT_META__ header. A no-op when the payload carries none of
+ * them, so unrelated saves keep their description byte-identical.
+ */
+function applySheetMeta(description: string, data: Record<string, unknown>): string {
+  return setMetaSheetFields(description, sheetMetaPatch(data));
+}
+
+/**
  * Partial-update safety: edit screens that strip the __QUANT_META__ header
  * before saving (the event detail page seeds its form with the stripped
  * description) must not wipe the stored meta as a side effect. Re-attach the
@@ -433,6 +539,22 @@ function toEventDto(event: EventRow | CalendarEvent) {
   let feelings: string[] | undefined;
   let pain: string[] | undefined;
   let energy: string | undefined;
+  // fix/qm-period-log-silent-drop-2: the rest of the sheet-collected
+  // period/birthday detail — persisted in the __QUANT_META__ header by
+  // setMetaSheetFields, parsed back here so the edit sheet restores them.
+  let collectionMethod: string | undefined;
+  let moods: string[] | undefined;
+  let sleep: string | undefined;
+  let sexLife: string | undefined;
+  let intimateHealth: string | undefined;
+  let hotFlashes: string | undefined;
+  let bbt: string | undefined;
+  let weight: string | undefined;
+  let customTags: string[] | undefined;
+  let periodDays: number | undefined;
+  let cycleLength: number | undefined;
+  let pms: boolean | undefined;
+  let giftIdeas: string | undefined;
   const metaMatch = matchQuantMeta(desc);
   if (metaMatch) {
     try {
@@ -476,6 +598,33 @@ function toEventDto(event: EventRow | CalendarEvent) {
       if (Array.isArray(meta.pain))
         pain = meta.pain.filter((p: unknown): p is string => typeof p === 'string');
       if (typeof meta.energy === 'string' && meta.energy.trim()) energy = meta.energy;
+      // fix/qm-period-log-silent-drop-2: sheet-collected period/birthday
+      // detail. Every value is validated against the sheet's own shape —
+      // garbage in the header is dropped, never echoed to the client.
+      const cleanStr = (v: unknown, max: number): string | undefined =>
+        typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined;
+      const cleanStrArr = (v: unknown, maxItems: number, maxLen: number): string[] | undefined =>
+        Array.isArray(v)
+          ? v
+              .filter((s: unknown): s is string => typeof s === 'string' && s.trim() !== '')
+              .map((s: string) => s.trim().slice(0, maxLen))
+              .slice(0, maxItems)
+          : undefined;
+      const cleanInt = (v: unknown, min: number, max: number): number | undefined =>
+        typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max ? v : undefined;
+      collectionMethod = cleanStr(meta.collectionMethod, 100);
+      moods = cleanStrArr(meta.moods, 30, 100);
+      sleep = cleanStr(meta.sleep, 100);
+      sexLife = cleanStr(meta.sexLife, 100);
+      intimateHealth = cleanStr(meta.intimateHealth, 100);
+      hotFlashes = cleanStr(meta.hotFlashes, 100);
+      bbt = cleanStr(meta.bbt, 20);
+      weight = cleanStr(meta.weight, 20);
+      customTags = cleanStrArr(meta.customTags, 50, 100);
+      periodDays = cleanInt(meta.periodDays, 1, 15);
+      cycleLength = cleanInt(meta.cycleLength, 15, 60);
+      if (typeof meta.pms === 'boolean') pms = meta.pms;
+      giftIdeas = cleanStr(meta.giftIdeas, 2000);
     } catch {
       // ignore
     }
@@ -533,6 +682,22 @@ function toEventDto(event: EventRow | CalendarEvent) {
     feelings,
     pain,
     energy,
+    // fix/qm-period-log-silent-drop-2: sheet-collected period/birthday detail
+    // parsed from the __QUANT_META__ header (undefined unless the header
+    // carried a valid value — the edit sheet falls back to its defaults).
+    collectionMethod,
+    moods,
+    sleep,
+    sexLife,
+    intimateHealth,
+    hotFlashes,
+    bbt,
+    weight,
+    customTags,
+    periodDays,
+    cycleLength,
+    pms,
+    giftIdeas,
   };
 }
 function formatIcsDate(date: Date): string {
@@ -1810,12 +1975,15 @@ export default async function calendarRoutes(
     const tzValue = parsed.data.timeZone ?? (parsed.data as any).timezone;
     const eventCreateData: Record<string, unknown> = {
       title: parsed.data.title,
-      // driveLink rides in __QUANT_META__ (Event has no column for it); a
-      // top-level payload field that Zod accepted must not be silently dropped.
-      description:
+      // driveLink + the sheet's period/birthday fields ride in __QUANT_META__
+      // (Event has no columns for them); a top-level payload field that Zod
+      // accepted must not be silently dropped.
+      description: applySheetMeta(
         parsed.data.driveLink !== undefined
           ? setMetaDriveLink(parsed.data.description ?? '', parsed.data.driveLink)
           : (parsed.data.description ?? ''),
+        parsed.data,
+      ),
       startTime: start,
       endTime: end,
       allDay: parsed.data.allDay ?? false,
@@ -2149,6 +2317,20 @@ export default async function calendarRoutes(
             parent.description ?? '',
           );
         }
+        // fix/qm-period-log-silent-drop-2: fold the sheet's top-level
+        // period/birthday fields into the stored __QUANT_META__ header (a
+        // no-op when the payload carries none, so unrelated saves keep their
+        // description byte-identical).
+        {
+          const sheetPatched = sheetMetaPatch(parsed.data);
+          if (sheetPatched) {
+            const base =
+              typeof updateData.description === 'string'
+                ? updateData.description
+                : ((parent.description as string | undefined) ?? '');
+            updateData.description = setMetaSheetFields(base, sheetPatched);
+          }
+        }
         if (parsed.data.calendarId !== undefined) updateData.calendarId = parsed.data.calendarId;
         const tzToUpdate = parsed.data.timeZone ?? (parsed.data as any).timezone;
         if (tzToUpdate !== undefined) updateData.timeZone = tzToUpdate;
@@ -2208,13 +2390,18 @@ export default async function calendarRoutes(
         const now = new Date();
         const createPayload: Record<string, unknown> = {
           title: parsed.data.title ?? parent.title,
-          description:
+          // fix/qm-period-log-silent-drop-2: same __QUANT_META__ fold as the
+          // create path — the sheet's top-level period/birthday fields must
+          // not be dropped on a series split either.
+          description: applySheetMeta(
             parsed.data.driveLink !== undefined
               ? setMetaDriveLink(
                   parsed.data.description ?? parent.description ?? '',
                   parsed.data.driveLink,
                 )
               : (parsed.data.description ?? parent.description ?? ''),
+            parsed.data,
+          ),
           startTime: eventStartTime,
           endTime: eventEndTime,
           allDay: parsed.data.allDay ?? parent.allDay ?? false,
@@ -2312,6 +2499,10 @@ export default async function calendarRoutes(
       if (parsed.data.driveLink !== undefined) {
         finalDesc = setMetaDriveLink(finalDesc, parsed.data.driveLink);
       }
+      // fix/qm-period-log-silent-drop-2: the occurrence edit sheet sends the
+      // same top-level period/birthday fields — fold them into the new
+      // child's __QUANT_META__ header as well.
+      finalDesc = applySheetMeta(finalDesc, parsed.data);
 
       const now = new Date();
       const createPayload: Record<string, unknown> = {
@@ -2431,6 +2622,20 @@ export default async function calendarRoutes(
         data.description,
         (existing.description as string) ?? '',
       );
+    }
+    // fix/qm-period-log-silent-drop-2: fold the sheet's top-level
+    // period/birthday fields into the stored __QUANT_META__ header (a
+    // no-op when the payload carries none, so unrelated saves keep their
+    // description byte-identical).
+    {
+      const sheetPatched = sheetMetaPatch(parsed.data);
+      if (sheetPatched) {
+        const base =
+          typeof data.description === 'string'
+            ? data.description
+            : ((existing.description as string | undefined) ?? '');
+        data.description = setMetaSheetFields(base, sheetPatched);
+      }
     }
     if (parsed.data.calendarId !== undefined) data.calendarId = parsed.data.calendarId;
     const tzToUpdate = parsed.data.timeZone ?? (parsed.data as any).timezone;
