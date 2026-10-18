@@ -333,6 +333,14 @@ export interface BackgroundBlurProps {
   onModeChange: (mode: BackgroundMode) => void;
   className?: string;
   disabled?: boolean;
+  /**
+   * QC-F-487: 'inline' (default) renders the menu exactly as it always
+   * has. 'responsive' keeps that same inline menu at >=640px and swaps
+   * it for a 48px trigger + popover below 640px, so narrow call/meet
+   * control docks stop overflowing. Presentation only — the engine,
+   * statuses and honesty copy are identical in both modes.
+   */
+  presentation?: 'inline' | 'responsive';
 }
 
 /**
@@ -348,15 +356,37 @@ export const BackgroundBlur: React.FC<BackgroundBlurProps> = ({
   onModeChange,
   className = '',
   disabled = false,
+  presentation = 'inline',
 }) => {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  // QC-F-487: Escape closes the compact popover and returns focus to
+  // its trigger (the popover is a small menu — no focus trap).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open ]);
+
   const buttonClass = (active: boolean) =>
     `px-3 h-9 rounded-full border text-sm transition-colors ${
       active
         ? 'bg-blue-600 text-white border-transparent'
         : 'bg-transparent text-current border-gray-400/50 hover:bg-white/10'
     }`;
-  return (
-    <div className={className} data-testid="background-blur">
+
+  // The original inline menu, unchanged: same DOM, same classes, same
+  // testids, same honesty copy. The responsive presentation reuses this
+  // exact render for its >=640px surface.
+  const inlineMenu = (
+    <>
       <div className="flex items-center gap-2 text-sm">
         <span className="opacity-70">Background:</span>
         <button
@@ -390,6 +420,146 @@ export const BackgroundBlur: React.FC<BackgroundBlurProps> = ({
           {error ?? BACKGROUND_BLUR_ERROR_MESSAGE}
         </p>
       )}
+    </>
+  );
+
+  if (presentation === 'inline') {
+    return (
+      <div className={className} data-testid="background-blur">
+        {inlineMenu}
+      </div>
+    );
+  }
+
+  // ── QC-F-487 responsive presentation ──────────────────────────────────
+  const panelButtonClass = (active: boolean) =>
+    `flex-1 h-11 rounded-full border text-sm transition-colors ${
+      active
+        ? 'bg-blue-600 text-white border-transparent'
+        : 'bg-transparent text-current border-gray-400/50 hover:bg-white/10'
+    }`;
+  const choose = (next: BackgroundMode) => {
+    onModeChange(next);
+    setOpen(false);
+  };
+  const triggerLabel = `Background settings — ${
+    mode === 'blur'
+      ? status === 'active'
+        ? 'Blur on'
+        : status === 'starting'
+          ? 'Blur starting'
+          : 'Blur'
+      : 'None'
+  }`;
+  const triggerClass = `flex h-12 w-12 items-center justify-center rounded-full transition-colors ${
+    status === 'active'
+      ? 'bg-blue-600 text-white hover:bg-blue-500'
+      : 'bg-white/15 text-white hover:bg-white/25'
+  }${
+    mode === 'blur' && (status === 'starting' || status === 'error')
+      ? ' ring-2 ring-blue-400/70'
+      : ''
+  }`;
+
+  return (
+    <div className={className} data-testid="background-blur">
+      <div data-testid="background-blur-inline" className="hidden min-[640px]:block">
+        {inlineMenu}
+      </div>
+      <div data-testid="background-blur-compact" className="relative min-[640px]:hidden">
+        {status === 'error' && !open && (
+          <p
+            role="alert"
+            data-testid="background-blur-error"
+            className="absolute bottom-full right-0 mb-3 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-red-500/50 bg-red-950/95 px-3 py-2 text-sm text-red-200"
+          >
+            {error ?? BACKGROUND_BLUR_ERROR_MESSAGE}
+          </p>
+        )}
+        <button
+          ref={triggerRef}
+          type="button"
+          data-testid="blur-menu-trigger"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          aria-label={triggerLabel}
+          disabled={disabled}
+          onClick={() => setOpen((v) => !v)}
+          className={triggerClass}
+        >
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="9" cy="9" r="2" />
+            <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+          </svg>
+        </button>
+        {open && (
+          <>
+            <button
+              type="button"
+              aria-hidden="true"
+              tabIndex={-1}
+              data-testid="blur-menu-backdrop"
+              className="fixed inset-0 z-20 cursor-default"
+              onClick={() => setOpen(false)}
+            />
+            <div
+              role="dialog"
+              aria-label="Background"
+              data-testid="blur-menu-panel"
+              className="absolute bottom-full right-0 z-30 mb-3 w-60 max-w-[calc(100vw-2rem)] rounded-2xl border border-white/15 bg-gray-900 p-3 text-white shadow-xl"
+            >
+              <span className="text-sm opacity-70">Background:</span>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  data-testid="blur-mode-none"
+                  aria-pressed={mode === 'none'}
+                  disabled={disabled}
+                  onClick={() => choose('none')}
+                  className={panelButtonClass(mode === 'none')}
+                >
+                  None
+                </button>
+                <button
+                  type="button"
+                  data-testid="blur-mode-blur"
+                  aria-pressed={mode === 'blur'}
+                  disabled={disabled}
+                  onClick={() => choose('blur')}
+                  className={panelButtonClass(mode === 'blur')}
+                >
+                  Blur
+                </button>
+              </div>
+              {(status === 'starting' || status === 'active' || status === 'unavailable') && (
+                <div className="mt-2 text-sm">
+                  {status === 'starting' && <span role="status">Starting…</span>}
+                  {status === 'active' && <span role="status">Blur on</span>}
+                  {status === 'unavailable' && (
+                    <span role="status">{error ?? UNSUPPORTED_MESSAGE}</span>
+                  )}
+                </div>
+              )}
+              {status === 'error' && (
+                <p role="alert" className="mt-2 text-sm text-red-300">
+                  {error ?? BACKGROUND_BLUR_ERROR_MESSAGE}
+                </p>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };

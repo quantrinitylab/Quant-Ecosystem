@@ -727,7 +727,7 @@ export default function MeetRoomPage() {
               {participants.length} in meeting · media encrypted in transit
             </p>
             {/* Control dock */}
-            <div className="flex items-center justify-center gap-3 bg-gray-900 px-4 py-4">
+            <div className="relative flex items-center justify-center gap-3 bg-gray-900 px-4 py-4">
               <button
                 type="button"
                 onClick={() => void toggleMic()}
@@ -779,6 +779,7 @@ export default function MeetRoomPage() {
                   status={background.status}
                   error={background.error}
                   onModeChange={background.setMode}
+                  presentation="responsive"
                 />
               </div>
               <button
