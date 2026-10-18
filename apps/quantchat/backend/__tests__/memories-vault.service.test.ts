@@ -19,6 +19,11 @@
 //   - reset (account-password proof) hard-deletes private items only and
 //     leaves public items untouched; OTP-only accounts (unusable password
 //     marker) get an honest 409 and lose nothing.
+//   - QC-F-511: the shared counter is ATOMIC — a parallel burst of wrong
+//     proofs moves it by the full burst size and trips the lockout; a
+//     success racing a tripped lockout can neither clear it nor issue
+//     side effects (the fake models one-statement atomicity per write;
+//     real-Postgres proof is owed on staging, HG-511-5).
 // ============================================================================
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { passwordService } from '@quant/auth';
@@ -55,6 +60,53 @@ function makeFakePrisma() {
   };
   let seq = 0;
 
+  // QC-F-511 fake semantics: Prisma's atomic write shapes. Every mutation
+  // applies in ONE synchronous step (no await between read and write) —
+  // that is the fake's model of a single atomic SQL statement. If a write
+  // ever became read-modify-write here, the concurrency tests below would
+  // be lying (HG-511-5).
+  type CredData = Omit<Partial<MemoriesVaultCredentialRecord>, 'failedAttempts'> & {
+    failedAttempts?: number | { increment: number } | { set: number };
+  };
+  function applyCredentialData(data: CredData): void {
+    if (!state.credential) return;
+    const { failedAttempts, ...rest } = data;
+    Object.assign(state.credential, rest);
+    if (failedAttempts !== undefined) {
+      state.credential.failedAttempts =
+        typeof failedAttempts === 'number'
+          ? failedAttempts
+          : 'increment' in failedAttempts
+            ? state.credential.failedAttempts + failedAttempts.increment
+            : failedAttempts.set;
+    }
+  }
+  function lockoutMatches(value: Date | null, cond: unknown): boolean {
+    if (cond === null) return value === null;
+    const c = cond as { lte?: Date; gt?: Date; not?: unknown };
+    if (c.not === null && value === null) return false;
+    if (c.lte !== undefined) return value !== null && value.getTime() <= c.lte.getTime();
+    if (c.gt !== undefined) return value !== null && value.getTime() > c.gt.getTime();
+    return true;
+  }
+  function credentialMatches(where: Record<string, unknown>): boolean {
+    const cred = state.credential;
+    if (!cred) return false;
+    if (where['userId'] !== undefined && cred.userId !== where['userId']) return false;
+    if ('lockoutUntil' in where && !lockoutMatches(cred.lockoutUntil, where['lockoutUntil']))
+      return false;
+    const or = where['OR'] as Array<Record<string, unknown>> | undefined;
+    if (
+      or &&
+      !or.some(
+        (clause) =>
+          !('lockoutUntil' in clause) || lockoutMatches(cred.lockoutUntil, clause['lockoutUntil']),
+      )
+    )
+      return false;
+    return true;
+  }
+
   // Typed as the service's real structural interface (no cast at the call
   // site) — the fake must satisfy the same contract production Prisma does.
   const prisma: MemoriesVaultPrismaClient = {
@@ -78,9 +130,15 @@ function makeFakePrisma() {
         return { ...state.credential };
       },
       update: async (args: unknown) => {
-        const { data } = args as { data: Partial<MemoriesVaultCredentialRecord> };
-        Object.assign(state.credential as object, data);
+        const { data } = args as { data: CredData };
+        applyCredentialData(data);
         return { ...(state.credential as MemoriesVaultCredentialRecord) };
+      },
+      updateMany: async (args: unknown) => {
+        const { where, data } = args as { where: Record<string, unknown>; data: CredData };
+        if (!credentialMatches(where)) return { count: 0 };
+        applyCredentialData(data);
+        return { count: 1 };
       },
       delete: async () => {
         const gone = state.credential as MemoriesVaultCredentialRecord;
@@ -136,6 +194,12 @@ function makeFakePrisma() {
         return {};
       },
     },
+    // Pass-through on purpose: the fake's atomicity is PER STATEMENT
+    // (each write above is one synchronous step), not Postgres row
+    // locking — claiming more would make the QC-F-511 tests a lie
+    // (HG-511-5). Real-transaction behaviour is proven on a real DB.
+    $transaction: async <T>(fn: (tx: MemoriesVaultPrismaClient) => Promise<T>): Promise<T> =>
+      fn(prisma),
   };
 
   return { prisma, state };
@@ -373,5 +437,134 @@ describe('MemoriesVaultService (QC-F-450)', () => {
     expect(fake.state.unlocks).toHaveLength(0);
     const err = await errorOf(service.requireUnlock(USER, grant.unlockToken));
     expect(err.code).toBe('MEMORIES_LOCKED');
+  });
+});
+
+describe('MemoriesVaultService — QC-F-511 concurrency', () => {
+  let fake: ReturnType<typeof makeFakePrisma>;
+  let service: MemoriesVaultService;
+  let accountPasswordHash: string;
+  const t0 = new Date('2026-10-16T12:00:00.000Z');
+
+  beforeAll(async () => {
+    accountPasswordHash = await passwordService.hash(ACCOUNT_PASSWORD);
+  });
+
+  beforeEach(() => {
+    fake = makeFakePrisma();
+    service = new MemoriesVaultService(fake.prisma);
+    fake.state.users.set(USER, { id: USER, passwordHash: accountPasswordHash });
+  });
+
+  it('T-511-1: a burst of 10 parallel wrong verifies moves the counter by 10 and trips the lockout', async () => {
+    await service.setPasscode(USER, PASSCODE);
+    const results = await Promise.allSettled(
+      Array.from({ length: 10 }, () => service.verifyPasscode(USER, WRONG_PASSCODE, t0)),
+    );
+    for (const r of results) {
+      expect(r.status).toBe('rejected');
+      if (r.status === 'rejected') {
+        expect((r.reason as AppErr).statusCode).toBe(401);
+        expect((r.reason as AppErr).code).toBe('INVALID_PASSCODE');
+      }
+    }
+    expect(fake.state.credential?.failedAttempts).toBe(10);
+    expect(fake.state.credential?.lockoutUntil?.getTime()).toBe(t0.getTime() + 15 * 60 * 1000);
+    const locked = await errorOf(service.verifyPasscode(USER, PASSCODE, t0));
+    expect(locked.statusCode).toBe(429);
+    expect(locked.code).toBe('PASSCODE_LOCKED');
+    expect(fake.state.unlocks).toHaveLength(0);
+  });
+
+  it('T-511-2: verify + change share ONE counter — a mixed burst of 5 trips the lockout for reset too', async () => {
+    await service.setPasscode(USER, PASSCODE);
+    fake.state.memories.push({ id: 'mem-priv', userId: USER, isPrivate: true });
+    const results = await Promise.allSettled([
+      service.verifyPasscode(USER, WRONG_PASSCODE, t0),
+      service.verifyPasscode(USER, WRONG_PASSCODE, t0),
+      service.verifyPasscode(USER, WRONG_PASSCODE, t0),
+      service.changePasscode(USER, WRONG_PASSCODE, NEW_PASSCODE, t0),
+      service.changePasscode(USER, WRONG_PASSCODE, NEW_PASSCODE, t0),
+    ]);
+    for (const r of results) expect(r.status).toBe('rejected');
+    expect(fake.state.credential?.failedAttempts).toBe(5);
+    expect(fake.state.credential?.lockoutUntil?.getTime()).toBe(t0.getTime() + 15 * 60 * 1000);
+    const lockedReset = await errorOf(service.resetPasscode(USER, ACCOUNT_PASSWORD, t0));
+    expect(lockedReset.statusCode).toBe(429);
+    expect(lockedReset.code).toBe('PASSCODE_LOCKED');
+    expect(fake.state.deletedMemoryIds).toEqual([]);
+    expect(fake.state.memories).toHaveLength(1);
+    expect(fake.state.credential).not.toBeNull();
+  });
+
+  it('T-511-3: after the lockout expires, a parallel burst counts FRESH (3, not 8 or 1)', async () => {
+    await service.setPasscode(USER, PASSCODE);
+    for (let i = 0; i < 5; i++) {
+      await errorOf(service.verifyPasscode(USER, WRONG_PASSCODE, t0));
+    }
+    expect(fake.state.credential?.failedAttempts).toBe(5);
+    const t1 = new Date(t0.getTime() + 16 * 60 * 1000);
+    const results = await Promise.allSettled(
+      Array.from({ length: 3 }, () => service.verifyPasscode(USER, WRONG_PASSCODE, t1)),
+    );
+    for (const r of results) expect(r.status).toBe('rejected');
+    expect(fake.state.credential?.failedAttempts).toBe(3);
+    expect(fake.state.credential?.lockoutUntil).toBeNull();
+    const grant = await service.verifyPasscode(USER, PASSCODE, t1);
+    expect(grant.unlockToken).toMatch(/^qmu_/);
+    expect(fake.state.credential?.failedAttempts).toBe(0);
+  });
+
+  it('T-511-4: no burst attempt ever mints an unlock — a forged token still gets MEMORIES_LOCKED', async () => {
+    await service.setPasscode(USER, PASSCODE);
+    await Promise.allSettled(
+      Array.from({ length: 6 }, () => service.verifyPasscode(USER, WRONG_PASSCODE, t0)),
+    );
+    expect(fake.state.unlocks).toHaveLength(0);
+    const forged = await errorOf(service.requireUnlock(USER, 'qmu_' + 'A'.repeat(43), t0));
+    expect(forged.statusCode).toBe(401);
+    expect(forged.code).toBe('MEMORIES_LOCKED');
+  });
+
+  it('T-511-5: a lockout tripped DURING a correct proof refuses the success (fresh re-assert, no token, no clear)', async () => {
+    // Scripted fake: the entry read sees an unlocked credential; the
+    // post-proof re-read sees a tripped lockout. This pins the service's
+    // DECISION (re-assert before side effects), not a database race —
+    // the race itself is T-511-1/2's subject (brief §8 honesty note).
+    await service.setPasscode(USER, PASSCODE);
+    let reads = 0;
+    let updateManyCalls = 0;
+    const baseCredential = fake.prisma.memoriesVaultCredential;
+    const scripted: MemoriesVaultPrismaClient = {
+      ...fake.prisma,
+      memoriesVaultCredential: {
+        ...baseCredential,
+        findUnique: async (args: unknown) => {
+          reads += 1;
+          const row = await baseCredential.findUnique(args);
+          if (reads >= 2 && row) {
+            return {
+              ...row,
+              failedAttempts: 5,
+              lockoutUntil: new Date(t0.getTime() + 15 * 60 * 1000),
+            };
+          }
+          return row;
+        },
+        updateMany: async (args: unknown) => {
+          updateManyCalls += 1;
+          return baseCredential.updateMany(args);
+        },
+      },
+    };
+    const scriptedService = new MemoriesVaultService(scripted);
+    const err = await errorOf(scriptedService.verifyPasscode(USER, PASSCODE, t0));
+    expect(err.statusCode).toBe(429);
+    expect(err.code).toBe('PASSCODE_LOCKED');
+    expect(fake.state.unlocks).toHaveLength(0);
+    // The conditional clear never ran: stored counter/lockout untouched.
+    expect(updateManyCalls).toBe(0);
+    expect(fake.state.credential?.failedAttempts).toBe(0);
+    expect(fake.state.credential?.lockoutUntil).toBeNull();
   });
 });
