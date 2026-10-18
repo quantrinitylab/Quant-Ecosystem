@@ -184,6 +184,10 @@ export function PillarMascotMark({
             className="w-full h-full object-contain filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.35)]"
             draggable={false}
             loading={size === 'sm' || size === 'md' ? 'eager' : 'lazy'}
+            // fix/qm-mobile-rail-icon-swap: async decode so a still-decoding
+            // mascot never blocks the rail tile's first paint (the tile
+            // renders once in final style instead of popping in mid-load).
+            decoding="async"
           />
         </picture>
       </div>

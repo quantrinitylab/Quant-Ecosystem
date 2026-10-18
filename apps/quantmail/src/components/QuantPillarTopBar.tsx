@@ -4,17 +4,20 @@
 // QuantMail — Super-App 5-Pillar Top Squircle Switcher (Flipkart & Amazon Paradigm)
 // Molten Amber Mail, Sunset Gold Calendar, Sovereign Cyan Drive,
 // Emerald Matrix Contacts, Obsidian Purple QuantGit.
-// Pillar tiles mount the REAL approved app marks (canvas-painted, 28px) —
-// strictly ZERO generic glyphs and ZERO raw Unicode emojis.
+// Pillar tiles mount the REAL approved app marks (static webp via
+// PillarMascotMark, 34px) — strictly ZERO generic glyphs and ZERO raw
+// Unicode emojis.
 // ============================================================================
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { QuantMailLogo } from './QuantMailLogo';
-import { QuantCalendarLogo } from './QuantCalendarLogo';
-import { QuantDriveLogo } from './QuantDriveLogo';
-import { QuantContactsLogo } from './QuantContactsLogo';
-import { QuantGitLogo } from './QuantGitLogo';
+// fix/qm-mobile-rail-icon-swap: the canvas logo components
+// (QuantMailLogo/QuantCalendarLogo/QuantDriveLogo/QuantContactsLogo/QuantGitLogo)
+// were removed here — the rail tiles mount PillarMascotMark static webp/png
+// marks only (MailLogoIcon et al. below). Keeping the imports pulled the
+// whole canvas-marks pipeline into the AppShell chunk and left a re-wiring
+// hazard for the old-set↔new-set icon flicker class. The components themselves
+// stay alive for their real surfaces (drive/page.tsx, AppMark, BrandLoader…).
 import { QuantGitUserIdModal } from './QuantGitUserIdModal';
 import { Quanty } from './Quanty';
 import { AccountBadge } from './AccountBadge';
@@ -257,11 +260,12 @@ export function ChevronRightIcon({ className }: { className?: string }) {
 // All five marks are the user-approved finals (Mail, Calendar blue live-date
 // logo PR #696, Drive green folder mascot PR #697, Contacts, QuantGit purple
 // voxel frog PR #698): they mount here exactly as approved.
-// The marks are canvas-painted and supersampled from a 100-unit buffer, so
-// they stay crisp at any size; each tile button already carries an
-// aria-label, so the marks mount decoratively (QuantMailLogo interactive=false).
-// Sizes are optically balanced per mark (measured alpha area: the frog and the
-// contacts card read small at equal box size), 38–43px in the Workplace bar.
+// The marks are STATIC webp/png images served by PillarMascotMark
+// (/mascots/<pillar>-sm.webp, preloaded by app/layout.tsx) — never the
+// canvas-painted logo components (QuantMailLogo et al.). The canvas set
+// paints asynchronously and re-wiring it here re-opens the old-set↔new-set
+// mid-load icon swap (queue 2026-10-15 P1). Each tile button already carries
+// an aria-label, so the marks mount decoratively (interactive=false).
 // ============================================================================
 
 function MailLogoIcon({ active }: { active?: boolean } = {}) {
