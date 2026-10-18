@@ -304,7 +304,24 @@ export default function CallRoomPage({
                 attachTracks). No visual styling — an <audio> element has
                 no picture; display:none can disturb playback. */}
             <audio ref={remoteAudioRef} autoPlay aria-hidden="true" />
-            <div className="pb-10 pt-4 flex items-center justify-center gap-6">
+            {/* QC-F-487: the QC-F-455 sound button gets its own row above
+                the control dock — inside the dock row it pushed the
+                no-wrap row to ~646px on a 390px screen. Behaviour,
+                copy and styling are unchanged; only its place moved. */}
+            <div className="flex justify-center pt-3">
+              {audioBlocked && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void room.startAudio();
+                  }}
+                  className="h-11 px-5 rounded-full bg-white text-black font-medium"
+                >
+                  Tap to enable sound
+                </button>
+              )}
+            </div>
+            <div className="relative pb-10 pt-4 flex items-center justify-center gap-6">
               <button
                 type="button"
                 onClick={() => void toggleMic()}
@@ -343,23 +360,15 @@ export default function CallRoomPage({
                 status={background.status}
                 error={background.error}
                 onModeChange={background.setMode}
+                presentation="responsive"
               />
-              {/* QC-F-455: shown ONLY when the room itself reported audio
-                  playback blocked (AudioPlaybackStatusChanged). The click
-                  is the user gesture LiveKit requires for startAudio();
-                  the button disappears only when a later room event says
-                  playback is permitted again — never on the click itself. */}
-              {audioBlocked && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void room.startAudio();
-                  }}
-                  className="h-11 px-5 rounded-full bg-white text-black font-medium"
-                >
-                  Tap to enable sound
-                </button>
-              )}
+              {/* QC-F-455 note: the sound-enable button now lives in
+                  its own row directly above this dock (QC-F-487) —
+                  shown ONLY when the room itself reported audio
+                  playback blocked (AudioPlaybackStatusChanged); the
+                  click is the user gesture LiveKit requires for
+                  startAudio() and the button disappears only when a
+                  later room event says playback is permitted again. */}
             </div>
           </>
         )}
