@@ -139,10 +139,23 @@ export class ReelService {
 
   /**
    * Cursor-paginated reel feed, newest first. The cursor is the id of the last
-   * reel on the previous page; the next page is everything created strictly
-   * before that reel's `createdAt` (ties broken by id) so pagination is stable
-   * even as new reels arrive. `isLikedByUser` is resolved from `ReelLike` for
-   * the authenticated viewer in a single batched query.
+   * reel on the previous page; the next page is everything strictly after
+   * that reel in the feed's total order (`createdAt` desc, ties broken by
+   * `id` desc) — the page filter is the compound (createdAt, id) tuple, so
+   * reels sharing the cursor reel's millisecond are never skipped, and
+   * pagination is stable even as new reels arrive.
+   *
+   * QC-F-453: cursor resolution is fail-closed. A cursor that does not
+   * resolve (unknown or deleted reel id) is a 400 INVALID_CURSOR — never a
+   * silent fall-back to the first page, which the client would append as
+   * duplicates. With a viewer, the cursor reel's creator also runs the
+   * QC-F-447 pair gate BEFORE the feed query: a blocked pair gets the same
+   * indistinguishable 400 INVALID_CURSOR (the reel's existence and the
+   * block must not leak through a pagination anchor), and an unreadable
+   * pair fails closed with the QC-F-359 503 shape.
+   *
+   * `isLikedByUser` is resolved from `ReelLike` for the authenticated
+   * viewer in a single batched query.
    */
   async getFeed(opts: {
     userId?: string;
@@ -151,13 +164,45 @@ export class ReelService {
   }): Promise<ReelFeedResult> {
     const limit = Math.min(50, Math.max(1, opts.limit ?? 10));
 
-    let createdBefore: Date | undefined;
+    let cursorWhere:
+      | {
+          OR: [
+            { createdAt: { lt: Date } },
+            { createdAt: Date; id: { lt: string } },
+          ];
+        }
+      | undefined;
     if (opts.cursor) {
       const cursorReel = await this.prisma.reel.findUnique({
         where: { id: opts.cursor },
-        select: { createdAt: true },
+        select: { id: true, createdAt: true, creatorId: true },
       });
-      if (cursorReel) createdBefore = cursorReel.createdAt;
+      if (!cursorReel) {
+        throw createAppError('Invalid cursor', 400, 'INVALID_CURSOR');
+      }
+      if (opts.userId) {
+        const verdict = await this.privacy.checkBlockedPair(
+          opts.userId,
+          cursorReel.creatorId,
+        );
+        if (verdict === 'blocked') {
+          // Indistinguishable from an unknown/deleted cursor — see docstring.
+          throw createAppError('Invalid cursor', 400, 'INVALID_CURSOR');
+        }
+        if (verdict === 'unavailable') {
+          throw createAppError(
+            'Privacy preferences are temporarily unavailable',
+            503,
+            'UPSTREAM_UNAVAILABLE',
+          );
+        }
+      }
+      cursorWhere = {
+        OR: [
+          { createdAt: { lt: cursorReel.createdAt } },
+          { createdAt: cursorReel.createdAt, id: { lt: cursorReel.id } },
+        ],
+      };
     }
 
     // QC-F-447: with a viewer, the feed is a leak surface — reels whose
@@ -172,7 +217,7 @@ export class ReelService {
     // byte-for-byte unchanged.
     const windowed = Boolean(opts.userId);
     const rows = (await this.prisma.reel.findMany({
-      where: createdBefore ? { createdAt: { lt: createdBefore } } : {},
+      where: cursorWhere ? cursorWhere : {},
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: windowed ? REEL_FEED_WINDOW : limit + 1,
       include: { creator: { select: { username: true, avatarUrl: true } } },

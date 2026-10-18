@@ -747,11 +747,34 @@ function makeReelWorld(prefsInit: Map<string, unknown>, rows: ReelRow[]): ReelWo
       const row = reels.get(where.id);
       return row ? { id: row.id, creatorId: row.creatorId, createdAt: row.createdAt } : null;
     },
-    async findMany(args: { where?: { createdAt?: { lt: Date } }; take?: number }) {
+    async findMany(args: {
+      where?: {
+        createdAt?: { lt: Date };
+        // QC-F-453: compound cursor — OR of (createdAt < t) and
+        // (createdAt = t AND id < cursorId), matching the feed's total
+        // order (createdAt desc, id desc).
+        OR?: Array<
+          | { createdAt: { lt: Date } }
+          | { createdAt: Date; id: { lt: string } }
+        >;
+      };
+      take?: number;
+    }) {
       let out = [...reels.values()].sort(
         (a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : -1),
       );
-      if (args.where?.createdAt?.lt) {
+      if (args.where?.OR) {
+        const or = args.where.OR;
+        out = out.filter((r) =>
+          or.some((branch) => {
+            if ('lt' in branch.createdAt) {
+              return r.createdAt.getTime() < branch.createdAt.lt.getTime();
+            }
+            const tie = branch as { createdAt: Date; id: { lt: string } };
+            return r.createdAt.getTime() === tie.createdAt.getTime() && r.id < tie.id.lt;
+          }),
+        );
+      } else if (args.where?.createdAt?.lt) {
         const lt = args.where.createdAt.lt.getTime();
         out = out.filter((r) => r.createdAt.getTime() < lt);
       }
