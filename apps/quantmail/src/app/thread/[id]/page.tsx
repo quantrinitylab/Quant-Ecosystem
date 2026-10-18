@@ -130,8 +130,14 @@ export default function ThreadPage() {
     }, [threadId, mutations]),
     onForward: useCallback(() => {
       if (!threadId) return;
-      router.push(`/compose?forward=${encodeURIComponent(threadId)}`);
-    }, [threadId, router]),
+      /*
+       * Guarded like every other thread exit: `f` with typed-but-unsent
+       * quick-reply text shows the discard confirm instead of silently
+       * vaporising the draft (same silent-loss class as the edge-swipe /
+       * back-button defect fixed by the leave guard).
+       */
+      guardedNavigate(() => router.push(`/compose?forward=${encodeURIComponent(threadId)}`));
+    }, [threadId, router, guardedNavigate]),
     onFocusReply: useCallback(() => {
       document.getElementById('chatbot-reply-input')?.focus();
     }, []),
@@ -139,8 +145,11 @@ export default function ThreadPage() {
       if (!threadId) return;
       // view=inbox is load-bearing: RootPage renders PeopleHome without it,
       // and ?selected= is only consumed inside InboxPageContent.
-      router.push(inboxSelectTarget(threadId));
-    }, [threadId, router]),
+      // Guarded like every other thread exit: `x` with typed-but-unsent
+      // quick-reply text shows the discard confirm instead of silently
+      // vaporising the draft.
+      guardedNavigate(() => router.push(inboxSelectTarget(threadId)));
+    }, [threadId, router, guardedNavigate]),
     onClose: useCallback(() => {
       leaveThread(false);
     }, [leaveThread]),
