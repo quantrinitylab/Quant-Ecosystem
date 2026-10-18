@@ -1486,11 +1486,20 @@ function QuantGitContent() {  const router = useRouter();
           deletions: item.deletions ?? undefined,
           changedFiles: item.changedFiles ?? undefined,
         };
-        setPulls((prev) => [created, ...prev]);
+        setPulls((prev) =>
+          prev.some((p) => p.id === created.id) ? prev : [created, ...prev],
+        );
         setNewPrTitle('');
         setNewPrBody('');
         setModalState('none');
-        showToast(`Pull Request #${created.id} opened`);
+        // The backend is idempotent: a 200 for an already-open PR on the same
+        // branch pair returns the existing PR (deduplicated: true) — say so
+        // honestly instead of claiming a new PR was opened.
+        showToast(
+          json.deduplicated
+            ? `Pull request #${created.id} is already open for this branch`
+            : `Pull Request #${created.id} opened`,
+        );
         emitQuantGitMascotEvent('pull');
         return;
       }
@@ -1524,6 +1533,10 @@ function QuantGitContent() {  const router = useRouter();
       }
 
       let createdPr: PRItem;
+      // Tracks whether the backend idempotently returned an already-open PR
+      // (deduplicated: true) instead of creating a new one — used by the
+      // toast below, which runs outside the try/catch.
+      let wasDeduplicated = false;
 
       try {
         const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/pulls`, {
@@ -1537,6 +1550,7 @@ function QuantGitContent() {  const router = useRouter();
           }),
         });
         const json = await res.json().catch(() => null);
+        wasDeduplicated = json?.deduplicated === true;
         if (res.ok && json?.success && json?.data) {
           const item = json.data;
           createdPr = {
@@ -1567,11 +1581,22 @@ function QuantGitContent() {  const router = useRouter();
         throw err;
       }
 
-      setPulls((prev) => [createdPr, ...prev]);
+      // Prepend only when the row is not already listed: the backend may
+      // return an idempotent 200 for an existing OPEN PR (deduplicated: true)
+      // and we must not render it twice.
+      setPulls((prev) =>
+        prev.some((p) => p.id === createdPr.id) ? prev : [createdPr, ...prev],
+      );
       setSelectedPr(createdPr);
       setActiveDeckTab('repos');
       setActiveGitHubTab('pulls');
-      showToast(`Pull Request #${createdPr.id} created from branch ${params.sourceBranch}!`);
+      // The backend is idempotent: a 200 with deduplicated: true means the PR
+      // already existed — report that honestly instead of claiming creation.
+      showToast(
+        wasDeduplicated
+          ? `Pull Request #${createdPr.id} is already open for branch ${params.sourceBranch}`
+          : `Pull Request #${createdPr.id} created from branch ${params.sourceBranch}!`,
+      );
       emitQuantGitMascotEvent('pull');
       return createdPr;
     },
@@ -2180,25 +2205,17 @@ function QuantGitContent() {  const router = useRouter();
       closeBlobEditor();
       await fetchRepos();
 
-      if (input.newBranch) {
-        const prMsg = input.message.split('\n')[0] || `Update ${input.path}`;
-        const prBody = input.message.includes('\n\n')
-          ? input.message.split('\n\n').slice(1).join('\n\n')
-          : 'In-editor live coding changes submitted via QuantGit web editor.';
-        await handleStartPullRequest({
-          sourceBranch: input.newBranch,
-          targetBranch: currentBranch || 'main',
-          title: prMsg,
-          body: prBody,
-        });
-      }
+      // fix/qm-commit-double-pr: PR creation for commit-to-new-branch lives
+      // ONLY in the CodeTab commit modal (onStartPullRequest) — the single
+      // creation site. This handler used to POST a second creation request,
+      // so one commit action produced PRs N and N+1: the second slipped past
+      // handleStartPullRequest's local-state dedupe because React state had
+      // not re-rendered between the two awaits.
     },
     [
       apiFetch,
       closeBlobEditor,
-      currentBranch,
       fetchRepos,
-      handleStartPullRequest,
       selectedRepo,
       showToast,
     ],
