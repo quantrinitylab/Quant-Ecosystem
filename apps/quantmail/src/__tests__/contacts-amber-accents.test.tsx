@@ -41,6 +41,12 @@ const PAGE = readFileSync(
   new URL('../app/contacts/page.tsx', import.meta.url),
   'utf8',
 );
+// qm-contacts-secondary-tabs-labels (2026-10-20): the mobile secondary strip
+// moved into this component — the amber guarantee follows the code.
+const SECONDARY_TABS = readFileSync(
+  new URL('../app/contacts/components/ContactsSecondaryTabs.tsx', import.meta.url),
+  'utf8',
+);
 const LETTER_INDEX = readFileSync(
   new URL('../components/ContactsLetterIndex.tsx', import.meta.url),
   'utf8',
@@ -107,13 +113,18 @@ describe('qm-contacts-amber-accents: ContactsDedupeModal uses amber', () => {
 
 describe('qm-contacts-amber-accents: contacts page (incl. mobile tabs) is amber', () => {
   for (const token of FORBIDDEN_TOKENS) {
-    it(`does not contain "${token}"`, () => {
+    it(`page does not contain "${token}"`, () => {
       expect(PAGE).not.toContain(token);
+    });
+    it(`secondary strip does not contain "${token}"`, () => {
+      expect(SECONDARY_TABS).not.toContain(token);
     });
   }
 
   it('mobile subview tabs use var(--app-accent), not --quant-primary', () => {
-    const actives = PAGE.match(
+    // SubviewTabNav (page.tsx) + the extracted ContactsSecondaryTabStrip.
+    const combined = `${PAGE}\n${SECONDARY_TABS}`;
+    const actives = combined.match(
       /bg-\[var\(--app-accent\)\]\/20 text-\[var\(--app-accent\)\] border border-\[var\(--app-accent\)\]\/40 shadow-sm/g,
     );
     expect(actives?.length).toBeGreaterThanOrEqual(2);
