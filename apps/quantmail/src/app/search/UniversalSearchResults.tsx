@@ -123,7 +123,7 @@ function formatBytes(size?: number): string {
 }
 
 const rowClass =
-  'flex w-full items-center gap-3 border-b border-[var(--quant-border)] bg-[var(--quant-surface)]/40 px-3.5 py-3 text-left last:border-b-0 transition-colors hover:bg-[var(--quant-muted)]';
+  'flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-white/5';
 
 function MailRow({ email, onOpen }: { email: Email; onOpen: (email: Email) => void }) {
   const senderLabel = email.from?.name || email.from?.email || '?';
@@ -164,7 +164,7 @@ function PersonRow({ person }: { person: Contact }) {
       onClick={() => router.push(personDetailHref(person))}
       className={rowClass}
     >
-      <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--quant-muted)] text-sm font-semibold">
+      <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[var(--quant-border)] bg-black text-sm font-semibold">
         {(person.name || person.email || '?').charAt(0).toUpperCase()}
       </span>
       <span className="min-w-0 flex-1">
