@@ -110,8 +110,52 @@ export function quantyDraftSendCopy(locale: 'en' | 'hi') {
   return {
     composeFailed: hi ? 'ड्राफ्ट नहीं बन पाया' : 'Could not create the draft',
     sendFailed: hi ? 'भेजा नहीं जा सका' : 'Could not send the email',
+    /**
+     * Delivered copy — used ONLY when the send response's deliveryStatus is
+     * literally 'delivered'. POST /emails/:id/send answers 202 with
+     * deliveryStatus 'queued' (accepted, not delivered), so the immediate
+     * path uses acceptedNote/acceptedToast below unless the server says
+     * otherwise (202/queued != delivered).
+     */
     sentNote: (to: string) =>
       hi ? `भेज दिया — ${to} को ईमेल चला गया।` : `Sent — email delivered to ${to}.`,
+    /**
+     * Accepted-but-not-delivered copy for a 202/queued immediate send. The
+     * old code claimed "delivered" for every accepted send; the honest claim
+     * is "queued for delivery".
+     */
+    acceptedNote: (to: string) =>
+      hi
+        ? `भेज दिया — ${to} को ईमेल डिलीवरी के लिए कतार में है।`
+        : `Sent — the email to ${to} is queued for delivery.`,
+    acceptedToast: (to: string) =>
+      hi ? `ईमेल कतार में — ${to} को भेजा जाएगा` : `Email queued — will deliver to ${to}`,
+    /**
+     * Unknown-outcome copy: the send may have committed server-side (timeout
+     * / dropped connection / truncated body / 5xx after commit). Claiming
+     * "Nothing was sent" here is the lie the old code told on every
+     * transport failure. The draft card is KEPT and the retry reconciles the
+     * original send (same composed ID + send key) instead of sending twice.
+     */
+    unknownOutcomeNote: (detail: string) =>
+      hi
+        ? `भेजने का नतीजा पक्का नहीं: ${detail}। हो सकता है ईमेल चला गया हो। आपका ड्राफ्ट रखा गया है — दोबारा कोशिश करने पर वही भेजा जाएगा, दूसरी कॉपी नहीं बनेगी। या Edit से composer में खोलें।`
+        : `Send outcome uncertain: ${detail}. The email may have gone through. Your draft is kept — retrying reconciles the original send instead of sending a second copy, or open it in the composer via Edit.`,
+    unknownOutcomeToast: hi
+      ? 'नतीजा पक्का नहीं — ड्राफ्ट रखा गया है'
+      : 'Send outcome uncertain — draft kept for retry',
+    /**
+     * Already-sent copy: the send answered 409 EMAIL_NOT_SENDABLE, meaning an
+     * earlier attempt of this send DID go through (its receipt was lost).
+     * The desired end state holds — report it as already-sent, never as a
+     * failure.
+     */
+    alreadySentNote: (to: string) =>
+      hi
+        ? `पहले ही भेजा जा चुका है — ${to} को ईमेल चला गया था।`
+        : `Already sent — the email to ${to} went out on an earlier attempt.`,
+    alreadySentToast: (to: string) =>
+      hi ? `पहले ही भेजा गया — ${to}` : `Already sent to ${to}`,
     failedNote: (detail: string) =>
       hi
         ? `भेजने में दिक्कत हुई: ${detail}। कुछ नहीं भेजा गया — दोबारा कोशिश करें या Edit से composer में खोलें।`
@@ -131,6 +175,75 @@ export function quantyDraftSendCopy(locale: 'en' | 'hi') {
   };
 }
 
+/**
+ * Per-task send-attempt record for one confirmed Quanty draft (qm-auto
+ * finding: the copilot's send path recomposed a fresh email on EVERY
+ * invocation, discarding the composed ID and minting a new send key, so a
+ * retry after a lost response created a SECOND accepted send instead of
+ * reconciling the first). The drawer owns one record per confirmation card
+ * (keyed by `sendTaskId`); it survives failed attempts so a retry reuses the
+ * SAME composed email ID and the SAME send key — the retry reconciles the
+ * original operation, never blind-repeats it.
+ */
+export interface QuantyDraftSendTaskState {
+  /** Draft ID from the first successful compose; reused across retries. */
+  composedEmailId?: string;
+  /**
+   * Durable idempotency key for THIS task's send, minted once and sent
+   * verbatim on every attempt (`Idempotency-Key`). The server's claim is
+   * scoped to `<userId>:<method>:<routePath>:<key>`, so a retry with the
+   * same composed ID + key replays the original receipt instead of
+   * executing twice. Invalidated (with composedEmailId) only on an
+   * authoritative 4xx, which proves the send never ran — the next attempt is
+   * then a genuinely new operation with a fresh key. (Reusing the old key
+   * for a fresh draft would replay this rejection, since the claim is bound
+   * to the route template, not the email ID.)
+   */
+  sendKey?: string;
+}
+
+/** Transport error codes that leave a send's outcome unknown. */
+const UNKNOWN_OUTCOME_CODES = new Set(['TIMEOUT', 'NETWORK_ERROR', 'PARSE_ERROR']);
+
+/**
+ * True when a send failure leaves the outcome UNKNOWN — the request may
+ * have committed server-side (timeout / dropped connection / truncated
+ * body / 5xx after commit / 409 in-flight claim). The caller must NOT claim
+ * "nothing was sent" and must keep the task state so the retry reconciles
+ * the original operation. Exported for tests.
+ */
+export function isUnknownSendOutcome(
+  error: { code?: string; statusCode?: number } | null | undefined,
+): boolean {
+  if (!error) return false;
+  if (error.code && UNKNOWN_OUTCOME_CODES.has(error.code)) return true;
+  if (error.statusCode === 0) return true;
+  // 409 may be IDEMPOTENCY_IN_FLIGHT — the operation is still unanswered.
+  // (409 EMAIL_NOT_SENDABLE is the already-sent reconcile case, handled by
+  // code before this helper is consulted.)
+  if (error.statusCode === 409) return true;
+  // A 5xx may have committed before the gateway timed out (same reasoning
+  // as the api-client's pending-operation ledger: keep K1, retry replays).
+  if (typeof error.statusCode === 'number' && error.statusCode >= 500) return true;
+  return false;
+}
+
+/**
+ * Mints a task's durable send key. crypto.randomUUID when available,
+ * otherwise a Date.now()+Math.random fallback (same shape as the
+ * undo-send queue's pending-item ids).
+ */
+export function newQuantySendKey(): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch {
+    // fall through to the fallback
+  }
+  return `qm-send-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export interface QuantyDraftSendDeps {
   to: string;
   subject: string;
@@ -139,17 +252,33 @@ export interface QuantyDraftSendDeps {
   composeEmail: (data: ComposeEmailRequest) => Promise<{
     success: boolean;
     data?: { id?: string } | null;
-    error?: { message?: string } | null;
+    error?: { code?: string; message?: string; statusCode?: number } | null;
   }>;
   /**
-   * Same shape as `apiClient.sendEmail`: a second options arg carrying the
-   * schedule. The immediate path calls it with ONE arg (byte-identical to
-   * before — the options object is only passed for scheduled sends).
+   * Same shape as `apiClient.sendEmail`: the composed email id plus an
+   * options object. The options ALWAYS carry this task's durable
+   * `idempotencyKey` (minted once per task, sent verbatim) so a retry
+   * reconciles the original send instead of executing a second one;
+   * `sendAt` joins it for scheduled sends. The immediate path is therefore
+   * no longer a bare one-arg call — the key is the reconciliation handle
+   * (the finding: blind recompose on retry created two accepted schedules).
    */
   sendEmail: (
     id: string,
-    options?: { sendAt?: string },
-  ) => Promise<{ success: boolean; error?: { message?: string } | null }>;
+    options: { sendAt?: string; idempotencyKey: string },
+  ) => Promise<{
+    success: boolean;
+    data?: { deliveryStatus?: string; emailId?: string } | null;
+    error?: { code?: string; message?: string; statusCode?: number } | null;
+  }>;
+  /**
+   * The per-task attempt record (owned by the drawer, keyed by the
+   * confirmation card's `sendTaskId`). Mutated in place: composedEmailId is
+   * set after the first successful compose, sendKey is minted once.
+   */
+  taskState: QuantyDraftSendTaskState;
+  /** Mints the task's durable send key (once per task). */
+  newSendKey: () => string;
   /**
    * ISO future timestamp from the ScheduleSendModal (qm-auto finding: the
    * copilot's send path had no schedule-send). Carried into
@@ -159,7 +288,14 @@ export interface QuantyDraftSendDeps {
   scheduledAt?: string;
   appendAssistantNote: (text: string) => void;
   showToast: (toast: { text: string; type: 'success' | 'error' }) => void;
-  onSettled: () => void;
+  /**
+   * Runs after the attempt settles. `ok` is true only when the send truly
+   * completed (or was already sent — the EMAIL_NOT_SENDABLE reconcile).
+   * The drawer clears the confirmation card only on ok; on failure the card
+   * AND the task state are kept so the user retries from the same card and
+   * the retry reuses the composed ID + send key.
+   */
+  onSettled: (result: { ok: boolean }) => void;
 }
 
 /**
@@ -172,6 +308,14 @@ export interface QuantyDraftSendDeps {
  * never happened (while the drawer itself showed a failure toast). The catch
  * still surfaces the failure honestly (error toast + assistant note) and
  * then rethrows — the bar's failure path runs instead of markSent.
+ *
+ * Retry/reconcile contract (qm-auto finding, scheduled-send path): the
+ * composed email ID and the send key live in `deps.taskState` and survive
+ * failed attempts. Compose runs at most ONCE per task; every send attempt
+ * carries the same durable `idempotencyKey`, so a retry after a lost
+ * response replays the original receipt server-side instead of creating a
+ * second send. Unknown outcomes (timeout / dropped connection / 5xx /
+ * 409-in-flight) are never labeled "nothing was sent".
  */
 export function buildQuantyDraftSendNow(deps: QuantyDraftSendDeps): () => Promise<void> {
   const {
@@ -181,48 +325,115 @@ export function buildQuantyDraftSendNow(deps: QuantyDraftSendDeps): () => Promis
     copy,
     composeEmail,
     sendEmail,
+    taskState,
+    newSendKey,
     scheduledAt,
     appendAssistantNote,
     showToast,
     onSettled,
   } = deps;
   return async () => {
+    let ok = false;
+    // Set when the failure surface was already shown on a specific path
+    // (unknown-outcome / already-sent); the generic catch then only
+    // rethrows without double-surfacing.
+    let surfaced = false;
     try {
-      const composeRes = await composeEmail({
-        to: [{ email: to }],
-        subject: subject || `Message for ${to}`,
-        bodyText: body,
-        messageKind: 'mail',
-      });
-      if (!composeRes.success || !composeRes.data?.id) {
-        throw new Error(composeRes.error?.message || copy.composeFailed);
+      // Compose at most ONCE per task: a retry reuses the composed draft,
+      // so the send path — and therefore the idempotency claim — stays
+      // identical and the server replays the original receipt.
+      let emailId = taskState.composedEmailId;
+      if (!emailId) {
+        const composeRes = await composeEmail({
+          to: [{ email: to }],
+          subject: subject || `Message for ${to}`,
+          bodyText: body,
+          messageKind: 'mail',
+        });
+        if (!composeRes.success || !composeRes.data?.id) {
+          // Nothing was ever created — "nothing was sent" stays honest.
+          throw new Error(composeRes.error?.message || copy.composeFailed);
+        }
+        emailId = composeRes.data.id;
+        taskState.composedEmailId = emailId;
       }
-      // The one sendAt contract: a scheduledAt from the ScheduleSendModal
-      // travels as POST /emails/:id/send `{ sendAt }`. The immediate path
-      // stays byte-identical (one arg, no options object — same convention
-      // the ThreadComposerUndoSend suite pins for ThreadComposer).
-      const sendRes = scheduledAt
-        ? await sendEmail(composeRes.data.id, { sendAt: scheduledAt })
-        : await sendEmail(composeRes.data.id);
+      if (!taskState.sendKey) taskState.sendKey = newSendKey();
+      const sendOptions = scheduledAt
+        ? { sendAt: scheduledAt, idempotencyKey: taskState.sendKey }
+        : { idempotencyKey: taskState.sendKey };
+      let sendRes: Awaited<ReturnType<typeof sendEmail>>;
+      try {
+        sendRes = await sendEmail(emailId, sendOptions);
+      } catch (err) {
+        // No response at all (timeout / network failure / abort): the send
+        // may have committed — the outcome is UNKNOWN, never "nothing was
+        // sent". taskState is untouched, so the retry reconciles.
+        const detail = err instanceof Error ? err.message : 'Unknown error';
+        appendAssistantNote(copy.unknownOutcomeNote(detail));
+        showToast({ text: copy.unknownOutcomeToast, type: 'error' });
+        surfaced = true;
+        throw err;
+      }
       if (!sendRes.success) {
-        throw new Error(sendRes.error?.message || copy.sendFailed);
+        const sendErr = sendRes.error ?? undefined;
+        if (sendErr?.code === 'EMAIL_NOT_SENDABLE') {
+          // 409 on an already-sent draft: an earlier attempt of this send
+          // DID go through and its receipt was lost. The desired end state
+          // holds — report it honestly as already-sent, not as a failure.
+          appendAssistantNote(copy.alreadySentNote(to));
+          showToast({ text: copy.alreadySentToast(to), type: 'success' });
+          surfaced = true;
+          ok = true;
+          return;
+        }
+        if (isUnknownSendOutcome(sendErr)) {
+          // The send may have committed — keep taskState so the retry
+          // reconciles the original operation with the same key.
+          const detail = sendErr?.message || copy.sendFailed;
+          appendAssistantNote(copy.unknownOutcomeNote(detail));
+          showToast({ text: copy.unknownOutcomeToast, type: 'error' });
+          surfaced = true;
+          throw new Error(detail);
+        }
+        // Authoritative rejection (4xx): the server answered and the send
+        // never ran — "nothing was sent" is honest here. Invalidate the
+        // composed ID and send key: the idempotency claim is scoped to
+        // <route>:<key>, so reusing the key for a fresh draft would replay
+        // this rejection; the next attempt is a genuinely new operation.
+        taskState.composedEmailId = undefined;
+        taskState.sendKey = undefined;
+        throw new Error(sendErr?.message || copy.sendFailed);
       }
-      // Honest copy: a scheduled send is NOT a delivery — never say "sent".
-      appendAssistantNote(scheduledAt ? copy.scheduledNote(to) : copy.sentNote(to));
-      showToast({
-        text: scheduledAt ? copy.scheduledToast(to) : `Email sent to ${to}`,
-        type: 'success',
-      });
+      // Honest deliveryStatus mapping: POST /emails/:id/send answers 202
+      // with deliveryStatus 'queued' — accepted, NOT delivered. Only a
+      // literal 'delivered' may claim delivery; a scheduled send is never a
+      // delivery either.
+      const status = sendRes.data?.deliveryStatus;
+      if (scheduledAt) {
+        appendAssistantNote(copy.scheduledNote(to));
+        showToast({ text: copy.scheduledToast(to), type: 'success' });
+      } else if (status === 'delivered') {
+        appendAssistantNote(copy.sentNote(to));
+        showToast({ text: `Email sent to ${to}`, type: 'success' });
+      } else {
+        appendAssistantNote(copy.acceptedNote(to));
+        showToast({ text: copy.acceptedToast(to), type: 'success' });
+      }
+      ok = true;
     } catch (err) {
-      const detail = err instanceof Error ? err.message : 'Unknown error';
-      appendAssistantNote(copy.failedNote(detail));
-      showToast({ text: copy.sendFailedToast, type: 'error' });
+      if (!surfaced) {
+        const detail = err instanceof Error ? err.message : 'Unknown error';
+        appendAssistantNote(copy.failedNote(detail));
+        showToast({ text: copy.sendFailedToast, type: 'error' });
+      }
       // Rethrow: the promise must reject so UndoSendManager never marks this
       // failed send as sent. The drawer's own failure surface above is the
       // only honest one.
       throw err;
     } finally {
-      onSettled();
+      // The drawer keeps the confirmation card AND the task state on failure
+      // so Send retries from the same card with the same composed ID + key.
+      onSettled({ ok });
     }
   };
 }
@@ -262,6 +473,15 @@ export interface QuantySendEmailDraft {
   body: string;
   /** False when `to` is missing or not a valid address — Send stays disabled. */
   toValid: boolean;
+  /**
+   * Stable identity for this confirmation card's send task (assigned when
+   * the card is created). Keys the per-task send-attempt record
+   * (QuantyDraftSendTaskState: composed email ID + durable send key) so a
+   * retry after a failed/unknown-outcome attempt reconciles the ORIGINAL
+   * send instead of composing a fresh email and minting a new send key
+   * (which the old code did — two accepted schedules for one user intent).
+   */
+  sendTaskId?: string;
 }
 
 const EMAIL_ADDRESS_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -628,6 +848,30 @@ export function QuantyCopilotDrawer({
   const [pendingEmailDraft, setPendingEmailDraft] = useState<QuantySendEmailDraft | null>(null);
   const [draftSending, setDraftSending] = useState(false);
   /**
+   * Per-task send-attempt records for Quanty confirmation cards, keyed by
+   * the card's `sendTaskId` (qm-auto finding: the copilot's send path
+   * recomposed on every invocation). A record survives a failed attempt —
+   * the retry reuses the same composed email ID and the same durable send
+   * key, so the server replays the original receipt instead of accepting a
+   * second send. Discarded when the card is cleared (send success, cancel,
+   * edit-in-composer, drawer close, superseded by a new message); deliberately
+   * NOT on send failure, where the card stays for retry.
+   */
+  const sendTaskStateRef = useRef<Record<string, QuantyDraftSendTaskState>>({});
+  const getSendTaskState = (taskId: string): QuantyDraftSendTaskState => {
+    let state = sendTaskStateRef.current[taskId];
+    if (!state) {
+      state = {};
+      sendTaskStateRef.current[taskId] = state;
+    }
+    return state;
+  };
+  const discardSendTaskState = (taskId?: string | null) => {
+    if (taskId) {
+      delete sendTaskStateRef.current[taskId];
+    }
+  };
+  /**
    * Schedule-send modal visibility for the confirmation card (qm-auto
    * finding: the copilot's send path had no schedule-send). The same
    * ScheduleSendModal the /compose page's EmailComposer, DockedComposer and
@@ -707,6 +951,9 @@ export function QuantyCopilotDrawer({
       setShowHistoryMenu(false);
       // An unconfirmed draft does not survive the drawer closing.
       setPendingEmailDraft(null);
+      // Any in-flight task state dies with the drawer — a fresh card mints a
+      // fresh task id, so a stale record could never be reused by accident.
+      sendTaskStateRef.current = {};
     }
   }, [isOpen]);
 
@@ -798,7 +1045,12 @@ export function QuantyCopilotDrawer({
     const assistantText = emailDraft
       ? stripSendEmailEnvelope(result.message)
       : unwrapToolCallResponse(result.message);
-    if (emailDraft) setPendingEmailDraft(emailDraft);
+    if (emailDraft) {
+      // Mint this confirmation card's stable send-task identity: the
+      // per-task attempt record (composed ID + durable send key) lives as
+      // long as the card does, so a retry reconciles the original send.
+      setPendingEmailDraft({ ...emailDraft, sendTaskId: newQuantySendKey() });
+    }
 
     const finalMsgs: ChatTurn[] = [
       ...turns,
@@ -825,6 +1077,7 @@ export function QuantyCopilotDrawer({
     if (!promptToSend || isLoading) return;
 
     // A new message supersedes any unconfirmed draft — the user moved on.
+    discardSendTaskState(pendingEmailDraft?.sendTaskId);
     setPendingEmailDraft(null);
     const turns: ChatTurn[] = [...messages, { role: 'user', text: promptToSend }];
     setMessages(turns);
@@ -870,6 +1123,13 @@ export function QuantyCopilotDrawer({
     }
     setDraftSending(true);
     const { to, subject, body } = draft;
+    // The card's stable send-task identity: the attempt record survives a
+    // failed attempt, so Send-after-failure reuses the SAME composed email
+    // ID and the SAME durable send key — the retry reconciles the original
+    // send server-side (idempotency replay) instead of composing a fresh
+    // email and minting a new send key (the old two-schedules bug).
+    const taskId = draft.sendTaskId ?? newQuantySendKey();
+    const taskState = getSendTaskState(taskId);
     queueSend({
       to,
       subject,
@@ -883,13 +1143,21 @@ export function QuantyCopilotDrawer({
         scheduledAt,
         copy: quantyDraftSendCopy(locale),
         composeEmail: (data) => apiClient.composeEmail(data),
-        sendEmail: (id, options) =>
-          options ? apiClient.sendEmail(id, options) : apiClient.sendEmail(id),
+        sendEmail: (id, options) => apiClient.sendEmail(id, options),
+        taskState,
+        newSendKey: newQuantySendKey,
         appendAssistantNote,
         showToast,
-        onSettled: () => {
+        onSettled: ({ ok }) => {
           setDraftSending(false);
-          setPendingEmailDraft(null);
+          if (ok) {
+            // Sent (or already-sent): the card and its task record are done.
+            discardSendTaskState(taskId);
+            setPendingEmailDraft(null);
+          }
+          // On failure the confirmation card STAYS (and so does the task
+          // record): Send retries from the same card with the same composed
+          // ID + send key, and Edit still opens the draft in the composer.
         },
       }),
       // The drawer's catch already surfaced the failure (error toast +
@@ -905,6 +1173,7 @@ export function QuantyCopilotDrawer({
         // nothing was delivered either.)
         appendAssistantNote('Send cancel kar diya — kuch nahi bheja gaya.');
         setDraftSending(false);
+        discardSendTaskState(draft.sendTaskId);
         setPendingEmailDraft(null);
       },
     });
@@ -914,6 +1183,7 @@ export function QuantyCopilotDrawer({
   const editDraftInComposer = () => {
     const draft = pendingEmailDraft;
     if (!draft) return;
+    discardSendTaskState(draft.sendTaskId);
     setPendingEmailDraft(null);
     onClose();
     window.dispatchEvent(
@@ -925,6 +1195,7 @@ export function QuantyCopilotDrawer({
 
   /** Dismiss the draft without sending anything. */
   const cancelDraft = () => {
+    discardSendTaskState(pendingEmailDraft?.sendTaskId);
     setPendingEmailDraft(null);
     appendAssistantNote('Draft cancel kar diya — kuch nahi bheja gaya.');
   };
