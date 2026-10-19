@@ -4682,3 +4682,7 @@ Status: [x] DONE (R25 regression audit complete 2026-10-19 ~16:55 IST; 1 merge i
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents spawned (protocol: P0/P1 only; subagent.list checked — 0 active). findings.md untouched (clean pass).
 - VERDICT-LIVE: HEALTHY — origin live (Oracle). Proxy 127.0.0.1:8888 healthy (google 204 0.35s; no restart). GET /contacts -> 307 -> /login?returnTo=%2Fcontacts; GET /api/contacts{,/suggestions,/groups} -> honest 401 x3. Desktop 1440x900 + mobile 390x844 (iPhone 14, hydrated) /contacts screenshots REVIEWED (307 -> sign-in): clay M-mark current, honest sign-in copy + tri-cards ('Mail + chat threads', 'AI triage', 'Encrypted in transit'), ONE IDENTITY footer, (c) 2026, pure black, mail-orange accents, zero old-logo flash; white ghost on 'AI triage' card = standing known issue (not re-filed); known P3 'Quant Mail' wordmark spacing re-seen, not re-filed. Signed-in contacts (CRUD, groups, invites, dedupe) = needs-auth (protocol), not faked. #1383 on main only (#1243 deploy hold still ACTIVE — nothing new on live to verify). Shots reviewed + deleted; /tmp chrome dirs cleaned; 9333 free at start.
 - Rotation -> QM-SCREEN-013 (QuantGit) ROUND 25 regression, queued.
+
+
+## QM-SCREEN-016 R25 — Settings regression (ROUND 25)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-016r25, started 2026-10-19 ~20:35 IST; R24 base b964006b8c -> origin/main 010ae98ad, fresh fetch, 16 first-parent window merges)
