@@ -60,10 +60,18 @@ const notificationsSchema = z.object({
   quietHoursEnd: z.string().max(10).optional(),
 });
 
+// QC-F-296: call-quality preferences. This is a consumption preference
+// (how much data MY calls use), NOT an enforcement/privacy preference —
+// it deliberately does NOT live in PrivacyService (QC-F-503's territory).
+const callsSchema = z.object({
+  lowDataMode: z.boolean().optional(),
+});
+
 const settingsBodySchema = z
   .object({
     privacy: privacySchema.optional(),
     notifications: notificationsSchema.optional(),
+    calls: callsSchema.optional(),
     theme: z.string().min(1).max(50).optional(),
     language: z.string().min(2).max(10).optional(),
   })
@@ -89,9 +97,16 @@ const DEFAULT_NOTIFICATIONS = {
   quietHoursEnd: '07:00',
 } as const;
 
+// QC-F-296: low-data is OFF by default — an honest default: calls use the
+// engine's normal quality until the user opts into lower quality.
+const DEFAULT_CALLS = {
+  lowDataMode: false,
+} as const;
+
 type ChatSettings = {
   privacy?: Record<string, unknown>;
   notifications?: Record<string, unknown>;
+  calls?: Record<string, unknown>;
   theme?: unknown;
   language?: unknown;
   blockedUsers?: unknown;
@@ -108,6 +123,7 @@ function toSettingsView(chat: ChatSettings) {
   return {
     privacy: { ...DEFAULT_PRIVACY, ...(chat.privacy ?? {}) },
     notifications: { ...DEFAULT_NOTIFICATIONS, ...(chat.notifications ?? {}) },
+    calls: { ...DEFAULT_CALLS, ...(chat.calls ?? {}) },
     theme: typeof chat.theme === 'string' && chat.theme ? chat.theme : 'dark',
     language: typeof chat.language === 'string' && chat.language ? chat.language : 'en',
     blockedUsers: Array.isArray(chat.blockedUsers) ? chat.blockedUsers : [],
@@ -163,6 +179,9 @@ export default async function settingsRoutes(fastify: FastifyInstance) {
           ...(parsed.data.privacy ? { privacy: { ...(existing.privacy ?? {}), ...parsed.data.privacy } } : {}),
           ...(parsed.data.notifications
             ? { notifications: { ...(existing.notifications ?? {}), ...parsed.data.notifications } }
+            : {}),
+          ...(parsed.data.calls
+            ? { calls: { ...(existing.calls ?? {}), ...parsed.data.calls } }
             : {}),
           ...(parsed.data.theme ? { theme: parsed.data.theme } : {}),
           ...(parsed.data.language ? { language: parsed.data.language } : {}),

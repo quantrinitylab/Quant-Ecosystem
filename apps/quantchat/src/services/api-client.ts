@@ -140,6 +140,25 @@ export interface JoinMeetingRoomResponse {
 // API Client
 // ============================================================================
 
+/** User settings view — mirrors backend routes/settings.ts toSettingsView. */
+export interface UserSettingsView {
+  privacy: Record<string, unknown>;
+  notifications: Record<string, unknown>;
+  /** QC-F-296: call-quality preferences (consumption, not enforcement). */
+  calls: { lowDataMode: boolean };
+  theme: string;
+  language: string;
+  blockedUsers: unknown[];
+}
+
+export interface UserSettingsPatch {
+  privacy?: Record<string, unknown>;
+  notifications?: Record<string, unknown>;
+  calls?: { lowDataMode?: boolean };
+  theme?: string;
+  language?: string;
+}
+
 export class QuantChatApiClient {
   private baseUrl: string;
   private accessToken: string | null = null;
@@ -243,6 +262,18 @@ export class QuantChatApiClient {
     emojiStatus?: { key: string; duration: '1h' | '24h' | '7d' } | null;
   }): Promise<ApiResponse<unknown>> {
     return this.put('/auth/profile', data);
+  }
+
+  /** Current user settings (backend /settings via proxy), defaults merged. */
+  async getSettings(): Promise<ApiResponse<UserSettingsView>> {
+    return this.get('/settings');
+  }
+
+  /** Persist a settings patch (deep-merged server-side over existing). */
+  async updateSettings(
+    patch: UserSettingsPatch,
+  ): Promise<ApiResponse<UserSettingsView>> {
+    return this.put('/settings', patch);
   }
 
   async logout(): Promise<void> {

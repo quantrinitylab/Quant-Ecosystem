@@ -34,6 +34,12 @@ import {
   BACKGROUND_ASSET_PATH,
 } from '@quant/shared-ui';
 import { apiClient } from '../../../services/api-client';
+import {
+  applyAudioOnlyToPublication,
+  applyAudioOnlyToPublications,
+  setCameraEnabledForDataMode,
+  type RemotePublicationLike,
+} from '../../../lib/call-data';
 
 type Phase = 'joining' | 'in-call' | 'ended' | 'error';
 
@@ -64,6 +70,21 @@ export default function CallRoomPage({
   // AudioPlaybackStatusChanged event, never assumed or self-cleared.
   const [audioBlocked, setAudioBlocked] = useState(false);
   const joinedRef = useRef(false);
+
+  // QC-F-296: low-data mode — the preference's single home is the settings
+  // contract's `calls` section; this state is its in-call mirror, read at
+  // join time and written back by the in-call toggle. lowDataRef mirrors
+  // it for the event handlers/callbacks that must read the CURRENT value.
+  const [lowData, setLowData] = useState(false);
+  const lowDataRef = useRef(false);
+  const [lowDataBusy, setLowDataBusy] = useState(false);
+  const [lowDataSaveFailed, setLowDataSaveFailed] = useState(false);
+  const [lowDataPrefFailed, setLowDataPrefFailed] = useState(false);
+  // QC-F-296: audio-only is SESSION-only (never persisted): publish-stop
+  // plus receive-side remote-video disable, for this call only.
+  const [audioOnly, setAudioOnly] = useState(false);
+  const audioOnlyRef = useRef(false);
+  const cameraOnBeforeAudioOnlyRef = useRef(true);
 
   // QC-F-322: in-call background blur (this page auto-joins, so there
   // is no pre-join choice here — brief Sudhaar 5). Bound to the live
@@ -126,6 +147,18 @@ export default function CallRoomPage({
     }
   }, [room]);
 
+  // QC-F-296: every remote video publication currently in the room —
+  // the receive side of the audio-only mode.
+  const collectRemoteVideoPublications = useCallback((): RemotePublicationLike[] => {
+    const pubs: RemotePublicationLike[] = [];
+    for (const participant of room.remoteParticipants.values()) {
+      participant.trackPublications.forEach((pub) => {
+        pubs.push(pub as unknown as RemotePublicationLike);
+      });
+    }
+    return pubs;
+  }, [room]);
+
   const detachRemoteAudio = useCallback(() => {
     const track = attachedAudioTrackRef.current;
     const el = attachedAudioElementRef.current ?? remoteAudioRef.current;
@@ -148,7 +181,18 @@ export default function CallRoomPage({
           );
         }
         room
-          .on(RoomEvent.TrackSubscribed, attachTracks)
+          .on(RoomEvent.TrackSubscribed, (_track, publication) => {
+            // QC-F-296: a publication subscribed while audio-only is on
+            // (a late joiner) joins the mode immediately — audio-only is
+            // not a snapshot of whoever was present when it was toggled.
+            if (audioOnlyRef.current) {
+              applyAudioOnlyToPublication(
+                publication as unknown as RemotePublicationLike | undefined,
+                true,
+              );
+            }
+            attachTracks();
+          })
           .on(RoomEvent.TrackUnsubscribed, attachTracks)
           .on(RoomEvent.ParticipantConnected, attachTracks)
           .on(RoomEvent.ParticipantDisconnected, attachTracks)
@@ -161,13 +205,36 @@ export default function CallRoomPage({
             detachRemoteAudio();
             if (!cancelled) setPhase('ended');
           });
+        // QC-F-296: read the saved low-data preference BEFORE the camera
+        // starts, so the join-time publish already carries the caps. A
+        // failed read never blocks the call (a call matters more than a
+        // preference) — it falls back to the default (off) and says so
+        // honestly in the in-call UI.
+        let initialLowData = false;
+        try {
+          const settingsRes = await apiClient.getSettings();
+          if (settingsRes.success && settingsRes.data) {
+            initialLowData = settingsRes.data.calls?.lowDataMode === true;
+          } else if (!cancelled) {
+            setLowDataPrefFailed(true);
+          }
+        } catch {
+          if (!cancelled) setLowDataPrefFailed(true);
+        }
+        if (cancelled) return;
+        lowDataRef.current = initialLowData;
+        setLowData(initialLowData);
         await room.connect(res.data.serverUrl, res.data.token);
         if (cancelled) {
           room.disconnect();
           return;
         }
         await room.localParticipant.setMicrophoneEnabled(true);
-        await room.localParticipant.setCameraEnabled(true);
+        await setCameraEnabledForDataMode(
+          room.localParticipant,
+          true,
+          initialLowData,
+        );
         attachTracks();
         setPhase('in-call');
       } catch (e) {
@@ -209,9 +276,86 @@ export default function CallRoomPage({
 
   const toggleCamera = useCallback(async () => {
     const next = !isCameraOn;
-    await room.localParticipant.setCameraEnabled(next).catch(() => undefined);
+    if (next) {
+      // QC-F-296: turning the camera back on must keep the CURRENT
+      // low-data caps — a plain setCameraEnabled(true) would silently
+      // drop them. Turning the camera on also ends audio-only (the user
+      // asked to send video again): remote video is restored first.
+      if (audioOnlyRef.current) {
+        audioOnlyRef.current = false;
+        setAudioOnly(false);
+        applyAudioOnlyToPublications(collectRemoteVideoPublications(), false);
+      }
+      await setCameraEnabledForDataMode(
+        room.localParticipant,
+        true,
+        lowDataRef.current,
+      ).catch(() => undefined);
+    } else {
+      await room.localParticipant.setCameraEnabled(false).catch(() => undefined);
+    }
     setIsCameraOn(next);
-  }, [room, isCameraOn]);
+  }, [room, isCameraOn, collectRemoteVideoPublications]);
+
+  // QC-F-296 §5.3: mid-call low-data toggle. Changing publish encoding
+  // means restarting the camera track — the UI shows "Applying…" for
+  // exactly that restart and never claims the switch is seamless. The
+  // new value is also written back to the settings pref; if that write
+  // fails, the mode still applies to THIS call and the honest line below
+  // the toggle says so (never a fake "Saved").
+  const toggleLowData = useCallback(async () => {
+    const next = !lowData;
+    lowDataRef.current = next;
+    setLowData(next);
+    setLowDataSaveFailed(false);
+    setLowDataBusy(true);
+    try {
+      if (isCameraOn) {
+        await room.localParticipant.setCameraEnabled(false).catch(() => undefined);
+        await setCameraEnabledForDataMode(room.localParticipant, true, next).catch(
+          () => undefined,
+        );
+        attachTracks();
+      }
+    } finally {
+      setLowDataBusy(false);
+    }
+    try {
+      const res = await apiClient.updateSettings({ calls: { lowDataMode: next } });
+      if (!res.success) setLowDataSaveFailed(true);
+    } catch {
+      setLowDataSaveFailed(true);
+    }
+  }, [room, lowData, isCameraOn, attachTracks]);
+
+  // QC-F-296 §5.4: audio-only — publish-stop AND receive-side disable,
+  // session-only. Off restores remote video, and restores the camera
+  // ONLY if it was on before audio-only (never force-opens a camera
+  // the user had deliberately off).
+  const toggleAudioOnly = useCallback(async () => {
+    const next = !audioOnly;
+    audioOnlyRef.current = next;
+    setAudioOnly(next);
+    if (next) {
+      cameraOnBeforeAudioOnlyRef.current = isCameraOn;
+      if (isCameraOn) {
+        await room.localParticipant.setCameraEnabled(false).catch(() => undefined);
+        setIsCameraOn(false);
+      }
+      applyAudioOnlyToPublications(collectRemoteVideoPublications(), true);
+    } else {
+      applyAudioOnlyToPublications(collectRemoteVideoPublications(), false);
+      if (cameraOnBeforeAudioOnlyRef.current) {
+        await setCameraEnabledForDataMode(
+          room.localParticipant,
+          true,
+          lowDataRef.current,
+        ).catch(() => undefined);
+        setIsCameraOn(true);
+        attachTracks();
+      }
+    }
+  }, [room, audioOnly, isCameraOn, collectRemoteVideoPublications, attachTracks]);
 
   const endCall = useCallback(async () => {
     try {
@@ -321,6 +465,50 @@ export default function CallRoomPage({
                 </button>
               )}
             </div>
+            {/* QC-F-296: low-data + audio-only controls live in their
+                OWN row above the dock (same discipline as the QC-F-487
+                sound row) so the no-wrap dock never overflows at 390px. */}
+            <div className="flex flex-wrap items-center justify-center gap-3 px-4 pt-3">
+              <button
+                type="button"
+                onClick={() => void toggleLowData()}
+                disabled={lowDataBusy}
+                aria-pressed={lowData}
+                aria-label="Low data"
+                className={`h-11 px-4 rounded-full text-sm font-medium disabled:opacity-50 ${
+                  lowData ? 'bg-white text-black' : 'bg-white/15 text-white'
+                }`}
+              >
+                {lowDataBusy ? 'Applying…' : 'Low data'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void toggleAudioOnly()}
+                aria-pressed={audioOnly}
+                aria-label="Audio only"
+                className={`h-11 px-4 rounded-full text-sm font-medium ${
+                  audioOnly ? 'bg-white text-black' : 'bg-white/15 text-white'
+                }`}
+              >
+                Audio only
+              </button>
+            </div>
+            {audioOnly && (
+              <p className="px-6 pt-2 text-center text-xs text-white/60">
+                Audio only for this call — you won&apos;t send or receive video.
+              </p>
+            )}
+            {lowDataSaveFailed && (
+              <p role="alert" className="px-6 pt-2 text-center text-xs text-amber-300">
+                Couldn&apos;t save this setting — it applies to this call only.
+              </p>
+            )}
+            {lowDataPrefFailed && (
+              <p className="px-6 pt-2 text-center text-xs text-white/60">
+                Couldn&apos;t load your saved call settings, so this call uses
+                the default quality.
+              </p>
+            )}
             <div className="relative pb-10 pt-4 flex items-center justify-center gap-6">
               <button
                 type="button"
