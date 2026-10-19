@@ -27,6 +27,9 @@
 //   - Loop safety: AI-generated incoming messages never trigger replies,
 //     a member with a reply already in flight is skipped, and a disable
 //     during generation cancels delivery (AutoReplyManager ticket).
+//   - QC-F-519: when real AI inference is unavailable the agent throws
+//     AI_UNAVAILABLE — no canned reply is EVER delivered in the user's
+//     name; the ticket is cancelled and the reply is simply skipped.
 // ============================================================================
 
 import type { FastifyInstance } from 'fastify';
@@ -221,7 +224,17 @@ export class AutoReplyService {
       return { generated: false, cancelled: true, reason: 'auto-reply disabled' };
     }
     const ticket = this.manager.enqueue(userId, conversationId);
-    const result = await this.agent.autoReply(input, userId);
+    let result: AutoReplyResult;
+    try {
+      result = await this.agent.autoReply(input, userId);
+    } catch (err) {
+      // QC-F-519 (C3): the agent now throws when real inference is
+      // unavailable. Cancel the ticket before rethrowing — a ticket left
+      // pending would jam this user's auto-reply for the conversation
+      // forever (the manager has no pending TTL).
+      this.manager.cancel(ticket.ticketId);
+      throw err;
+    }
     if (!this.manager.markSent(ticket.ticketId)) {
       return { generated: false, cancelled: true, reason: 'cancelled during generation' };
     }
@@ -280,10 +293,19 @@ export class AutoReplyService {
 
     const context = await this.buildContext(recipientId, args.conversationId, args.messageId);
     const ticket = this.manager.enqueue(recipientId, args.conversationId);
-    const result = await this.agent.autoReply(
-      { conversationId: args.conversationId, incomingMessage: args.content, context },
-      recipientId,
-    );
+    let result: AutoReplyResult;
+    try {
+      result = await this.agent.autoReply(
+        { conversationId: args.conversationId, incomingMessage: args.content, context },
+        recipientId,
+      );
+    } catch {
+      // QC-F-519 (Warg-A + C3): real inference unavailable → NO delivery,
+      // ever. Cancel the ticket (no pending jam) and skip this recipient;
+      // the sender's message and other recipients are unaffected.
+      this.manager.cancel(ticket.ticketId);
+      return false;
+    }
 
     // Disabled while generating → the queued response is cancelled; drop it.
     if (!this.manager.markSent(ticket.ticketId)) return false;
