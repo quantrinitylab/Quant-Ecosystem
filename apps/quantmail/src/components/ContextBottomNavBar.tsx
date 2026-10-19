@@ -937,6 +937,41 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         queryParam: { key: 'tab', value: 'month' },
         description: 'Month calendar',
       },
+      {
+        // QM-BOTTOM-NAV-SUBVIEWS (2026-10-19): /calendar's real subviews
+        // (?tab=feed|events|schedule — backed by isValidContextTab in
+        // calendar/page.tsx and resolveActiveTab below) had IDs but no
+        // bottom-nav entry, so zero aria-current while the user was in them.
+        // These mobileOverflow tabs join the bar only while active (same
+        // pattern as the mail Scheduled/Spam/Trash overflow tabs), so the
+        // bar never lies about where the user is. Labels/icons mirror the
+        // desktop calendar config in desktopContextTabs.tsx.
+        id: 'feed',
+        label: 'Feed',
+        icon: AgendaTimelineIcon,
+        targetPath: '/calendar',
+        queryParam: { key: 'tab', value: 'feed' },
+        description: 'Upcoming events, milestones & tracker dates',
+        mobileOverflow: true,
+      },
+      {
+        id: 'events',
+        label: 'Trackers',
+        icon: CalendarEventsTrackerIcon,
+        targetPath: '/calendar',
+        queryParam: { key: 'tab', value: 'events' },
+        description: 'Trackers hub: Period, Health & Life trackers',
+        mobileOverflow: true,
+      },
+      {
+        id: 'schedule',
+        label: 'Schedule',
+        icon: ScheduleClockIcon,
+        targetPath: '/calendar',
+        queryParam: { key: 'tab', value: 'schedule' },
+        description: 'Meetings, Clock & Reminders',
+        mobileOverflow: true,
+      },
     ],
   },
   drive: {
@@ -968,6 +1003,56 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         targetPath: '/drive',
         queryParam: { key: 'tab', value: 'starred' },
       },
+      {
+        // QM-BOTTOM-NAV-SUBVIEWS (2026-10-19): /drive's real subviews
+        // (?tab=feed|aimemory|vault|shared|cleaner — normalizeTab in
+        // drive/page.tsx) had resolveActiveTab IDs but no bottom-nav entry,
+        // so zero aria-current while the user was in them. mobileOverflow
+        // tabs join the bar only while active. Labels/icons mirror the
+        // desktop drive config in desktopContextTabs.tsx (vault: no
+        // encryption badge — none is implemented, see that file's note).
+        id: 'feed',
+        label: 'Feed',
+        icon: DriveFeedIcon,
+        targetPath: '/drive',
+        queryParam: { key: 'tab', value: 'feed' },
+        mobileOverflow: true,
+      },
+      {
+        id: 'aimemory',
+        label: 'AI Memory',
+        icon: AiMemoryBrainIcon,
+        badgeText: 'AI',
+        ariaLabel: 'AI Memory (Cross-App Relational Vault)',
+        targetPath: '/drive',
+        queryParam: { key: 'tab', value: 'aimemory' },
+        mobileOverflow: true,
+      },
+      {
+        id: 'vault',
+        label: 'Vault',
+        icon: VaultLockIcon,
+        ariaLabel: 'Vault',
+        targetPath: '/drive',
+        queryParam: { key: 'tab', value: 'vault' },
+        mobileOverflow: true,
+      },
+      {
+        id: 'shared',
+        label: 'Shared',
+        icon: SharedFolderIcon,
+        targetPath: '/drive',
+        queryParam: { key: 'tab', value: 'shared' },
+        mobileOverflow: true,
+      },
+      {
+        id: 'cleaner',
+        label: 'Cleaner',
+        icon: FastCdcCleanerIcon,
+        targetPath: '/drive',
+        queryParam: { key: 'tab', value: 'cleaner' },
+        mobileOverflow: true,
+      },
     ],
   },
   contacts: {
@@ -993,6 +1078,37 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         icon: StarredIcon,
         targetPath: '/contacts',
         queryParam: { key: 'tab', value: 'favorites' },
+      },
+      {
+        // QM-BOTTOM-NAV-SUBVIEWS (2026-10-19): /contacts' real subviews
+        // (?tab=groups|companies|dedup — SUBVIEW_TABS in contacts/page.tsx)
+        // had resolveActiveTab IDs but no bottom-nav entry, so zero
+        // aria-current while the user was in them. mobileOverflow tabs join
+        // the bar only while active. Labels/icons mirror the desktop
+        // contacts config in desktopContextTabs.tsx.
+        id: 'groups',
+        label: 'Groups',
+        ariaLabel: 'Groups (Add Folder / Add Group)',
+        icon: CirclesNetworkIcon,
+        targetPath: '/contacts',
+        queryParam: { key: 'tab', value: 'groups' },
+        mobileOverflow: true,
+      },
+      {
+        id: 'companies',
+        label: 'Companies',
+        icon: CompanyBuildingIcon,
+        targetPath: '/contacts',
+        queryParam: { key: 'tab', value: 'companies' },
+        mobileOverflow: true,
+      },
+      {
+        id: 'dedup',
+        label: 'Dedup',
+        icon: DedupWandIcon,
+        targetPath: '/contacts',
+        queryParam: { key: 'tab', value: 'dedup' },
+        mobileOverflow: true,
       },
     ],
   },
@@ -1083,6 +1199,8 @@ export function resolveActiveTab(
     if (tabParam === 'feed') return 'feed';
     if (tabParam === 'aimemory' || tabParam === 'memory') return 'aimemory';
     if (tabParam === 'vault') return 'vault';
+    if (tabParam === 'shared') return 'shared';
+    if (tabParam === 'cleaner') return 'cleaner';
     if (tabParam === 'home' || tabParam === 'files') return 'home';
     return 'home';
   }
