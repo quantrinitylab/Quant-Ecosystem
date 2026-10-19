@@ -978,10 +978,22 @@ export function ContactDetailSheet({
         </button>
 
         {/* Action 2: Email */}
+        {/*
+          Phone-only / legacy contacts may have no email (the Contact type
+          declares email as required, but rows created before validation and
+          phone-only records exist at runtime — see contactDisplayName). Guard
+          here so a missing address disables the action instead of navigating
+          to "/compose?to=undefined".
+        */}
         <button
           type="button"
-          onClick={() => onEmail ? onEmail(contact.email) : (window.location.href = `/compose?to=${encodeURIComponent(contact.email)}`)}
-          className="flex flex-col items-center gap-1.5 group cursor-pointer"
+          onClick={() => {
+            if (!contact.email) return;
+            if (onEmail) onEmail(contact.email);
+            else window.location.href = `/compose?to=${encodeURIComponent(contact.email)}`;
+          }}
+          disabled={!contact.email}
+          className="flex flex-col items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
           <div className="size-12 rounded-full border border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] bg-[#3F1E0E] text-[var(--app-accent)] flex items-center justify-center group-hover:bg-[#522712] group-hover:scale-105 transition-all shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]">
             <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -993,10 +1005,22 @@ export function ContactDetailSheet({
         </button>
 
         {/* Action 3: Message */}
+        {/*
+          "Message" semantics are a parked user decision (open: whether Message
+          opens chat vs the mail composer). Until decided, keep Message behavior
+          identical to Email — but only when an email exists, so a missing
+          address disables the action instead of navigating to
+          "/compose?to=undefined". Do NOT invent a chat routing here.
+        */}
         <button
           type="button"
-          onClick={() => onMessage ? onMessage(contact) : (window.location.href = `/compose?to=${encodeURIComponent(contact.email)}`)}
-          className="flex flex-col items-center gap-1.5 group cursor-pointer"
+          onClick={() => {
+            if (!contact.email) return;
+            if (onMessage) onMessage(contact);
+            else window.location.href = `/compose?to=${encodeURIComponent(contact.email)}`;
+          }}
+          disabled={!contact.email}
+          className="flex flex-col items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
           <div className="size-12 rounded-full border border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] bg-[#3F1E0E] text-[var(--app-accent)] flex items-center justify-center group-hover:bg-[#522712] group-hover:scale-105 transition-all shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]">
             <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1040,7 +1064,10 @@ export function ContactDetailSheet({
         </h3>
 
         <div className="space-y-3">
-          {/* Email Address */}
+          {/* Email Address — omitted entirely for phone-only / legacy contacts
+              with no email, so no "mailto:undefined" anchor can render.
+              (Matches the Phone Number row's conditional pattern below.) */}
+          {contact.email && (
           <div className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[var(--quant-surface-subtle)]">
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className="flex size-8 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)]">
@@ -1075,6 +1102,7 @@ export function ContactDetailSheet({
               )}
             </button>
           </div>
+          )}
 
           {/* Phone Number */}
           {contact.phone && (
