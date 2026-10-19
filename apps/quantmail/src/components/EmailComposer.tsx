@@ -163,6 +163,22 @@ export function isFullPageComposePath(pathname: string | null | undefined): bool
 }
 
 /**
+ * Pure core of the AI-assist rewrite (exported for tests). When the body
+ * editor held a non-empty selection, only that span is replaced by the AI
+ * result; otherwise the whole body is replaced.
+ */
+export function spliceAssistResult(
+  body: string,
+  result: string,
+  sel: { start: number; end: number } | null,
+): string {
+  if (sel && sel.end > sel.start) {
+    return body.slice(0, sel.start) + result + body.slice(sel.end);
+  }
+  return result;
+}
+
+/**
  * Which Quanty reaction a blocked send announces (QM-UIUX-025) now lives in
  * `./composeValidation` — see the re-export above. Kept here as a pointer so
  * the QM-UIUX-025 history stays greppable next to `handleSend`'s usage.
@@ -408,6 +424,7 @@ export function EmailComposer({
   onSend,
   onSaveDraft,
   onDiscard,
+  onAIAssist,
   isOpen,
   modal = false,
   onClose,
@@ -629,6 +646,16 @@ export function EmailComposer({
   // (fixed positioning) so the scrollable toolbar's overflow can never clip it.
   const sendOptionsAnchorRef = useRef<HTMLDivElement | null>(null);
   const [sendMenuPos, setSendMenuPos] = useState<{ left: number; bottom: number } | null>(null);
+  // AI writing assist (the onAIAssist prop the /compose page passes). Dead
+  // plumbing until wired: the prop was declared but never destructured, so
+  // the full-page composer shipped with no AI-assist entry point at all.
+  // Rendered only when the host actually provides the handler (other
+  // EmailComposer hosts — docked, thread — pass nothing and are untouched).
+  // Same anchor + portaled-dropup pattern as Send-options/Templates.
+  const [showAIAssistMenu, setShowAIAssistMenu] = useState(false);
+  const [aiAssistMenuPos, setAIAssistMenuPos] = useState<{ left: number; bottom: number } | null>(null);
+  const aiAssistAnchorRef = useRef<HTMLDivElement | null>(null);
+  const [aiAssistBusyAction, setAIAssistBusyAction] = useState<string | null>(null);
 
   /*
     Trigger refs for the four disclosure popovers in the header and formatting
@@ -1753,6 +1780,48 @@ export function EmailComposer({
     if (!subject.trim()) setSubject(template.subject);
     setBody((prev) => (prev.trim() ? `${prev}\n\n${template.body}` : template.body));
     showToast({ text: `Template "${template.name}" applied`, type: 'success' });
+  };
+
+  // AI writing assist — the improve/shorten/formalize actions the /compose
+  // page wires to the real POST /ai/compose backend (honest 503 when AI is
+  // unconfigured). If the body editor holds a selection, only the selection
+  // is rewritten; otherwise the whole body is. Failures surface as honest
+  // error toasts and never touch the draft.
+  //
+  // spliceAssistResult is the pure core of the rewrite (exported for tests):
+  // a non-empty editor selection is replaced by the AI result, otherwise the
+  // whole body is.
+  const handleAIAssistAction = async (action: 'improve' | 'shorten' | 'formalize') => {
+    if (!onAIAssist || aiAssistBusyAction) return;
+    const textarea = bodyTextareaRef.current;
+    const currentBody = body ?? '';
+    const selStart = textarea?.selectionStart ?? 0;
+    const selEnd = textarea?.selectionEnd ?? 0;
+    const sel = textarea != null && selEnd > selStart ? { start: selStart, end: selEnd } : null;
+    const sourceText = sel ? currentBody.slice(sel.start, sel.end) : currentBody;
+    if (!sourceText.trim()) {
+      showToast({ text: 'Write some text first, then use AI assist.', type: 'info' });
+      return;
+    }
+    setShowAIAssistMenu(false);
+    setAIAssistBusyAction(action);
+    try {
+      const result = await onAIAssist(action, sourceText);
+      setBody(spliceAssistResult(currentBody, result, sel));
+      showToast({ text: 'AI assist applied', type: 'success' });
+      // Hand focus back to the editor so typing continues where the person left off.
+      requestAnimationFrame(() => bodyTextareaRef.current?.focus());
+    } catch (err) {
+      showToast({
+        text:
+          err instanceof Error && err.message
+            ? err.message
+            : 'AI writing assistance is unavailable.',
+        type: 'error',
+      });
+    } finally {
+      setAIAssistBusyAction(null);
+    }
   };
 
   // Insert Link to Body
@@ -3199,6 +3268,39 @@ export function EmailComposer({
                 </button>
               </div>
 
+              {/* AI writing assist — improve/shorten/formalize via the onAIAssist
+                  prop (real POST /ai/compose backend, honest 503 when AI is
+                  unconfigured). Rendered only when the host provides the
+                  handler, so hosts without it (docked, thread) are untouched.
+                  Same anchor + portaled-dropup pattern as Templates above. */}
+              {onAIAssist && (
+                <div className="relative inline-flex" ref={aiAssistAnchorRef}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Capture the anchor rect BEFORE toggling, so the portaled
+                      // dropup can position itself above the button even though
+                      // the toolbar scrolls horizontally on mobile.
+                      if (!showAIAssistMenu && aiAssistAnchorRef.current) {
+                        const rect = aiAssistAnchorRef.current.getBoundingClientRect();
+                        setAIAssistMenuPos({
+                          left: Math.max(8, Math.min(rect.left, window.innerWidth - 220)),
+                          bottom: Math.max(8, window.innerHeight - rect.top + 8),
+                        });
+                      }
+                      setShowAIAssistMenu((prev) => !prev);
+                    }}
+                    disabled={aiAssistBusyAction !== null}
+                    aria-expanded={showAIAssistMenu}
+                    className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[var(--quant-primary)] hover:text-[var(--brand-accent)] hover:bg-[var(--quant-primary)]/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] disabled:opacity-40"
+                    title="AI writing assist (Improve / Shorten / Make formal)"
+                    aria-label="AI writing assist"
+                  >
+                    <IconSparkle className="size-4" />
+                  </button>
+                </div>
+              )}
+
               {/* Discard Draft Trash Button (Right next to QuantDrive) */}
               <button
                 type="button"
@@ -3402,6 +3504,56 @@ export function EmailComposer({
                     onSelectTemplate={applySavedTemplate}
                     variant="popover"
                   />
+                </div>
+              </>,
+              document.body
+            )}
+
+          {/* AI writing-assist dropup — portaled to document.body with fixed
+              positioning so the toolbar's horizontal scroll can never clip it.
+              Calls the host's onAIAssist prop (real POST /ai/compose); the
+              labels describe exactly what the handler sends, so no invented
+              capability claims. */}
+          {showAIAssistMenu &&
+            typeof document !== 'undefined' &&
+            createPortal(
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowAIAssistMenu(false)}
+                  aria-hidden="true"
+                />
+                <div
+                  className="fixed w-52 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] py-2 shadow-2xl z-50 text-xs"
+                  style={
+                    aiAssistMenuPos
+                      ? { left: aiAssistMenuPos.left, bottom: aiAssistMenuPos.bottom }
+                      : { left: 12, bottom: 76 }
+                  }
+                  role="menu"
+                  aria-label="AI writing assist"
+                >
+                  {(
+                    [
+                      { key: 'improve', label: 'Improve writing' },
+                      { key: 'shorten', label: 'Shorten' },
+                      { key: 'formalize', label: 'Make formal' },
+                    ] as const
+                  ).map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      role="menuitem"
+                      disabled={aiAssistBusyAction !== null}
+                      onClick={() => void handleAIAssistAction(item.key)}
+                      className="flex items-center gap-2.5 w-full px-3.5 py-2 min-h-[44px] text-left text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] disabled:opacity-40"
+                    >
+                      <IconSparkle className="size-3.5 text-[var(--quant-primary)]" />
+                      <span>
+                        {aiAssistBusyAction === item.key ? 'Working…' : item.label}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </>,
               document.body
