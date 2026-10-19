@@ -140,8 +140,15 @@ export class AiReviewBotService {
         const content = line.substring(1);
 
         // Check 1: Leaked Secrets / Keys
+        // GitHub credential families (https://help.github.com/en/organizations/
+        // managing-programmatic-access-to-your-organization/github-credential-types):
+        // gho_/ghu_/ghr_ are the same 36-char family as ghp_. ghs_ needs BOTH the
+        // legacy 36-char opaque shape AND the stateless JWT-embedded shape
+        // (~520 chars, ghs_<appId>_<JWT>, rolled out 2026-04 to 2026-10) — GitHub's
+        // corrected recommended regex is ghs_[A-Za-z0-9._-]{36,} (hyphen included;
+        // a fixed 36-char pattern is wrong for the new format).
         if (
-          /(AKIA[0-9A-Z]{16})|(ghp_[0-9a-zA-Z]{36})|(github_pat_[A-Za-z0-9_]{22}_[A-Za-z0-9_]{59})|(qcp_[0-9a-f]{24}_[A-Za-z0-9_-]{43})|-----BEGIN\s+(?:(?:RSA|DSA|EC|OPENSSH|ENCRYPTED)\s+)?PRIVATE\s+KEY-----|-----BEGIN\s+PGP\s+PRIVATE\s+KEY\s+BLOCK-----/.test(
+          /(AKIA[0-9A-Z]{16})|(ghp_[0-9a-zA-Z]{36})|(gho_[A-Za-z0-9]{36})|(ghu_[A-Za-z0-9]{36})|(ghr_[A-Za-z0-9]{36})|(ghs_[A-Za-z0-9._-]{36,})|(github_pat_[A-Za-z0-9_]{22}_[A-Za-z0-9_]{59})|(qcp_[0-9a-f]{24}_[A-Za-z0-9_-]{43})|-----BEGIN\s+(?:(?:RSA|DSA|EC|OPENSSH|ENCRYPTED)\s+)?PRIVATE\s+KEY-----|-----BEGIN\s+PGP\s+PRIVATE\s+KEY\s+BLOCK-----/.test(
             content,
           )
         ) {

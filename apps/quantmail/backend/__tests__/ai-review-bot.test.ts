@@ -64,6 +64,88 @@ describe('AiReviewBotService (Task CH-05)', () => {
       expect(findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets')).toBe(true);
     });
 
+    it('flags the other 36-char GitHub token families: gho_, ghu_, ghr_', () => {
+      // Per GitHub's credential-types doc, gho_ (OAuth app), ghu_ (App user)
+      // and ghr_ (App refresh) tokens share ghp_'s 36-char alnum shape.
+      for (const prefix of ['gho_', 'ghu_', 'ghr_']) {
+        const patch = [
+          'diff --git a/config.ts b/config.ts',
+          '@@ -1,1 +1,2 @@',
+          `+const token = "${prefix}${'B'.repeat(36)}";`,
+        ].join('\n');
+
+        const findings = bot.analyzePatch(patch);
+        expect(
+          findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets'),
+          `expected ${prefix} token to be flagged`,
+        ).toBe(true);
+      }
+    });
+
+    it('still flags the legacy opaque ghs_ installation token (36-char)', () => {
+      const patch = [
+        'diff --git a/config.ts b/config.ts',
+        '@@ -1,1 +1,2 @@',
+        '+const token = "ghs_' + 'C'.repeat(36) + '";',
+      ].join('\n');
+
+      const findings = bot.analyzePatch(patch);
+      expect(findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets')).toBe(true);
+    });
+
+    it('flags the new stateless ghs_ installation token (JWT-embedded, ~520 chars)', () => {
+      // Real new-format shape since the 2026-04→2026-10 rollout:
+      // ghs_<appId>_<base64url JWT>, variable length, two dots, may contain
+      // hyphens (GitHub's corrected recommended regex: ghs_[A-Za-z0-9._-]{36,}).
+      // A fixed 36-char pattern would miss this entirely.
+      const statelessToken =
+        'ghs_15368_eyJhbGciOiJFUzI1NiJ9.' +
+        'e'.repeat(150) +
+        '-' +
+        'f'.repeat(150) +
+        '.' +
+        's'.repeat(160);
+      expect(statelessToken.length).toBeGreaterThan(400);
+      expect(statelessToken).toMatch(/^ghs_[A-Za-z0-9._-]{36,}$/);
+      expect(statelessToken).not.toMatch(/^ghs_[A-Za-z0-9]{36}$/);
+
+      const patch = [
+        'diff --git a/config.ts b/config.ts',
+        '@@ -1,1 +1,2 @@',
+        `+const token = "${statelessToken}";`,
+      ].join('\n');
+
+      const findings = bot.analyzePatch(patch);
+      expect(findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets')).toBe(true);
+    });
+
+    it('does not flag bare gho_/ghu_/ghs_/ghr_ prefixes without a token body', () => {
+      for (const prefix of ['gho_', 'ghu_', 'ghs_', 'ghr_']) {
+        const patch = [
+          'diff --git a/config.ts b/config.ts',
+          '@@ -1,1 +1,2 @@',
+          `+const tokenPrefix = "${prefix}";`,
+        ].join('\n');
+
+        const findings = bot.analyzePatch(patch);
+        expect(
+          findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets'),
+          `expected bare ${prefix} prefix NOT to be flagged`,
+        ).toBe(false);
+      }
+    });
+
+    it('does not flag a truncated ghs_ body (under the 36-char minimum)', () => {
+      const patch = [
+        'diff --git a/config.ts b/config.ts',
+        '@@ -1,1 +1,2 @@',
+        '+const token = "ghs_abc123";',
+      ].join('\n');
+
+      const findings = bot.analyzePatch(patch);
+      expect(findings.some((f) => f.ruleId === 'security/no-hardcoded-secrets')).toBe(false);
+    });
+
     it('does not flag a truncated github_pat_ prefix without the full token body', () => {
       const patch = [
         'diff --git a/config.ts b/config.ts',
