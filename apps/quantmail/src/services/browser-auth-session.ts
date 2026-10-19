@@ -291,6 +291,31 @@ export const browserAuthSession = {
     );
   },
 
+  /**
+   * Lost-authenticator recovery (fix/qm-2fa-challenge-recovery-link): public,
+   * pre-session entry points to the real /auth/2fa/recover endpoints.
+   * Both go through the /api proxy like every other auth call. The request
+   * endpoint is deliberately non-committal (it never says whether an account
+   * matched), so callers must show the neutral copy — never "code sent to
+   * your inbox" as a promise. The confirm endpoint disables 2FA and issues
+   * NO session: the caller signs in again afterwards.
+   */
+  async requestTwoFactorRecovery(email: string): Promise<AuthResponse<{ message: string }>> {
+    return post<{ message: string }>('/auth/2fa/recover', { email });
+  },
+
+  async confirmTwoFactorRecovery(
+    email: string,
+    password: string,
+    code: string,
+  ): Promise<AuthResponse<{ message: string; notifiedPrimaryInbox: boolean }>> {
+    return post<{ message: string; notifiedPrimaryInbox: boolean }>('/auth/2fa/recover/confirm', {
+      email,
+      password,
+      code,
+    });
+  },
+
   async register(data: BrowserRegistration): Promise<AuthResponse<BrowserAccessSession>> {
     return rememberAccess(await post<BrowserAccessSession>('/auth/register', data));
   },
