@@ -612,7 +612,7 @@ describe('QuantyCommandBar mic honesty', () => {
     // state where the old code disabled the button into a dead tap target.
     // (Matches the disabled *attribute*, not Tailwind's `disabled:` variants.)
     const html = renderToStaticMarkup(React.createElement(QuantyCommandBar, { onSubmit: () => undefined }));
-    const micButton = html.match(/<button[^>]*aria-label="Bol kar command dein"[^>]*>/);
+    const micButton = html.match(/<button[^>]*aria-label="Speak your command"[^>]*>/);
     expect(micButton).not.toBeNull();
     expect(micButton?.[0]).not.toMatch(/\sdisabled(\s|=|>)/);
   });
@@ -621,7 +621,7 @@ describe('QuantyCommandBar mic honesty', () => {
     const html = renderToStaticMarkup(
       React.createElement(QuantyCommandBar, { onSubmit: () => undefined, busy: true }),
     );
-    const micButton = html.match(/<button[^>]*aria-label="Bol kar command dein"[^>]*>/);
+    const micButton = html.match(/<button[^>]*aria-label="Speak your command"[^>]*>/);
     expect(micButton?.[0]).toMatch(/\sdisabled(\s|=|>)/);
   });
 });

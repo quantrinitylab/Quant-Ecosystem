@@ -2,6 +2,21 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useI18n } from '../../i18n';
+import {
+  COMMAND_INPUT_LABEL,
+  COMMAND_INPUT_LABEL_HI,
+  COMMAND_PLACEHOLDER,
+  COMMAND_PLACEHOLDER_HI,
+  COMMAND_SEND_LABEL,
+  COMMAND_SEND_LABEL_HI,
+  MIC_ERROR,
+  MIC_ERROR_HI,
+  MIC_TOGGLE_LABEL,
+  MIC_TOGGLE_LABEL_HI,
+  RECENT_TOGGLE_LABEL,
+  RECENT_TOGGLE_LABEL_HI,
+} from './types';
 
 export interface QuantyCommandBarProps {
   /** Called with the trimmed command text. */
@@ -67,7 +82,7 @@ export function addRecentCommand(current: string[], command: string): string[] {
 export function QuantyCommandBar({
   onSubmit,
   busy = false,
-  placeholder = 'Quanty se kaho… "mere unread emails archive kar do"',
+  placeholder,
   autoStartListening = false,
   className = '',
 }: QuantyCommandBarProps) {
@@ -85,6 +100,20 @@ export function QuantyCommandBar({
   const inputRef = useRef<HTMLInputElement>(null);
   const listId = useId();
   const recognitionRef = useRef<{ stop: () => void } | null>(null);
+  // Locale-consistency: the mic failure lines and control aria-labels
+  // previously hardcoded Roman-script Hinglish ('Mic ki permission nahi
+  // mili…', 'Sunna band karein', …) while the UI was English. Copy now
+  // follows the app locale (English default, Devanagari for 'hi'), same
+  // convention as PR #868.
+  const { locale } = useI18n();
+  const micError = locale === 'hi' ? MIC_ERROR_HI : MIC_ERROR;
+  const recentToggleCopy = locale === 'hi' ? RECENT_TOGGLE_LABEL_HI : RECENT_TOGGLE_LABEL;
+  const micToggleCopy = locale === 'hi' ? MIC_TOGGLE_LABEL_HI : MIC_TOGGLE_LABEL;
+  const inputLabel = locale === 'hi' ? COMMAND_INPUT_LABEL_HI : COMMAND_INPUT_LABEL;
+  const sendLabel = locale === 'hi' ? COMMAND_SEND_LABEL_HI : COMMAND_SEND_LABEL;
+  // An explicit placeholder prop still wins; the built-in default now follows
+  // the app locale instead of hardcoding Hinglish visible copy.
+  const effectivePlaceholder = placeholder ?? (locale === 'hi' ? COMMAND_PLACEHOLDER_HI : COMMAND_PLACEHOLDER);
 
   useEffect(() => {
     // Nothing is restored on mount — recent commands are session-only
@@ -112,7 +141,7 @@ export function QuantyCommandBar({
       // Honest, not dead: this browser has no Web Speech API (Firefox, Safari,
       // some WebViews). The button stays tappable so the reason is visible —
       // a disabled button with only a hover tooltip explains nothing on touch.
-      setSpeechError('Is browser me voice input available nahi hai — type karke bhejein.');
+      setSpeechError(micError.noSpeechApi);
       return;
     }
     if (listening) return;
@@ -131,19 +160,19 @@ export function QuantyCommandBar({
         switch (event?.error) {
           case 'not-allowed':
           case 'service-not-allowed':
-            setSpeechError('Mic ki permission nahi mili — browser settings me mic allow karein, phir dobara try karein.');
+            setSpeechError(micError.permission);
             break;
           case 'no-speech':
-            setSpeechError('Kuch sunai nahi diya — dobara bolein.');
+            setSpeechError(micError.noSpeech);
             break;
           case 'audio-capture':
-            setSpeechError('Mic nahi mila — device ka mic check karein.');
+            setSpeechError(micError.noMic);
             break;
           case 'network':
-            setSpeechError('Voice service se connect nahi ho paya — type karke bhejein.');
+            setSpeechError(micError.network);
             break;
           default:
-            setSpeechError('Voice me dikkat hui — type karke bhejein.');
+            setSpeechError(micError.unknown);
             break;
         }
       };
@@ -155,7 +184,7 @@ export function QuantyCommandBar({
       // start() denial (e.g. no user activation in this frame): say so instead
       // of leaving the mic pulsing as a false invite.
       setListening(false);
-      setSpeechError('Voice start nahi ho paya — mic button dobara dabayein ya type karke bhejein.');
+      setSpeechError(micError.startFailed);
     }
   };
 
@@ -212,7 +241,7 @@ export function QuantyCommandBar({
           onClick={() => setShowRecent((s) => !s)}
           aria-expanded={showRecent}
           aria-controls={listId}
-          aria-label={showRecent ? 'Recent commands band karein' : 'Recent commands dekhein'}
+          aria-label={recentToggleCopy[showRecent ? 'close' : 'open']}
           disabled={busy || recent.length === 0}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-zinc-400 transition hover:bg-white/5 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
         >
@@ -239,8 +268,8 @@ export function QuantyCommandBar({
             if (e.key === 'Escape') setShowRecent(false);
           }}
           onFocus={() => recent.length > 0 && setShowRecent(true)}
-          placeholder={placeholder}
-          aria-label="Quanty ko command dein"
+          placeholder={effectivePlaceholder}
+          aria-label={inputLabel}
           disabled={busy}
           maxLength={500}
           className="h-11 min-w-0 flex-1 bg-transparent text-[15px] text-zinc-100 placeholder:text-zinc-500 focus:outline-none disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
@@ -252,7 +281,7 @@ export function QuantyCommandBar({
         <button
           type="button"
           onClick={toggleListening}
-          aria-label={listening ? 'Sunna band karein' : 'Bol kar command dein'}
+          aria-label={micToggleCopy[listening ? 'stop' : 'start']}
           aria-pressed={listening}
           disabled={busy}
           title={speechSupported ? 'Voice command' : 'Voice command'}
@@ -284,7 +313,7 @@ export function QuantyCommandBar({
           type="button"
           onClick={submit}
           disabled={busy || value.trim().length === 0}
-          aria-label="Command bhejein"
+          aria-label={sendLabel}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--app-accent)] text-black transition hover:bg-[var(--app-accent-hover)] disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-500"
         >
           {busy ? (

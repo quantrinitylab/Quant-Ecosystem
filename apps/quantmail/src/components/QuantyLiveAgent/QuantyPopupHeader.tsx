@@ -4,6 +4,13 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { BubbleAvatar } from '@quant/shared-ui';
 import { ShareIcon, XIcon, CheckIcon } from './QuantyPopupIcons';
+import { useI18n } from '../../i18n';
+import {
+  POPUP_CLOSE_LABEL,
+  POPUP_CLOSE_LABEL_HI,
+  POPUP_SHARE_LABEL,
+  POPUP_SHARE_LABEL_HI,
+} from './types';
 
 export interface QuantyPopupHeaderProps {
   /** Dynamic live status, e.g. "5 emails archive kar raha...", "Planning...". */
@@ -28,6 +35,15 @@ export function QuantyPopupHeader({
   className = '',
 }: QuantyPopupHeaderProps) {
   const [shared, setShared] = useState(false);
+  // Locale-consistency: the close and share aria-labels previously hardcoded
+  // Roman-script Hinglish ('Popup band karein', 'Copy ho gaya', 'Status share
+  // karein') while the UI was English. Copy now follows the app locale, same
+  // convention as PR #868. Title and aria-label share one string so they can
+  // never drift languages again.
+  const { locale } = useI18n();
+  const popupCloseLabel = locale === 'hi' ? POPUP_CLOSE_LABEL_HI : POPUP_CLOSE_LABEL;
+  const shareCopy = locale === 'hi' ? POPUP_SHARE_LABEL_HI : POPUP_SHARE_LABEL;
+  const shareLabel = shareCopy[shared ? 'copied' : 'share'];
 
   const handleShare = async () => {
     try {
@@ -46,7 +62,7 @@ export function QuantyPopupHeader({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Popup band karein"
+          aria-label={popupCloseLabel}
           className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-400 transition hover:bg-white/10 hover:text-zinc-100"
         >
           <XIcon width={16} height={16} />
@@ -54,8 +70,8 @@ export function QuantyPopupHeader({
         <button
           type="button"
           onClick={handleShare}
-          aria-label={shared ? 'Copy ho gaya' : 'Status share karein'}
-          title={shared ? 'Copied!' : 'Share'}
+          aria-label={shareLabel}
+          title={shareLabel}
           className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-400 transition hover:bg-white/10 hover:text-zinc-100"
         >
           {shared ? <CheckIcon width={16} height={16} className="text-emerald-400" /> : <ShareIcon width={16} height={16} />}
