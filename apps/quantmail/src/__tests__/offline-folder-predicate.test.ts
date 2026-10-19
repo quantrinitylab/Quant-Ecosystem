@@ -207,6 +207,32 @@ describe('belongsInFolder — SNOOZED (snoozed-offline-seed P1)', () => {
     expect(belongsInFolder(snoozedEmail({ trashedAt: new Date() }), 'SNOOZED')).toBe(false);
   });
 
+  it('keeps snoozed drafts out of SNOOZED — the server filters isDraft = false', () => {
+    // The server's `GET /emails?folderType=SNOOZED` sets `isDraft = false`
+    // (backend/routes/emails.ts). Before the fix the predicate admitted any
+    // non-trashed row with a wake time, so an optimistic snooze patch on a
+    // draft — `POST /:id/snooze` guards trash only — landed it in the cached
+    // SNOOZED list while the server never returns it (phantom row, gone on
+    // the next refetch).
+    expect(belongsInFolder(snoozedEmail({ isDraft: true }), 'SNOOZED')).toBe(false);
+  });
+
+  it('keeps snoozed spam out of SNOOZED — the server filters isSpam = false', () => {
+    expect(belongsInFolder(snoozedEmail({ isSpam: true }), 'SNOOZED')).toBe(false);
+  });
+
+  it('reconcileList does NOT move a snoozed draft/spam row into the cached SNOOZED list', () => {
+    // Pins the phantom-row scenario end to end: the optimistic patch stamps
+    // snoozedUntil onto a draft/spam row and the reconcile fan-out must not
+    // append it to the warm SNOOZED cache.
+    const cached: Email[] = [];
+    const patched = new Map<string, Email>([
+      ['d1', snoozedEmail({ id: 'd1', isDraft: true })],
+      ['s1', snoozedEmail({ id: 's1', isSpam: true })],
+    ]);
+    expect(reconcileList(cached, patched, 'SNOOZED')).toEqual([]);
+  });
+
   it('INBOX rejects a row that carries snoozedUntil', () => {
     // The INBOX server filter excludes snoozed threads, so a row that does
     // carry the field (e.g. an optimistic patch mid-snooze) must not linger

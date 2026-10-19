@@ -122,8 +122,17 @@ export function belongsInFolder(email: Email, folderType: string | undefined): b
       // and the client `Email` type both carry, so the client predicate can
       // mirror the server filter exactly.
       return !isTrashed && email.isDraft === true;
-    case 'SNOOZED':
-      return !isTrashed && Boolean(email.snoozedUntil);
+    case 'SNOOZED': {
+      // Mirrored from `GET /emails?folderType=SNOOZED`
+      // (backend/routes/emails.ts): `isTrash = false, isDraft = false,
+      // isSpam = false` plus `thread.is.snoozedUntil > now` (a future wake
+      // time the row carries bridged onto the wire). The predicate used to
+      // admit any non-trashed row with a wake time, so an optimistic snooze
+      // patch on a draft or spam row — `POST /:id/snooze` guards trash only —
+      // landed it in the cached SNOOZED list while the server never returns
+      // it: a phantom row that vanished on the next refetch.
+      return !isTrashed && !email.isDraft && !email.isSpam && Boolean(email.snoozedUntil);
+    }
     case 'INBOX':
       // A scheduled send joins the conversation when it fires, not when it is
       // scheduled — the server's inbox filter excludes it the same way.

@@ -1279,6 +1279,16 @@ export default async function emailsRoutes(
     if (email.isTrash || email.deletedAt) {
       throw createAppError('Trashed email cannot be snoozed', 409, 'EMAIL_IN_TRASH');
     }
+    // The SNOOZED list filters `isDraft = false, isSpam = false`
+    // (GET /emails?folderType=SNOOZED), so snoozing a draft or spam row wrote
+    // a wake time the server would never surface — a silent no-op the client
+    // then mirrored as a phantom cached row. Refuse honestly, like trash.
+    if (email.isDraft) {
+      throw createAppError('Drafts cannot be snoozed', 409, 'EMAIL_IS_DRAFT');
+    }
+    if (email.isSpam) {
+      throw createAppError('Spam cannot be snoozed', 409, 'EMAIL_IS_SPAM');
+    }
 
     let thread = email.threadId
       ? await prisma.emailThread.findUnique({ where: { id: email.threadId } })
