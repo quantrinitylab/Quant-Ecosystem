@@ -40,6 +40,28 @@ function driveSourceFiles(): string[] {
 // (contains "border-t…") or `border-black` (contains "border-b…").
 const DIVIDER_CLASS_RE = /(^|["'`\s])((border-[tb](?![a-z-])|divide-y(?![a-z-])))/;
 
+// GitHub-dark code-block surfaces (the old code/text preview block):
+// #0B0C0E container, #0E1014 gutter, #22262E gutter edge.
+const OFF_BLACK_CODE_BLOCK_RES = [/#0b0c0e/i, /#0e1014/i, /#22262e/i];
+// Real `border-r` utility only — must not match border-red-*/border-rose-*.
+const GUTTER_DIVIDER_RE = /(^|["'`\s])border-r(?![a-z0-9-])/;
+
+// WCAG relative luminance / contrast — used by the gutter-legibility guard.
+function relativeLuminance(hex: string): number {
+  const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const lin = rgb.map((c) =>
+    c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4),
+  );
+  return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+}
+
+function contrastRatio(hexA: string, hexB: string): number {
+  const [lighter, darker] = [relativeLuminance(hexA), relativeLuminance(hexB)].sort(
+    (a, b) => b - a,
+  );
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 describe('Drive design lock: no divider lines, pure-black surfaces', () => {
   const files = driveSourceFiles();
 
@@ -93,6 +115,46 @@ describe('Drive design lock: no divider lines, pure-black surfaces', () => {
     expect(html).not.toMatch(VERTICAL_DIVIDER_CLASS_RE);
     // The toolbar container still provides gap-based group separation.
     expect(html).toMatch(/flex items-center gap-1/);
+  });
+
+  it('no off-black code-block surfaces (#0B0C0E / #0E1014 / #22262E) in any Drive source file', () => {
+    const offenders: string[] = [];
+    for (const f of files) {
+      const src = fs.readFileSync(f, 'utf8');
+      const hit = OFF_BLACK_CODE_BLOCK_RES.find((re) => re.test(src));
+      if (hit) offenders.push(`${path.relative(DRIVE_DIR, f)}: ${hit.source}`);
+    }
+    expect(offenders, 'off-black surfaces violate the pure-black lock').toEqual([]);
+  });
+
+  it('no right-edge gutter dividers (border-r) in any Drive source file', () => {
+    const offenders: string[] = [];
+    for (const f of files) {
+      const src = fs.readFileSync(f, 'utf8');
+      const hits = src.split('\n').filter((line) => GUTTER_DIVIDER_RE.test(line));
+      if (hits.length > 0) offenders.push(`${path.relative(DRIVE_DIR, f)}: ${hits[0].trim()}`);
+    }
+    expect(offenders, 'gutter dividers violate the no-divider-lines lock').toEqual([]);
+  });
+
+  it('code/text preview renders on pure black with a legible gutter (queue: code-preview pureblack)', () => {
+    const src = fs.readFileSync(path.resolve(DRIVE_DIR, 'page.tsx'), 'utf8');
+    // The preview container sits on the pure-black token, not an off-black hex.
+    expect(src).toMatch(
+      /flex bg-\[var\(--quant-background\)\] border border-\[var\(--quant-surface-elevated\)\] rounded-lg max-h-\[30rem\]/,
+    );
+    // Gutter: no divider, no off-black surface; gutter separation is gap-only
+    // (gutter px-3 + code p-3). Line numbers keep the dimmed gutter look but
+    // must meet 4.5:1 against pure black (--quant-background = #000000).
+    const gutter = src
+      .split('\n')
+      .find((l) => l.includes('select-none') && l.includes('text-right'));
+    expect(gutter, 'code-preview gutter line exists').toBeDefined();
+    expect(gutter).not.toMatch(GUTTER_DIVIDER_RE);
+    expect(gutter).not.toMatch(/#0e1014/i);
+    const color = gutter!.match(/text-\[(#[0-9a-fA-F]{6})\]/)?.[1];
+    expect(color, 'gutter line-number color is a fixed hex').toBeDefined();
+    expect(contrastRatio(color!, '#000000')).toBeGreaterThanOrEqual(4.5);
   });
 
   it('rendered Drive subviews carry no divider classes (DriveStarredSubView)', () => {

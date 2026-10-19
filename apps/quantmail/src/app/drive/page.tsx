@@ -2312,8 +2312,8 @@ function DrivePageContent() {
                     <p className="text-zinc-400">{textPreviewError}</p>
                   </div>
                 ) : textPreviewContent !== null ? (
-                  <div className="flex bg-[#0B0C0E] border border-[var(--quant-surface-elevated)] rounded-lg max-h-[30rem] overflow-auto font-mono text-xs shadow-inner">
-                    <div className="select-none py-3 px-3 text-right text-[#4E525E] border-r border-[#22262E] bg-[#0E1014] font-mono text-xs leading-relaxed shrink-0">
+                  <div className="flex bg-[var(--quant-background)] border border-[var(--quant-surface-elevated)] rounded-lg max-h-[30rem] overflow-auto font-mono text-xs shadow-inner">
+                    <div className="select-none py-3 px-3 text-right text-[#8B90A0] font-mono text-xs leading-relaxed shrink-0">
                       {textPreviewContent.split('\n').map((_, idx) => (
                         <div key={idx}>{idx + 1}</div>
                       ))}
