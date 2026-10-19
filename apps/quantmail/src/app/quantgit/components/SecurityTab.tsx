@@ -862,7 +862,7 @@ export function SecurityTab({
         return 'bg-[#D29922]/20 text-[#D29922] border-[#D29922]/40';
       case 'low':
       default:
-        return 'bg-[#58A6FF]/20 text-[#58A6FF] border-[#58A6FF]/40';
+        return 'bg-[#8B5CF6]/20 text-[#8B5CF6] border-[#8B5CF6]/40';
     }
   };
 
@@ -871,13 +871,13 @@ export function SecurityTab({
     if (score >= 9.0) return 'bg-[#F85149]/20 text-[#F85149] border-[#F85149]/30';
     if (score >= 7.0) return 'bg-[#DB6D28]/20 text-[#DB6D28] border-[#DB6D28]/30';
     if (score >= 4.0) return 'bg-[#D29922]/20 text-[#D29922] border-[#D29922]/30';
-    return 'bg-[#58A6FF]/20 text-[#58A6FF] border-[#58A6FF]/30';
+    return 'bg-[#8B5CF6]/20 text-[#8B5CF6] border-[#8B5CF6]/30';
   };
 
   return (
     <div className="space-y-5 text-xs text-[#E6EDF3]" data-testid="security-tab">
       {/* 1. Header Overview Banner */}
-      <div className="p-4 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] flex flex-wrap items-center justify-between gap-4">
+      <div className="p-4 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="p-1 rounded bg-[#238636]/20 text-[#3FB950] font-bold text-sm">🛡️</span>
@@ -921,7 +921,7 @@ export function SecurityTab({
           }`}
         >
           <span>📦 Dependabot alerts</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-[#21262D] text-[10px] text-[#C9D1D9]">
+          <span className="px-1.5 py-0.5 rounded-full bg-black text-[10px] text-[#C9D1D9]">
             {dependabotAlerts.filter((a) => a.state === 'open').length}
           </span>
         </button>
@@ -937,7 +937,7 @@ export function SecurityTab({
           }`}
         >
           <span>🔑 Secret scanning</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-[#21262D] text-[10px] text-[#C9D1D9]">
+          <span className="px-1.5 py-0.5 rounded-full bg-black text-[10px] text-[#C9D1D9]">
             {secretAlerts.filter((s) => s.status === 'active').length}
           </span>
         </button>
@@ -953,7 +953,7 @@ export function SecurityTab({
           }`}
         >
           <span>🔬 CodeQL / SAST Code scanning</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-[#21262D] text-[10px] text-[#C9D1D9]">
+          <span className="px-1.5 py-0.5 rounded-full bg-black text-[10px] text-[#C9D1D9]">
             {codeqlAlerts.filter((c) => c.state === 'open').length}
           </span>
         </button>
@@ -985,8 +985,8 @@ export function SecurityTab({
               onClick={() => setSelectedSeverity('all')}
               className={`px-3 py-1.5 rounded-full font-semibold border transition-all ${
                 selectedSeverity === 'all'
-                  ? 'bg-[#30363D] text-white border-[#58A6FF]'
-                  : 'bg-[var(--quant-surface-elevated)] text-[#7D8590] border-[#30363D] hover:text-[#C9D1D9]'
+                  ? 'bg-[var(--quant-surface-hover)] text-white border-[#8B5CF6]'
+                  : 'bg-[var(--quant-surface-elevated)] text-[#7D8590] border-[var(--quant-border)] hover:text-[#C9D1D9]'
               }`}
             >
               All Severities ({dependabotAlerts.length})
@@ -1050,8 +1050,8 @@ export function SecurityTab({
               onClick={() => setSelectedSeverity(selectedSeverity === 'low' ? 'all' : 'low')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold border transition-all ${
                 selectedSeverity === 'low'
-                  ? 'bg-[#58A6FF] text-white border-[#58A6FF]'
-                  : 'bg-[#58A6FF]/15 text-[#58A6FF] border-[#58A6FF]/30 hover:bg-[#58A6FF]/25'
+                  ? 'bg-[#8B5CF6] text-white border-[#8B5CF6]'
+                  : 'bg-[#8B5CF6]/15 text-[#8B5CF6] border-[#8B5CF6]/30 hover:bg-[#8B5CF6]/25'
               }`}
             >
               <span>Low</span>
@@ -1062,10 +1062,10 @@ export function SecurityTab({
           </div>
 
           {/* Filters & Search Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D]">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)]">
             <div className="flex items-center gap-2">
               <span className="text-[#7D8590] font-semibold">State:</span>
-              <div className="flex items-center rounded bg-[#0D1117] border border-[#30363D] p-0.5">
+              <div className="flex items-center rounded bg-black border border-[var(--quant-border)] p-0.5">
                 {(['open', 'dismissed', 'closed', 'all'] as const).map((st) => (
                   <button
                     key={st}
@@ -1074,7 +1074,7 @@ export function SecurityTab({
                     onClick={() => setDependabotStateFilter(st)}
                     className={`px-2.5 py-1 rounded text-[11px] font-semibold capitalize transition-colors ${
                       dependabotStateFilter === st
-                        ? 'bg-[#21262D] text-white shadow-sm'
+                        ? 'bg-black text-white shadow-sm'
                         : 'text-[#7D8590] hover:text-[#C9D1D9]'
                     }`}
                   >
@@ -1091,14 +1091,14 @@ export function SecurityTab({
                 placeholder="Search by package, CVE (e.g. CVE-2026-3849), or title..."
                 value={dependabotSearch}
                 onChange={(e) => setDependabotSearch(e.target.value)}
-                className="w-full px-3 py-1.5 rounded bg-[#0D1117] border border-[#30363D] text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF] text-xs"
+                className="w-full px-3 py-1.5 rounded bg-black border border-[var(--quant-border)] text-white placeholder-[#7D8590] focus:outline-none focus:border-[#8B5CF6] text-xs"
               />
             </div>
           </div>
 
           {/* Detailed Advisory Cards List */}
           <div
- className="border border-[#30363D] rounded-md bg-[#0D1117]"
+ className="border border-[var(--quant-border)] rounded-md bg-black"
             data-testid="dependabot-advisories-list"
           >
             {filteredDependabotAlerts.length === 0 ? (
@@ -1133,7 +1133,7 @@ export function SecurityTab({
 
                       <span
                         data-testid={`cve-id-${sec.cve}`}
-                        className="font-mono text-[#58A6FF] font-semibold px-2 py-0.5 rounded bg-[#58A6FF]/10 border border-[#58A6FF]/20"
+                        className="font-mono text-[#8B5CF6] font-semibold px-2 py-0.5 rounded bg-[#8B5CF6]/10 border border-[#8B5CF6]/20"
                       >
                         {sec.cve}
                       </span>
@@ -1166,7 +1166,7 @@ export function SecurityTab({
                     <div className="space-y-0.5">
                       <h4 className="text-white font-medium text-xs">{sec.title}</h4>
                       {sec.cweTitle && (
-                        <p className="text-[11px] text-[#A5D6FF] font-mono">{sec.cweTitle}</p>
+                        <p className="text-[11px] text-[#8B5CF6] font-mono">{sec.cweTitle}</p>
                       )}
                     </div>
 
@@ -1215,7 +1215,7 @@ export function SecurityTab({
                         type="button"
                         data-testid={`dismiss-alert-${sec.id}`}
                         onClick={() => handleDismissDependabot(sec.id)}
-                        className="px-3 py-1.5 rounded bg-[#21262D] border border-[#30363D] text-[#7D8590] hover:text-white font-semibold text-xs hover:bg-[#30363D] transition-colors"
+                        className="px-3 py-1.5 rounded bg-black border border-[var(--quant-border)] text-[#7D8590] hover:text-white font-semibold text-xs hover:bg-[var(--quant-surface-hover)] transition-colors"
                       >
                         Dismiss
                       </button>
@@ -1234,7 +1234,7 @@ export function SecurityTab({
       {activeSubTab === 'secrets' && (
         <div className="space-y-4" data-testid="secret-scanning-view">
           {/* Header Action Bar */}
-          <div className="p-4 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] flex flex-wrap items-center justify-between gap-4">
+          <div className="p-4 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <span>🔑 Git Credential & Secret Scanner</span>
@@ -1257,7 +1257,7 @@ export function SecurityTab({
               data-testid="trigger-secret-scan-btn"
               disabled={isScanningSecrets}
               onClick={handleTriggerSecretScan}
-              className="px-3.5 py-1.5 rounded bg-[#21262D] border border-[#30363D] text-[#58A6FF] hover:bg-[#30363D] font-semibold text-xs transition-colors flex items-center gap-2"
+              className="px-3.5 py-1.5 rounded bg-black border border-[var(--quant-border)] text-[#8B5CF6] hover:bg-[var(--quant-surface-hover)] font-semibold text-xs transition-colors flex items-center gap-2"
             >
               {isScanningSecrets ? (
                 <>
@@ -1274,10 +1274,10 @@ export function SecurityTab({
           </div>
 
           {/* Secret Filters Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D]">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)]">
             <div className="flex items-center gap-2">
               <span className="text-[#7D8590] font-semibold">Status:</span>
-              <div className="flex items-center rounded bg-[#0D1117] border border-[#30363D] p-0.5">
+              <div className="flex items-center rounded bg-black border border-[var(--quant-border)] p-0.5">
                 {(['all', 'active', 'revoked', 'false_positive'] as const).map((st) => (
                   <button
                     key={st}
@@ -1286,7 +1286,7 @@ export function SecurityTab({
                     onClick={() => setSecretStatusFilter(st)}
                     className={`px-2.5 py-1 rounded text-[11px] font-semibold capitalize transition-colors ${
                       secretStatusFilter === st
-                        ? 'bg-[#21262D] text-white shadow-sm'
+                        ? 'bg-black text-white shadow-sm'
                         : 'text-[#7D8590] hover:text-[#C9D1D9]'
                     }`}
                   >
@@ -1303,14 +1303,14 @@ export function SecurityTab({
                 placeholder="Search secrets by type, file path (e.g. .env), or token..."
                 value={secretSearch}
                 onChange={(e) => setSecretSearch(e.target.value)}
-                className="w-full px-3 py-1.5 rounded bg-[#0D1117] border border-[#30363D] text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF] text-xs"
+                className="w-full px-3 py-1.5 rounded bg-black border border-[var(--quant-border)] text-white placeholder-[#7D8590] focus:outline-none focus:border-[#8B5CF6] text-xs"
               />
             </div>
           </div>
 
           {/* Secret Alerts List */}
           <div
- className="border border-[#30363D] rounded-md bg-[#0D1117]"
+ className="border border-[var(--quant-border)] rounded-md bg-black"
             data-testid="secret-alerts-list"
           >
             {filteredSecretAlerts.length === 0 ? (
@@ -1348,7 +1348,7 @@ export function SecurityTab({
                     </div>
 
                     {/* Matched Snippet (Masked) */}
-                    <div className="font-mono text-xs text-[#E6EDF3] bg-[var(--quant-surface-elevated)] px-3 py-1.5 rounded border border-[#30363D] inline-block">
+                    <div className="font-mono text-xs text-[#E6EDF3] bg-[var(--quant-surface-elevated)] px-3 py-1.5 rounded border border-[var(--quant-border)] inline-block">
                       <span className="text-[#7D8590] mr-2">Token:</span>
                       <span
                         data-testid={`masked-secret-${sec.id}`}
@@ -1363,7 +1363,7 @@ export function SecurityTab({
                       <span>Location:</span>
                       <code
                         data-testid={`secret-location-${sec.id}`}
-                        className="text-[#58A6FF] font-mono hover:underline cursor-pointer"
+                        className="text-[#8B5CF6] font-mono hover:underline cursor-pointer"
                       >
                         {sec.filePath}:{sec.lineNumber}
                       </code>
@@ -1392,7 +1392,7 @@ export function SecurityTab({
                         onClick={() => handleMarkFalsePositive(sec.id, sec.secretType)}
                         disabled={markingFalsePositiveIds.has(sec.id)}
                         aria-live="polite"
-                        className="px-3 py-1.5 rounded bg-[#21262D] hover:bg-[#30363D] text-[#7D8590] hover:text-white border border-[#30363D] font-semibold text-xs transition-colors disabled:opacity-50 disabled:cursor-wait disabled:hover:bg-[#21262D]"
+                        className="px-3 py-1.5 rounded bg-black hover:bg-[var(--quant-surface-hover)] text-[#7D8590] hover:text-white border border-[var(--quant-border)] font-semibold text-xs transition-colors disabled:opacity-50 disabled:cursor-wait disabled:hover:bg-[var(--quant-surface-hover)]"
                       >
                         {markingFalsePositiveIds.has(sec.id) ? 'Marking…' : 'Mark false positive'}
                       </button>
@@ -1411,7 +1411,7 @@ export function SecurityTab({
       {activeSubTab === 'codeql' && (
         <div className="space-y-4" data-testid="codeql-sast-view">
           {/* Header Banner */}
-          <div className="p-4 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] flex flex-wrap items-center justify-between gap-4">
+          <div className="p-4 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <span>🔬 CodeQL Static Application Security Testing (SAST)</span>
@@ -1440,10 +1440,10 @@ export function SecurityTab({
           </div>
 
           {/* CodeQL Filters Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D]">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)]">
             <div className="flex items-center gap-2">
               <span className="text-[#7D8590] font-semibold">Severity:</span>
-              <div className="flex items-center rounded bg-[#0D1117] border border-[#30363D] p-0.5">
+              <div className="flex items-center rounded bg-black border border-[var(--quant-border)] p-0.5">
                 {(['all', 'critical', 'high', 'medium', 'low'] as const).map((sev) => (
                   <button
                     key={sev}
@@ -1452,7 +1452,7 @@ export function SecurityTab({
                     onClick={() => setSelectedCodeqlSeverity(sev)}
                     className={`px-2.5 py-1 rounded text-[11px] font-semibold capitalize transition-colors ${
                       selectedCodeqlSeverity === sev
-                        ? 'bg-[#21262D] text-white shadow-sm'
+                        ? 'bg-black text-white shadow-sm'
                         : 'text-[#7D8590] hover:text-[#C9D1D9]'
                     }`}
                   >
@@ -1469,14 +1469,14 @@ export function SecurityTab({
                 placeholder="Search rule name (e.g. SQL Injection), file path, or CWE..."
                 value={codeqlSearch}
                 onChange={(e) => setCodeqlSearch(e.target.value)}
-                className="w-full px-3 py-1.5 rounded bg-[#0D1117] border border-[#30363D] text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF] text-xs"
+                className="w-full px-3 py-1.5 rounded bg-black border border-[var(--quant-border)] text-white placeholder-[#7D8590] focus:outline-none focus:border-[#8B5CF6] text-xs"
               />
             </div>
           </div>
 
           {/* SAST Alerts List */}
           <div
- className="border border-[#30363D] rounded-md bg-[#0D1117]"
+ className="border border-[var(--quant-border)] rounded-md bg-black"
             data-testid="codeql-alerts-list"
           >
             {filteredCodeqlAlerts.length === 0 ? (
@@ -1528,7 +1528,7 @@ export function SecurityTab({
                             type="button"
                             data-testid={`codeql-dismiss-${alert.id}`}
                             onClick={() => handleDismissCodeql(alert.id, alert.ruleName)}
-                            className="px-3 py-1.5 rounded bg-[#21262D] border border-[#30363D] text-[#7D8590] hover:text-white font-semibold text-xs hover:bg-[#30363D]"
+                            className="px-3 py-1.5 rounded bg-black border border-[var(--quant-border)] text-[#7D8590] hover:text-white font-semibold text-xs hover:bg-[var(--quant-surface-hover)]"
                           >
                             Dismiss
                           </button>
@@ -1541,7 +1541,7 @@ export function SecurityTab({
 
                   <div className="text-[11px] text-[#7D8590] flex items-center gap-1 font-mono">
                     <span>File:</span>
-                    <span data-testid={`codeql-location-${alert.id}`} className="text-[#58A6FF]">
+                    <span data-testid={`codeql-location-${alert.id}`} className="text-[#8B5CF6]">
                       {alert.filePath}:{alert.lineStart}-{alert.lineEnd}
                     </span>
                   </div>
@@ -1549,9 +1549,9 @@ export function SecurityTab({
                   {/* Recommended Code Fix Diff */}
                   <div
                     data-testid={`codeql-diff-${alert.id}`}
-                    className="rounded bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden font-mono text-[11px]"
+                    className="rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] overflow-hidden font-mono text-[11px]"
                   >
- <div className="px-3 py-1.5 bg-[#21262D] text-[#7D8590] font-semibold text-[10px] flex items-center justify-between">
+ <div className="px-3 py-1.5 bg-black text-[#7D8590] font-semibold text-[10px] flex items-center justify-between">
                       <span>Recommended Code Fix Diff</span>
                       <span className="text-[#3FB950] font-normal">Automated Patch Ready</span>
                     </div>
@@ -1583,7 +1583,7 @@ export function SecurityTab({
       {activeSubTab === 'policy' && (
         <div className="space-y-6" data-testid="security-policy-view">
           {/* Section 1: SECURITY.md Editor & Viewer */}
-          <div className="space-y-3 p-5 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D]">
+          <div className="space-y-3 p-5 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)]">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-white text-sm flex items-center gap-2">
@@ -1600,7 +1600,7 @@ export function SecurityTab({
                   type="button"
                   data-testid="toggle-edit-policy-btn"
                   onClick={() => setIsEditingPolicy(!isEditingPolicy)}
-                  className="px-3 py-1.5 rounded bg-[#21262D] border border-[#30363D] text-[#58A6FF] font-semibold text-xs hover:bg-[#30363D]"
+                  className="px-3 py-1.5 rounded bg-black border border-[var(--quant-border)] text-[#8B5CF6] font-semibold text-xs hover:bg-[var(--quant-surface-hover)]"
                 >
                   {isEditingPolicy ? 'Preview policy' : 'Edit SECURITY.md'}
                 </button>
@@ -1626,12 +1626,12 @@ export function SecurityTab({
                 rows={12}
                 value={securityPolicy}
                 onChange={(e) => setSecurityPolicy(e.target.value)}
-                className="w-full p-3 font-mono text-xs rounded bg-[#0D1117] border border-[#30363D] text-white focus:outline-none focus:border-[#58A6FF]"
+                className="w-full p-3 font-mono text-xs rounded bg-black border border-[var(--quant-border)] text-white focus:outline-none focus:border-[#8B5CF6]"
               />
             ) : (
               <div
                 data-testid="security-policy-preview"
-                className="p-4 rounded bg-[#0D1117] border border-[#30363D] whitespace-pre-wrap font-sans text-xs text-[#C9D1D9] leading-relaxed"
+                className="p-4 rounded bg-black border border-[var(--quant-border)] whitespace-pre-wrap font-sans text-xs text-[#C9D1D9] leading-relaxed"
               >
                 {securityPolicy}
               </div>
@@ -1640,7 +1640,7 @@ export function SecurityTab({
 
           {/* Section 2: Branch Protection Security Rules */}
           <div
-            className="space-y-4 p-5 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D]"
+            className="space-y-4 p-5 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)]"
             data-testid="branch-protection-rules-view"
           >
             <div className="flex items-center justify-between">
@@ -1710,10 +1710,10 @@ export function SecurityTab({
                       requirePullRequestReviews: e.target.checked,
                     }))
                   }
-                  className="mt-0.5 rounded border-[#30363D] bg-[#0D1117] text-[#58A6FF] focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                  className="mt-0.5 rounded border-[var(--quant-border)] bg-black text-[#8B5CF6] focus:ring-0 focus:ring-offset-0 cursor-pointer"
                 />
                 <div className="space-y-0.5">
-                  <span className="font-semibold text-white group-hover:text-[#58A6FF] transition-colors">
+                  <span className="font-semibold text-white group-hover:text-[#8B5CF6] transition-colors">
                     Require pull request reviews before merging
                   </span>
                   <p className="text-[11px] text-[#7D8590]">
@@ -1738,10 +1738,10 @@ export function SecurityTab({
                       requireStatusChecks: e.target.checked,
                     }))
                   }
-                  className="mt-0.5 rounded border-[#30363D] bg-[#0D1117] text-[#58A6FF] focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                  className="mt-0.5 rounded border-[var(--quant-border)] bg-black text-[#8B5CF6] focus:ring-0 focus:ring-offset-0 cursor-pointer"
                 />
                 <div className="space-y-0.5">
-                  <span className="font-semibold text-white group-hover:text-[#58A6FF] transition-colors">
+                  <span className="font-semibold text-white group-hover:text-[#8B5CF6] transition-colors">
                     Require status checks to pass before merging
                   </span>
                   <p className="text-[11px] text-[#7D8590]">
@@ -1766,10 +1766,10 @@ export function SecurityTab({
                       dismissStaleApprovals: e.target.checked,
                     }))
                   }
-                  className="mt-0.5 rounded border-[#30363D] bg-[#0D1117] text-[#58A6FF] focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                  className="mt-0.5 rounded border-[var(--quant-border)] bg-black text-[#8B5CF6] focus:ring-0 focus:ring-offset-0 cursor-pointer"
                 />
                 <div className="space-y-0.5">
-                  <span className="font-semibold text-white group-hover:text-[#58A6FF] transition-colors">
+                  <span className="font-semibold text-white group-hover:text-[#8B5CF6] transition-colors">
                     Dismiss stale pull request approvals when new commits are pushed
                   </span>
                   <p className="text-[11px] text-[#7D8590]">
@@ -1794,10 +1794,10 @@ export function SecurityTab({
                   checked={false}
                   disabled
                   onChange={() => {}}
-                  className="mt-0.5 rounded border-[#30363D] bg-[#0D1117] text-[#58A6FF] focus:ring-0 focus:ring-offset-0 cursor-not-allowed"
+                  className="mt-0.5 rounded border-[var(--quant-border)] bg-black text-[#8B5CF6] focus:ring-0 focus:ring-offset-0 cursor-not-allowed"
                 />
                 <div className="space-y-0.5">
-                  <span className="font-semibold text-white group-hover:text-[#58A6FF] transition-colors">
+                  <span className="font-semibold text-white group-hover:text-[#8B5CF6] transition-colors">
                     Require secret scanning to be clean before merge
                   </span>
                   <p className="text-[11px] text-[#7D8590]">

@@ -218,7 +218,7 @@ function renderInlineMarkdown(text: string): React.ReactNode {
       parts.push(
         <code
           key={keyIdx++}
-          className="px-1.5 py-0.5 rounded bg-[var(--quant-surface-elevated)] border border-[#30363D] text-[#58A6FF] font-mono text-[11px]"
+          className="px-1.5 py-0.5 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-[#8B5CF6] font-mono text-[11px]"
         >
           {codeMatch[2]}
         </code>,
@@ -240,7 +240,7 @@ function renderInlineMarkdown(text: string): React.ReactNode {
           href={linkMatch[3]}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[#58A6FF] hover:underline font-medium"
+          className="text-[#8B5CF6] hover:underline font-medium"
         >
           {linkMatch[2]}
         </a>,
@@ -424,7 +424,7 @@ export function MarkdownPreview({
   }, [content]);
 
   return (
-    <div className="border border-[#30363D] rounded-md bg-[#0D1117] overflow-hidden mt-6 shadow-sm">
+    <div className="border border-[var(--quant-border)] rounded-md bg-black overflow-hidden mt-6 shadow-sm">
       {/* Header Bar */}
  <div className="bg-[var(--quant-surface-elevated)] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2 font-bold text-white">
@@ -439,13 +439,13 @@ export function MarkdownPreview({
 
         {/* View Mode & Badges */}
         <div className="flex items-center gap-2 text-[11px]">
-          <div className="flex items-center bg-[#0D1117] rounded-md border border-[#30363D] p-0.5">
+          <div className="flex items-center bg-black rounded-md border border-[var(--quant-border)] p-0.5">
             <button
               type="button"
               onClick={() => setViewMode('preview')}
               className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
                 viewMode === 'preview'
-                  ? 'bg-[#21262D] text-white shadow-xs'
+                  ? 'bg-black text-white shadow-xs'
                   : 'text-[#7D8590] hover:text-[#E6EDF3]'
               }`}
             >
@@ -456,7 +456,7 @@ export function MarkdownPreview({
               onClick={() => setViewMode('raw')}
               className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
                 viewMode === 'raw'
-                  ? 'bg-[#21262D] text-white shadow-xs'
+                  ? 'bg-black text-white shadow-xs'
                   : 'text-[#7D8590] hover:text-[#E6EDF3]'
               }`}
             >
@@ -467,7 +467,7 @@ export function MarkdownPreview({
           <button
             type="button"
             onClick={handleCopyRaw}
-            className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] font-semibold transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1 rounded bg-black border border-[var(--quant-border)] text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)] font-semibold transition-colors"
             title="Copy raw markdown"
           >
             {copiedRaw ? (
@@ -490,7 +490,7 @@ export function MarkdownPreview({
             <button
               type="button"
               onClick={onEdit}
-              className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] font-semibold transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1 rounded bg-black border border-[var(--quant-border)] text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)] font-semibold transition-colors"
               title="Edit README"
             >
               <svg height="12" viewBox="0 0 16 16" width="12" fill="currentColor">
@@ -500,11 +500,11 @@ export function MarkdownPreview({
             </button>
           )}
 
-          <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-[#30363D]">
-            <span className="px-1.5 py-px rounded bg-[#21262D] text-[#3FB950] font-semibold">
+          <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-[var(--quant-border)]">
+            <span className="px-1.5 py-px rounded bg-black text-[#3FB950] font-semibold">
               build: passing
             </span>
-            <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-semibold">
+            <span className="px-1.5 py-px rounded bg-black text-[#8B5CF6] font-semibold">
               license: MIT
             </span>
           </div>
@@ -568,12 +568,12 @@ export function MarkdownPreview({
             if (sec.type === 'quote') {
               const alertColor =
                 sec.alertType === 'IMPORTANT'
-                  ? 'border-[#A371F7] text-[#D2A8FF]'
+                  ? 'border-[#8B5CF6] text-[#8B5CF6]'
                   : sec.alertType === 'WARNING'
                     ? 'border-[#D29922] text-[#E3B341]'
                     : sec.alertType === 'TIP'
                       ? 'border-[#3FB950] text-[#7EE787]'
-                      : 'border-[#58A6FF] text-[#79C0FF]';
+                      : 'border-[#8B5CF6] text-[#79C0FF]';
 
               return (
                 <div
@@ -594,10 +594,10 @@ export function MarkdownPreview({
               return (
                 <div
                   key={idx}
-                  className="my-3 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden"
+                  className="my-3 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] overflow-hidden"
                 >
- <div className="bg-[#0D1117] px-3.5 py-1.5 flex items-center justify-between text-[11px] text-[#7D8590]">
-                    <span className="font-mono text-[#58A6FF] uppercase font-semibold">
+ <div className="bg-black px-3.5 py-1.5 flex items-center justify-between text-[11px] text-[#7D8590]">
+                    <span className="font-mono text-[#8B5CF6] uppercase font-semibold">
                       {sec.lang}
                     </span>
                     <button
@@ -644,11 +644,11 @@ export function MarkdownPreview({
             if (sec.type === 'table') {
               return (
                 <div key={idx} className="overflow-x-auto my-3">
-                  <table className="w-full text-left border-collapse border border-[#30363D] text-[11px]">
+                  <table className="w-full text-left border-collapse border border-[var(--quant-border)] text-[11px]">
                     <thead className="bg-[var(--quant-surface-elevated)] text-white">
                       <tr>
                         {sec.headers.map((h, hIdx) => (
-                          <th key={hIdx} className="border border-[#30363D] px-3 py-2 font-bold">
+                          <th key={hIdx} className="border border-[var(--quant-border)] px-3 py-2 font-bold">
                             {renderInlineMarkdown(h)}
                           </th>
                         ))}
@@ -658,12 +658,12 @@ export function MarkdownPreview({
                       {sec.rows.map((row, rIdx) => (
                         <tr
                           key={rIdx}
-                          className={rIdx % 2 === 0 ? 'bg-[#0D1117]' : 'bg-[var(--quant-surface-elevated)]/40'}
+                          className={rIdx % 2 === 0 ? 'bg-black' : 'bg-[var(--quant-surface-elevated)]/40'}
                         >
                           {row.map((cell, cIdx) => (
                             <td
                               key={cIdx}
-                              className="border border-[#30363D] px-3 py-2 text-[#C9D1D9]"
+                              className="border border-[var(--quant-border)] px-3 py-2 text-[#C9D1D9]"
                             >
                               {renderInlineMarkdown(cell)}
                             </td>

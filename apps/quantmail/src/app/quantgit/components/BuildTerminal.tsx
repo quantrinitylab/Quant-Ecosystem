@@ -63,13 +63,13 @@ export function BuildTerminal({
           theme: {
             background: '#0D1117',
             foreground: '#C9D1D9',
-            cursor: '#58A6FF',
-            selectionBackground: '#1F6FEB44',
+            cursor: '#8B5CF6',
+            selectionBackground: '#8B5CF644',
             black: '#484F58',
             red: '#FF7B72',
             green: '#3FB950',
             yellow: '#D29922',
-            blue: '#58A6FF',
+            blue: '#8B5CF6',
             magenta: '#BC8CFF',
             cyan: '#39C5CF',
             white: '#B1BAC4',
@@ -297,7 +297,7 @@ export function BuildTerminal({
         );
       default:
         return (
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-[#30363D] text-[#7D8590]">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--quant-surface-hover)] text-[#7D8590]">
             DISCONNECTED
           </span>
         );
@@ -307,7 +307,7 @@ export function BuildTerminal({
   return (
     <div
       data-testid="build-terminal"
-      className={`flex flex-col bg-[#0D1117] border border-[#30363D] rounded-xl overflow-hidden shadow-2xl transition-all ${
+      className={`flex flex-col bg-black border border-[var(--quant-border)] rounded-xl overflow-hidden shadow-2xl transition-all ${
         isFullscreen ? 'fixed inset-4 z-50' : 'w-full h-full min-h-[300px]'
       }`}
       style={{ height: isFullscreen ? 'calc(100vh - 32px)' : (height ?? undefined) }}
@@ -329,7 +329,7 @@ export function BuildTerminal({
         {/* Toolbar Controls */}
         <div className="flex items-center gap-2 text-xs">
           {/* Search Bar */}
-          <div className="flex items-center bg-[#0D1117] border border-[#30363D] rounded px-1.5 py-0.5">
+          <div className="flex items-center bg-black border border-[var(--quant-border)] rounded px-1.5 py-0.5">
             <input
               data-testid="search-input"
               type="text"
@@ -364,8 +364,8 @@ export function BuildTerminal({
             onClick={() => setAutoScroll((prev) => !prev)}
             className={`px-2 py-1 rounded text-[11px] font-semibold border transition-colors ${
               autoScroll
-                ? 'bg-[#1F6FEB]/20 border-[#58A6FF]/40 text-[#58A6FF]'
-                : 'bg-[#21262D] border-[#30363D] text-[#7D8590]'
+                ? 'bg-[#8B5CF6]/20 border-[#8B5CF6]/40 text-[#8B5CF6]'
+                : 'bg-black border-[var(--quant-border)] text-[#7D8590]'
             }`}
             title="Toggle Auto-Scroll"
           >
@@ -377,7 +377,7 @@ export function BuildTerminal({
             type="button"
             data-testid="copy-btn"
             onClick={handleCopyAll}
-            className="px-2 py-1 rounded text-[11px] font-semibold bg-[#21262D] hover:bg-[#30363D] text-[#C9D1D9] border border-[#30363D] transition-colors"
+            className="px-2 py-1 rounded text-[11px] font-semibold bg-black hover:bg-[var(--quant-surface-hover)] text-[#C9D1D9] border border-[var(--quant-border)] transition-colors"
           >
             {copied ? '✓ Copied' : 'Copy'}
           </button>
@@ -387,7 +387,7 @@ export function BuildTerminal({
             type="button"
             data-testid="clear-btn"
             onClick={handleClear}
-            className="px-2 py-1 rounded text-[11px] font-semibold bg-[#21262D] hover:bg-[#30363D] text-[#C9D1D9] border border-[#30363D] transition-colors"
+            className="px-2 py-1 rounded text-[11px] font-semibold bg-black hover:bg-[var(--quant-surface-hover)] text-[#C9D1D9] border border-[var(--quant-border)] transition-colors"
           >
             Clear
           </button>
@@ -396,7 +396,7 @@ export function BuildTerminal({
           <button
             type="button"
             onClick={() => setIsFullscreen((prev) => !prev)}
-            className="px-2 py-1 rounded text-[11px] bg-[#21262D] hover:bg-[#30363D] text-[#C9D1D9] border border-[#30363D]"
+            className="px-2 py-1 rounded text-[11px] bg-black hover:bg-[var(--quant-surface-hover)] text-[#C9D1D9] border border-[var(--quant-border)]"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
             {isFullscreen ? '⤢' : '⤡'}
@@ -420,7 +420,7 @@ export function BuildTerminal({
       <div
         ref={containerRef}
         data-testid="terminal-container"
-        className="flex-1 p-2 bg-[#0D1117] min-h-[300px] overflow-hidden"
+        className="flex-1 p-2 bg-black min-h-[300px] overflow-hidden"
       >
         {/* Headless fallback buffer rendered when xterm DOM canvas is unmounted */}
         <noscript>

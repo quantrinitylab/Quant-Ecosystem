@@ -101,8 +101,8 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = () => {
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6 text-[#E6EDF3] py-4">
       {/* Hero Banner (Screens 59–60) */}
-      <div className="rounded-2xl bg-gradient-to-b from-[var(--quant-surface-elevated)] to-[#0D1117] border border-[#30363D] p-8 text-center space-y-3 relative overflow-hidden">
-        <div className="w-14 h-14 rounded-2xl bg-blue-500/20 border border-blue-500/40 mx-auto flex items-center justify-center text-3xl shadow-lg">
+      <div className="rounded-2xl bg-gradient-to-b from-[var(--quant-surface-elevated)] to-[#0D1117] border border-[var(--quant-border)] p-8 text-center space-y-3 relative overflow-hidden">
+        <div className="w-14 h-14 rounded-2xl bg-[#8B5CF6]/20 border border-[#8B5CF6]/40 mx-auto flex items-center justify-center text-3xl shadow-lg">
           🔌
         </div>
         <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#E6EDF3]">
@@ -133,7 +133,7 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search MCPs..."
-            className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded-xl py-2.5 pl-11 pr-4 text-sm text-[#E6EDF3] placeholder-[#8D96A0] outline-none shadow-inner transition-all"
+            className="w-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] focus:border-[#8B5CF6] rounded-xl py-2.5 pl-11 pr-4 text-sm text-[#E6EDF3] placeholder-[#8D96A0] outline-none shadow-inner transition-all"
           />
         </div>
       </div>
@@ -142,7 +142,7 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = () => {
  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-sm text-[#E6EDF3]">All MCP servers</span>
-          <span className="px-2 py-0.5 rounded-full bg-[#21262D] text-xs font-mono text-[#8D96A0]">
+          <span className="px-2 py-0.5 rounded-full bg-black text-xs font-mono text-[#8D96A0]">
             {OFFICIAL_MCP_CATALOG.length}
           </span>
         </div>
@@ -154,8 +154,8 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = () => {
               onClick={() => setActiveCategory(cat)}
               className={`px-3 py-1 rounded-lg text-xs capitalize font-medium transition-colors ${
                 activeCategory === cat
-                  ? 'bg-[#58A6FF] text-white shadow-sm'
-                  : 'bg-[#21262D] text-[#8D96A0] hover:text-[#E6EDF3] hover:bg-[#30363D]'
+                  ? 'bg-[#8B5CF6] text-white shadow-sm'
+                  : 'bg-black text-[#8D96A0] hover:text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)]'
               }`}
             >
               {cat}
@@ -170,16 +170,16 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = () => {
           return (
             <div
               key={server.id}
-              className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[#58A6FF]/60 p-5 flex flex-col justify-between gap-4 transition-all group"
+              className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] hover:border-[#8B5CF6]/60 p-5 flex flex-col justify-between gap-4 transition-all group"
             >
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#21262D] border border-[#30363D] flex items-center justify-center text-xl shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-black border border-[var(--quant-border)] flex items-center justify-center text-xl shrink-0">
                       {server.icon}
                     </div>
                     <div>
-                      <h4 className="font-semibold text-sm text-[#E6EDF3] group-hover:text-[#58A6FF] transition-colors">
+                      <h4 className="font-semibold text-sm text-[#E6EDF3] group-hover:text-[#8B5CF6] transition-colors">
                         {server.name}
                       </h4>
                       <p className="text-xs text-[#8D96A0]">By {server.author}</p>
@@ -195,7 +195,7 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = () => {
                       disabled
                       aria-disabled="true"
                       title="MCP server installation is not available in QuantGit yet"
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 bg-[#21262D] text-[#8D96A0] border border-[#30363D] opacity-60 cursor-not-allowed"
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 bg-black text-[#8D96A0] border border-[var(--quant-border)] opacity-60 cursor-not-allowed"
                     >
                       <span>Install unavailable</span>
                     </button>
@@ -209,7 +209,7 @@ export const MCPRegistryTab: React.FC<MCPRegistryTabProps> = () => {
 
               {/* Footer info: category only — no fabricated install counts */}
  <div className="flex items-center justify-end pt-2 text-[11px] text-[#8D96A0]">
-                <span className="capitalize px-2 py-0.5 rounded-md bg-[#21262D] text-[10px]">
+                <span className="capitalize px-2 py-0.5 rounded-md bg-black text-[10px]">
                   {server.category}
                 </span>
               </div>

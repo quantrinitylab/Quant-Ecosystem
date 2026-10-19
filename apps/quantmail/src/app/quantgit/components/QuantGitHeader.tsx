@@ -67,7 +67,7 @@ export function QuantGitHeader({
             <button
               type="button"
               onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-              className="p-1.5 rounded-lg hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
+              className="p-1.5 rounded-lg hover:bg-[var(--quant-surface-hover)] text-[#7D8590] hover:text-white transition-colors"
               title="Chat History"
             >
               <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
@@ -81,7 +81,7 @@ export function QuantGitHeader({
               <button
                 type="button"
                 onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-                className="flex items-center gap-1 text-[#E6EDF3] hover:text-white font-medium hover:bg-[#21262D] px-2 py-1 rounded transition-colors"
+                className="flex items-center gap-1 text-[#E6EDF3] hover:text-white font-medium hover:bg-[var(--quant-surface-hover)] px-2 py-1 rounded transition-colors"
               >
                 <span className="max-w-[180px] sm:max-w-xs truncate">
                   {chatSessions.find((s) => s.id === activeSessionId)?.title ||
@@ -106,7 +106,7 @@ export function QuantGitHeader({
                 setChatMessages([]);
                 showToast('Started new chat');
               }}
-              className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
+              className="p-1.5 rounded-md hover:bg-[var(--quant-surface-hover)] text-[#7D8590] hover:text-white transition-colors"
               title="New Chat"
             >
               <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
@@ -116,7 +116,7 @@ export function QuantGitHeader({
             <button
               type="button"
               onClick={() => setIsPersonalizeOpen(true)}
-              className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors flex items-center justify-center"
+              className="p-1.5 rounded-md hover:bg-[var(--quant-surface-hover)] text-[#7D8590] hover:text-white transition-colors flex items-center justify-center"
               title="Personalize Quanty AI"
               aria-label="Personalize Quanty AI"
             >
@@ -154,7 +154,7 @@ export function QuantGitHeader({
                   </svg>
                   Agent Lab
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[#30363D] text-[#7D8590] uppercase tracking-wider">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[var(--quant-border)] text-[#7D8590] uppercase tracking-wider">
                   Fleet Command
                 </span>
               </div>
@@ -167,7 +167,7 @@ export function QuantGitHeader({
                     setSelectedRepo(null);
                     setViewingFile(null);
                   }}
-                  className="text-[#58A6FF] hover:underline font-medium shrink-0"
+                  className="text-[#8B5CF6] hover:underline font-medium shrink-0"
                 >
                   ← Repos
                 </button>
@@ -198,7 +198,7 @@ export function QuantGitHeader({
                     </span>
                   </>
                 )}
-                <span className="ml-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[var(--q-type-xs)] sm:text-[10px] font-semibold uppercase tracking-wider border border-[#30363D] text-[#7D8590] shrink-0">
+                <span className="ml-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[var(--q-type-xs)] sm:text-[10px] font-semibold uppercase tracking-wider border border-[var(--quant-border)] text-[#7D8590] shrink-0">
                   {selectedRepo.visibility}
                 </span>
               </div>
@@ -228,7 +228,7 @@ export function QuantGitHeader({
                 type="button"
                 data-testid="create-new-dropdown-btn"
                 onClick={() => setIsCreateMenuOpen((prev) => !prev)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors text-xs font-semibold"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-black border border-[var(--quant-border)] text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)] transition-colors text-xs font-semibold"
                 title="Create New..."
               >
                 <span className="text-[#8B5CF6] font-bold">+</span>
@@ -241,7 +241,7 @@ export function QuantGitHeader({
                   <div className="fixed inset-0 z-40" onClick={() => setIsCreateMenuOpen(false)} />
                   <div
                     data-testid="create-new-dropdown-menu"
- className="absolute right-0 mt-1.5 w-48 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-xl py-1 z-50 text-xs text-[#E6EDF3] animate-in fade-in"
+ className="absolute right-0 mt-1.5 w-48 rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] shadow-xl py-1 z-50 text-xs text-[#E6EDF3] animate-in fade-in"
                   >
                     <div className="py-1">
                       {/* SIA-P1-7: "New repository" lives as the single primary
@@ -255,9 +255,9 @@ export function QuantGitHeader({
                           setIsCreateMenuOpen(false);
                           setModalState('repo-import');
                         }}
-                        className="w-full text-left px-3 py-1.5 hover:bg-[#21262D] hover:text-white flex items-center gap-2"
+                        className="w-full text-left px-3 py-1.5 hover:bg-[var(--quant-surface-hover)] hover:text-white flex items-center gap-2"
                       >
-                        <span className="text-[#58A6FF]">↓</span> Import repository
+                        <span className="text-[#8B5CF6]">↓</span> Import repository
                       </button>
                     </div>
                     <div className="py-1">
@@ -267,7 +267,7 @@ export function QuantGitHeader({
                           setIsCreateMenuOpen(false);
                           setModalState('new-pr');
                         }}
-                        className="w-full text-left px-3 py-1.5 hover:bg-[#21262D] hover:text-white"
+                        className="w-full text-left px-3 py-1.5 hover:bg-[var(--quant-surface-hover)] hover:text-white"
                       >
                         New pull request
                       </button>
@@ -277,7 +277,7 @@ export function QuantGitHeader({
                           setIsCreateMenuOpen(false);
                           setModalState('new-issue');
                         }}
-                        className="w-full text-left px-3 py-1.5 hover:bg-[#21262D] hover:text-white"
+                        className="w-full text-left px-3 py-1.5 hover:bg-[var(--quant-surface-hover)] hover:text-white"
                       >
                         New issue
                       </button>
@@ -290,7 +290,7 @@ export function QuantGitHeader({
             <button
               type="button"
               onClick={() => setActiveGitHubTab('notifications')}
-              className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors relative"
+              className="p-1.5 rounded-md hover:bg-[var(--quant-surface-hover)] text-[#7D8590] hover:text-white transition-colors relative"
               title="Notifications"
             >
               <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
@@ -304,7 +304,7 @@ export function QuantGitHeader({
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-semibold transition-all ${
                 isCopilotDrawerOpen
                   ? 'bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] border-[var(--app-accent)] text-[var(--app-accent)]'
-                  : 'bg-[#21262D] border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D]'
+                  : 'bg-black border-[var(--quant-border)] text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)]'
               }`}
               title="Toggle Quanty Copilot"
             >
@@ -318,7 +318,7 @@ export function QuantGitHeader({
               <span className="hidden md:inline">Copilot</span>
             </button>
 
-            <div className="flex items-center gap-1.5 pl-1 border-l border-[#30363D]">
+            <div className="flex items-center gap-1.5 pl-1 border-l border-[var(--quant-border)]">
               <BubbleAvatar state="coding" size={24} />
               <span className="hidden md:inline text-[11px] font-bold text-[var(--app-accent)]">
                 Astra Swarm
@@ -335,7 +335,7 @@ export function QuantGitHeader({
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity"
             onClick={() => setIsHistoryOpen(false)}
           />
-          <aside className="fixed top-0 left-0 bottom-0 w-80 bg-[var(--quant-surface-elevated)] border-r border-[#30363D] z-50 p-4 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200">
+          <aside className="fixed top-0 left-0 bottom-0 w-80 bg-[var(--quant-surface-elevated)] border-r border-[var(--quant-border)] z-50 p-4 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200">
  <div className="flex items-center justify-between pb-3">
               <div className="flex items-center gap-2">
                 <BubbleAvatar state="coding" size={28} />
@@ -355,7 +355,7 @@ export function QuantGitHeader({
                     setIsHistoryOpen(false);
                     showToast('Started new chat');
                   }}
-                  className="px-2.5 py-1 rounded bg-[#21262D] hover:bg-[#30363D] text-[11px] text-[#58A6FF] font-semibold transition-colors"
+                  className="px-2.5 py-1 rounded bg-black hover:bg-[var(--quant-surface-hover)] text-[11px] text-[#8B5CF6] font-semibold transition-colors"
                 >
                   + New
                 </button>
@@ -395,8 +395,8 @@ export function QuantGitHeader({
                             key={s.id}
                             className={`group relative flex items-center justify-between py-2 px-2.5 rounded-lg text-xs transition-colors ${
                               isActive
-                                ? 'bg-[#21262D] text-white font-semibold'
-                                : 'text-[#7D8590] hover:text-white hover:bg-[#1F242C]'
+                                ? 'bg-black text-white font-semibold'
+                                : 'text-[#7D8590] hover:text-white hover:bg-[var(--quant-surface-hover)]'
                             }`}
                           >
                             {isEditing ? (
@@ -432,7 +432,7 @@ export function QuantGitHeader({
                                   setEditingSessionId(null);
                                 }}
                                 autoFocus
-                                className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                                className="w-full bg-black border border-[#8B5CF6] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                               />
                             ) : (
                               <>
@@ -459,7 +459,7 @@ export function QuantGitHeader({
                                       );
                                       showToast('Chat unpinned');
                                     }}
-                                    className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[#30363D] text-[var(--app-accent)] hover:text-white"
+                                    className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[var(--quant-surface-hover)] text-[var(--app-accent)] hover:text-white"
                                     title="Unpin chat"
                                     aria-label="Unpin chat"
                                   >
@@ -475,7 +475,7 @@ export function QuantGitHeader({
                                       setEditingSessionId(s.id);
                                       setEditingTitle(s.title);
                                     }}
-                                    className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
+                                    className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[var(--quant-surface-hover)] text-[#7D8590] hover:text-white"
                                     title="Rename chat"
                                     aria-label="Rename chat"
                                   >
@@ -501,7 +501,7 @@ export function QuantGitHeader({
                                       }
                                       showToast('Chat deleted');
                                     }}
-                                    className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-[#F85149]"
+                                    className="p-1 rounded hover:bg-[var(--quant-surface-hover)] text-[#7D8590] hover:text-[#F85149]"
                                     title="Delete chat"
                                     aria-label="Delete chat"
                                   >
@@ -546,8 +546,8 @@ export function QuantGitHeader({
                           key={s.id}
                           className={`group relative flex items-center justify-between py-2 px-2.5 rounded-lg text-xs transition-colors ${
                             isActive
-                              ? 'bg-[#21262D] text-white font-semibold'
-                              : 'text-[#7D8590] hover:text-white hover:bg-[#1F242C]'
+                              ? 'bg-black text-white font-semibold'
+                              : 'text-[#7D8590] hover:text-white hover:bg-[var(--quant-surface-hover)]'
                           }`}
                         >
                           {isEditing ? (
@@ -581,7 +581,7 @@ export function QuantGitHeader({
                                 setEditingSessionId(null);
                               }}
                               autoFocus
-                              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                              className="w-full bg-black border border-[#8B5CF6] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                             />
                           ) : (
                             <>
@@ -606,7 +606,7 @@ export function QuantGitHeader({
                                     setPinnedSessionIds((prev) => [...prev, s.id]);
                                     showToast('Chat pinned');
                                   }}
-                                  className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
+                                  className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[var(--quant-surface-hover)] text-[#7D8590] hover:text-white"
                                   title="Pin chat"
                                   aria-label="Pin chat"
                                 >
@@ -622,7 +622,7 @@ export function QuantGitHeader({
                                     setEditingSessionId(s.id);
                                     setEditingTitle(s.title);
                                   }}
-                                  className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
+                                  className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[var(--quant-surface-hover)] text-[#7D8590] hover:text-white"
                                   title="Rename chat"
                                   aria-label="Rename chat"
                                 >
@@ -641,7 +641,7 @@ export function QuantGitHeader({
                                     }
                                     showToast('Chat deleted');
                                   }}
-                                  className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-[#F85149]"
+                                  className="p-1 rounded hover:bg-[var(--quant-surface-hover)] text-[#7D8590] hover:text-[#F85149]"
                                   title="Delete chat"
                                   aria-label="Delete chat"
                                 >

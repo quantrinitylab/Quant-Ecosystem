@@ -827,7 +827,7 @@ export const INITIAL_ISSUES: IssueItem[] = [
     author: 'astra-ceo',
     labels: [
       { name: 'architecture', color: '#1D76DB' },
-      { name: 'storage', color: '#5319E7' },
+      { name: 'storage', color: '#8B5CF6' },
     ],
     commentsCount: 8,
     createdAt: 'yesterday',

@@ -165,9 +165,9 @@ export function QuantyCopilotView({
                   onClick={() => {
                     setPromptInput(card.prompt);
                   }}
-                  className="p-3 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[#58A6FF] hover:bg-[#1C2128] transition-all group"
+                  className="p-3 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] hover:border-[#8B5CF6] hover:bg-[var(--quant-surface-hover)] transition-all group"
                 >
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#E6EDF3] group-hover:text-[#58A6FF]">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#E6EDF3] group-hover:text-[#8B5CF6]">
                     <span>{card.icon}</span>
                     <span>{card.title}</span>
                   </div>
@@ -183,7 +183,7 @@ export function QuantyCopilotView({
               <div key={msg.id}>
                 {msg.role === 'user' ? (
                   <div className="flex justify-end">
-                    <div className="max-w-xl bg-[#1F242C] border border-[#30363D] text-white p-3.5 rounded-2xl text-xs space-y-1.5 shadow-md">
+                    <div className="max-w-xl bg-black border border-[var(--quant-border)] text-white p-3.5 rounded-2xl text-xs space-y-1.5 shadow-md">
                       <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
                       <div className="flex items-center justify-between text-[10px] text-[#7D8590] pt-1">
                         <span>{msg.timestamp}</span>
@@ -201,7 +201,7 @@ export function QuantyCopilotView({
                     </div>
                   </div>
                 ) : (
-                  <div className="max-w-2xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-4 rounded-2xl text-xs space-y-3 shadow-md">
+                  <div className="max-w-2xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] p-4 rounded-2xl text-xs space-y-3 shadow-md">
                     {/* Bot Message Header */}
                     <div className="flex items-center justify-between pb-2">
                       <div className="flex items-center gap-2">
@@ -218,7 +218,7 @@ export function QuantyCopilotView({
 
                     {/* Notion AI Style Thought Accordion */}
                     {msg.thoughts && (
-                      <div className="rounded-lg border border-[#21262D] bg-[#0B0C0E] overflow-hidden">
+                      <div className="rounded-lg border border-[var(--quant-border)] bg-black overflow-hidden">
                         <button
                           type="button"
                           onClick={() =>
@@ -227,7 +227,7 @@ export function QuantyCopilotView({
                               [msg.id]: !prev[msg.id],
                             }))
                           }
-                          className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] text-[#7D8590] hover:text-white transition-colors bg-[#111418]"
+                          className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] text-[#7D8590] hover:text-white transition-colors bg-black"
                         >
                           <span className="flex items-center gap-1.5 font-mono">
                             <span>{expandedThoughts[msg.id] ? '▼' : '▶'}</span>
@@ -236,7 +236,7 @@ export function QuantyCopilotView({
                               · Thought for {msg.thoughtDuration || '2.8s'}
                             </span>
                           </span>
-                          <span className="text-[10px] text-[#58A6FF]">
+                          <span className="text-[10px] text-[#8B5CF6]">
                             {expandedThoughts[msg.id] ? 'Collapse' : 'Expand'}
                           </span>
                         </button>
@@ -272,7 +272,7 @@ export function QuantyCopilotView({
                     {msg.toolExecutions && msg.toolExecutions.length > 0 && (
                       <div className="space-y-2 pt-2">
                         <div className="text-[10px] font-mono uppercase tracking-wider text-[#7D8590] flex items-center gap-1.5">
-                          <span className="inline-block w-2 h-2 rounded-full bg-[#58A6FF] animate-pulse" />
+                          <span className="inline-block w-2 h-2 rounded-full bg-[#8B5CF6] animate-pulse" />
                           <span>Tool executions ({msg.toolExecutions.length})</span>
                         </div>
                         <div className="grid gap-2">
@@ -281,8 +281,8 @@ export function QuantyCopilotView({
                               key={exec.callId || idx}
                               className={`p-3 rounded-xl border text-xs font-mono transition-all ${
                                 exec.status === 'succeeded'
-                                  ? 'bg-[#0D1117] border-[#238636]/40 text-[#E6EDF3]'
-                                  : 'bg-[#0D1117] border-[#DA3633]/40 text-[#F85149]'
+                                  ? 'bg-black border-[#238636]/40 text-[#E6EDF3]'
+                                  : 'bg-black border-[#DA3633]/40 text-[#F85149]'
                               }`}
                             >
                               <div className="flex items-center justify-between gap-2">
@@ -326,11 +326,11 @@ export function QuantyCopilotView({
                                   {exec.toolName === 'create_repository' && (
                                     <span>
                                       Branch:{' '}
-                                      <code className="text-[#58A6FF]">
+                                      <code className="text-[#8B5CF6]">
                                         {exec.result?.defaultBranch || 'main'}
                                       </code>{' '}
                                       · Visibility:{' '}
-                                      <code className="text-[#58A6FF]">
+                                      <code className="text-[#8B5CF6]">
                                         {exec.result?.visibility || 'public'}
                                       </code>
                                     </span>
@@ -342,7 +342,7 @@ export function QuantyCopilotView({
                                         {String(exec.result?.commitSha || '').slice(0, 8)}
                                       </code>{' '}
                                       · Branch:{' '}
-                                      <code className="text-[#58A6FF]">
+                                      <code className="text-[#8B5CF6]">
                                         {exec.result?.branch || 'main'}
                                       </code>
                                     </span>
@@ -354,7 +354,7 @@ export function QuantyCopilotView({
                                         {exec.result?.role || exec.input?.role}
                                       </code>{' '}
                                       · Desk:{' '}
-                                      <code className="text-[#58A6FF]">
+                                      <code className="text-[#8B5CF6]">
                                         #{exec.result?.deskNumber || exec.input?.deskNumber}
                                       </code>
                                     </span>
@@ -362,11 +362,11 @@ export function QuantyCopilotView({
                                   {exec.toolName === 'read_file_blob' && (
                                     <span>
                                       Bytes:{' '}
-                                      <code className="text-[#58A6FF]">
+                                      <code className="text-[#8B5CF6]">
                                         {exec.result?.size ?? 'N/A'}
                                       </code>{' '}
                                       · SHA:{' '}
-                                      <code className="text-[#58A6FF]">
+                                      <code className="text-[#8B5CF6]">
                                         {String(exec.result?.blobSha || '').slice(0, 8)}
                                       </code>
                                     </span>
@@ -413,7 +413,7 @@ export function QuantyCopilotView({
                                             }
                                           })();
                                         }}
-                                        className="px-2 py-0.5 rounded bg-[#21262D] hover:bg-[#30363D] text-[#58A6FF] text-[10px] font-medium transition-colors"
+                                        className="px-2 py-0.5 rounded bg-black hover:bg-[var(--quant-surface-hover)] text-[#8B5CF6] text-[10px] font-medium transition-colors"
                                       >
                                         Open Repo →
                                       </button>
@@ -425,7 +425,7 @@ export function QuantyCopilotView({
                                           setActiveDeckTab('lab');
                                           showToast('Navigated to Agent Lab floor');
                                         }}
-                                        className="px-2 py-0.5 rounded bg-[#21262D] hover:bg-[#30363D] text-[var(--app-accent)] text-[10px] font-medium transition-colors"
+                                        className="px-2 py-0.5 rounded bg-black hover:bg-[var(--quant-surface-hover)] text-[var(--app-accent)] text-[10px] font-medium transition-colors"
                                       >
                                         View in Agent Lab →
                                       </button>
@@ -449,7 +449,7 @@ export function QuantyCopilotView({
                             onClick={() => {
                               setPromptInput(sug.replace(' →', ''));
                             }}
-                            className="px-2.5 py-1 rounded-md bg-[#21262D] hover:bg-[#30363D] text-[#58A6FF] text-[11px] font-semibold transition-colors"
+                            className="px-2.5 py-1 rounded-md bg-black hover:bg-[var(--quant-surface-hover)] text-[#8B5CF6] text-[11px] font-semibold transition-colors"
                           >
                             {sug}
                           </button>
@@ -502,7 +502,7 @@ export function QuantyCopilotView({
             ))}
 
             {isChatSubmitting && (
-              <div className="rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-4 text-xs text-[#7D8590] animate-pulse">
+              <div className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-4 text-xs text-[#7D8590] animate-pulse">
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-[var(--app-accent)] animate-ping" />
                   <span className="font-semibold text-white">
@@ -516,7 +516,7 @@ export function QuantyCopilotView({
       </div>
 
       {/* Notion AI Bottom Floating Composer */}
-      <div className="shrink-0 pt-2 pb-2 bg-[#0D1117] z-20">
+      <div className="shrink-0 pt-2 pb-2 bg-black z-20">
         {chatError && (
           <div className="mb-2 rounded-lg border border-[#F85149]/40 bg-[#DA3633]/15 px-3 py-2 text-xs text-[#F85149]">
             {chatError}
@@ -525,13 +525,13 @@ export function QuantyCopilotView({
         <div className="relative">
           {/* Popup Menu for Give Context (+) */}
           {isContextOpen && (
-            <div className="absolute bottom-full left-0 mb-2 w-72 p-2 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl z-30 text-xs animate-in fade-in slide-in-from-bottom-2">
+            <div className="absolute bottom-full left-0 mb-2 w-72 p-2 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] shadow-2xl z-30 text-xs animate-in fade-in slide-in-from-bottom-2">
               {activeContextSubmenu === 'none' ? (
                 <div className="space-y-1">
                   <button
                     type="button"
                     onClick={() => setActiveContextSubmenu('repos-files')}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] text-left transition-colors"
                   >
                     <div className="flex items-center gap-2.5">
                       <span className="text-base">📁</span>
@@ -547,10 +547,10 @@ export function QuantyCopilotView({
                   <button
                     type="button"
                     onClick={() => setActiveContextSubmenu('mention')}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] text-left transition-colors"
                   >
                     <div className="flex items-center gap-2.5">
-                      <span className="text-base font-mono font-bold text-[#58A6FF]">@</span>
+                      <span className="text-base font-mono font-bold text-[#8B5CF6]">@</span>
                       <div>
                         <div className="font-semibold text-white">Mention repo or file</div>
                         <div className="text-[10px] text-[#7D8590]">
@@ -563,7 +563,7 @@ export function QuantyCopilotView({
                   <button
                     type="button"
                     onClick={() => setActiveContextSubmenu('skills')}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] text-left transition-colors"
                   >
                     <div className="flex items-center gap-2.5">
                       <span className="text-base text-[var(--app-accent)]">⚡</span>
@@ -586,13 +586,13 @@ export function QuantyCopilotView({
                       );
                       setIsContextOpen(false);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] text-left transition-colors"
                   >
                     <span className="text-base">🖌️</span>
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-semibold text-white">Create image or diagram</span>
-                        <span className="text-[var(--q-type-xs)] font-bold px-1.5 py-px rounded bg-[#58A6FF]/20 text-[#58A6FF]">
+                        <span className="text-[var(--q-type-xs)] font-bold px-1.5 py-px rounded bg-[#8B5CF6]/20 text-[#8B5CF6]">
                           New
                         </span>
                       </div>
@@ -609,7 +609,7 @@ export function QuantyCopilotView({
                     <button
                       type="button"
                       onClick={() => setActiveContextSubmenu('none')}
-                      className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                      className="flex items-center gap-1 text-[#8B5CF6] font-semibold hover:underline"
                     >
                       <span>‹</span> Back
                     </button>
@@ -620,7 +620,7 @@ export function QuantyCopilotView({
                     value={repoFileSearch}
                     onChange={(e) => setRepoFileSearch(e.target.value)}
                     placeholder="Search repo or file…"
-                    className="w-full bg-[#0D1117] border border-[#30363D] rounded px-2.5 py-1 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
+                    className="w-full bg-black border border-[var(--quant-border)] rounded px-2.5 py-1 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#8B5CF6]"
                   />
                   <div className="max-h-52 overflow-y-auto space-y-1 pt-1">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-[#7D8590] pt-1">
@@ -647,7 +647,7 @@ export function QuantyCopilotView({
                             setIsContextOpen(false);
                             setActiveContextSubmenu('none');
                           }}
-                          className="w-full py-1.5 px-2 flex items-center justify-between text-left hover:bg-[#21262D] rounded transition-colors"
+                          className="w-full py-1.5 px-2 flex items-center justify-between text-left hover:bg-[var(--quant-surface-hover)] rounded transition-colors"
                         >
                           <div>
                             <div className="font-medium text-white text-xs flex items-center gap-1.5">
@@ -656,7 +656,7 @@ export function QuantyCopilotView({
                             </div>
                             <div className="text-[10px] text-[#7D8590]">{r.desc}</div>
                           </div>
-                          <span className="text-[#58A6FF] text-xs font-semibold">+ Attach</span>
+                          <span className="text-[#8B5CF6] text-xs font-semibold">+ Attach</span>
                         </button>
                       ))}
                     <div className="text-[10px] font-bold uppercase tracking-wider text-[#7D8590] pt-2">
@@ -689,7 +689,7 @@ export function QuantyCopilotView({
                             setIsContextOpen(false);
                             setActiveContextSubmenu('none');
                           }}
-                          className="w-full py-1.5 px-2 flex items-center justify-between text-left hover:bg-[#21262D] rounded transition-colors"
+                          className="w-full py-1.5 px-2 flex items-center justify-between text-left hover:bg-[var(--quant-surface-hover)] rounded transition-colors"
                         >
                           <div>
                             <div className="font-mono text-white text-[11px] flex items-center gap-1.5 truncate max-w-[180px]">
@@ -698,7 +698,7 @@ export function QuantyCopilotView({
                             </div>
                             <div className="text-[10px] text-[#7D8590]">{f.desc}</div>
                           </div>
-                          <span className="text-[#58A6FF] text-xs font-semibold shrink-0">
+                          <span className="text-[#8B5CF6] text-xs font-semibold shrink-0">
                             + Attach
                           </span>
                         </button>
@@ -712,7 +712,7 @@ export function QuantyCopilotView({
                     <button
                       type="button"
                       onClick={() => setActiveContextSubmenu('none')}
-                      className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                      className="flex items-center gap-1 text-[#8B5CF6] font-semibold hover:underline"
                     >
                       <span>‹</span> Back
                     </button>
@@ -723,7 +723,7 @@ export function QuantyCopilotView({
                     value={mentionSearch}
                     onChange={(e) => setMentionSearch(e.target.value)}
                     placeholder="Search mention…"
-                    className="w-full bg-[#0D1117] border border-[#30363D] rounded px-2.5 py-1 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
+                    className="w-full bg-black border border-[var(--quant-border)] rounded px-2.5 py-1 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#8B5CF6]"
                   />
                   <div className="max-h-52 overflow-y-auto space-y-1 pt-1">
                     {[
@@ -746,10 +746,10 @@ export function QuantyCopilotView({
                             setIsContextOpen(false);
                             setActiveContextSubmenu('none');
                           }}
-                          className="w-full py-1.5 px-2 flex items-center justify-between text-left hover:bg-[#21262D] rounded transition-colors"
+                          className="w-full py-1.5 px-2 flex items-center justify-between text-left hover:bg-[var(--quant-surface-hover)] rounded transition-colors"
                         >
                           <div>
-                            <div className="font-mono text-[#58A6FF] text-xs font-semibold">
+                            <div className="font-mono text-[#8B5CF6] text-xs font-semibold">
                               {m.token}
                             </div>
                             <div className="text-[10px] text-[#7D8590]">{m.desc}</div>
@@ -766,7 +766,7 @@ export function QuantyCopilotView({
                     <button
                       type="button"
                       onClick={() => setActiveContextSubmenu('none')}
-                      className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                      className="flex items-center gap-1 text-[#8B5CF6] font-semibold hover:underline"
                     >
                       <span>‹</span> Back
                     </button>
@@ -782,14 +782,14 @@ export function QuantyCopilotView({
                     value={skillsSearch}
                     onChange={(e) => setSkillsSearch(e.target.value)}
                     placeholder="Search skills…"
-                    className="w-full bg-[#0D1117] border border-[#30363D] rounded px-2.5 py-1 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
+                    className="w-full bg-black border border-[var(--quant-border)] rounded px-2.5 py-1 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#8B5CF6]"
                   />
                   <div className="flex items-center justify-between text-[11px] pt-1">
                     <button
                       type="button"
                       disabled
                       title="The skills library is not available yet"
-                      className="text-[#58A6FF] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="text-[#8B5CF6] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       See all skills in Library
                     </button>
@@ -813,7 +813,7 @@ export function QuantyCopilotView({
                       {
                         name: 'Monorepo AST Parser',
                         cat: 'CODE',
-                        catColor: 'bg-[#58A6FF]/20 text-[#58A6FF]',
+                        catColor: 'bg-[#8B5CF6]/20 text-[#8B5CF6]',
                         desc: 'Deep TypeScript symbol & import inspection',
                       },
                       {
@@ -825,7 +825,7 @@ export function QuantyCopilotView({
                       {
                         name: 'LiveKit WebRTC Gateway',
                         cat: 'VOICE',
-                        catColor: 'bg-[#A371F7]/20 text-[#A371F7]',
+                        catColor: 'bg-[#8B5CF6]/20 text-[#8B5CF6]',
                         desc: 'Realtime audio/video streaming & room controls',
                       },
                       {
@@ -847,7 +847,7 @@ export function QuantyCopilotView({
                         return (
                           <div
                             key={sk.name}
-                            className="py-2 px-1 flex items-center justify-between text-xs hover:bg-[#21262D]/50 rounded"
+                            className="py-2 px-1 flex items-center justify-between text-xs hover:bg-[var(--quant-surface-hover)] rounded"
                           >
                             <div className="pr-2 min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">
@@ -859,7 +859,7 @@ export function QuantyCopilotView({
                                 <span className="font-medium text-white truncate">{sk.name}</span>
                                 {/* QM-SCREEN-013 R3 P2: each entry reads as
                                     planned, not live. */}
-                                <span className="px-1.5 py-px rounded text-[var(--q-type-xs)] font-bold bg-[#21262D] text-[#7D8590] border border-[#30363D] shrink-0">
+                                <span className="px-1.5 py-px rounded text-[var(--q-type-xs)] font-bold bg-black text-[#7D8590] border border-[var(--quant-border)] shrink-0">
                                   Planned
                                 </span>
                               </div>
@@ -878,7 +878,7 @@ export function QuantyCopilotView({
                               className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                                 isEnabled
                                   ? 'bg-[#238636] text-white'
-                                  : 'bg-[#21262D] text-[#7D8590]'
+                                  : 'bg-black text-[#7D8590]'
                               }`}
                             >
                               {isEnabled ? 'ON' : 'OFF'}
@@ -894,14 +894,14 @@ export function QuantyCopilotView({
 
           {/* Popup Menu for Settings (⊶) */}
           {isSettingsOpen && (
-            <div className="absolute bottom-full left-10 mb-2 w-80 p-2.5 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl z-30 text-xs animate-in fade-in slide-in-from-bottom-2">
+            <div className="absolute bottom-full left-10 mb-2 w-80 p-2.5 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] shadow-2xl z-30 text-xs animate-in fade-in slide-in-from-bottom-2">
               {activeSettingsSubmenu === 'none' ? (
                 <div className="space-y-1">
                   {/* Computer */}
                   <button
                     type="button"
                     onClick={() => setActiveSettingsSubmenu('computer')}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] text-left transition-colors"
                   >
                     <div className="flex items-center gap-2">
                       <span>💻</span>
@@ -914,12 +914,12 @@ export function QuantyCopilotView({
                   <button
                     type="button"
                     onClick={() => setActiveSettingsSubmenu('sources')}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] text-left transition-colors"
                   >
                     <div className="flex items-center gap-2">
                       <span>📚</span>
                       <span className="font-semibold text-white">My sources</span>
-                      <span className="px-1.5 py-px rounded-full bg-[#21262D] text-[10px] text-[#58A6FF] font-bold">
+                      <span className="px-1.5 py-px rounded-full bg-black text-[10px] text-[#8B5CF6] font-bold">
                         3
                       </span>
                     </div>
@@ -930,12 +930,12 @@ export function QuantyCopilotView({
                   <button
                     type="button"
                     onClick={() => setActiveSettingsSubmenu('mcp')}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] text-left transition-colors"
                   >
                     <div className="flex items-center gap-2">
                       <span>🔌</span>
                       <span className="font-semibold text-white">MCP servers</span>
-                      <span className="px-1.5 py-px rounded-full bg-[#21262D] text-[10px] text-[#8D96A0] font-bold">
+                      <span className="px-1.5 py-px rounded-full bg-black text-[10px] text-[#8D96A0] font-bold">
                         {mcpServers.length}
                       </span>
                     </div>
@@ -946,7 +946,7 @@ export function QuantyCopilotView({
                   <button
                     type="button"
                     onClick={() => setActiveSettingsSubmenu('mode')}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] text-left transition-colors"
                   >
                     <div className="flex items-center gap-2">
                       <span>⚡</span>
@@ -963,7 +963,7 @@ export function QuantyCopilotView({
                       setIsPersonalizeOpen(true);
                       setIsSettingsOpen(false);
                     }}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] text-left transition-colors"
                   >
                     <div className="flex items-center gap-2">
                       <span>🎨</span>
@@ -995,8 +995,8 @@ export function QuantyCopilotView({
                           onClick={() => setEffort(eff)}
                           className={`flex-1 py-1 rounded text-[11px] font-bold capitalize transition-colors ${
                             effort === eff
-                              ? 'bg-[#58A6FF] text-black'
-                              : 'bg-[#21262D] text-[#7D8590] hover:text-white'
+                              ? 'bg-[#8B5CF6] text-black'
+                              : 'bg-black text-[#7D8590] hover:text-white'
                           }`}
                         >
                           {eff} ({eff === 'deep' ? '32k' : '1k'})
@@ -1012,7 +1012,7 @@ export function QuantyCopilotView({
                     <button
                       type="button"
                       onClick={() => setActiveSettingsSubmenu('none')}
-                      className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                      className="flex items-center gap-1 text-[#8B5CF6] font-semibold hover:underline"
                     >
                       <span>‹</span> Back
                     </button>
@@ -1030,7 +1030,7 @@ export function QuantyCopilotView({
                       type="button"
                       onClick={() => setEnableWorkersBeta(!enableWorkersBeta)}
                       className={`w-9 h-5 rounded-full p-0.5 transition-colors ${
-                        enableWorkersBeta ? 'bg-[#238636]' : 'bg-[#30363D]'
+                        enableWorkersBeta ? 'bg-[#238636]' : 'bg-[var(--quant-surface-hover)]'
                       }`}
                     >
                       <div
@@ -1048,7 +1048,7 @@ export function QuantyCopilotView({
                     <button
                       type="button"
                       onClick={() => setActiveSettingsSubmenu('none')}
-                      className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                      className="flex items-center gap-1 text-[#8B5CF6] font-semibold hover:underline"
                     >
                       <span>‹</span> Back
                     </button>
@@ -1074,7 +1074,7 @@ export function QuantyCopilotView({
                               [item.key]: !(prev as any)[item.key],
                             }))
                           }
-                          className="accent-[#58A6FF] w-4 h-4 cursor-pointer"
+                          className="accent-[#8B5CF6] w-4 h-4 cursor-pointer"
                         />
                       </div>
                     ))}
@@ -1084,7 +1084,7 @@ export function QuantyCopilotView({
                       type="button"
                       disabled
                       title="Source connectors are not available yet"
-                      className="text-[#58A6FF] text-[11px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="text-[#8B5CF6] text-[11px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       + Add sources
                     </button>
@@ -1101,7 +1101,7 @@ export function QuantyCopilotView({
                     <button
                       type="button"
                       onClick={() => setActiveSettingsSubmenu('none')}
-                      className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                      className="flex items-center gap-1 text-[#8B5CF6] font-semibold hover:underline"
                     >
                       <span>‹</span> Back
                     </button>
@@ -1111,7 +1111,7 @@ export function QuantyCopilotView({
                     {mcpServers.map((server) => (
                       <div
                         key={server}
-                        className="p-2 rounded bg-[#0D1117] border border-[#30363D] flex items-center justify-between"
+                        className="p-2 rounded bg-black border border-[var(--quant-border)] flex items-center justify-between"
                       >
                         <div className="flex items-center gap-2">
                           {/* QM-SCREEN-013 P1: neutral dot — no verified MCP
@@ -1132,7 +1132,7 @@ export function QuantyCopilotView({
                     type="button"
                     disabled
                     title="MCP server connections are not available yet"
-                    className="w-full py-1.5 rounded bg-[#21262D] text-[#8D96A0] font-semibold text-xs border border-[#30363D] disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="w-full py-1.5 rounded bg-black text-[#8D96A0] font-semibold text-xs border border-[var(--quant-border)] disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     + Add MCP server
                   </button>
@@ -1147,7 +1147,7 @@ export function QuantyCopilotView({
                     <button
                       type="button"
                       onClick={() => setActiveSettingsSubmenu('none')}
-                      className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                      className="flex items-center gap-1 text-[#8B5CF6] font-semibold hover:underline"
                     >
                       <span>‹</span> Back
                     </button>
@@ -1164,14 +1164,14 @@ export function QuantyCopilotView({
                         onClick={() => setNotionMode(md.id as any)}
                         className={`w-full p-2 rounded-lg text-left border transition-colors ${
                           notionMode === md.id
-                            ? 'bg-[#58A6FF]/10 border-[#58A6FF] text-white'
-                            : 'border-transparent hover:bg-[#21262D] text-[#7D8590]'
+                            ? 'bg-[#8B5CF6]/10 border-[#8B5CF6] text-white'
+                            : 'border-transparent hover:bg-[var(--quant-surface-hover)] text-[#7D8590]'
                         }`}
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-white">{md.title}</span>
                           {notionMode === md.id && (
-                            <span className="text-[#58A6FF] font-bold">●</span>
+                            <span className="text-[#8B5CF6] font-bold">●</span>
                           )}
                         </div>
                         <div className="text-[10px] text-[#7D8590] mt-0.5">{md.desc}</div>
@@ -1187,14 +1187,14 @@ export function QuantyCopilotView({
           )}
 
           {/* Input Textarea Container */}
-          <div className="relative rounded-2xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-3 shadow-2xl focus-within:border-[#58A6FF] transition-all">
+          <div className="relative rounded-2xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] p-3 shadow-2xl focus-within:border-[#8B5CF6] transition-all">
             {/* Attached Files Row */}
             {attachedFiles.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pb-2 mb-2">
                 {attachedFiles.map((f, idx) => (
                   <span
                     key={idx}
-                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#21262D] border border-[#30363D] text-[11px] text-[#E6EDF3]"
+                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-black border border-[var(--quant-border)] text-[11px] text-[#E6EDF3]"
                   >
                     <span>📎</span>
                     <span className="font-mono text-[10px]">{f}</span>
@@ -1240,8 +1240,8 @@ export function QuantyCopilotView({
                   }}
                   className={`p-1.5 rounded-lg border transition-colors ${
                     isContextOpen
-                      ? 'bg-[#30363D] border-[#58A6FF] text-white'
-                      : 'bg-[#21262D] border-[#30363D] text-[#7D8590] hover:text-white hover:bg-[#30363D]'
+                      ? 'bg-[var(--quant-surface-hover)] border-[#8B5CF6] text-white'
+                      : 'bg-black border-[var(--quant-border)] text-[#7D8590] hover:text-white hover:bg-[var(--quant-surface-hover)]'
                   }`}
                   title="Give context (Files, @ Mention, Skills)"
                 >
@@ -1258,8 +1258,8 @@ export function QuantyCopilotView({
                   }}
                   className={`p-1.5 rounded-lg border transition-colors ${
                     isSettingsOpen
-                      ? 'bg-[#30363D] border-[#58A6FF] text-white'
-                      : 'bg-[#21262D] border-[#30363D] text-[#7D8590] hover:text-white hover:bg-[#30363D]'
+                      ? 'bg-[var(--quant-surface-hover)] border-[#8B5CF6] text-white'
+                      : 'bg-black border-[var(--quant-border)] text-[#7D8590] hover:text-white hover:bg-[var(--quant-surface-hover)]'
                   }`}
                   title="Execution Settings"
                 >
@@ -1269,7 +1269,7 @@ export function QuantyCopilotView({
                 </button>
 
                 {/* Active model & mode pill */}
-                <span className="text-[10px] font-semibold text-[#7D8590] bg-[#21262D] px-2 py-0.5 rounded-md border border-[#30363D]">
+                <span className="text-[10px] font-semibold text-[#7D8590] bg-black px-2 py-0.5 rounded-md border border-[var(--quant-border)]">
                   {notionMode === 'default' ? 'Default' : 'Ask'} ·{' '}
                   {effort === 'deep' ? '32k' : '1k'}
                 </span>
@@ -1288,7 +1288,7 @@ export function QuantyCopilotView({
                   className={`p-1.5 rounded-lg border transition-colors ${
                     isRecording
                       ? 'bg-[#DA3633] border-[#F85149] text-white animate-pulse'
-                      : 'bg-[#21262D] border-[#30363D] text-[#7D8590] hover:text-white hover:bg-[#30363D]'
+                      : 'bg-black border-[var(--quant-border)] text-[#7D8590] hover:text-white hover:bg-[var(--quant-surface-hover)]'
                   }`}
                   title="Start voice recording"
                 >
@@ -1303,7 +1303,7 @@ export function QuantyCopilotView({
                   className={`w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all ${
                     promptInput.trim() && !isChatSubmitting
                       ? 'bg-[var(--app-accent)] text-black shadow-lg hover:scale-105 cursor-pointer'
-                      : 'bg-[#21262D] text-[#7D8590] cursor-not-allowed opacity-50'
+                      : 'bg-black text-[#7D8590] cursor-not-allowed opacity-50'
                   }`}
                   title="Submit AI message"
                 >

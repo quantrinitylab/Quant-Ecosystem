@@ -13,12 +13,12 @@ export interface AgentsTabProps {
 export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
   return (
     <div className="space-y-6 text-xs">
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)]">
         <div className="space-y-1">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <BubbleAvatar state="coding" size={20} />
             Agent Workspace
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#30363D]/60 text-[#8D96A0] border border-[#30363D]">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--quant-surface-hover)] text-[#8D96A0] border border-[var(--quant-border)]">
               Local only — no backend connected
             </span>
           </h3>
@@ -37,7 +37,7 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
       </div>
 
       {agents.length === 0 ? (
-        <div className="rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
+        <div className="rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)]">
           <QuantGitEmptyState
             icon="agent"
             title="No agents added"
@@ -52,7 +52,7 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
           {agents.map((ag) => (
           <div
             key={ag.id}
-            className="p-4 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] space-y-3"
+            className="p-4 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] space-y-3"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -69,7 +69,7 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
               </div>
               {/* Neutral pill only — no agent here is connected to a backend, so no
                   'active'/running claim is ever rendered. */}
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#30363D]/60 text-[#8D96A0] border border-[#30363D]">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--quant-surface-hover)] text-[#8D96A0] border border-[var(--quant-border)]">
                 {ag.status === 'local-only' ? 'Local only' : ag.status}
               </span>
             </div>

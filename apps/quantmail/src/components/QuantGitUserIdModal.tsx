@@ -114,7 +114,7 @@ export function QuantGitUserIdModal({ isOpen, onClose, onCreate, currentUserId }
               value={userId}
               onChange={(e) => handleInputChange(e.target.value)}
               placeholder="your-username"
-              className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-[#0D0D12] border border-[#232938] text-white placeholder-[#475569] font-mono text-sm focus:outline-none focus:border-[#8B5CF6]/60 focus:ring-1 focus:ring-[#8B5CF6]/30 transition-all"
+              className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-[#0D0D12] border border-[var(--quant-border)] text-white placeholder-[#475569] font-mono text-sm focus:outline-none focus:border-[#8B5CF6]/60 focus:ring-1 focus:ring-[#8B5CF6]/30 transition-all"
               autoFocus
             />
           </div>

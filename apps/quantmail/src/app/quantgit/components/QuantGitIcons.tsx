@@ -5,7 +5,7 @@
 // Replaces emoji glyphs (🟢🔴🟡💬✓✕☉⑂) across QuantGit tabs for a proper
 // GitHub-grade look. All icons inherit `currentColor` — set GitHub colors
 // via text-[#3FB950] (green), text-[#F85149] (red), text-[#D29922] (amber),
-// text-[#8957E5] (purple), text-[#8D96A0] (muted).
+// text-[#8B5CF6] (purple), text-[#8D96A0] (muted).
 // ============================================================================
 
 import React from 'react';

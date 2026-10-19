@@ -23,8 +23,8 @@ export interface PRDiffViewerProps {
 const STATUS_CHIP: Record<string, string> = {
   added: 'bg-[#238636]/20 text-[#3FB950] border-[#238636]/40',
   deleted: 'bg-[#DA3633]/20 text-[#F85149] border-[#DA3633]/40',
-  renamed: 'bg-[#8B5CF6]/20 text-[#A371F7] border-[#8B5CF6]/40',
-  modified: 'bg-[#6E7681]/20 text-[#8D96A0] border-[#6E7681]/40',
+  renamed: 'bg-[#8B5CF6]/20 text-[#8B5CF6] border-[#8B5CF6]/40',
+  modified: 'bg-[#6E7681]/20 text-[#8D96A0] border-[var(--quant-border)]',
 };
 
 function statusLabel(file: PRDiffFile): string {
@@ -69,7 +69,7 @@ export function PRDiffViewer({
         <div
           key={`${file.filename}-${fileIdx}`}
           data-testid="diff-file-block"
-          className="rounded-xl bg-[#0D1117] border border-[#30363D] overflow-hidden"
+          className="rounded-xl bg-black border border-[var(--quant-border)] overflow-hidden"
         >
           {/* File header */}
           <div className="flex items-center gap-2 px-3 py-2 bg-[var(--quant-surface-elevated)]">
@@ -140,7 +140,7 @@ export function PRDiffViewer({
                               aria-label={`Add a review comment on ${file.filename} line ${lineNumber}`}
                               title="Add a review comment on this line"
                               onClick={() => onOpenLine(line.id)}
-                              className="w-6 shrink-0 text-center text-[#58A6FF] opacity-60 hover:opacity-100 hover:bg-[#1C2128] focus-visible:opacity-100 cursor-pointer select-none"
+                              className="w-6 shrink-0 text-center text-[#8B5CF6] opacity-60 hover:opacity-100 hover:bg-[var(--quant-surface-hover)] focus-visible:opacity-100 cursor-pointer select-none"
                             >
                               +
                             </button>
@@ -156,12 +156,12 @@ export function PRDiffViewer({
                         </div>
 
                         {comments.length > 0 && (
-                          <div className="px-3 py-1 space-y-1 bg-[#0D1117]">
+                          <div className="px-3 py-1 space-y-1 bg-black">
                             {comments.map((c) => (
                               <div
                                 key={c.id}
                                 data-testid={`diff-line-comment-${c.id}`}
-                                className="rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D] px-3 py-2"
+                                className="rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] px-3 py-2"
                               >
                                 <div className="text-[11px] mb-0.5">
                                   <span className="font-semibold text-[#E6EDF3]">{c.author}</span>
@@ -178,7 +178,7 @@ export function PRDiffViewer({
                         {isCommentOpen && commentLineId != null && (
                           <div
                             data-testid={`diff-line-comment-box-${line.id}`}
-                            className="px-3 py-2 bg-[#0D1117]"
+                            className="px-3 py-2 bg-black"
                           >
                             <textarea
                               data-testid="diff-line-comment-input"
@@ -186,7 +186,7 @@ export function PRDiffViewer({
                               onChange={(e) => onChangeCommentText(e.target.value)}
                               placeholder="Add a review comment on this line…"
                               rows={2}
-                              className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] outline-none resize-y"
+                              className="w-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] focus:border-[#8B5CF6] rounded-lg px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] outline-none resize-y"
                             />
                             <div className="flex justify-end gap-2 mt-2">
                               <button

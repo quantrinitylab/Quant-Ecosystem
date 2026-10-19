@@ -15,10 +15,10 @@ export function ProjectsTab({ projects, handleMoveKanban }: ProjectsTabProps) {
         const colCards = projects.filter((c) => c.column === col);
         const title = col === 'todo' ? 'To do' : col === 'in_progress' ? 'In progress' : 'Done';
         return (
-          <div key={col} className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-md p-3 space-y-3">
+          <div key={col} className="bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] rounded-md p-3 space-y-3">
  <div className="flex items-center justify-between font-bold text-white pb-2">
               <span>{title}</span>
-              <span className="px-2 py-px rounded-full bg-[#21262D] text-[#7D8590] text-[10px]">
+              <span className="px-2 py-px rounded-full bg-black text-[#7D8590] text-[10px]">
                 {colCards.length}
               </span>
             </div>
@@ -26,9 +26,9 @@ export function ProjectsTab({ projects, handleMoveKanban }: ProjectsTabProps) {
               {colCards.map((card) => (
                 <div
                   key={card.id}
-                  className="p-3 rounded bg-[#0D1117] border border-[#30363D] space-y-2 shadow-sm"
+                  className="p-3 rounded bg-black border border-[var(--quant-border)] space-y-2 shadow-sm"
                 >
-                  <span className="px-1.5 py-px rounded bg-[#1F242C] text-[#58A6FF] text-[10px] font-bold">
+                  <span className="px-1.5 py-px rounded bg-black text-[#8B5CF6] text-[10px] font-bold">
                     {card.tag}
                   </span>
                   <h5 className="font-bold text-white">{card.title}</h5>

@@ -54,12 +54,12 @@ export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
       <div className="fixed inset-0 z-40" onClick={onClose} aria-hidden="true" />
 
       {/* Popover Menu Card */}
-      <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl overflow-hidden z-50 text-xs text-[#E6EDF3] animate-in fade-in zoom-in-95 duration-100">
+      <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] shadow-2xl overflow-hidden z-50 text-xs text-[#E6EDF3] animate-in fade-in zoom-in-95 duration-100">
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <span className="font-semibold text-xs text-[#E6EDF3] flex items-center gap-1.5">
               <svg
-                className="w-3.5 h-3.5 text-[#58A6FF]"
+                className="w-3.5 h-3.5 text-[#8B5CF6]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -83,12 +83,12 @@ export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
                   readOnly
                   aria-label="Clone URL"
                   value={cloneUrl}
-                  className="w-full bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 pl-3 pr-16 text-[11px] font-mono text-[#E6EDF3] outline-none select-all"
+                  className="w-full bg-black border border-[var(--quant-border)] rounded-md py-1.5 pl-3 pr-16 text-[11px] font-mono text-[#E6EDF3] outline-none select-all"
                 />
                 <button
                   type="button"
                   onClick={() => handleCopy(cloneUrl)}
-                  className="absolute right-1.5 px-2 py-1 rounded hover:bg-[#21262D] text-[#8D96A0] hover:text-[#E6EDF3] transition-colors"
+                  className="absolute right-1.5 px-2 py-1 rounded hover:bg-[var(--quant-surface-hover)] text-[#8D96A0] hover:text-[#E6EDF3] transition-colors"
                   title="Copy clone URL"
                 >
                   {copyButtonLabel}
@@ -96,13 +96,13 @@ export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 px-2.5 font-mono text-[11px] text-[#E6EDF3] select-all truncate">
+                <div className="flex-1 bg-black border border-[var(--quant-border)] rounded-md py-1.5 px-2.5 font-mono text-[11px] text-[#E6EDF3] select-all truncate">
                   git clone {cloneUrl}
                 </div>
                 <button
                   type="button"
                   onClick={() => handleCopy(`git clone ${cloneUrl}`)}
-                  className="px-3 py-1.5 rounded-md bg-[#21262D] hover:bg-[#30363D] text-white font-bold text-xs transition-colors shrink-0 border border-[#30363D]"
+                  className="px-3 py-1.5 rounded-md bg-black hover:bg-[var(--quant-surface-hover)] text-white font-bold text-xs transition-colors shrink-0 border border-[var(--quant-border)]"
                   title="Copy git clone command"
                 >
                   {copyButtonLabel}

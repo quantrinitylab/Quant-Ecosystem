@@ -269,7 +269,7 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
 
       expect(html).toContain('data-testid="pr-state-merged"');
       expect(html).toContain('Merged');
-      expect(html).toContain('bg-[#8957E5]');
+      expect(html).toContain('bg-[#8B5CF6]');
       expect(html).toContain('data-testid="merged-status-banner"');
       expect(html).toContain('Pull request #102 was successfully merged and closed.');
     });

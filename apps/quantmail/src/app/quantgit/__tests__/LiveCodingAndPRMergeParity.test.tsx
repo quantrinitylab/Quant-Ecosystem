@@ -437,7 +437,7 @@ describe('QuantGit Live Coding In-Editor PR Creation & 3-Way Merge Security Gate
       // Purple Merged badge
       expect(html).toContain('data-testid="pr-state-merged"');
       expect(html).toContain('Merged');
-      expect(html).toContain('bg-[#8957E5]');
+      expect(html).toContain('bg-[#8B5CF6]');
 
       // Shows "Merged by [author] into [targetBranch]" in header
       expect(html).toContain('data-testid="pr-merged-info"');

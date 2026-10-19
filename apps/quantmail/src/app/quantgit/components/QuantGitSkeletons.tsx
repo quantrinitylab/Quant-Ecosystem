@@ -26,13 +26,13 @@ export function QuantGitRowSkeleton({ rows = 5, testId = 'quantgit-row-skeleton'
         >
           <div className="flex-1 space-y-2 animate-pulse">
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-[#21262D]" />
-              <div className="h-4 w-2/5 rounded bg-[#21262D]" />
-              <div className="h-4 w-16 rounded bg-[#21262D]" />
+              <div className="w-4 h-4 rounded-full bg-black" />
+              <div className="h-4 w-2/5 rounded bg-black" />
+              <div className="h-4 w-16 rounded bg-black" />
             </div>
-            <div className="h-3 w-3/5 rounded bg-[#21262D]" />
+            <div className="h-3 w-3/5 rounded bg-black" />
           </div>
-          <div className="w-10 h-4 rounded bg-[#21262D] animate-pulse shrink-0" />
+          <div className="w-10 h-4 rounded bg-black animate-pulse shrink-0" />
         </div>
       ))}
     </div>
@@ -62,7 +62,7 @@ export function QuantGitEmptyState({
       data-testid={testId}
       className="flex flex-col items-center justify-center text-center px-6 py-14 space-y-3"
     >
-      <div className="w-12 h-12 rounded-full bg-[#21262D] border border-[#30363D] flex items-center justify-center text-[#8D96A0]">
+      <div className="w-12 h-12 rounded-full bg-black border border-[var(--quant-border)] flex items-center justify-center text-[#8D96A0]">
         {icon === 'pr' ? (
           <QuantGitPRIcon size={24} />
         ) : icon === 'issue' ? (

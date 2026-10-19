@@ -63,7 +63,7 @@ export function MigrationCompleteSummary({ result, onFinish }: MigrationComplete
       </div>
 
       <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-        <div className="p-2 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
+        <div className="p-2 rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)]">
           <span className="text-[10px] text-[#7D8590] block">Commits</span>
           <span
             className="text-xs font-bold text-white font-mono"
@@ -72,16 +72,16 @@ export function MigrationCompleteSummary({ result, onFinish }: MigrationComplete
             {formatImportStat(result.importedCommits)}
           </span>
         </div>
-        <div className="p-2 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
+        <div className="p-2 rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)]">
           <span className="text-[10px] text-[#7D8590] block">Workflows</span>
           <span
-            className="text-xs font-bold text-[#58A6FF] font-mono"
+            className="text-xs font-bold text-[#8B5CF6] font-mono"
             data-testid="migration-stat-workflows"
           >
             {formatImportStat(result.convertedPipelines)} Converted
           </span>
         </div>
-        <div className="p-2 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
+        <div className="p-2 rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)]">
           <span className="text-[10px] text-[#7D8590] block">Secrets Extracted</span>
           <span
             className="text-xs font-bold text-[var(--app-accent)] font-mono"
@@ -256,11 +256,11 @@ export function RepoImportModal({
       aria-labelledby="repo-import-modal-title"
       data-testid="repo-import-modal"
     >
-      <div className="bg-[#0D1117] border border-[#30363D] rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col text-[#E6EDF3] max-h-[90vh]">
+      <div className="bg-black border border-[var(--quant-border)] rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col text-[#E6EDF3] max-h-[90vh]">
         {/* Header */}
  <div className="flex items-center justify-between px-6 py-4 bg-[var(--quant-surface-elevated)]/70">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-[#58A6FF]/10 text-[#58A6FF]">
+            <div className="p-2 rounded-lg bg-[#8B5CF6]/10 text-[#8B5CF6]">
               <svg height="20" viewBox="0 0 16 16" width="20" fill="currentColor">
                 <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5v-9Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8V1.5ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.6-1.2-1.6 1.2a.25.25 0 0 1-.4-.2v-3.25Z" />
               </svg>
@@ -280,7 +280,7 @@ export function RepoImportModal({
               onClose();
               resetModal();
             }}
-            className="text-[#7D8590] hover:text-white p-1 rounded-md hover:bg-[#21262D] transition-colors"
+            className="text-[#7D8590] hover:text-white p-1 rounded-md hover:bg-[var(--quant-surface-hover)] transition-colors"
             aria-label="Close dialog"
           >
             ✕
@@ -314,7 +314,7 @@ export function RepoImportModal({
                     className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border text-xs font-bold transition-all ${
                       provider === 'github'
                         ? 'bg-[#238636]/15 border-[#238636] text-white shadow-sm ring-1 ring-[#238636]'
-                        : 'bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#7D8590] hover:text-white hover:border-[#8B949E]'
+                        : 'bg-[var(--quant-surface-elevated)] border-[var(--quant-border)] text-[#7D8590] hover:text-white hover:border-[#8B949E]'
                     }`}
                   >
                     {/* GitHub Octocat Icon */}
@@ -332,7 +332,7 @@ export function RepoImportModal({
                     className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border text-xs font-bold transition-all ${
                       provider === 'gitlab'
                         ? 'bg-[#FC6D26]/15 border-[#FC6D26] text-white shadow-sm ring-1 ring-[#FC6D26]'
-                        : 'bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#7D8590] hover:text-white hover:border-[#8B949E]'
+                        : 'bg-[var(--quant-surface-elevated)] border-[var(--quant-border)] text-[#7D8590] hover:text-white hover:border-[#8B949E]'
                     }`}
                   >
                     {/* GitLab Fox Icon */}
@@ -352,8 +352,8 @@ export function RepoImportModal({
                     onClick={() => handleProviderSelect('git')}
                     className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg border text-xs font-bold transition-all ${
                       provider === 'git'
-                        ? 'bg-[#58A6FF]/15 border-[#58A6FF] text-white shadow-sm ring-1 ring-[#58A6FF]'
-                        : 'bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#7D8590] hover:text-white hover:border-[#8B949E]'
+                        ? 'bg-[#8B5CF6]/15 border-[#8B5CF6] text-white shadow-sm ring-1 ring-[#8B5CF6]'
+                        : 'bg-[var(--quant-surface-elevated)] border-[var(--quant-border)] text-[#7D8590] hover:text-white hover:border-[#8B949E]'
                     }`}
                   >
                     {/* Git Terminal Icon */}
@@ -384,7 +384,7 @@ export function RepoImportModal({
                           ? 'https://gitlab.com/owner/repository.git'
                           : 'https://git.example.com/owner/repository.git'
                     }
-                    className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-lg px-3.5 py-2 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF] font-mono"
+                    className="w-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] rounded-lg px-3.5 py-2 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#8B5CF6] font-mono"
                   />
                 </div>
                 <p className="text-[11px] text-[#7D8590]">
@@ -413,7 +413,7 @@ export function RepoImportModal({
                         ? 'glpat-xxxxxxxxxxxxxxxxxxxx'
                         : 'Personal access token or deploy key'
                   }
-                  className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-lg px-3.5 py-2 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF] font-mono"
+                  className="w-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] rounded-lg px-3.5 py-2 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#8B5CF6] font-mono"
                 />
               </div>
 
@@ -423,8 +423,8 @@ export function RepoImportModal({
                   <label className="block text-xs font-semibold text-white">
                     Target Repository Name <span className="text-[#F85149]">*</span>
                   </label>
-                  <div className="flex items-center rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] overflow-hidden focus-within:border-[#58A6FF]">
-                    <span className="px-2.5 py-2 text-xs text-[#7D8590] bg-[#21262D]/50 border-r border-[#30363D]">
+                  <div className="flex items-center rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] overflow-hidden focus-within:border-[#8B5CF6]">
+                    <span className="px-2.5 py-2 text-xs text-[#7D8590] bg-black/50 border-r border-[var(--quant-border)]">
                       {currentUsername}/
                     </span>
                     <input
@@ -486,7 +486,7 @@ export function RepoImportModal({
                     className="mt-0.5 accent-[#238636] rounded disabled:opacity-40"
                   />
                   <div>
-                    <span className="font-semibold text-white group-hover:text-[#58A6FF] transition-colors">
+                    <span className="font-semibold text-white group-hover:text-[#8B5CF6] transition-colors">
                       Convert CI/CD pipelines (.github/workflows / .gitlab-ci.yml to QuantGit
                       Actions){' '}
                       <span className="text-[10px] font-normal text-[#F0883E]">not wired yet</span>
@@ -509,7 +509,7 @@ export function RepoImportModal({
                     className="mt-0.5 accent-[#238636] rounded disabled:opacity-40"
                   />
                   <div>
-                    <span className="font-semibold text-white group-hover:text-[#58A6FF] transition-colors">
+                    <span className="font-semibold text-white group-hover:text-[#8B5CF6] transition-colors">
                       Extract environment variables & secrets templates{' '}
                       <span className="text-[10px] font-normal text-[#F0883E]">not wired yet</span>
                     </span>
@@ -530,7 +530,7 @@ export function RepoImportModal({
                     onClose();
                     resetModal();
                   }}
-                  className="px-4 py-2 rounded-lg border border-[#30363D] bg-[#21262D] hover:bg-[#30363D] text-xs font-semibold text-white transition-colors"
+                  className="px-4 py-2 rounded-lg border border-[var(--quant-border)] bg-black hover:bg-[var(--quant-surface-hover)] text-xs font-semibold text-white transition-colors"
                 >
                   Cancel
                 </button>
@@ -552,7 +552,7 @@ export function RepoImportModal({
  <div className="flex items-center justify-between text-xs pb-2">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-white">Importing:</span>
-                  <span className="font-mono text-[#58A6FF]">{sourceUrl}</span>
+                  <span className="font-mono text-[#8B5CF6]">{sourceUrl}</span>
                 </div>
                 <span className="text-[#7D8590]">
                   Step {activeStep} of {MIGRATION_STEPS.length}
@@ -571,10 +571,10 @@ export function RepoImportModal({
                       key={s.step}
                       className={`flex items-start gap-3.5 p-3 rounded-lg border transition-all ${
                         isCurrent
-                          ? 'bg-[var(--quant-surface-elevated)] border-[#58A6FF]/60 shadow-md ring-1 ring-[#58A6FF]/20'
+                          ? 'bg-[var(--quant-surface-elevated)] border-[#8B5CF6]/60 shadow-md ring-1 ring-[#8B5CF6]/20'
                           : isDone
                             ? 'bg-[var(--quant-surface-elevated)]/50 border-[#238636]/40 text-[#E6EDF3]'
-                            : 'bg-[#0D1117] border-[#21262D] opacity-40'
+                            : 'bg-black border-[var(--quant-border)] opacity-40'
                       }`}
                     >
                       {/* Step Indicator Icon */}
@@ -584,9 +584,9 @@ export function RepoImportModal({
                             ✓
                           </div>
                         ) : isCurrent ? (
-                          <svg className="w-5 h-5 animate-spin shrink-0 text-[#58A6FF]" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="4" /><path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" /></svg>
+                          <svg className="w-5 h-5 animate-spin shrink-0 text-[#8B5CF6]" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="4" /><path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" /></svg>
                         ) : (
-                          <div className="w-5 h-5 rounded-full border border-[#30363D] flex items-center justify-center text-[10px] text-[#7D8590]">
+                          <div className="w-5 h-5 rounded-full border border-[var(--quant-border)] flex items-center justify-center text-[10px] text-[#7D8590]">
                             {s.step}
                           </div>
                         )}
@@ -609,7 +609,7 @@ export function RepoImportModal({
                             <span className="text-[10px] text-[#3FB950] font-semibold">Done</span>
                           )}
                           {isCurrent && (
-                            <span className="text-[10px] text-[#58A6FF] font-semibold animate-pulse">
+                            <span className="text-[10px] text-[#8B5CF6] font-semibold animate-pulse">
                               In Progress...
                             </span>
                           )}

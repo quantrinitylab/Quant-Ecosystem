@@ -120,7 +120,7 @@ export function computeRepoInsights(
 }
 
 const cardClass =
-  'p-4 rounded bg-[var(--quant-surface-elevated)] border border-[#30363D]';
+  'p-4 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)]';
 const captionClass = 'text-[#7D8590] text-[11px]';
 
 export function InsightsTab({
@@ -133,8 +133,8 @@ export function InsightsTab({
 
   if (!hasAnyData) {
     return (
-      <div className="py-16 text-center space-y-4 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-8 text-xs">
-        <div className="w-16 h-16 rounded-full bg-blue-500/10 border border-blue-500/20 mx-auto flex items-center justify-center text-3xl">
+      <div className="py-16 text-center space-y-4 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] p-8 text-xs">
+        <div className="w-16 h-16 rounded-full bg-[#8B5CF6]/10 border border-[#8B5CF6]/20 mx-auto flex items-center justify-center text-3xl">
           📊
         </div>
         <div>
@@ -210,7 +210,7 @@ export function InsightsTab({
       </div>
 
       {commits.length > 0 && (
-        <div className="p-4 rounded bg-[var(--quant-surface-elevated)] border border-[#30363D] space-y-3">
+        <div className="p-4 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] space-y-3">
           <h4 className="font-bold text-white">Commit Frequency & Activity</h4>
           {insights.dailyCommits.length > 0 ? (
             <>

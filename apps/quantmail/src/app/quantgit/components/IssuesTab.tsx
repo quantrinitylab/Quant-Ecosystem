@@ -90,7 +90,7 @@ function FilterDropdown({
         className={`px-2.5 py-1 rounded-md border flex items-center gap-1 transition-colors cursor-pointer ${
           isActive
             ? 'bg-[#1c1230] border-[#8B5CF6] text-[#E6EDF3]'
-            : 'bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] border-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3]'
+            : 'bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-hover)] border-[var(--quant-border)] text-[#8D96A0] hover:text-[#E6EDF3]'
         }`}
       >
         <span>
@@ -103,7 +103,7 @@ function FilterDropdown({
         <div
           role="menu"
           data-testid={`${id}-menu`}
-          className="absolute left-0 top-full mt-2 w-60 max-h-64 overflow-y-auto bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl p-1.5 shadow-2xl z-50 space-y-0.5"
+          className="absolute left-0 top-full mt-2 w-60 max-h-64 overflow-y-auto bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] rounded-xl p-1.5 shadow-2xl z-50 space-y-0.5"
         >
           {children}
         </div>
@@ -137,7 +137,7 @@ function FilterMenuOption({
       className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-2 transition-colors cursor-pointer ${
         isSelected
           ? 'bg-[#1c1230] text-[#E6EDF3] font-semibold'
-          : 'text-[#8D96A0] hover:bg-[#21262D] hover:text-[#E6EDF3]'
+          : 'text-[#8D96A0] hover:bg-[var(--quant-surface-hover)] hover:text-[#E6EDF3]'
       }`}
     >
       {swatchColor && (
@@ -160,7 +160,7 @@ function UnavailableFilter({ id, label }: { id: string; label: string }) {
       disabled
       data-testid={id}
       title={`${label} filtering is unavailable — the issue data has no ${label.toLowerCase()} field yet.`}
-      className="px-2.5 py-1 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] text-[#8D96A0] flex items-center gap-1 opacity-50 cursor-not-allowed shrink-0"
+      className="px-2.5 py-1 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-[#8D96A0] flex items-center gap-1 opacity-50 cursor-not-allowed shrink-0"
     >
       <span>{label}</span>
       <span className="text-[var(--q-type-xs)]">▼</span>
@@ -331,7 +331,7 @@ export function IssuesTab({
  <div className="space-y-3 pb-4">
             <button
               onClick={() => setSelectedIssue(null)}
-              className="text-[#58A6FF] hover:underline flex items-center gap-1.5 font-medium"
+              className="text-[#8B5CF6] hover:underline flex items-center gap-1.5 font-medium"
             >
               <span>← Back to all issues</span>
             </button>
@@ -347,7 +347,7 @@ export function IssuesTab({
                   onClick={() => handleToggleIssue(selectedIssue.id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                     selectedIssue.state === 'open'
-                      ? 'bg-[#21262D] hover:bg-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3] border border-[#30363D]'
+                      ? 'bg-black hover:bg-[var(--quant-surface-hover)] text-[#8D96A0] hover:text-[#E6EDF3] border border-[var(--quant-border)]'
                       : 'bg-[#238636] hover:bg-[#2EA043] text-white'
                   }`}
                 >
@@ -360,7 +360,7 @@ export function IssuesTab({
             <div className="flex items-center gap-3 text-[11px] text-[#8D96A0]">
               <span
                 className={`px-2.5 py-0.5 rounded-full text-white font-semibold flex items-center gap-1.5 ${
-                  selectedIssue.state === 'open' ? 'bg-[#238636]' : 'bg-[#8957E5]'
+                  selectedIssue.state === 'open' ? 'bg-[#238636]' : 'bg-[#8B5CF6]'
                 }`}
               >
                 {selectedIssue.state === 'open' ? (
@@ -385,12 +385,12 @@ export function IssuesTab({
             {/* Conversation Timeline */}
             <div className="flex-1 space-y-4">
               {/* Original Post card */}
-              <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
- <div className="px-4 py-2.5 bg-[#0D1117] flex items-center justify-between">
+              <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] overflow-hidden">
+ <div className="px-4 py-2.5 bg-black flex items-center justify-between">
                   <span className="font-semibold text-xs text-[#E6EDF3]">
                     {selectedIssue.author} commented {selectedIssue.createdAt}
                   </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#30363D] text-[#8D96A0]">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full border border-[var(--quant-border)] text-[#8D96A0]">
                     Author
                   </span>
                 </div>
@@ -402,13 +402,13 @@ export function IssuesTab({
               </div>
 
               {/* Comment Composer with Markdown Toolbar (Screen 153) */}
-              <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden space-y-2">
- <div className="px-3 py-2 bg-[#0D1117] flex items-center justify-between">
+              <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] overflow-hidden space-y-2">
+ <div className="px-3 py-2 bg-black flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setActiveTabMode('write')}
                       className={`px-3 py-1 rounded text-xs font-semibold ${
-                        activeTabMode === 'write' ? 'bg-[#21262D] text-[#E6EDF3]' : 'text-[#8D96A0]'
+                        activeTabMode === 'write' ? 'bg-black text-[#E6EDF3]' : 'text-[#8D96A0]'
                       }`}
                     >
                       Write
@@ -417,7 +417,7 @@ export function IssuesTab({
                       onClick={() => setActiveTabMode('preview')}
                       className={`px-3 py-1 rounded text-xs font-semibold ${
                         activeTabMode === 'preview'
-                          ? 'bg-[#21262D] text-[#E6EDF3]'
+                          ? 'bg-black text-[#E6EDF3]'
                           : 'text-[#8D96A0]'
                       }`}
                     >
@@ -490,10 +490,10 @@ export function IssuesTab({
                       }}
                       placeholder="Leave a comment"
                       data-testid="issue-comment-textarea"
-                      className="w-full bg-[#0D1117] border border-[#30363D] focus:border-[#58A6FF] rounded-lg p-2.5 text-xs text-[#E6EDF3] outline-none"
+                      className="w-full bg-black border border-[var(--quant-border)] focus:border-[#8B5CF6] rounded-lg p-2.5 text-xs text-[#E6EDF3] outline-none"
                     />
                   ) : (
-                    <div className="p-3 bg-[#0D1117] rounded-lg min-h-[96px] text-xs text-[#8D96A0]">
+                    <div className="p-3 bg-black rounded-lg min-h-[96px] text-xs text-[#8D96A0]">
                       {newComment || 'Nothing to preview'}
                     </div>
                   )}
@@ -531,7 +531,7 @@ export function IssuesTab({
  <div className="pb-3 space-y-1">
                 <div className="flex items-center justify-between text-[#8D96A0]">
                   <span className="font-semibold">Assignees</span>
-                  <button className="text-[#58A6FF] hover:underline text-[11px]">EDIT</button>
+                  <button className="text-[#8B5CF6] hover:underline text-[11px]">EDIT</button>
                 </div>
                 <p className="text-[#E6EDF3]">{selectedIssue.assignee || 'No one assigned'}</p>
               </div>
@@ -540,7 +540,7 @@ export function IssuesTab({
  <div className="pb-3 space-y-1.5">
                 <div className="flex items-center justify-between text-[#8D96A0]">
                   <span className="font-semibold">Labels</span>
-                  <button className="text-[#58A6FF] hover:underline text-[11px]">EDIT</button>
+                  <button className="text-[#8B5CF6] hover:underline text-[11px]">EDIT</button>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {selectedIssue.labels.map((lbl) => (
@@ -559,7 +559,7 @@ export function IssuesTab({
  <div className="pb-3 space-y-1">
                 <div className="flex items-center justify-between text-[#8D96A0]">
                   <span className="font-semibold">Milestone</span>
-                  <button className="text-[#58A6FF] hover:underline text-[11px]">EDIT</button>
+                  <button className="text-[#8B5CF6] hover:underline text-[11px]">EDIT</button>
                 </div>
                 <p className="text-[#8D96A0]">No milestone selected</p>
               </div>
@@ -568,7 +568,7 @@ export function IssuesTab({
  <div className="pb-3 space-y-1">
                 <div className="flex items-center justify-between text-[#8D96A0]">
                   <span className="font-semibold">Linked items</span>
-                  <button className="text-[#58A6FF] hover:underline text-[11px]">EDIT</button>
+                  <button className="text-[#8B5CF6] hover:underline text-[11px]">EDIT</button>
                 </div>
                 <p className="text-[#8D96A0]">No linked items</p>
               </div>
@@ -577,7 +577,7 @@ export function IssuesTab({
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-[#8D96A0]">
                   <span className="font-semibold">Projects</span>
-                  <button className="text-[#58A6FF] hover:underline text-[11px]">EDIT</button>
+                  <button className="text-[#8B5CF6] hover:underline text-[11px]">EDIT</button>
                 </div>
                 <p className="text-[#8D96A0]">No projects selected</p>
               </div>
@@ -586,7 +586,7 @@ export function IssuesTab({
         </div>
       ) : isCreatingIssue ? (
         /* Issue Creation Composer */
-        <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-5 space-y-4">
+        <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] p-5 space-y-4">
  <div className="flex items-center justify-between pb-3">
             <h3 className="font-bold text-sm text-[#E6EDF3]">Create new issue</h3>
             <button
@@ -609,7 +609,7 @@ export function IssuesTab({
                 }}
                 placeholder="Title"
                 data-testid="issue-create-title"
-                className="w-full bg-[#0D1117] border border-[#30363D] focus:border-[#58A6FF] rounded-lg p-2 text-xs text-[#E6EDF3] outline-none"
+                className="w-full bg-black border border-[var(--quant-border)] focus:border-[#8B5CF6] rounded-lg p-2 text-xs text-[#E6EDF3] outline-none"
               />
             </div>
 
@@ -621,7 +621,7 @@ export function IssuesTab({
                 onChange={(e) => setNewBody(e.target.value)}
                 placeholder="Leave a description..."
                 data-testid="issue-create-body"
-                className="w-full bg-[#0D1117] border border-[#30363D] focus:border-[#58A6FF] rounded-lg p-2 text-xs text-[#E6EDF3] outline-none"
+                className="w-full bg-black border border-[var(--quant-border)] focus:border-[#8B5CF6] rounded-lg p-2 text-xs text-[#E6EDF3] outline-none"
               />
             </div>
 
@@ -655,7 +655,7 @@ export function IssuesTab({
                 value={issueSearchQuery}
                 onChange={(e) => setIssueSearchQuery(e.target.value)}
                 placeholder="is:issue state:open ..."
-                className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
+                className="w-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] focus:border-[#8B5CF6] rounded-lg px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
               />
             </div>
 
@@ -840,7 +840,7 @@ export function IssuesTab({
           </div>
 
           {/* Issues List Container */}
-          <div className="border border-[#30363D] rounded-xl bg-[#0D1117] overflow-hidden">
+          <div className="border border-[var(--quant-border)] rounded-xl bg-black overflow-hidden">
  <div className="bg-[var(--quant-surface-elevated)] px-4 py-3 flex items-center justify-between font-semibold">
               <div className="flex items-center gap-4">
                 <button
@@ -866,7 +866,7 @@ export function IssuesTab({
                       : 'text-[#8D96A0]'
                   }`}
                 >
-                  <span className="text-[#8957E5] flex">
+                  <span className="text-[#8B5CF6] flex">
                     <QuantGitCheckIcon size={14} />
                   </span>{' '}
                   {closedIssuesCount} Closed
@@ -906,7 +906,7 @@ export function IssuesTab({
                       <div className="flex flex-wrap items-center gap-2">
                         <span
                           className={`flex ${
-                            issue.state === 'open' ? 'text-[#3FB950]' : 'text-[#8957E5]'
+                            issue.state === 'open' ? 'text-[#3FB950]' : 'text-[#8B5CF6]'
                           }`}
                         >
                           {issue.state === 'open' ? (
@@ -915,7 +915,7 @@ export function IssuesTab({
                             <QuantGitIssueClosedIcon size={16} />
                           )}
                         </span>
-                        <span className="font-semibold text-sm text-[#E6EDF3] group-hover:text-[#58A6FF] transition-colors">
+                        <span className="font-semibold text-sm text-[#E6EDF3] group-hover:text-[#8B5CF6] transition-colors">
                           {issue.title}
                         </span>
                         {issue.labels.map((lbl) => (

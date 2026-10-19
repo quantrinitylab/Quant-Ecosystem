@@ -2241,7 +2241,7 @@ function QuantGitContent() {  const router = useRouter();
       }}
       searchPlaceholder="Search in QuantGit (repositories, files, branches)..."
     >
-      <div className="flex h-full w-full flex-col overflow-hidden bg-[#0D1117] text-[#E6EDF3] font-sans antialiased">
+      <div className="flex h-full w-full flex-col overflow-hidden bg-black text-[#E6EDF3] font-sans antialiased">
         {/* 1. QuantGit Sovereign Sub-Header */}
         <QuantGitHeader
           activeDeckTab={activeDeckTab}
@@ -2279,7 +2279,7 @@ function QuantGitContent() {  const router = useRouter();
                   setSelectedRepo(null);
                   setViewingFile(null);
                 }}
-                className="text-xs text-[#58A6FF] hover:underline font-medium flex items-center gap-1 mr-2"
+                className="text-xs text-[#8B5CF6] hover:underline font-medium flex items-center gap-1 mr-2"
               >
                 ← All Repositories
               </button>
@@ -2289,7 +2289,7 @@ function QuantGitContent() {  const router = useRouter();
                 </svg>
                 {selectedRepo.name}
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold border border-[#30363D] text-[#7D8590]">
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold border border-[var(--quant-border)] text-[#7D8590]">
                 {selectedRepo.visibility}
               </span>
             </div>
@@ -2301,7 +2301,7 @@ function QuantGitContent() {  const router = useRouter();
               <button
                 type="button"
                 onClick={handleForkRepo}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-black border border-[var(--quant-border)] text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)] transition-colors font-semibold"
               >
                 <svg className="size-3.5 text-[#7D8590]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <circle cx="12" cy="18" r="3" />
@@ -2311,20 +2311,20 @@ function QuantGitContent() {  const router = useRouter();
                   <path d="M12 12v3" />
                 </svg>
                 <span>Fork</span>
-                <span className="px-1.5 py-px rounded-full bg-[#30363D] text-[10px] text-[#7D8590]">
+                <span className="px-1.5 py-px rounded-full bg-[var(--quant-surface-hover)] text-[10px] text-[#7D8590]">
                   {selectedRepo.forks}
                 </span>
               </button>
               <button
                 type="button"
                 onClick={handleStarRepo}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-black border border-[var(--quant-border)] text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)] transition-colors font-semibold"
               >
                 <svg className="size-3.5 text-[#E3B341]" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                 </svg>
                 <span>Star</span>
-                <span className="px-1.5 py-px rounded-full bg-[#30363D] text-[10px] text-[#7D8590]">
+                <span className="px-1.5 py-px rounded-full bg-[var(--quant-surface-hover)] text-[10px] text-[#7D8590]">
                   {selectedRepo.stars}
                 </span>
               </button>
@@ -2361,7 +2361,7 @@ function QuantGitContent() {  const router = useRouter();
                   className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-all shrink-0 ${
                     active
                       ? 'border-[var(--app-accent)] text-white font-bold'
-                      : 'border-transparent text-[#7D8590] hover:text-[#E6EDF3] hover:border-[#30363D]'
+                      : 'border-transparent text-[#7D8590] hover:text-[#E6EDF3] hover:border-[var(--quant-border)]'
                   }`}
                 >
                   <span>{t.label}</span>
@@ -2370,7 +2370,7 @@ function QuantGitContent() {  const router = useRouter();
                       className={`px-1.5 py-px rounded-full text-[10px] ${
                         active
                           ? 'bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-accent)] font-bold'
-                          : 'bg-[#21262D] text-[#7D8590]'
+                          : 'bg-black text-[#7D8590]'
                       }`}
                     >
                       {t.badge}
@@ -2710,11 +2710,11 @@ function QuantGitContent() {  const router = useRouter();
         {activeDeckTab === 'lab' && (
           <div className="flex-1 min-h-0 w-full overflow-y-auto overscroll-contain">
             <div className="mx-auto flex min-h-full max-w-7xl flex-col gap-4 px-4 py-5 pb-20 text-xs sm:px-8">
-              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D]">
+              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)]">
                 <div className="space-y-1">
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     Agent Workspace
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#30363D]/60 text-[#8D96A0] border border-[#30363D]">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--quant-surface-hover)] text-[#8D96A0] border border-[var(--quant-border)]">
                       Local only — no backend connected
                     </span>
                   </h3>

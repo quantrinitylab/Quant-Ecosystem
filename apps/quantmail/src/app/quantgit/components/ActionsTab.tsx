@@ -125,7 +125,7 @@ export function ActionsTab({
             }}
             className={`w-full text-left px-3 py-2 rounded-lg font-medium transition-colors cursor-pointer ${
               selectedWorkflow === wf
-                ? 'bg-[#21262D] text-[#E6EDF3] font-bold shadow-sm'
+                ? 'bg-black text-[#E6EDF3] font-bold shadow-sm'
                 : 'text-[#8D96A0] hover:text-[#E6EDF3] hover:bg-[var(--quant-surface-elevated)]'
             }`}
           >
@@ -140,13 +140,13 @@ export function ActionsTab({
           /* Step-by-Step Live Terminal Streaming Log Viewer (Task W39-GIT07) */
           <div className="space-y-4" data-testid="workflow-run-detail">
             {/* Header & Breadcrumb */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--quant-surface-elevated)] p-4 rounded-xl border border-[#30363D]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--quant-surface-elevated)] p-4 rounded-xl border border-[var(--quant-border)]">
               <div className="space-y-1.5">
                 <button
                   type="button"
                   onClick={() => setActiveRun(null)}
                   data-testid="back-to-runs-btn"
-                  className="text-[#58A6FF] hover:underline flex items-center gap-1.5 font-medium cursor-pointer"
+                  className="text-[#8B5CF6] hover:underline flex items-center gap-1.5 font-medium cursor-pointer"
                 >
                   <span>← Back to workflow runs</span>
                 </button>
@@ -186,9 +186,9 @@ export function ActionsTab({
                   <span className="text-[#C9D1D9] font-medium">
                     {activeRun.actor || 'Unknown'}
                   </span>{' '}
-                  via <span className="font-mono text-[#58A6FF]">{activeRun.event || 'push'}</span>{' '}
+                  via <span className="font-mono text-[#8B5CF6]">{activeRun.event || 'push'}</span>{' '}
                   on branch <span className="font-mono text-[#E6EDF3]">{activeRun.branch}</span> ·
-                  Commit <span className="font-mono text-[#58A6FF]">{activeRun.commitSha}</span> ·
+                  Commit <span className="font-mono text-[#8B5CF6]">{activeRun.commitSha}</span> ·
                   Duration <span className="font-mono">{activeRun.duration}</span>
                 </p>
               </div>
@@ -202,7 +202,7 @@ export function ActionsTab({
                   className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
                     autoScroll
                       ? 'bg-[#238636]/20 border-[#238636]/40 text-[#3FB950]'
-                      : 'bg-[#21262D] border-[#30363D] text-[#8D96A0]'
+                      : 'bg-black border-[var(--quant-border)] text-[#8D96A0]'
                   }`}
                 >
                   <span>{autoScroll ? '▼' : '⏸'}</span>
@@ -214,7 +214,7 @@ export function ActionsTab({
                     type="button"
                     onClick={handleCopyFullLogs}
                     data-testid="copy-full-logs-btn"
-                    className="px-3 py-1.5 rounded-lg bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] text-[#E6EDF3] font-semibold text-xs transition-colors cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-black hover:bg-[var(--quant-surface-hover)] border border-[var(--quant-border)] text-[#E6EDF3] font-semibold text-xs transition-colors cursor-pointer"
                   >
                     {copied ? 'Copied full logs!' : 'Copy full logs'}
                   </button>
@@ -227,7 +227,7 @@ export function ActionsTab({
               {runSteps.length === 0 ? (
                 <div
                   data-testid="workflow-steps-empty"
-                  className="border border-[#30363D] rounded-xl bg-[#0D1117] p-10 text-center"
+                  className="border border-[var(--quant-border)] rounded-xl bg-black p-10 text-center"
                 >
                   <p className="text-sm font-medium text-[#E6EDF3]">
                     No steps recorded for this run
@@ -246,14 +246,14 @@ export function ActionsTab({
                   <div
                     key={step.id}
                     data-testid={`step-item-${step.id}`}
-                    className="border border-[#30363D] rounded-xl bg-[#0D1117] overflow-hidden"
+                    className="border border-[var(--quant-border)] rounded-xl bg-black overflow-hidden"
                   >
                     {/* Accordion Step Header */}
                     <button
                       type="button"
                       onClick={() => toggleStep(step.id)}
                       data-testid={`step-accordion-${step.id}`}
-                      className="w-full px-4 py-3 bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] transition-colors flex items-center justify-between gap-4 cursor-pointer text-left"
+                      className="w-full px-4 py-3 bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-hover)] transition-colors flex items-center justify-between gap-4 cursor-pointer text-left"
                     >
                       <div className="flex items-center gap-2.5">
                         <span
@@ -282,7 +282,7 @@ export function ActionsTab({
                     {isExpanded && (
                       <div
                         data-testid={`terminal-logs-${step.id}`}
- className="p-3 bg-[#0D1117] font-mono text-xs overflow-x-auto"
+ className="p-3 bg-black font-mono text-xs overflow-x-auto"
                       >
                         {step.logs.length === 0 ? (
                           <p className="px-1 py-6 text-center text-[#7D8590] font-sans">
@@ -322,7 +322,7 @@ export function ActionsTab({
                                       : isRed
                                         ? 'text-[#F85149]'
                                         : isBlue
-                                          ? 'text-[#58A6FF]'
+                                          ? 'text-[#8B5CF6]'
                                           : 'text-[#C9D1D9]'
                                   }`}
                                 >
@@ -345,7 +345,7 @@ export function ActionsTab({
           /* Workflow Runs List Table (Screens 91–98) */
           <div className="space-y-4">
             {/* Header Toolbar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--quant-surface-elevated)] p-3 rounded-xl border border-[#30363D]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--quant-surface-elevated)] p-3 rounded-xl border border-[var(--quant-border)]">
               <div>
                 <h3 className="font-bold text-sm text-[#E6EDF3]">{selectedWorkflow}</h3>
                 <p className="text-[11px] text-[#8D96A0]">
@@ -372,7 +372,7 @@ export function ActionsTab({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Filter workflow runs..."
                   data-testid="actions-search-input"
-                  className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
+                  className="w-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] focus:border-[#8B5CF6] rounded-lg px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
                 />
               </div>
 
@@ -390,7 +390,7 @@ export function ActionsTab({
                       setActiveFilterModal(activeFilterModal === flt.id ? null : flt.id)
                     }
                     data-testid={`filter-${flt.id}`}
-                    className="px-2.5 py-1 rounded-md bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] border border-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3] flex items-center gap-1 transition-colors whitespace-nowrap cursor-pointer"
+                    className="px-2.5 py-1 rounded-md bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-hover)] border border-[var(--quant-border)] text-[#8D96A0] hover:text-[#E6EDF3] flex items-center gap-1 transition-colors whitespace-nowrap cursor-pointer"
                   >
                     <span>{flt.label}</span>
                     <span className="text-[var(--q-type-xs)]">▼</span>
@@ -402,7 +402,7 @@ export function ActionsTab({
               {activeFilterModal === 'status' && (
                 <div
                   data-testid="status-filter-popover"
-                  className="p-3 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl space-y-2 max-w-xs"
+                  className="p-3 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] shadow-2xl space-y-2 max-w-xs"
                 >
                   <span className="font-semibold text-xs text-[#E6EDF3] block">
                     Filter by Status
@@ -422,7 +422,7 @@ export function ActionsTab({
                               setStatusFilter(st);
                               setActiveFilterModal(null);
                             }}
-                            className="text-[#58A6FF]"
+                            className="text-[#8B5CF6]"
                           />
                           <span>{st === 'all' ? 'All statuses' : st}</span>
                         </label>
@@ -436,7 +436,7 @@ export function ActionsTab({
             {/* Workflow Runs List Table */}
             <div
               data-testid="workflow-runs-list"
- className="border border-[#30363D] rounded-xl bg-[#0D1117] overflow-hidden"
+ className="border border-[var(--quant-border)] rounded-xl bg-black overflow-hidden"
             >
               {filteredRuns.length === 0 && (
                 <div
@@ -475,14 +475,14 @@ export function ActionsTab({
                       </div>
 
                       <div className="space-y-1">
-                        <h5 className="font-semibold text-xs text-[#E6EDF3] group-hover:text-[#58A6FF] transition-colors">
+                        <h5 className="font-semibold text-xs text-[#E6EDF3] group-hover:text-[#8B5CF6] transition-colors">
                           {run.name}
                         </h5>
 
                         <p className="text-[11px] text-[#8D96A0]">
                           <span className="font-medium text-[#C9D1D9]">{run.actor || 'Unknown'}</span> triggered
                           via{' '}
-                          <span className="font-mono text-[#58A6FF]">{run.event || 'push'}</span> on{' '}
+                          <span className="font-mono text-[#8B5CF6]">{run.event || 'push'}</span> on{' '}
                           <span className="font-mono">{run.branch}</span>
                         </p>
                       </div>
@@ -490,7 +490,7 @@ export function ActionsTab({
 
                     <div className="flex items-center gap-3 shrink-0 text-[11px] text-[#8D96A0]">
                       <span>{run.timeAgo || '—'}</span>
-                      <span className="font-mono px-2 py-0.5 rounded bg-[#21262D]">
+                      <span className="font-mono px-2 py-0.5 rounded bg-black">
                         {run.duration || '—'}
                       </span>
                     </div>

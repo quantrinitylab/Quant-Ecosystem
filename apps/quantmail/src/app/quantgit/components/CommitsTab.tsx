@@ -104,10 +104,10 @@ export function CommitsTab({
   return (
     <div data-testid="commits-tab" className="space-y-6">
       {/* 1. Header Toolbar: Branch Selector, Search, Stats */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-lg p-3.5 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] rounded-lg p-3.5 text-xs">
         <div className="flex flex-wrap items-center gap-2">
           {/* Branch Picker */}
-          <div className="flex items-center gap-1.5 bg-[#21262D] border border-[#30363D] rounded-md px-2.5 py-1 text-[#E6EDF3] font-medium">
+          <div className="flex items-center gap-1.5 bg-black border border-[var(--quant-border)] rounded-md px-2.5 py-1 text-[#E6EDF3] font-medium">
             <svg height="14" viewBox="0 0 16 16" width="14" fill="#7D8590">
               <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z" />
             </svg>
@@ -132,7 +132,7 @@ export function CommitsTab({
 
           <span className="text-[#7D8590] hidden sm:inline">
             <span className="text-white font-semibold">{filteredCommits.length}</span> commits on{' '}
-            <code className="text-[#58A6FF] bg-[#21262D] px-1.5 py-0.5 rounded font-mono text-[11px]">
+            <code className="text-[#8B5CF6] bg-black px-1.5 py-0.5 rounded font-mono text-[11px]">
               {selectedBranch}
             </code>
           </span>
@@ -145,7 +145,7 @@ export function CommitsTab({
             placeholder="Filter commits by message or author..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#0D1117] border border-[#30363D] rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
+            className="w-full bg-black border border-[var(--quant-border)] rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none focus:border-[#8B5CF6]"
           />
           {searchQuery && (
             <button
@@ -163,12 +163,12 @@ export function CommitsTab({
       {activeCommit && (
         <div
           data-testid="commit-diff-view"
-          className="bg-[var(--quant-surface-elevated)] border border-[#58A6FF]/40 rounded-lg overflow-hidden shadow-2xl space-y-4 p-4 animate-in fade-in duration-200"
+          className="bg-[var(--quant-surface-elevated)] border border-[#8B5CF6]/40 rounded-lg overflow-hidden shadow-2xl space-y-4 p-4 animate-in fade-in duration-200"
         >
  <div className="flex flex-wrap items-start justify-between gap-3 pb-3">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className="px-2 py-0.5 text-[11px] font-bold uppercase rounded bg-[#58A6FF]/20 text-[#58A6FF] border border-[#58A6FF]/30">
+                <span className="px-2 py-0.5 text-[11px] font-bold uppercase rounded bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/30">
                   Commit Diff Details
                 </span>
                 <span className="font-mono text-xs text-[#7D8590]">{activeCommit.sha}</span>
@@ -177,7 +177,7 @@ export function CommitsTab({
                 {activeCommit.message}
               </h3>
               {activeCommit.body && (
-                <p className="text-xs text-[#7D8590] mt-1 whitespace-pre-line font-mono bg-[#0D1117] p-2 rounded border border-[#21262D]">
+                <p className="text-xs text-[#7D8590] mt-1 whitespace-pre-line font-mono bg-black p-2 rounded border border-[var(--quant-border)]">
                   {activeCommit.body}
                 </p>
               )}
@@ -187,21 +187,21 @@ export function CommitsTab({
               <button
                 type="button"
                 onClick={() => handleCopySha(activeCommit.sha)}
-                className="px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors text-xs font-semibold flex items-center gap-1.5"
+                className="px-2.5 py-1 rounded-md bg-black border border-[var(--quant-border)] text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)] transition-colors text-xs font-semibold flex items-center gap-1.5"
               >
                 <span>{copiedSha === activeCommit.sha ? '✓ Copied' : 'Copy full SHA'}</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleBrowseCode(activeCommit)}
-                className="px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#58A6FF] hover:bg-[#30363D] transition-colors text-xs font-semibold flex items-center gap-1"
+                className="px-2.5 py-1 rounded-md bg-black border border-[var(--quant-border)] text-[#8B5CF6] hover:bg-[var(--quant-surface-hover)] transition-colors text-xs font-semibold flex items-center gap-1"
               >
                 <span>&lt;&gt; Browse code</span>
               </button>
               <button
                 type="button"
                 onClick={() => setExpandedCommitSha(null)}
-                className="p-1 rounded-md text-[#7D8590] hover:text-white hover:bg-[#21262D] transition-colors text-sm"
+                className="p-1 rounded-md text-[#7D8590] hover:text-white hover:bg-[var(--quant-surface-hover)] transition-colors text-sm"
                 title="Close diff view"
               >
                 ✕
@@ -212,7 +212,7 @@ export function CommitsTab({
           {/* Files Changed Summary Bar — only real stats from the backend, never invented. */}
           <div
             data-testid="files-changed-summary"
-            className="flex items-center justify-between text-xs font-medium text-[#E6EDF3] bg-[#0D1117] px-3.5 py-2 rounded-md border border-[#30363D]"
+            className="flex items-center justify-between text-xs font-medium text-[#E6EDF3] bg-black px-3.5 py-2 rounded-md border border-[var(--quant-border)]"
           >
             <span>
               {activeCommit.stats ? (
@@ -258,16 +258,16 @@ export function CommitsTab({
                 <div
                   key={file.filename || fIdx}
                   data-testid="file-diff-item"
-                  className="rounded-md border border-[#30363D] bg-[#0D1117] overflow-hidden"
+                  className="rounded-md border border-[var(--quant-border)] bg-black overflow-hidden"
                 >
                   <div
                     onClick={() => toggleFileExpansion(file.filename)}
- className="flex items-center justify-between px-3.5 py-2 bg-[var(--quant-surface-elevated)] cursor-pointer hover:bg-[#21262D]/60 transition-colors select-none text-xs"
+ className="flex items-center justify-between px-3.5 py-2 bg-[var(--quant-surface-elevated)] cursor-pointer hover:bg-[var(--quant-surface-hover)] transition-colors select-none text-xs"
                   >
                     <div className="flex items-center gap-2 font-mono">
                       <span className="text-[#7D8590] text-[10px]">{isCollapsed ? '▶' : '▼'}</span>
                       <span className="text-white font-semibold">{file.filename}</span>
-                      <span className="text-[10px] uppercase font-bold px-1.5 py-px rounded bg-[#21262D] text-[#7D8590] border border-[#30363D]">
+                      <span className="text-[10px] uppercase font-bold px-1.5 py-px rounded bg-black text-[#7D8590] border border-[var(--quant-border)]">
                         {file.status}
                       </span>
                     </div>
@@ -343,7 +343,7 @@ export function CommitsTab({
       {/* 3. Commit History Timeline Grouped by Date */}
       <div data-testid="commits-timeline" className="space-y-6">
         {Object.keys(groupedCommits).length === 0 ? (
-          <div className="text-center py-12 border border-[#30363D] rounded-lg bg-[var(--quant-surface-elevated)] p-8 text-[#7D8590]">
+          <div className="text-center py-12 border border-[var(--quant-border)] rounded-lg bg-[var(--quant-surface-elevated)] p-8 text-[#7D8590]">
             <p className="text-sm font-semibold text-white">No commits found</p>
             <p className="text-xs mt-1">Try adjusting your branch or search filter.</p>
           </div>
@@ -362,7 +362,7 @@ export function CommitsTab({
               </div>
 
               {/* Commits Container Box */}
- <div className="rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] overflow-hidden text-xs">
+ <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] overflow-hidden text-xs">
                 {items.map((commit) => {
                   const shortSha = commit.shortSha || commit.sha.slice(0, 7);
                   const isExpanded = expandedCommitSha === commit.sha;
@@ -379,8 +379,8 @@ export function CommitsTab({
                       }
                       className={`p-3.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 cursor-pointer transition-colors ${
                         isExpanded
-                          ? 'bg-[#21262D]/70 border-l-4 border-l-[#58A6FF]'
-                          : 'hover:bg-[#21262D]/40'
+                          ? 'bg-black/70 border-l-4 border-l-[#8B5CF6]'
+                          : 'hover:bg-[var(--quant-surface-hover)]'
                       }`}
                     >
                       {/* Left: Message & Author Metadata */}
@@ -388,14 +388,14 @@ export function CommitsTab({
                         <div className="flex items-center gap-2 flex-wrap">
                           <span
                             data-testid="commit-message"
-                            className="font-bold text-white hover:text-[#58A6FF] transition-colors truncate max-w-xl text-sm"
+                            className="font-bold text-white hover:text-[#8B5CF6] transition-colors truncate max-w-xl text-sm"
                             title={commit.message}
                           >
                             {commit.message}
                           </span>
 
                           {commit.body && (
-                            <span className="text-[#7D8590] text-[11px] px-1 rounded bg-[#21262D] border border-[#30363D]">
+                            <span className="text-[#7D8590] text-[11px] px-1 rounded bg-black border border-[var(--quant-border)]">
                               ...
                             </span>
                           )}
@@ -459,12 +459,12 @@ export function CommitsTab({
                         )}
 
                         {/* 7-Character Commit SHA Badge with 1-Click Clipboard Copy */}
-                        <div className="flex items-center rounded border border-[#30363D] bg-[#0D1117] overflow-hidden">
+                        <div className="flex items-center rounded border border-[var(--quant-border)] bg-black overflow-hidden">
                           <button
                             type="button"
                             data-testid={`copy-sha-btn-${commit.sha}`}
                             onClick={(e) => handleCopySha(commit.sha, e)}
-                            className="px-2.5 py-1 font-mono text-xs font-semibold text-[#58A6FF] hover:bg-[#21262D] hover:underline transition-colors flex items-center gap-1"
+                            className="px-2.5 py-1 font-mono text-xs font-semibold text-[#8B5CF6] hover:bg-[var(--quant-surface-hover)] hover:underline transition-colors flex items-center gap-1"
                             title={`Click to copy SHA: ${commit.sha}`}
                           >
                             <span>{shortSha}</span>
@@ -479,7 +479,7 @@ export function CommitsTab({
                           type="button"
                           data-testid={`browse-code-btn-${commit.sha}`}
                           onClick={(e) => handleBrowseCode(commit, e)}
-                          className="p-1.5 rounded-md border border-[#30363D] bg-[#21262D] text-[#7D8590] hover:text-white hover:border-[#58A6FF] transition-colors"
+                          className="p-1.5 rounded-md border border-[var(--quant-border)] bg-black text-[#7D8590] hover:text-white hover:border-[#8B5CF6] transition-colors"
                           title={`Browse repository at ${shortSha}`}
                         >
                           <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">

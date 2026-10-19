@@ -54,7 +54,7 @@ export const BranchSelectorModal: React.FC<BranchSelectorModalProps> = ({
       />
 
       {/* Modal Card */}
-      <div className="relative w-full max-w-sm rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-2xl overflow-hidden z-10 flex flex-col text-sm text-[#E6EDF3] animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-sm rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] shadow-2xl overflow-hidden z-10 flex flex-col text-sm text-[#E6EDF3] animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
  <div className="flex items-center justify-between px-4 py-3">
           <span className="font-semibold text-xs text-[#E6EDF3] tracking-wide">
@@ -97,14 +97,14 @@ export const BranchSelectorModal: React.FC<BranchSelectorModalProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={activeTab === 'branches' ? 'Find a branch...' : 'Find a tag...'}
-              className="w-full bg-[#0D1117] border border-[#30363D] focus:border-[#58A6FF] focus:ring-1 focus:ring-[#58A6FF] rounded-md py-1.5 pl-9 pr-3 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none transition-all"
+              className="w-full bg-black border border-[var(--quant-border)] focus:border-[#8B5CF6] focus:ring-1 focus:ring-[#8B5CF6] rounded-md py-1.5 pl-9 pr-3 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none transition-all"
               autoFocus
             />
           </div>
         </div>
 
         {/* Tabs: Branches vs Tags */}
- <div className="flex bg-[#0D1117]">
+ <div className="flex bg-black">
           <button
             onClick={() => setActiveTab('branches')}
             className={`flex-1 py-2 text-xs font-semibold text-center border-b-2 transition-colors ${
@@ -141,15 +141,15 @@ export const BranchSelectorModal: React.FC<BranchSelectorModalProps> = ({
                       onSelectBranch(branch);
                       onClose();
                     }}
-                    className={`w-full flex items-center justify-between px-4 py-2.5 hover:bg-[#1C2128] transition-colors text-left ${
-                      isSelected ? 'bg-[#1F242C]' : ''
+                    className={`w-full flex items-center justify-between px-4 py-2.5 hover:bg-[var(--quant-surface-hover)] transition-colors text-left ${
+                      isSelected ? 'bg-black' : ''
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-4 flex items-center justify-center">
                         {isSelected && (
                           <svg
-                            className="w-3.5 h-3.5 text-[#58A6FF]"
+                            className="w-3.5 h-3.5 text-[#8B5CF6]"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -166,7 +166,7 @@ export const BranchSelectorModal: React.FC<BranchSelectorModalProps> = ({
                       <span className="text-xs font-medium text-[#E6EDF3] truncate">{branch}</span>
                     </div>
                     {isDefault && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-[#30363D] text-[#8D96A0] font-mono">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-[var(--quant-border)] text-[#8D96A0] font-mono">
                         default
                       </span>
                     )}
@@ -186,7 +186,7 @@ export const BranchSelectorModal: React.FC<BranchSelectorModalProps> = ({
                   onSelectTag(tag);
                   onClose();
                 }}
-                className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-[#1C2128] transition-colors text-left"
+                className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-[var(--quant-surface-hover)] transition-colors text-left"
               >
                 <svg
                   className="w-3.5 h-3.5 text-[#8D96A0]"
@@ -212,8 +212,8 @@ export const BranchSelectorModal: React.FC<BranchSelectorModalProps> = ({
         </div>
 
         {/* Footer */}
- <div className="px-4 py-2.5 bg-[#0D1117] text-center">
-          <span className="text-xs text-[#58A6FF] hover:underline cursor-pointer">
+ <div className="px-4 py-2.5 bg-black text-center">
+          <span className="text-xs text-[#8B5CF6] hover:underline cursor-pointer">
             {activeTab === 'branches' ? 'View all branches' : 'View all tags'}
           </span>
         </div>

@@ -31,7 +31,7 @@ export function SettingsTab({
 }: SettingsTabProps) {
   return (
     <div className="max-w-2xl space-y-6 text-xs">
-      <div className="p-4 rounded bg-[var(--quant-surface-elevated)] border border-[#30363D] space-y-4">
+      <div className="p-4 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] space-y-4">
         <h4 className="font-bold text-white text-sm">General Repository Settings</h4>
         <div className="space-y-1.5">
           <label htmlFor="git-settings-name" className="text-[#7D8590] font-semibold">Repository name</label>
@@ -40,7 +40,7 @@ export function SettingsTab({
             type="text"
             value={settingsName}
             onChange={(e) => setSettingsName(e.target.value)}
-            className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-white focus:outline-none focus:border-[#58A6FF]"
+            className="w-full bg-black border border-[var(--quant-border)] rounded px-3 py-1.5 text-white focus:outline-none focus:border-[#8B5CF6]"
           />
         </div>
         <div className="space-y-1.5">
@@ -49,7 +49,7 @@ export function SettingsTab({
             value={settingsDesc}
             onChange={(e) => setSettingsDesc(e.target.value)}
             rows={2}
-            className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-white focus:outline-none focus:border-[#58A6FF]"
+            className="w-full bg-black border border-[var(--quant-border)] rounded px-3 py-1.5 text-white focus:outline-none focus:border-[#8B5CF6]"
             placeholder="Short description of this repository..."
           />
         </div>
@@ -60,7 +60,7 @@ export function SettingsTab({
             type="text"
             value={settingsBranch}
             onChange={(e) => setSettingsBranch(e.target.value)}
-            className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-white focus:outline-none focus:border-[#58A6FF]"
+            className="w-full bg-black border border-[var(--quant-border)] rounded px-3 py-1.5 text-white focus:outline-none focus:border-[#8B5CF6]"
           />
         </div>
         <div className="space-y-1.5">
@@ -69,7 +69,7 @@ export function SettingsTab({
             id="git-settings-visibility"
             value={settingsVisibility}
             onChange={(e) => setSettingsVisibility(e.target.value as 'public' | 'private')}
-            className="w-full bg-[#0D1117] border border-[#30363D] rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-[#58A6FF]"
+            className="w-full bg-black border border-[var(--quant-border)] rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-[#8B5CF6]"
           >
             <option value="public">Public (Anyone on the internet can see this repository)</option>
             <option value="private">

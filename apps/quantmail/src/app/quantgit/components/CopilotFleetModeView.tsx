@@ -90,7 +90,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
       {/* Copilot Header */}
  <div className="flex items-center justify-between pb-3">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-blue-500 flex items-center justify-center text-white text-base font-bold shadow-md">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-[#8B5CF6] flex items-center justify-center text-white text-base font-bold shadow-md">
             🤖
           </div>
           <div>
@@ -112,7 +112,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
       </div>
 
       {/* Cloud Agent Sessions Banner (Screens 140–142) */}
-      <div className="my-3 p-4 rounded-xl bg-gradient-to-r from-[var(--quant-surface-elevated)]/70 to-[#0F172A]/70 border border-[#30363D] flex items-center justify-between gap-4">
+      <div className="my-3 p-4 rounded-xl bg-gradient-to-r from-[var(--quant-surface-elevated)]/70 to-[#0F172A]/70 border border-[var(--quant-border)] flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-xl shrink-0">
             ⚡
@@ -139,7 +139,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
         {agentTasks.length === 0 ? (
           <div
             data-testid="fleet-tasks-empty"
-            className="p-4 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] text-[11px] text-[#8D96A0]"
+            className="p-4 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-[11px] text-[#8D96A0]"
           >
             No agent tasks yet. Tasks you add below appear here as local session drafts — nothing
             is dispatched or executed until a real agent backend is connected.
@@ -148,11 +148,11 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
           agentTasks.map((task) => (
             <div
               key={task.id}
-              className="p-3.5 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[#58A6FF]/60 transition-all space-y-2.5"
+              className="p-3.5 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] hover:border-[#8B5CF6]/60 transition-all space-y-2.5"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-[#21262D] text-[#8D96A0] flex items-center justify-center text-xs">
+                  <div className="w-5 h-5 rounded-full bg-black text-[#8D96A0] flex items-center justify-center text-xs">
                     ○
                   </div>
                   <div>
@@ -165,7 +165,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
                   </div>
                 </div>
 
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider bg-[#21262D] text-[#8D96A0] border border-[#30363D]">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider bg-black text-[#8D96A0] border border-[var(--quant-border)]">
                   Local only
                 </span>
               </div>
@@ -184,7 +184,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
           onClick={() =>
             setPromptText('Explain database indexing benefits and recommend GIN trigram indexes')
           }
-          className="p-2.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[#58A6FF] text-left transition-colors"
+          className="p-2.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] hover:border-[#8B5CF6] text-left transition-colors"
         >
           <p className="font-semibold text-xs text-[#E6EDF3]">Performance & Optimization</p>
           <p className="text-[10px] text-[#8D96A0] truncate">Explain database indexing benefits</p>
@@ -195,7 +195,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
               'Audit Signal protocol prekey rotation and check for timing vulnerabilities',
             )
           }
-          className="p-2.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[#58A6FF] text-left transition-colors"
+          className="p-2.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] hover:border-[#8B5CF6] text-left transition-colors"
         >
           <p className="font-semibold text-xs text-[#E6EDF3]">Security & Auditing</p>
           <p className="text-[10px] text-[#8D96A0] truncate">Audit Signal protocol prekeys</p>
@@ -209,7 +209,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
           {selectedContext.map((ctx) => (
             <span
               key={ctx}
-              className="text-[11px] px-2 py-0.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#58A6FF] font-mono flex items-center gap-1"
+              className="text-[11px] px-2 py-0.5 rounded-md bg-black border border-[var(--quant-border)] text-[#8B5CF6] font-mono flex items-center gap-1"
             >
               <span>{ctx}</span>
               <button
@@ -233,7 +233,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
         </div>
 
         {/* Input box */}
-        <div className="relative rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] focus-within:border-[#58A6FF] transition-all p-2.5 space-y-2">
+        <div className="relative rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] focus-within:border-[#8B5CF6] transition-all p-2.5 space-y-2">
           <textarea
             value={promptText}
             onChange={(e) => setPromptText(e.target.value)}
@@ -251,7 +251,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
           {/* Bottom Toolbar: Mode pills + Model selector + Send */}
  <div className="flex items-center justify-between pt-1">
             {/* Mode Selector */}
-            <div className="flex items-center gap-1 bg-[#0D1117] p-0.5 rounded-lg border border-[#30363D]">
+            <div className="flex items-center gap-1 bg-black p-0.5 rounded-lg border border-[var(--quant-border)]">
               {(['ask', 'agent', 'debug'] as const).map((mode) => (
                 <button
                   type="button"
@@ -259,7 +259,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
                   onClick={() => setActiveMode(mode)}
                   className={`px-2 py-0.5 rounded text-[11px] font-medium capitalize transition-colors ${
                     activeMode === mode
-                      ? 'bg-[#21262D] text-[#E6EDF3]'
+                      ? 'bg-black text-[#E6EDF3]'
                       : 'text-[#8D96A0] hover:text-[#E6EDF3]'
                   }`}
                 >
@@ -279,7 +279,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
                   disabled
                   title="Model connections are not wired up yet"
                   aria-label="No model connected"
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#21262D] text-[11px] font-medium text-[#8D96A0] border border-[#30363D] disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-black text-[11px] font-medium text-[#8D96A0] border border-[var(--quant-border)] disabled:cursor-not-allowed"
                 >
                   <span>{selectedModel.name}</span>
                   <span className="text-[var(--q-type-xs)] text-[#8D96A0]">▼</span>

@@ -571,7 +571,7 @@ export function PullRequestsTab({
             <button
               onClick={() => setSelectedPR(null)}
               data-testid="back-to-pulls-btn"
-              className="text-[#58A6FF] hover:underline flex items-center gap-1.5 font-medium cursor-pointer"
+              className="text-[#8B5CF6] hover:underline flex items-center gap-1.5 font-medium cursor-pointer"
             >
               <span>← Back to all pull requests</span>
             </button>
@@ -596,7 +596,7 @@ export function PullRequestsTab({
                     type="button"
                     onClick={() => setIsReviewBoxOpen((prev) => !prev)}
                     data-testid="review-changes-btn"
-                    className="px-3 py-1.5 rounded-lg bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] text-[#E6EDF3] font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-black hover:bg-[var(--quant-surface-hover)] border border-[var(--quant-border)] text-[#E6EDF3] font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <span>Review changes</span>
                     <span className="text-[10px]">▼</span>
@@ -606,7 +606,7 @@ export function PullRequestsTab({
                   {isReviewBoxOpen && (
                     <div
                       data-testid="review-changes-box"
-                      className="absolute right-0 top-full mt-2 w-80 bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl p-4 shadow-2xl z-50 space-y-3 animate-in fade-in"
+                      className="absolute right-0 top-full mt-2 w-80 bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] rounded-xl p-4 shadow-2xl z-50 space-y-3 animate-in fade-in"
                     >
  <div className="flex items-center justify-between pb-2">
                         <span className="font-bold text-xs text-[#E6EDF3]">Review changes</span>
@@ -627,7 +627,7 @@ export function PullRequestsTab({
                             placeholder="Leave a comment on changes..."
                             data-testid="review-comment-textarea"
                             rows={3}
-                            className="w-full bg-[#0D1117] border border-[#30363D] focus:border-[#58A6FF] rounded-lg p-2.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none resize-none"
+                            className="w-full bg-black border border-[var(--quant-border)] focus:border-[#8B5CF6] rounded-lg p-2.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none resize-none"
                           />
                         </div>
 
@@ -646,7 +646,7 @@ export function PullRequestsTab({
                           {/* Comment option */}
                           <label
                             data-testid="review-option-comment"
-                            className="flex items-start gap-2 cursor-pointer p-1.5 rounded hover:bg-[#21262D]"
+                            className="flex items-start gap-2 cursor-pointer p-1.5 rounded hover:bg-[var(--quant-surface-hover)]"
                           >
                             <input
                               type="radio"
@@ -654,7 +654,7 @@ export function PullRequestsTab({
                               value="comment"
                               checked={reviewDecision === 'comment'}
                               onChange={() => setReviewDecision('comment')}
-                              className="mt-0.5 text-[#58A6FF]"
+                              className="mt-0.5 text-[#8B5CF6]"
                             />
                             <div>
                               <span className="font-semibold text-[#E6EDF3] block">Comment</span>
@@ -670,7 +670,7 @@ export function PullRequestsTab({
                             className={`flex items-start gap-2 p-1.5 rounded ${
                               isAuthor
                                 ? 'opacity-50 cursor-not-allowed'
-                                : 'cursor-pointer hover:bg-[#21262D]'
+                                : 'cursor-pointer hover:bg-[var(--quant-surface-hover)]'
                             }`}
                           >
                             <input
@@ -697,7 +697,7 @@ export function PullRequestsTab({
                           {/* Request changes option */}
                           <label
                             data-testid="review-option-request_changes"
-                            className="flex items-start gap-2 cursor-pointer p-1.5 rounded hover:bg-[#21262D]"
+                            className="flex items-start gap-2 cursor-pointer p-1.5 rounded hover:bg-[var(--quant-surface-hover)]"
                           >
                             <input
                               type="radio"
@@ -740,7 +740,7 @@ export function PullRequestsTab({
                 data-testid={`pr-state-${selectedPR.state}`}
                 className={`px-2.5 py-0.5 rounded-full text-white font-semibold flex items-center gap-1.5 ${
                   selectedPR.state === 'merged'
-                    ? 'bg-[#8957E5]'
+                    ? 'bg-[#8B5CF6]'
                     : selectedPR.state === 'open'
                       ? 'bg-[#238636]'
                       : 'bg-[#DA3633]'
@@ -761,11 +761,11 @@ export function PullRequestsTab({
                   Merged by{' '}
                   <strong className="text-[#E6EDF3]">{selectedPR.author || currentUsername}</strong>{' '}
                   into{' '}
-                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-black text-[#8B5CF6] font-mono">
                     {selectedPR.branchTarget || 'main'}
                   </span>{' '}
                   from{' '}
-                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-black text-[#8B5CF6] font-mono">
                     {selectedPR.branchSource}
                   </span>
                 </span>
@@ -773,11 +773,11 @@ export function PullRequestsTab({
                 <span>
                   <strong className="text-[#E6EDF3]">{selectedPR.author}</strong> wants to merge
                   into{' '}
-                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-black text-[#8B5CF6] font-mono">
                     {selectedPR.branchTarget || 'main'}
                   </span>{' '}
                   from{' '}
-                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-black text-[#8B5CF6] font-mono">
                     {selectedPR.branchSource}
                   </span>
                 </span>
@@ -786,7 +786,7 @@ export function PullRequestsTab({
           </div>
 
           {/* Reviews Status Bar */}
-          <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-3.5 space-y-2">
+          <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] p-3.5 space-y-2">
             <h4 className="font-bold text-xs text-[#E6EDF3] flex items-center justify-between">
               <span>Review decisions:</span>
               <span className="text-[#8D96A0] text-[11px] font-normal">
@@ -803,7 +803,7 @@ export function PullRequestsTab({
                   <div
                     key={rev.id}
                     data-testid={`review-item-${rev.id}`}
-                    className="flex items-start justify-between p-2 rounded bg-[#0D1117] border border-[#21262D] text-[11px]"
+                    className="flex items-start justify-between p-2 rounded bg-black border border-[var(--quant-border)] text-[11px]"
                   >
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
@@ -814,7 +814,7 @@ export function PullRequestsTab({
                             ? 'bg-emerald-500/20 text-emerald-400'
                             : rev.state === 'CHANGES_REQUESTED'
                               ? 'bg-red-500/20 text-red-400'
-                              : 'bg-blue-500/20 text-blue-400'
+                              : 'bg-[#8B5CF6]/20 text-[#8B5CF6]'
                         }`}
                       >
                         {rev.state === 'APPROVED' ? (
@@ -843,7 +843,7 @@ export function PullRequestsTab({
 
           {/* Automated Security & CI Status Check Box */}
           <div
-            className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-4 space-y-3"
+            className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] p-4 space-y-3"
             data-testid="security-ci-checks-box"
           >
             <div className="flex items-center justify-between">
@@ -874,7 +874,7 @@ export function PullRequestsTab({
                 </span>
               </div>
               {checksKnown && (
-                <button className="text-[#58A6FF] hover:underline text-[11px]">
+                <button className="text-[#8B5CF6] hover:underline text-[11px]">
                   Show all checks
                 </button>
               )}
@@ -957,7 +957,7 @@ export function PullRequestsTab({
                           aria-label="Merge method" value={selectedMergeMethod}
                           onChange={(e) => setSelectedMergeMethod(e.target.value as MergeMethod)}
                           data-testid="merge-method-select"
-                          className="bg-[#21262D] border border-[#30363D] text-[#E6EDF3] text-xs rounded-lg px-2.5 py-1.5 outline-none cursor-pointer"
+                          className="bg-black border border-[var(--quant-border)] text-[#E6EDF3] text-xs rounded-lg px-2.5 py-1.5 outline-none cursor-pointer"
                         >
                           <option value="merge">Merge pull request (create merge commit)</option>
                           <option value="squash">Squash and merge (1 commit)</option>
@@ -986,7 +986,7 @@ export function PullRequestsTab({
                     {isMergeConfirmOpen && (
                       <div
                         data-testid="merge-confirm-box"
-                        className="p-3.5 bg-[#0D1117] rounded-lg border border-[#30363D] space-y-3 animate-in fade-in"
+                        className="p-3.5 bg-black rounded-lg border border-[var(--quant-border)] space-y-3 animate-in fade-in"
                       >
                         <div className="space-y-1">
                           <span className="font-bold text-xs text-[#E6EDF3]">
@@ -1012,7 +1012,7 @@ export function PullRequestsTab({
                             onChange={(e) => setMergeCommitMsg(e.target.value)}
                             placeholder={`Merge pull request #${(selectedPR as any).number || selectedPR.id} from ${selectedPR.branchSource}`}
                             data-testid="merge-commit-input"
-                            className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
+                            className="w-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] focus:border-[#8B5CF6] rounded px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
                           />
                         </div>
 
@@ -1071,7 +1071,7 @@ export function PullRequestsTab({
                       type="button"
                       disabled
                       data-testid="merge-blocked-btn"
-                      className="px-4 py-1.5 rounded-lg bg-[#21262D] text-[#8D96A0] font-bold text-xs cursor-not-allowed opacity-50"
+                      className="px-4 py-1.5 rounded-lg bg-black text-[#8D96A0] font-bold text-xs cursor-not-allowed opacity-50"
                     >
                       Merge blocked
                     </button>
@@ -1080,7 +1080,7 @@ export function PullRequestsTab({
               ) : selectedPR.state === 'merged' ? (
                 <div
                   data-testid="merged-status-banner"
-                  className="bg-[#8957E5]/10 border border-[#8957E5]/30 rounded-lg p-3.5 flex items-center gap-2.5 text-[#A371F7]"
+                  className="bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 rounded-lg p-3.5 flex items-center gap-2.5 text-[#8B5CF6]"
                 >
                   <QuantGitCheckIcon size={16} />
                   <span className="font-semibold text-xs">
@@ -1122,7 +1122,7 @@ export function PullRequestsTab({
             {selectedPR?.changedFiles === 0 ? (
               <div
                 data-testid="diff-empty"
-                className="rounded-xl bg-[#0D1117] border border-dashed border-[#30363D] p-8 text-center"
+                className="rounded-xl bg-black border border-dashed border-[var(--quant-border)] p-8 text-center"
               >
                 <p className="text-xs text-[#8D96A0]">No files changed in this pull request.</p>
               </div>
@@ -1143,14 +1143,14 @@ export function PullRequestsTab({
             ) : prDiff?.status === 'loading' ? (
               <div
                 data-testid="diff-loading"
-                className="rounded-xl bg-[#0D1117] border border-dashed border-[#30363D] p-8 text-center"
+                className="rounded-xl bg-black border border-dashed border-[var(--quant-border)] p-8 text-center"
               >
                 <p className="text-xs text-[#8D96A0]">Loading diff…</p>
               </div>
             ) : (
               <div
                 data-testid="diff-unavailable"
-                className="rounded-xl bg-[#0D1117] border border-dashed border-[#30363D] p-8 text-center"
+                className="rounded-xl bg-black border border-dashed border-[var(--quant-border)] p-8 text-center"
               >
                 <p className="text-xs text-[#8D96A0]">
                   Diff preview is not available for this pull request yet.
@@ -1173,7 +1173,7 @@ export function PullRequestsTab({
                 onChange={(e) => setPullSearchQuery(e.target.value)}
                 placeholder="is:pr state:open ..."
                 data-testid="pull-search-input"
-                className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
+                className="w-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] focus:border-[#8B5CF6] rounded-lg px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
               />
             </div>
             <button
@@ -1186,7 +1186,7 @@ export function PullRequestsTab({
             </button>
           </div>
 
-          <div className="border border-[#30363D] rounded-xl bg-[#0D1117] overflow-hidden">
+          <div className="border border-[var(--quant-border)] rounded-xl bg-black overflow-hidden">
  <div className="bg-[var(--quant-surface-elevated)] px-4 py-3 flex items-center justify-between font-semibold">
               <div className="flex items-center gap-4">
                 <button
@@ -1214,7 +1214,7 @@ export function PullRequestsTab({
                       : 'text-[#8D96A0]'
                   }`}
                 >
-                  <span className="text-[#8957E5] flex">
+                  <span className="text-[#8B5CF6] flex">
                     <QuantGitCheckIcon size={14} />
                   </span>{' '}
                   {closedPullsCount} Closed
@@ -1256,7 +1256,7 @@ export function PullRequestsTab({
                         <span
                           className={
                             pr.state === 'merged'
-                              ? 'text-[#8957E5]'
+                              ? 'text-[#8B5CF6]'
                               : pr.state === 'open'
                                 ? 'text-[#3FB950]'
                                 : 'text-[#DA3633]'
@@ -1264,16 +1264,16 @@ export function PullRequestsTab({
                         >
                           <QuantGitPRIcon size={16} />
                         </span>
-                        <span className="font-semibold text-sm text-[#E6EDF3] group-hover:text-[#58A6FF] transition-colors">
+                        <span className="font-semibold text-sm text-[#E6EDF3] group-hover:text-[#8B5CF6] transition-colors">
                           {pr.title}
                         </span>
-                        <span className="px-1.5 py-0.2 rounded bg-[#1F242C] text-[#58A6FF] font-mono text-[10px]">
+                        <span className="px-1.5 py-0.2 rounded bg-black text-[#8B5CF6] font-mono text-[10px]">
                           {pr.branchSource}
                         </span>
-                        <span className="px-1.5 py-0.2 rounded border border-[#30363D] text-[#8D96A0] text-[10px] font-semibold flex items-center gap-1">
+                        <span className="px-1.5 py-0.2 rounded border border-[var(--quant-border)] text-[#8D96A0] text-[10px] font-semibold flex items-center gap-1">
                           <QuantGitPendingDotIcon size={10} /> Checks unknown
                         </span>
-                        <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#8D96A0] text-[10px]">
+                        <span className="px-1.5 py-0.2 rounded bg-black text-[#8D96A0] text-[10px]">
                           Review required
                         </span>
                       </div>

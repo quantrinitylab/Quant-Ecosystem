@@ -187,7 +187,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
         {description ? <p className="text-[#8D96A0] leading-relaxed">{description}</p> : null}
 
         {websiteUrl && (
-          <div className="flex items-center gap-1.5 text-[#58A6FF] hover:underline cursor-pointer">
+          <div className="flex items-center gap-1.5 text-[#8B5CF6] hover:underline cursor-pointer">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
@@ -209,7 +209,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
             {topics.map((t) => (
               <span
                 key={t}
-                className="px-2.5 py-0.5 rounded-full bg-[#1F2937]/60 text-[#58A6FF] text-[11px] font-medium border border-[#30363D]"
+                className="px-2.5 py-0.5 rounded-full bg-[#1F2937]/60 text-[#8B5CF6] text-[11px] font-medium border border-[var(--quant-border)]"
               >
                 {t}
               </span>
@@ -227,7 +227,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
             type="button"
             onClick={scrollToReadmePane}
             aria-label="Scroll to the Readme preview"
-            className="flex w-full items-center gap-2 text-left hover:text-[#58A6FF] cursor-pointer"
+            className="flex w-full items-center gap-2 text-left hover:text-[#8B5CF6] cursor-pointer"
           >
             <span aria-hidden="true">📖</span>
             <span>Readme</span>
@@ -237,7 +237,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
               type="button"
               onClick={onOpenSecurityPolicy}
               aria-label="Open the Security tab (security policy)"
-              className="flex w-full items-center gap-2 text-left hover:text-[#58A6FF] cursor-pointer"
+              className="flex w-full items-center gap-2 text-left hover:text-[#8B5CF6] cursor-pointer"
             >
               <span aria-hidden="true">🛡️</span>
               <span>Security policy</span>
@@ -265,12 +265,12 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
           title={!starWired ? 'Starring is not available for this repository' : undefined}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md font-semibold text-xs border transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
             starred
-              ? 'bg-[#21262D] border-[#8B949E] text-[#E3B341]'
-              : 'bg-[#21262D] hover:bg-[#30363D] border-[#30363D] text-[#E6EDF3]'
+              ? 'bg-black border-[#8B949E] text-[#E3B341]'
+              : 'bg-black hover:bg-[var(--quant-surface-hover)] border-[var(--quant-border)] text-[#E6EDF3]'
           }`}
         >
           <span>{starred ? '★ Starred' : '☆ Star'}</span>
-          <span className="px-1.5 py-px rounded-full bg-[#30363D] text-[10px] text-[#8D96A0]">
+          <span className="px-1.5 py-px rounded-full bg-[var(--quant-surface-hover)] text-[10px] text-[#8D96A0]">
             {currentStars >= 1000 ? `${(currentStars / 1000).toFixed(1)}k` : currentStars}
           </span>
         </button>
@@ -287,7 +287,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
           <div className="flex items-center justify-between">
             <h4 className="font-semibold text-xs text-[#E6EDF3] flex items-center gap-1.5">
               <span>Releases</span>
-              <span className="px-1.5 py-px rounded-full bg-[#21262D] text-[10px] text-[#8D96A0]">
+              <span className="px-1.5 py-px rounded-full bg-black text-[10px] text-[#8D96A0]">
                 {releasesCount.toLocaleString()}
               </span>
             </h4>
@@ -320,7 +320,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
  <div className="pt-4 space-y-2">
           <h4 className="font-semibold text-xs text-[#E6EDF3] flex items-center gap-1.5">
             <span>Contributors</span>
-            <span className="px-1.5 py-px rounded-full bg-[#21262D] text-[10px] text-[#8D96A0]">
+            <span className="px-1.5 py-px rounded-full bg-black text-[10px] text-[#8D96A0]">
               {contributorsCount}
             </span>
           </h4>
@@ -333,7 +333,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
           <h4 className="font-semibold text-xs text-[#E6EDF3]">Languages</h4>
 
           {/* Multi-segmented color bar */}
-          <div className="h-2 w-full rounded-full bg-[#21262D] flex overflow-hidden">
+          <div className="h-2 w-full rounded-full bg-black flex overflow-hidden">
             {languages.map((l) => (
               <div
                 key={l.name}

@@ -28,8 +28,8 @@ export function DiscussionsTab({
               onClick={() => setDiscussionCategory(cat)}
               className={`px-3 py-1 rounded-md border text-xs font-semibold ${
                 discussionCategory === cat
-                  ? 'bg-[#21262D] border-[var(--app-accent)] text-white'
-                  : 'bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#7D8590]'
+                  ? 'bg-black border-[var(--app-accent)] text-white'
+                  : 'bg-[var(--quant-surface-elevated)] border-[var(--quant-border)] text-[#7D8590]'
               }`}
             >
               {cat === 'all' ? 'All Categories' : cat}
@@ -49,7 +49,7 @@ export function DiscussionsTab({
         </button>
       </div>
 
- <div className="border border-[#30363D] rounded-md bg-[#0D1117]">
+ <div className="border border-[var(--quant-border)] rounded-md bg-black">
         {discussions.map((d) => (
           <div
             key={d.id}
@@ -57,10 +57,10 @@ export function DiscussionsTab({
           >
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-px rounded-full text-[10px] font-bold bg-[#1F242C] text-[#58A6FF]">
+                <span className="px-2 py-px rounded-full text-[10px] font-bold bg-black text-[#8B5CF6]">
                   {d.category}
                 </span>
-                <h4 className="font-bold text-white hover:text-[#58A6FF] cursor-pointer">
+                <h4 className="font-bold text-white hover:text-[#8B5CF6] cursor-pointer">
                   {d.title}
                 </h4>
               </div>
@@ -73,7 +73,7 @@ export function DiscussionsTab({
             <button
               type="button"
               onClick={() => handleUpvoteDiscussion(d.id)}
-              className="flex flex-col items-center px-3 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:border-[#58A6FF] transition-colors"
+              className="flex flex-col items-center px-3 py-1.5 rounded-md bg-black border border-[var(--quant-border)] text-[#E6EDF3] hover:border-[#8B5CF6] transition-colors"
             >
               <span className="text-[10px]">▲</span>
               <span className="font-bold text-xs">{d.upvotes}</span>

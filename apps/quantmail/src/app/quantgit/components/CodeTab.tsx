@@ -437,7 +437,7 @@ export function renderSyntaxHighlightedLine(
           colorClass = 'text-[#CF222E] font-semibold';
           break;
         case 'string':
-          colorClass = 'text-[#0A3069]';
+          colorClass = 'text-[#8B5CF6]';
           break;
         case 'number':
           colorClass = 'text-[#0550AE]';
@@ -643,11 +643,11 @@ export interface CodeTabProps {
 function getFileIcon(name: string, isDir: boolean, isExpanded = false) {
   if (isDir) {
     return isExpanded ? (
-      <svg height="16" viewBox="0 0 16 16" width="16" fill="#58A6FF" className="shrink-0">
+      <svg height="16" viewBox="0 0 16 16" width="16" fill="#8B5CF6" className="shrink-0">
         <path d="M.513 1.513A1.75 1.75 0 0 1 1.75 1h3.5c.55 0 1.07.26 1.4.7l.9 1.2a.25.25 0 0 0 .2.1H14.25c.966 0 1.75.784 1.75 1.75v.5H1.75a.25.25 0 0 0-.25.25v7.5c0 .034.007.067.02.098L.513 1.513ZM15.5 6.25H2.187l1.79 6.262A1.75 1.75 0 0 0 5.66 13.75h8.59a1.75 1.75 0 0 0 1.75-1.75V6.25Z" />
       </svg>
     ) : (
-      <svg height="16" viewBox="0 0 16 16" width="16" fill="#58A6FF" className="shrink-0">
+      <svg height="16" viewBox="0 0 16 16" width="16" fill="#8B5CF6" className="shrink-0">
         <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
       </svg>
     );
@@ -657,7 +657,7 @@ function getFileIcon(name: string, isDir: boolean, isExpanded = false) {
 
   if (ext === 'ts' || ext === 'tsx' || ext === 'js' || ext === 'jsx') {
     return (
-      <svg height="16" viewBox="0 0 16 16" width="16" fill="#79C0FF" className="shrink-0">
+      <svg height="16" viewBox="0 0 16 16" width="16" fill="#8B5CF6" className="shrink-0">
         <path d="M4.72 3.22a.75.75 0 0 1 1.06 1.06L2.06 8l3.72 3.72a.75.75 0 1 1-1.06 1.06L.47 8.53a.75.75 0 0 1 0-1.06l4.25-4.25Zm6.56 0a.75.75 0 1 0-1.06 1.06L13.94 8l-3.72 3.72a.75.75 0 1 0 1.06 1.06l4.25-4.25a.75.75 0 0 0 0-1.06l-4.25-4.25Z" />
       </svg>
     );
@@ -1121,7 +1121,7 @@ pnpm install && pnpm dev
         <div
           className={`lg:col-span-4 flex flex-col rounded-xl border ${
             editorTheme === 'github-dark'
-              ? 'bg-[#0D1117] text-[#E6EDF3] border-[#30363D]'
+              ? 'bg-black text-[#E6EDF3] border-[var(--quant-border)]'
               : 'bg-white text-[#1F2328] border-[#D0D7DE]'
           }`}
         >
@@ -1129,7 +1129,7 @@ pnpm install && pnpm dev
           <div
  className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${
               editorTheme === 'github-dark'
-                ? 'bg-[var(--quant-surface-elevated)] border-[#30363D]'
+                ? 'bg-[var(--quant-surface-elevated)] border-[var(--quant-border)]'
                 : 'bg-[#F6F8FA] border-[#D0D7DE]'
             }`}
           >
@@ -1155,8 +1155,8 @@ pnpm install && pnpm dev
                 placeholder="Name your file..."
                 className={`flex-1 px-3 py-1 rounded font-mono text-xs border ${
                   editorTheme === 'github-dark'
-                    ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]'
-                    : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'
+                    ? 'bg-black text-white border-[var(--quant-border)] focus:border-[#8B5CF6]'
+                    : 'bg-white text-black border-[#D0D7DE] focus:border-[#8B5CF6]'
                 } focus:outline-none`}
               />
               {isRenamed && (
@@ -1168,7 +1168,7 @@ pnpm install && pnpm dev
                   <span>Renamed</span>
                 </span>
               )}
-              <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-[#21262D] text-[#58A6FF] border border-[#30363D]">
+              <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-black text-[#8B5CF6] border border-[var(--quant-border)]">
                 {currentBranch}
               </span>
             </div>
@@ -1176,7 +1176,7 @@ pnpm install && pnpm dev
             {/* In-Editor Toolbar Actions & Mode Toggles */}
             <div className="flex flex-wrap items-center gap-2">
               {/* Mode Switcher: Edit vs Preview vs Split Diff */}
-              <div className="flex rounded border border-[#30363D] overflow-hidden">
+              <div className="flex rounded border border-[var(--quant-border)] overflow-hidden">
                 <button
                   type="button"
                   data-testid="mode-edit-button"
@@ -1187,7 +1187,7 @@ pnpm install && pnpm dev
                   className={`px-3 py-1 text-xs font-semibold ${
                     editorMode === 'edit' && !isRawActive
                       ? 'bg-[#238636] text-white'
-                      : 'bg-[#21262D] text-[#7D8590] hover:text-white'
+                      : 'bg-black text-[#7D8590] hover:text-white'
                   }`}
                 >
                   Edit
@@ -1202,7 +1202,7 @@ pnpm install && pnpm dev
                   className={`px-3 py-1 text-xs font-semibold ${
                     editorMode === 'preview' && !isRawActive
                       ? 'bg-[#238636] text-white'
-                      : 'bg-[#21262D] text-[#7D8590] hover:text-white'
+                      : 'bg-black text-[#7D8590] hover:text-white'
                   }`}
                 >
                   Preview
@@ -1217,7 +1217,7 @@ pnpm install && pnpm dev
                   className={`px-3 py-1 text-xs font-semibold flex items-center gap-1.5 ${
                     editorMode === 'diff' && !isRawActive
                       ? 'bg-[#238636] text-white'
-                      : 'bg-[#21262D] text-[#7D8590] hover:text-white'
+                      : 'bg-black text-[#7D8590] hover:text-white'
                   }`}
                   title="Split Diff view comparing original vs edits"
                 >
@@ -1242,8 +1242,8 @@ pnpm install && pnpm dev
                 onClick={() => setIsSearchOpen((prev) => !prev)}
                 className={`px-2.5 py-1 rounded border text-xs flex items-center gap-1 font-semibold transition-colors ${
                   isSearchOpen
-                    ? 'bg-[#388BFD]/20 border-[#388BFD] text-[#58A6FF]'
-                    : 'border-[#30363D] bg-[#21262D] text-[#E6EDF3] hover:bg-[#30363D]'
+                    ? 'bg-[#8B5CF6]/20 border-[#8B5CF6] text-[#8B5CF6]'
+                    : 'border-[var(--quant-border)] bg-black text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)]'
                 }`}
                 title="Search and Replace (Ctrl+F)"
               >
@@ -1260,8 +1260,8 @@ pnpm install && pnpm dev
                 onClick={() => setIsRawActive((prev) => !prev)}
                 className={`px-2.5 py-1 rounded border text-xs font-semibold ${
                   isRawActive
-                    ? 'bg-[#388BFD]/20 border-[#388BFD] text-[#58A6FF]'
-                    : 'border-[#30363D] bg-[#21262D] text-[#E6EDF3] hover:bg-[#30363D]'
+                    ? 'bg-[#8B5CF6]/20 border-[#8B5CF6] text-[#8B5CF6]'
+                    : 'border-[var(--quant-border)] bg-black text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)]'
                 }`}
                 title="Open plain unformatted code view"
               >
@@ -1273,7 +1273,7 @@ pnpm install && pnpm dev
                 type="button"
                 data-testid="file-history-button"
                 onClick={() => setIsHistoryOpen(true)}
-                className="px-2.5 py-1 rounded border border-[#30363D] bg-[#21262D] text-[#E6EDF3] hover:bg-[#30363D] text-xs font-semibold"
+                className="px-2.5 py-1 rounded border border-[var(--quant-border)] bg-black text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)] text-xs font-semibold"
                 title="Open file commit history"
               >
                 History
@@ -1304,7 +1304,7 @@ pnpm install && pnpm dev
                 onClick={() =>
                   setEditorTheme((t) => (t === 'github-dark' ? 'github-light' : 'github-dark'))
                 }
-                className="px-2.5 py-1 rounded border border-[#30363D] text-xs bg-[#21262D] text-[#E6EDF3] hover:bg-[#30363D]"
+                className="px-2.5 py-1 rounded border border-[var(--quant-border)] text-xs bg-black text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)]"
               >
                 {editorTheme === 'github-dark' ? '☀️ Light' : '🌙 Dark'}
               </button>
@@ -1317,7 +1317,7 @@ pnpm install && pnpm dev
               data-testid="search-replace-widget"
  className={`flex flex-wrap items-center justify-between gap-3 px-4 py-2 text-xs ${
                 editorTheme === 'github-dark'
-                  ? 'bg-[var(--quant-surface-elevated)] border-[#30363D]'
+                  ? 'bg-[var(--quant-surface-elevated)] border-[var(--quant-border)]'
                   : 'bg-[#F6F8FA] border-[#D0D7DE]'
               }`}
             >
@@ -1335,8 +1335,8 @@ pnpm install && pnpm dev
                     placeholder="Find in file..."
                     className={`px-2.5 py-1 rounded border font-mono text-xs w-48 ${
                       editorTheme === 'github-dark'
-                        ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]'
-                        : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'
+                        ? 'bg-black text-white border-[var(--quant-border)] focus:border-[#8B5CF6]'
+                        : 'bg-white text-black border-[#D0D7DE] focus:border-[#8B5CF6]'
                     } focus:outline-none`}
                   />
                   <span
@@ -1354,7 +1354,7 @@ pnpm install && pnpm dev
                     data-testid="search-prev-button"
                     onClick={handlePrevMatch}
                     disabled={searchMatchesCount === 0}
-                    className="p-1 rounded hover:bg-[#30363D] disabled:opacity-40 text-[#7D8590] hover:text-white"
+                    className="p-1 rounded hover:bg-[var(--quant-surface-hover)] disabled:opacity-40 text-[#7D8590] hover:text-white"
                     title="Previous match (Shift+Enter)"
                   >
                     ▲
@@ -1364,7 +1364,7 @@ pnpm install && pnpm dev
                     data-testid="search-next-button"
                     onClick={handleNextMatch}
                     disabled={searchMatchesCount === 0}
-                    className="p-1 rounded hover:bg-[#30363D] disabled:opacity-40 text-[#7D8590] hover:text-white"
+                    className="p-1 rounded hover:bg-[var(--quant-surface-hover)] disabled:opacity-40 text-[#7D8590] hover:text-white"
                     title="Next match (Enter)"
                   >
                     ▼
@@ -1375,7 +1375,7 @@ pnpm install && pnpm dev
                     onClick={() => setMatchCase((prev) => !prev)}
                     className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold ${
                       matchCase
-                        ? 'bg-[#388BFD]/30 text-[#58A6FF] border border-[#388BFD]'
+                        ? 'bg-[#8B5CF6]/30 text-[#8B5CF6] border border-[#8B5CF6]'
                         : 'text-[#7D8590] hover:text-white'
                     }`}
                     title="Match Case"
@@ -1385,7 +1385,7 @@ pnpm install && pnpm dev
                 </div>
 
                 {/* Replace Input & Controls */}
-                <div className="flex items-center gap-1.5 pl-2 border-l border-[#30363D]">
+                <div className="flex items-center gap-1.5 pl-2 border-l border-[var(--quant-border)]">
                   <input
                     type="text"
                     data-testid="replace-input"
@@ -1394,8 +1394,8 @@ pnpm install && pnpm dev
                     placeholder="Replace with..."
                     className={`px-2.5 py-1 rounded border font-mono text-xs w-44 ${
                       editorTheme === 'github-dark'
-                        ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]'
-                        : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'
+                        ? 'bg-black text-white border-[var(--quant-border)] focus:border-[#8B5CF6]'
+                        : 'bg-white text-black border-[#D0D7DE] focus:border-[#8B5CF6]'
                     } focus:outline-none`}
                   />
                   <button
@@ -1403,7 +1403,7 @@ pnpm install && pnpm dev
                     data-testid="replace-one-button"
                     onClick={handleReplaceOne}
                     disabled={searchMatchesCount === 0}
-                    className="px-2 py-1 rounded bg-[#21262D] border border-[#30363D] hover:bg-[#30363D] text-[11px] font-semibold disabled:opacity-40"
+                    className="px-2 py-1 rounded bg-black border border-[var(--quant-border)] hover:bg-[var(--quant-surface-hover)] text-[11px] font-semibold disabled:opacity-40"
                   >
                     Replace
                   </button>
@@ -1412,7 +1412,7 @@ pnpm install && pnpm dev
                     data-testid="replace-all-button"
                     onClick={handleReplaceAll}
                     disabled={searchMatchesCount === 0}
-                    className="px-2 py-1 rounded bg-[#21262D] border border-[#30363D] hover:bg-[#30363D] text-[11px] font-semibold disabled:opacity-40"
+                    className="px-2 py-1 rounded bg-black border border-[var(--quant-border)] hover:bg-[var(--quant-surface-hover)] text-[11px] font-semibold disabled:opacity-40"
                   >
                     Replace all
                   </button>
@@ -1440,7 +1440,7 @@ pnpm install && pnpm dev
                 data-testid="raw-code-view"
                 className={`flex-1 p-4 overflow-auto font-mono text-xs ${
                   editorTheme === 'github-dark'
-                    ? 'bg-[#0D1117] text-[#E6EDF3]'
+                    ? 'bg-black text-[#E6EDF3]'
                     : 'bg-white text-[#1F2328]'
                 }`}
               >
@@ -1453,7 +1453,7 @@ pnpm install && pnpm dev
                       navigator.clipboard?.writeText(editingFile.content || '');
                       showToast('Copied raw contents to clipboard');
                     }}
-                    className="px-2.5 py-1 rounded bg-[#21262D] text-white hover:bg-[#30363D] transition-colors"
+                    className="px-2.5 py-1 rounded bg-black text-white hover:bg-[var(--quant-surface-hover)] transition-colors"
                   >
                     Copy raw
                   </button>
@@ -1478,7 +1478,7 @@ pnpm install && pnpm dev
                   data-testid="syntax-highlighted-preview"
                   className={`flex flex-1 min-h-0 font-mono text-xs overflow-auto ${
                     editorTheme === 'github-dark'
-                      ? 'bg-[#0D1117] text-[#E6EDF3]'
+                      ? 'bg-black text-[#E6EDF3]'
                       : 'bg-white text-[#1F2328]'
                   }`}
                 >
@@ -1487,7 +1487,7 @@ pnpm install && pnpm dev
                     aria-hidden="true"
                     className={`select-none py-3 px-3 text-right border-r font-mono text-[11px] leading-6 shrink-0 ${
                       editorTheme === 'github-dark'
-                        ? 'bg-[#0D1117] text-[#484F58] border-[#30363D]'
+                        ? 'bg-black text-[#484F58] border-[var(--quant-border)]'
                         : 'bg-[#F6F8FA] text-[#8C959F] border-[#D0D7DE]'
                     }`}
                   >
@@ -1516,7 +1516,7 @@ pnpm install && pnpm dev
                 <div
  className={`flex items-center justify-between px-4 py-2 text-xs ${
                     editorTheme === 'github-dark'
-                      ? 'bg-[var(--quant-surface-elevated)] border-[#30363D]'
+                      ? 'bg-[var(--quant-surface-elevated)] border-[var(--quant-border)]'
                       : 'bg-[#F6F8FA] border-[#D0D7DE]'
                   }`}
                 >
@@ -1539,12 +1539,12 @@ pnpm install && pnpm dev
                     >
                       -{diffSummary.deletions}
                     </span>
-                    <div className="flex rounded border border-[#30363D] overflow-hidden text-[11px]">
+                    <div className="flex rounded border border-[var(--quant-border)] overflow-hidden text-[11px]">
                       <button
                         type="button"
                         onClick={() => setDiffViewStyle('split')}
                         className={`px-2 py-0.5 ${
-                          diffViewStyle === 'split' ? 'bg-[#21262D] text-white' : 'text-[#7D8590]'
+                          diffViewStyle === 'split' ? 'bg-black text-white' : 'text-[#7D8590]'
                         }`}
                       >
                         Split
@@ -1553,7 +1553,7 @@ pnpm install && pnpm dev
                         type="button"
                         onClick={() => setDiffViewStyle('unified')}
                         className={`px-2 py-0.5 ${
-                          diffViewStyle === 'unified' ? 'bg-[#21262D] text-white' : 'text-[#7D8590]'
+                          diffViewStyle === 'unified' ? 'bg-black text-white' : 'text-[#7D8590]'
                         }`}
                       >
                         Unified
@@ -1566,7 +1566,7 @@ pnpm install && pnpm dev
                 <div
                   className={`flex-1 overflow-auto font-mono text-xs ${
                     editorTheme === 'github-dark'
-                      ? 'bg-[#0D1117] text-[#E6EDF3]'
+                      ? 'bg-black text-[#E6EDF3]'
                       : 'bg-white text-[#1F2328]'
                   }`}
                 >
@@ -1620,7 +1620,7 @@ pnpm install && pnpm dev
                                   : 'text-[#E6EDF3]'
                             }`}
                           >
-                            <div className="flex shrink-0 select-none text-[11px] text-[#484F58] border-r border-[#30363D] w-16 justify-between px-2">
+                            <div className="flex shrink-0 select-none text-[11px] text-[#484F58] border-r border-[var(--quant-border)] w-16 justify-between px-2">
                               <span className="w-6 text-right">{line.oldLineNumber ?? ''}</span>
                               <span className="w-6 text-right">{line.newLineNumber ?? ''}</span>
                             </div>
@@ -1642,7 +1642,7 @@ pnpm install && pnpm dev
               <div
                 className={`flex flex-1 min-h-0 font-mono text-xs ${
                   editorTheme === 'github-dark'
-                    ? 'bg-[#0D1117] text-[#E6EDF3]'
+                    ? 'bg-black text-[#E6EDF3]'
                     : 'bg-white text-[#1F2328]'
                 }`}
               >
@@ -1651,7 +1651,7 @@ pnpm install && pnpm dev
                   aria-hidden="true"
                   className={`select-none py-3 px-3 text-right border-r font-mono text-[11px] leading-6 shrink-0 ${
                     editorTheme === 'github-dark'
-                      ? 'bg-[#0D1117] text-[#484F58] border-[#30363D]'
+                      ? 'bg-black text-[#484F58] border-[var(--quant-border)]'
                       : 'bg-[#F6F8FA] text-[#8C959F] border-[#D0D7DE]'
                   }`}
                 >
@@ -1684,7 +1684,7 @@ pnpm install && pnpm dev
                   spellCheck={false}
                   className={`flex-1 p-3 font-mono text-xs leading-6 resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                     editorTheme === 'github-dark'
-                      ? 'bg-[#0D1117] text-[#E6EDF3]'
+                      ? 'bg-black text-[#E6EDF3]'
                       : 'bg-white text-[#1F2328]'
                   }`}
                   placeholder="Type your code or markdown content here..."
@@ -1696,7 +1696,7 @@ pnpm install && pnpm dev
             <div
  className={`flex items-center justify-between px-4 py-1.5 text-[11px] ${
                 editorTheme === 'github-dark'
-                  ? 'bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#7D8590]'
+                  ? 'bg-[var(--quant-surface-elevated)] border-[var(--quant-border)] text-[#7D8590]'
                   : 'bg-[#F6F8FA] border-[#D0D7DE] text-[#656D76]'
               }`}
             >
@@ -1714,7 +1714,7 @@ pnpm install && pnpm dev
           <div
  className={`p-4 space-y-3 ${
               editorTheme === 'github-dark'
-                ? 'bg-[var(--quant-surface-elevated)] border-[#30363D]'
+                ? 'bg-[var(--quant-surface-elevated)] border-[var(--quant-border)]'
                 : 'bg-[#F6F8FA] border-[#D0D7DE]'
             }`}
           >
@@ -1732,8 +1732,8 @@ pnpm install && pnpm dev
                 }
                 className={`w-full px-3 py-1.5 rounded text-xs border ${
                   editorTheme === 'github-dark'
-                    ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]'
-                    : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'
+                    ? 'bg-black text-white border-[var(--quant-border)] focus:border-[#8B5CF6]'
+                    : 'bg-white text-black border-[#D0D7DE] focus:border-[#8B5CF6]'
                 } focus:outline-none`}
               />
               <textarea
@@ -1744,8 +1744,8 @@ pnpm install && pnpm dev
                 rows={2}
                 className={`w-full px-3 py-1.5 rounded text-xs border ${
                   editorTheme === 'github-dark'
-                    ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]'
-                    : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'
+                    ? 'bg-black text-white border-[var(--quant-border)] focus:border-[#8B5CF6]'
+                    : 'bg-white text-black border-[#D0D7DE] focus:border-[#8B5CF6]'
                 } focus:outline-none`}
               />
             </div>
@@ -1762,7 +1762,7 @@ pnpm install && pnpm dev
                 />
                 <span>
                   Commit directly to the{' '}
-                  <strong className="font-mono text-[#58A6FF]">{currentBranch}</strong> branch
+                  <strong className="font-mono text-[#8B5CF6]">{currentBranch}</strong> branch
                 </span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
@@ -1780,7 +1780,7 @@ pnpm install && pnpm dev
                   className="text-[#238636]"
                 />
                 <span>
-                  Create a <strong className="font-mono text-[#58A6FF]">new branch</strong> for this
+                  Create a <strong className="font-mono text-[#8B5CF6]">new branch</strong> for this
                   commit and start a pull request
                 </span>
               </label>
@@ -1800,8 +1800,8 @@ pnpm install && pnpm dev
                       placeholder={defaultBranchName}
                       className={`w-full max-w-xs px-3 py-1 rounded text-xs border font-mono ${
                         editorTheme === 'github-dark'
-                          ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]'
-                          : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'
+                          ? 'bg-black text-white border-[var(--quant-border)] focus:border-[#8B5CF6]'
+                          : 'bg-white text-black border-[#D0D7DE] focus:border-[#8B5CF6]'
                       } focus:outline-none`}
                     />
                   </div>
@@ -1814,7 +1814,7 @@ pnpm install && pnpm dev
                 type="button"
                 data-testid="cancel-edit-button"
                 onClick={() => setEditingFile(null)}
-                className="px-4 py-1.5 rounded border border-[#30363D] bg-[#21262D] hover:bg-[#30363D] text-[#E6EDF3] font-semibold text-xs"
+                className="px-4 py-1.5 rounded border border-[var(--quant-border)] bg-black hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] font-semibold text-xs"
               >
                 Cancel
               </button>
@@ -1901,7 +1901,7 @@ pnpm install && pnpm dev
             data-testid="delete-file-modal"
             className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
           >
-            <div className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-left">
+            <div className="bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] rounded-xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-left">
  <div className="flex items-center justify-between pb-3">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <span className="text-[#F85149]">🗑️</span>
@@ -1919,8 +1919,8 @@ pnpm install && pnpm dev
 
               <p className="text-xs text-[#E6EDF3]">
                 Are you sure you want to delete{' '}
-                <strong className="font-mono text-[#58A6FF]">{editingFile.path}</strong> from the{' '}
-                <strong className="font-mono text-[#58A6FF]">{currentBranch}</strong> branch?
+                <strong className="font-mono text-[#8B5CF6]">{editingFile.path}</strong> from the{' '}
+                <strong className="font-mono text-[#8B5CF6]">{currentBranch}</strong> branch?
               </p>
 
               <div className="space-y-2">
@@ -1931,7 +1931,7 @@ pnpm install && pnpm dev
                   value={deleteCommitMessage}
                   onChange={(e) => setDeleteCommitMessage(e.target.value)}
                   placeholder={`Delete ${editingFile.name}`}
-                  className="w-full px-3 py-1.5 rounded text-xs bg-[#0D1117] text-white border border-[#30363D] focus:border-[#58A6FF] focus:outline-none"
+                  className="w-full px-3 py-1.5 rounded text-xs bg-black text-white border border-[var(--quant-border)] focus:border-[#8B5CF6] focus:outline-none"
                 />
                 <textarea
                   data-testid="delete-commit-desc-input"
@@ -1939,7 +1939,7 @@ pnpm install && pnpm dev
                   onChange={(e) => setDeleteCommitDescription(e.target.value)}
                   placeholder="Add an optional extended description..."
                   rows={2}
-                  className="w-full px-3 py-1.5 rounded text-xs bg-[#0D1117] text-white border border-[#30363D] focus:border-[#58A6FF] focus:outline-none"
+                  className="w-full px-3 py-1.5 rounded text-xs bg-black text-white border border-[var(--quant-border)] focus:border-[#8B5CF6] focus:outline-none"
                 />
               </div>
 
@@ -1954,7 +1954,7 @@ pnpm install && pnpm dev
                   />
                   <span>
                     Commit directly to the{' '}
-                    <strong className="font-mono text-[#58A6FF]">{currentBranch}</strong> branch
+                    <strong className="font-mono text-[#8B5CF6]">{currentBranch}</strong> branch
                   </span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -1966,7 +1966,7 @@ pnpm install && pnpm dev
                     className="text-[#DA3633]"
                   />
                   <span>
-                    Create a <strong className="font-mono text-[#58A6FF]">new branch</strong> for
+                    Create a <strong className="font-mono text-[#8B5CF6]">new branch</strong> for
                     this commit and start a pull request
                   </span>
                 </label>
@@ -1977,7 +1977,7 @@ pnpm install && pnpm dev
                   type="button"
                   data-testid="cancel-delete-modal-button"
                   onClick={() => setIsDeleteModalOpen(false)}
-                  className="px-4 py-1.5 rounded border border-[#30363D] bg-[#21262D] hover:bg-[#30363D] text-[#E6EDF3] font-semibold text-xs"
+                  className="px-4 py-1.5 rounded border border-[var(--quant-border)] bg-black hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] font-semibold text-xs"
                 >
                   Cancel
                 </button>
@@ -2022,11 +2022,11 @@ pnpm install && pnpm dev
             data-testid="file-history-modal"
             className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
           >
-            <div className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+            <div className="bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] rounded-xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
  <div className="flex items-center justify-between pb-3">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <span>History for</span>
-                  <span className="font-mono text-[#58A6FF]">{editingFile.path}</span>
+                  <span className="font-mono text-[#8B5CF6]">{editingFile.path}</span>
                 </h3>
                 <button
                   type="button"
@@ -2048,7 +2048,7 @@ pnpm install && pnpm dev
                 <button
                   type="button"
                   onClick={() => setIsHistoryOpen(false)}
-                  className="px-4 py-1.5 rounded border border-[#30363D] bg-[#21262D] hover:bg-[#30363D] text-[#E6EDF3] text-xs font-semibold"
+                  className="px-4 py-1.5 rounded border border-[var(--quant-border)] bg-black hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] text-xs font-semibold"
                 >
                   Close
                 </button>
@@ -2079,14 +2079,14 @@ pnpm install && pnpm dev
               </span>
               <span className="text-[#7D8590]">
                 {' '}— edits and commits still apply to the{' '}
-                <span className="font-mono text-[#58A6FF]">{currentBranch}</span>{' '}
+                <span className="font-mono text-[#8B5CF6]">{currentBranch}</span>{' '}
                 branch
               </span>
             </span>
             <button
               type="button"
               onClick={onExitBrowseCommit}
-              className="px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
+              className="px-2.5 py-1 rounded-md bg-black border border-[var(--quant-border)] text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)] transition-colors font-semibold"
             >
               Back to branch
             </button>
@@ -2099,7 +2099,7 @@ pnpm install && pnpm dev
             <button
               type="button"
               onClick={() => setIsBranchModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-black border border-[var(--quant-border)] text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)] transition-colors font-semibold"
             >
               <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
                 <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z" />
@@ -2116,13 +2116,13 @@ pnpm install && pnpm dev
             </span>
 
             {/* Tree vs Directory View Mode Toggle */}
-            <div className="flex items-center bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-md p-0.5">
+            <div className="flex items-center bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] rounded-md p-0.5">
               <button
                 type="button"
                 onClick={() => setViewMode('directory')}
                 className={`px-2 py-1 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors ${
                   viewMode === 'directory'
-                    ? 'bg-[#21262D] text-white shadow-xs'
+                    ? 'bg-black text-white shadow-xs'
                     : 'text-[#7D8590] hover:text-[#E6EDF3]'
                 }`}
                 title="Directory drill mode"
@@ -2134,7 +2134,7 @@ pnpm install && pnpm dev
                 onClick={() => setViewMode('tree')}
                 className={`px-2 py-1 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors ${
                   viewMode === 'tree'
-                    ? 'bg-[#21262D] text-white shadow-xs'
+                    ? 'bg-black text-white shadow-xs'
                     : 'text-[#7D8590] hover:text-[#E6EDF3]'
                 }`}
                 title="Full hierarchical tree mode"
@@ -2149,14 +2149,14 @@ pnpm install && pnpm dev
                 <button
                   type="button"
                   onClick={expandAllDirs}
-                  className="px-2 py-1 rounded bg-[#21262D] border border-[#30363D] text-[#7D8590] hover:text-white transition-colors"
+                  className="px-2 py-1 rounded bg-black border border-[var(--quant-border)] text-[#7D8590] hover:text-white transition-colors"
                 >
                   Expand all
                 </button>
                 <button
                   type="button"
                   onClick={collapseAllDirs}
-                  className="px-2 py-1 rounded bg-[#21262D] border border-[#30363D] text-[#7D8590] hover:text-white transition-colors"
+                  className="px-2 py-1 rounded bg-black border border-[var(--quant-border)] text-[#7D8590] hover:text-white transition-colors"
                 >
                   Collapse all
                 </button>
@@ -2173,7 +2173,7 @@ pnpm install && pnpm dev
                 placeholder="Filter files..."
                 value={filterQuery}
                 onChange={(e) => setFilterQuery(e.target.value)}
-                className="w-36 lg:w-44 px-2.5 py-1.5 rounded-md bg-[#0D1117] border border-[#30363D] text-[#E6EDF3] placeholder-[#7D8590] text-xs focus:outline-hidden focus:border-[#58A6FF]"
+                className="w-36 lg:w-44 px-2.5 py-1.5 rounded-md bg-black border border-[var(--quant-border)] text-[#E6EDF3] placeholder-[#7D8590] text-xs focus:outline-hidden focus:border-[#8B5CF6]"
               />
               {filterQuery && (
                 <button
@@ -2189,11 +2189,11 @@ pnpm install && pnpm dev
             <button
               type="button"
               onClick={() => setModalState('file-finder')}
-              className="px-3 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
+              className="px-3 py-1.5 rounded-md bg-black border border-[var(--quant-border)] text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)] transition-colors font-semibold"
               title="Go to file (t)"
             >
               Go to file{' '}
-              <span className="text-[10px] text-[#7D8590] border border-[#30363D] px-1 rounded ml-1 font-mono">
+              <span className="text-[10px] text-[#7D8590] border border-[var(--quant-border)] px-1 rounded ml-1 font-mono">
                 t
               </span>
             </button>
@@ -2203,14 +2203,14 @@ pnpm install && pnpm dev
               <button
                 type="button"
                 onClick={() => setIsAddFileOpen((prev) => !prev)}
-                className="px-2.5 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold flex items-center gap-1"
+                className="px-2.5 py-1.5 rounded-md bg-black border border-[var(--quant-border)] text-[#E6EDF3] hover:bg-[var(--quant-surface-hover)] transition-colors font-semibold flex items-center gap-1"
               >
                 <span>Add file</span>
                 <span className="text-[10px]">▼</span>
               </button>
 
               {isAddFileOpen && (
-                <div className="absolute right-0 mt-1 w-48 rounded-md bg-[var(--quant-surface-elevated)] border border-[#30363D] shadow-xl z-50 py-1 text-xs">
+                <div className="absolute right-0 mt-1 w-48 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] shadow-xl z-50 py-1 text-xs">
                   <button
                     type="button"
                     onClick={() => {
@@ -2233,7 +2233,7 @@ pnpm install && pnpm dev
                       setIsDeleteModalOpen(false);
                       setIsHistoryOpen(false);
                     }}
-                    className="w-full text-left px-3 py-2 hover:bg-[#21262D] text-[#E6EDF3] flex items-center gap-2 font-medium"
+                    className="w-full text-left px-3 py-2 hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] flex items-center gap-2 font-medium"
                   >
                     <span className="text-[#3FB950] font-bold">+</span>
                     <span>Create new file</span>
@@ -2244,9 +2244,9 @@ pnpm install && pnpm dev
                       setIsAddFileOpen(false);
                       uploadInputRef.current?.click();
                     }}
- className="w-full text-left px-3 py-2 hover:bg-[#21262D] text-[#E6EDF3] flex items-center gap-2 font-medium"
+ className="w-full text-left px-3 py-2 hover:bg-[var(--quant-surface-hover)] text-[#E6EDF3] flex items-center gap-2 font-medium"
                   >
-                    <span className="text-[#58A6FF]">↑</span>
+                    <span className="text-[#8B5CF6]">↑</span>
                     <span>Upload files</span>
                   </button>
                 </div>
@@ -2359,9 +2359,9 @@ pnpm install && pnpm dev
         />
 
         {/* 2. Comprehensive Breadcrumb Path Navigator (root / packages / storage / src / index.ts) */}
-        <div className="flex items-center justify-between bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-md px-3.5 py-2 text-xs">
+        <div className="flex items-center justify-between bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] rounded-md px-3.5 py-2 text-xs">
           <div className="flex flex-wrap items-center gap-1.5 text-[#7D8590]">
-            <svg height="14" viewBox="0 0 16 16" width="14" fill="#58A6FF" className="shrink-0">
+            <svg height="14" viewBox="0 0 16 16" width="14" fill="#8B5CF6" className="shrink-0">
               <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h6.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-6.5a.25.25 0 0 1-.25-.25Z" />
             </svg>
 
@@ -2374,7 +2374,7 @@ pnpm install && pnpm dev
                     <span className="text-white font-bold flex items-center gap-1">
                       <span>{seg.name}</span>
                       {currentPath && (
-                        <span className="text-[10px] px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF]">
+                        <span className="text-[10px] px-1.5 py-px rounded bg-black text-[#8B5CF6]">
                           active
                         </span>
                       )}
@@ -2383,7 +2383,7 @@ pnpm install && pnpm dev
                     <button
                       type="button"
                       onClick={() => onNavigatePath?.(seg.path)}
-                      className="text-[#58A6FF] hover:underline font-semibold hover:text-[#79C0FF] transition-colors"
+                      className="text-[#8B5CF6] hover:underline font-semibold hover:text-[#8B5CF6] transition-colors"
                     >
                       {seg.name}
                     </button>
@@ -2414,7 +2414,7 @@ pnpm install && pnpm dev
         </div>
 
         {/* 3. Latest Commit Banner */}
-        <div className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-t-md p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] rounded-t-md p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-[#7D8590] truncate max-w-md" title={selectedRepo.latestCommit}>
               {selectedRepo.latestCommit}
@@ -2431,7 +2431,7 @@ pnpm install && pnpm dev
                     : 'Commit SHA unknown',
                 )
               }
-              className="font-mono text-[#58A6FF] hover:underline"
+              className="font-mono text-[#8B5CF6] hover:underline"
             >
               {selectedRepo.latestCommitSha || '—'}
             </button>
@@ -2447,7 +2447,7 @@ pnpm install && pnpm dev
                   showToast('Commit history is not available in this view.');
                 }
               }}
-              className="text-white hover:text-[#58A6FF] font-semibold flex items-center gap-1"
+              className="text-white hover:text-[#8B5CF6] font-semibold flex items-center gap-1"
             >
               <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
                 <path d="M1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0ZM8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm.75 4.75a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 .375.65l2.5 1.5a.75.75 0 1 0 .75-1.3L8.75 7.85V4.75Z" />
@@ -2458,7 +2458,7 @@ pnpm install && pnpm dev
         </div>
 
         {/* 4. Real File Explorer Tree Table */}
- <div className="border border-t-0 border-[#30363D] rounded-b-md text-xs bg-[#0D1117] overflow-hidden">
+ <div className="border border-t-0 border-[var(--quant-border)] rounded-b-md text-xs bg-black overflow-hidden">
           {/* ".." Parent Directory Row when inside a subfolder in directory mode */}
           {viewMode === 'directory' && parentPath !== null && !filterQuery && (
             <div
@@ -2466,10 +2466,10 @@ pnpm install && pnpm dev
               onClick={() => onNavigatePath?.(parentPath)}
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <svg height="16" viewBox="0 0 16 16" width="16" fill="#58A6FF" className="shrink-0">
+                <svg height="16" viewBox="0 0 16 16" width="16" fill="#8B5CF6" className="shrink-0">
                   <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
                 </svg>
-                <span className="font-bold text-[#58A6FF] group-hover:underline">..</span>
+                <span className="font-bold text-[#8B5CF6] group-hover:underline">..</span>
                 <span className="text-[11px] text-[#7D8590]">
                   (Go to parent {parentPath ? `"${parentPath}"` : 'root'})
                 </span>
@@ -2556,8 +2556,8 @@ pnpm install && pnpm dev
                   <span
                     className={`truncate font-medium transition-colors ${
                       isDir
-                        ? 'text-[#E6EDF3] group-hover:text-[#58A6FF] font-semibold'
-                        : 'text-[#C9D1D9] group-hover:text-[#58A6FF]'
+                        ? 'text-[#E6EDF3] group-hover:text-[#8B5CF6] font-semibold'
+                        : 'text-[#C9D1D9] group-hover:text-[#8B5CF6]'
                     }`}
                   >
                     {file.name}

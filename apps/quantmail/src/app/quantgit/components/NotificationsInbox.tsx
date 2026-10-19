@@ -65,7 +65,7 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
             onClick={() => setActiveMainTab('inbox')}
             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-colors ${
               activeMainTab === 'inbox'
-                ? 'bg-[#21262D] text-[#E6EDF3]'
+                ? 'bg-black text-[#E6EDF3]'
                 : 'text-[#8D96A0] hover:bg-[var(--quant-surface-elevated)]'
             }`}
           >
@@ -73,7 +73,7 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
               <span>📥</span>
               <span>Inbox</span>
             </span>
-            <span className="text-[10px] px-1.5 py-px rounded-full bg-[#30363D] text-[#E6EDF3]">
+            <span className="text-[10px] px-1.5 py-px rounded-full bg-[var(--quant-surface-hover)] text-[#E6EDF3]">
               {notifications.filter((n) => n.unread).length}
             </span>
           </button>
@@ -82,7 +82,7 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
             onClick={() => setActiveMainTab('saved')}
             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-colors ${
               activeMainTab === 'saved'
-                ? 'bg-[#21262D] text-[#E6EDF3]'
+                ? 'bg-black text-[#E6EDF3]'
                 : 'text-[#8D96A0] hover:bg-[var(--quant-surface-elevated)]'
             }`}
           >
@@ -96,7 +96,7 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
             onClick={() => setActiveMainTab('done')}
             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-colors ${
               activeMainTab === 'done'
-                ? 'bg-[#21262D] text-[#E6EDF3]'
+                ? 'bg-black text-[#E6EDF3]'
                 : 'text-[#8D96A0] hover:bg-[var(--quant-surface-elevated)]'
             }`}
           >
@@ -124,7 +124,7 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
               onClick={() => setSelectedFilter(f.id)}
               className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left transition-colors ${
                 selectedFilter === f.id
-                  ? 'bg-[#1F242C] text-[#58A6FF] font-medium'
+                  ? 'bg-black text-[#8B5CF6] font-medium'
                   : 'text-[#8D96A0] hover:text-[#E6EDF3] hover:bg-[var(--quant-surface-elevated)]'
               }`}
             >
@@ -144,7 +144,7 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
               onClick={() => setFilterRead('all')}
               className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
                 filterRead === 'all'
-                  ? 'bg-[#21262D] text-[#E6EDF3]'
+                  ? 'bg-black text-[#E6EDF3]'
                   : 'text-[#8D96A0] hover:text-[#E6EDF3]'
               }`}
             >
@@ -154,7 +154,7 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
               onClick={() => setFilterRead('unread')}
               className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
                 filterRead === 'unread'
-                  ? 'bg-[#21262D] text-[#E6EDF3]'
+                  ? 'bg-black text-[#E6EDF3]'
                   : 'text-[#8D96A0] hover:text-[#E6EDF3]'
               }`}
             >
@@ -164,7 +164,7 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
 
           <button
             onClick={markAllRead}
-            className="text-[11px] text-[#58A6FF] hover:underline font-medium"
+            className="text-[11px] text-[#8B5CF6] hover:underline font-medium"
           >
             Mark all as read
           </button>
@@ -172,17 +172,17 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
 
         {/* Notifications List */}
         {filteredNotifs.length > 0 ? (
- <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
+ <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] overflow-hidden">
             {filteredNotifs.map((item) => (
               <div
                 key={item.id}
-                className={`p-4 flex items-start justify-between gap-3 hover:bg-[#1C2128] transition-colors ${
+                className={`p-4 flex items-start justify-between gap-3 hover:bg-[var(--quant-surface-hover)] transition-colors ${
                   item.unread ? 'bg-[var(--quant-surface-elevated)]' : 'bg-[var(--quant-surface-elevated)]/60'
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <div className="pt-0.5">
-                    {item.type === 'pr' && <span className="text-[#A371F7] text-sm">⑂</span>}
+                    {item.type === 'pr' && <span className="text-[#8B5CF6] text-sm">⑂</span>}
                     {item.type === 'issue' && <span className="text-[#3FB950] text-sm">☉</span>}
                   </div>
 
@@ -208,7 +208,7 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
                 <div className="flex items-center gap-3 shrink-0 pt-0.5">
                   <span className="text-[11px] text-[#8D96A0] font-mono">{item.timeAgo}</span>
                   {item.unread && (
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#58A6FF]" title="Unread" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6]" title="Unread" />
                   )}
                 </div>
               </div>
@@ -216,8 +216,8 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
           </div>
         ) : (
           /* Empty State Illustration (Screen 22) */
-          <div className="py-16 text-center space-y-4 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-8">
-            <div className="w-16 h-16 rounded-full bg-blue-500/10 border border-blue-500/20 mx-auto flex items-center justify-center text-3xl">
+          <div className="py-16 text-center space-y-4 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] p-8">
+            <div className="w-16 h-16 rounded-full bg-[#8B5CF6]/10 border border-[#8B5CF6]/20 mx-auto flex items-center justify-center text-3xl">
               🧘
             </div>
             <div>

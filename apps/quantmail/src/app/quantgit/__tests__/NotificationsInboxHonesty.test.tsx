@@ -32,7 +32,7 @@ describe('QM-UIUX-065: NotificationsInbox honesty (no fabricated notifications)'
       expect(html).not.toContain(fabricated);
     }
     // The sidebar unread pill reflects real data: 0 unread, not the old fake 2.
-    expect(html).toContain('bg-[#30363D] text-[#E6EDF3]">0</span>');
+    expect(html).toContain('bg-[var(--quant-surface-hover)] text-[#E6EDF3]">0</span>');
   });
 
   it('renders real notifications supplied via props, with a real unread count', () => {
@@ -70,7 +70,7 @@ describe('QM-UIUX-065: NotificationsInbox honesty (no fabricated notifications)'
     expect(html).toContain('acme / Widgets');
     expect(html).not.toContain('No notifications');
     // Exactly one of the two real notifications is unread.
-    expect(html).toContain('bg-[#30363D] text-[#E6EDF3]">1</span>');
+    expect(html).toContain('bg-[var(--quant-surface-hover)] text-[#E6EDF3]">1</span>');
     for (const fabricated of FABRICATED_STRINGS) {
       expect(html).not.toContain(fabricated);
     }

@@ -126,8 +126,8 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
               onClick={() => update('themeMode', mode)}
               className={`px-4 py-2 rounded-lg font-medium capitalize border transition-all ${
                 settings.themeMode === mode
-                  ? 'bg-[#21262D] border-[#58A6FF] text-[#58A6FF] shadow-sm'
-                  : 'bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#8D96A0] hover:text-[#E6EDF3]'
+                  ? 'bg-black border-[#8B5CF6] text-[#8B5CF6] shadow-sm'
+                  : 'bg-[var(--quant-surface-elevated)] border-[var(--quant-border)] text-[#8D96A0] hover:text-[#E6EDF3]'
               }`}
             >
               {mode === 'system' ? 'Sync with system' : `${mode} mode`}
@@ -148,7 +148,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
                 style={{ backgroundColor: accent.bg, borderColor: accent.border }}
                 className={`w-8 h-8 rounded-full border-2 transition-transform ${
                   settings.activeAccent === accent.id
-                    ? 'ring-2 ring-[#58A6FF] scale-110'
+                    ? 'ring-2 ring-[#8B5CF6] scale-110'
                     : 'opacity-80 hover:opacity-100'
                 }`}
                 title={accent.name}
@@ -171,7 +171,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
           <select
             id="dev-tab-size" value={settings.tabSize}
             onChange={(e) => update('tabSize', Number(e.target.value))}
-            className="bg-[var(--quant-surface-elevated)] border border-[#30363D] rounded-md py-1.5 px-3 text-xs text-[#E6EDF3] outline-none"
+            className="bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] rounded-md py-1.5 px-3 text-xs text-[#E6EDF3] outline-none"
           >
             <option value={2}>2 spaces</option>
             <option value={4}>4 spaces (Default)</option>
@@ -186,7 +186,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
               type="checkbox"
               checked={settings.useMonospaceMarkdown}
               onChange={(e) => update('useMonospaceMarkdown', e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#58A6FF] focus:ring-0"
+              className="mt-0.5 w-4 h-4 rounded bg-[var(--quant-surface-elevated)] border-[var(--quant-border)] text-[#8B5CF6] focus:ring-0"
             />
             <div>
               <span className="font-semibold text-xs text-[#E6EDF3]">
@@ -212,8 +212,8 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
                 onClick={() => update('selectedEmojiTone', idx)}
                 className={`p-2 rounded-lg text-base border transition-all ${
                   settings.selectedEmojiTone === idx
-                    ? 'bg-[#21262D] border-[#58A6FF] scale-110'
-                    : 'bg-[var(--quant-surface-elevated)] border-[#30363D] hover:bg-[#21262D]'
+                    ? 'bg-black border-[#8B5CF6] scale-110'
+                    : 'bg-[var(--quant-surface-elevated)] border-[var(--quant-border)] hover:bg-[var(--quant-surface-hover)]'
                 }`}
               >
                 {tone}
@@ -233,14 +233,14 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
             type="checkbox"
             checked={settings.enableCharacterKeys}
             onChange={(e) => update('enableCharacterKeys', e.target.checked)}
-            className="mt-0.5 w-4 h-4 rounded bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#58A6FF] focus:ring-0"
+            className="mt-0.5 w-4 h-4 rounded bg-[var(--quant-surface-elevated)] border-[var(--quant-border)] text-[#8B5CF6] focus:ring-0"
           />
           <div>
             <span className="font-semibold text-xs text-[#E6EDF3]">Character keys</span>
             <p className="text-[#8D96A0] pt-0.5">
               Enable GitHub shortcuts that don't use modifier keys in their activation (e.g.{' '}
-              <span className="font-mono px-1 bg-[#21262D] rounded">g n</span> to navigate
-              notifications, or <span className="font-mono px-1 bg-[#21262D] rounded">?</span> to
+              <span className="font-mono px-1 bg-black rounded">g n</span> to navigate
+              notifications, or <span className="font-mono px-1 bg-black rounded">?</span> to
               view context relevant shortcuts).
             </p>
           </div>
@@ -252,7 +252,7 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
             type="checkbox"
             checked={settings.showHovercards}
             onChange={(e) => update('showHovercards', e.target.checked)}
-            className="mt-0.5 w-4 h-4 rounded bg-[var(--quant-surface-elevated)] border-[#30363D] text-[#58A6FF] focus:ring-0"
+            className="mt-0.5 w-4 h-4 rounded bg-[var(--quant-surface-elevated)] border-[var(--quant-border)] text-[#8B5CF6] focus:ring-0"
           />
           <div>
             <span className="font-semibold text-xs text-[#E6EDF3]">Show hovercards</span>
@@ -277,11 +277,11 @@ export const DeveloperAppearanceSettings: React.FC<DeveloperAppearanceSettingsPr
           </span>
         </div>
 
- <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
+ <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] overflow-hidden">
           {roadmapFeatures.map((feat) => (
             <div key={feat.id} className="p-3.5 flex items-center justify-between gap-4">
               <h5 className="font-semibold text-xs text-[#E6EDF3]">{feat.name}</h5>
-              <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#30363D]/60 text-[#8D96A0] border border-[#30363D]">
+              <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--quant-surface-hover)] text-[#8D96A0] border border-[var(--quant-border)]">
                 Planned — not available
               </span>
             </div>
