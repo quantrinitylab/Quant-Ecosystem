@@ -23,7 +23,7 @@
  *     @testing-library/react is a dependency of this package, so importing
  *     them fails CI's frozen-lockfile gate.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import React from 'react';
 
@@ -35,6 +35,7 @@ import {
   applyCreateReminder,
   applyToggleReminder,
   applySnoozeReminder,
+  applyUnsnoozeReminder,
   applyDeleteReminder,
   type StorageLike,
   type StoredReminder,
@@ -126,6 +127,30 @@ describe('calendar-reminders-storage', () => {
     expect(loaded[0].completed).toBe(false); // coerced to boolean
   });
 
+  it('drops expired or invalid snoozedUntil on load, keeps live snoozes', () => {
+    const s = new FakeStorage();
+    const key = reminderKey('u1');
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const future = new Date(Date.now() + 60_000).toISOString();
+    s.setItem(
+      key,
+      JSON.stringify([
+        { id: 'rem-live', title: 'Live snooze', dueTime: 'Today, 6:00 PM', priority: 'low', snoozedUntil: future },
+        { id: 'rem-expired', title: 'Expired snooze', dueTime: 'Today, 6:00 PM', priority: 'low', snoozedUntil: past },
+        { id: 'rem-junk', title: 'Junk snooze', dueTime: 'Today, 6:00 PM', priority: 'low', snoozedUntil: 'not-a-date' },
+      ]),
+    );
+    const loaded = loadReminders(s, key);
+    expect(loaded).toHaveLength(3);
+    // Live snooze survives; the original due time is untouched either way.
+    expect(loaded[0].snoozedUntil).toBe(future);
+    expect(loaded[0].dueTime).toBe('Today, 6:00 PM');
+    // Expired snooze is cleared — keeping it would lie about the state.
+    expect('snoozedUntil' in loaded[1]).toBe(false);
+    // Invalid junk never shows as a fake snooze.
+    expect('snoozedUntil' in loaded[2]).toBe(false);
+  });
+
   it('reports write failure as false so the UI can toast honestly', () => {
     const s = new FakeStorage();
     const key = reminderKey('u1');
@@ -178,6 +203,23 @@ describe('CalendarScheduleSubView loads persisted reminders', () => {
       <CalendarScheduleSubView userId="user-b" initialSubTab="reminders" />,
     );
     expect(html).not.toContain('Call dentist');
+  });
+
+  it('renders the REAL due time plus a "Snoozed until" chip for a snoozed reminder', () => {
+    const s = new FakeStorage();
+    const snoozed: StoredReminder = {
+      ...REM,
+      snoozedUntil: new Date(Date.now() + 15 * 60_000).toISOString(),
+    };
+    expect(saveReminders(s, reminderKey('u9'), [snoozed])).toBe(true);
+    withGlobalStorage(s);
+    const html = renderToStaticMarkup(
+      <CalendarScheduleSubView userId="u9" initialSubTab="reminders" />,
+    );
+    // The real due time must still render (never the destructive "Snoozed +15m").
+    expect(html).toContain('Today, 6:00 PM');
+    expect(html).not.toContain('Snoozed +15m');
+    expect(html).toContain('Snoozed until');
   });
 });
 
@@ -296,16 +338,116 @@ describe('CalendarScheduleSubView handler honesty (action helpers)', () => {
     });
     const id = created.next[0].id;
 
+    const before = Date.now();
     const ok = applySnoozeReminder(storage, reminderKey('u1'), created.next, id, 30);
     expect(ok.persisted).toBe(true);
     expect(ok.toast).toEqual({ text: 'Snoozed for 30 minutes', type: 'info' });
-    expect(loadReminders(storage, reminderKey('u1'))[0].dueTime).toBe('Snoozed +30m');
+    // The original due time is NEVER overwritten — snoozing must not
+    // destroy it (regression: the old code wrote "Snoozed +30m" here).
+    const stored = loadReminders(storage, reminderKey('u1'))[0];
+    expect(stored.dueTime).toBe('Today, 6:00 PM');
+    expect(typeof stored.snoozedUntil).toBe('string');
+    const until = Date.parse(stored.snoozedUntil!);
+    expect(until).toBeGreaterThanOrEqual(before + 30 * 60_000 - 1_000);
+    expect(until).toBeLessThanOrEqual(Date.now() + 30 * 60_000 + 1_000);
 
     storage.failWrites = true;
     const bad = applySnoozeReminder(storage, reminderKey('u1'), ok.next, id, 60);
     expect(bad.persisted).toBe(false);
     expect(bad.toast?.type).toBe('error');
     expect(bad.next).toEqual(ok.next); // unchanged
+  });
+
+  it('snooze: repeated snoozes do not compound — each one counts from now', () => {
+    vi.useFakeTimers();
+    try {
+      const base = new Date('2026-10-19T10:00:00Z').getTime();
+      vi.setSystemTime(base);
+      const created = applyCreateReminder(storage, reminderKey('u1'), [], {
+        title: 'Call dentist',
+        dueTime: 'Today, 6:00 PM',
+        priority: 'urgent',
+      });
+      const id = created.next[0].id;
+
+      const first = applySnoozeReminder(storage, reminderKey('u1'), created.next, id, 15);
+      expect(Date.parse(first.next[0].snoozedUntil!)).toBe(base + 15 * 60_000);
+
+      // Ten minutes pass, the user snoozes again for 15 minutes: the new
+      // expiry is ~15 minutes after the SECOND press, not 30 after the first.
+      vi.setSystemTime(base + 10 * 60_000);
+      const second = applySnoozeReminder(storage, reminderKey('u1'), first.next, id, 15);
+      expect(Date.parse(second.next[0].snoozedUntil!)).toBe(base + 25 * 60_000);
+      // dueTime intact through repeated snoozes.
+      expect(second.next[0].dueTime).toBe('Today, 6:00 PM');
+      expect(loadReminders(storage, reminderKey('u1'))[0].dueTime).toBe('Today, 6:00 PM');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('snooze: non-positive / non-finite minutes are a silent no-op', () => {
+    const created = applyCreateReminder(storage, reminderKey('u1'), [], {
+      title: 'Call dentist',
+      dueTime: 'Today, 6:00 PM',
+      priority: 'urgent',
+    });
+    const id = created.next[0].id;
+    for (const mins of [0, -15, NaN, Infinity]) {
+      const result = applySnoozeReminder(storage, reminderKey('u1'), created.next, id, mins);
+      expect(result.persisted).toBe(true);
+      expect(result.toast).toBe(null);
+      expect(result.next).toEqual(created.next);
+      expect(loadReminders(storage, reminderKey('u1'))[0].snoozedUntil).toBeUndefined();
+    }
+  });
+
+  it('snooze: unknown id yields no toast at all', () => {
+    const result = applySnoozeReminder(storage, reminderKey('u1'), [REM], 'nope', 15);
+    expect(result.toast).toBe(null);
+    expect(result.next).toEqual([REM]);
+  });
+
+  it('unsnooze: clears the snooze, keeps the original due time', () => {
+    const created = applyCreateReminder(storage, reminderKey('u1'), [], {
+      title: 'Call dentist',
+      dueTime: 'Today, 6:00 PM',
+      priority: 'urgent',
+    });
+    const id = created.next[0].id;
+    const snoozed = applySnoozeReminder(storage, reminderKey('u1'), created.next, id, 15);
+    expect(snoozed.next[0].snoozedUntil).toBeDefined();
+
+    const cleared = applyUnsnoozeReminder(storage, reminderKey('u1'), snoozed.next, id);
+    expect(cleared.persisted).toBe(true);
+    expect(cleared.toast).toEqual({ text: 'Snooze cleared', type: 'info' });
+    expect(cleared.next[0].dueTime).toBe('Today, 6:00 PM');
+    expect('snoozedUntil' in cleared.next[0]).toBe(false);
+    const stored = loadReminders(storage, reminderKey('u1'))[0];
+    expect(stored.dueTime).toBe('Today, 6:00 PM');
+    expect('snoozedUntil' in stored).toBe(false);
+  });
+
+  it('unsnooze: honest on write failure, silent when nothing is snoozed', () => {
+    const created = applyCreateReminder(storage, reminderKey('u1'), [], {
+      title: 'Call dentist',
+      dueTime: 'Today, 6:00 PM',
+      priority: 'urgent',
+    });
+    const id = created.next[0].id;
+
+    // Nothing snoozed → no-op, no toast.
+    const noop = applyUnsnoozeReminder(storage, reminderKey('u1'), created.next, id);
+    expect(noop.toast).toBe(null);
+    expect(noop.next).toEqual(created.next);
+
+    // Write failure → honest error, no state advance.
+    const snoozed = applySnoozeReminder(storage, reminderKey('u1'), created.next, id, 15);
+    storage.failWrites = true;
+    const bad = applyUnsnoozeReminder(storage, reminderKey('u1'), snoozed.next, id);
+    expect(bad.persisted).toBe(false);
+    expect(bad.toast?.type).toBe('error');
+    expect(bad.next).toEqual(snoozed.next);
   });
 
   it('delete: honest error toast and NO "removed" claim when storage throws', () => {

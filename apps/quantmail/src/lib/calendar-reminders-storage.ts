@@ -28,6 +28,13 @@ export interface StoredReminder {
   dueTime: string;
   priority: 'urgent' | 'medium' | 'low';
   completed: boolean;
+  /**
+   * ISO-8601 timestamp until which this reminder is snoozed. Snoozing NEVER
+   * overwrites dueTime — the original due time stays intact and the UI
+   * renders a separate "snoozed until HH:MM" indicator while this is in
+   * the future. Absent (or in the past) = not snoozed.
+   */
+  snoozedUntil?: string;
 }
 
 const VALID_PRIORITIES = ['urgent', 'medium', 'low'] as const;
@@ -70,7 +77,7 @@ function isValidReminder(item: unknown): item is StoredReminder {
 }
 
 function normalizeReminder(item: StoredReminder): StoredReminder {
-  return {
+  const out: StoredReminder = {
     id: item.id,
     title: item.title,
     dueTime: typeof item.dueTime === 'string' && item.dueTime.length > 0 ? item.dueTime : 'Today, 6:00 PM',
@@ -79,6 +86,13 @@ function normalizeReminder(item: StoredReminder): StoredReminder {
     // carry truthy junk — only literal true survives normalization.
     completed: item.completed === (true as boolean),
   };
+  // Keep a snooze only when it is a real timestamp still in the future.
+  // Invalid ISO junk is dropped (never shown as a fake snooze), and an
+  // expired snooze is cleared — a snooze that already elapsed is no longer
+  // a snooze, and keeping it would lie about the reminder's state.
+  const until = typeof item.snoozedUntil === 'string' ? Date.parse(item.snoozedUntil) : NaN;
+  if (Number.isFinite(until) && until > Date.now()) out.snoozedUntil = item.snoozedUntil;
+  return out;
 }
 
 /**
@@ -259,6 +273,14 @@ export function applyToggleReminder(
 /**
  * Snooze a reminder: writes FIRST, then reports the info toast. On write
  * failure the "Snoozed ..." claim must NOT fire.
+ *
+ * The snooze NEVER overwrites dueTime. It is recorded as a separate
+ * snooze-until ISO timestamp computed from the current instant, so the
+ * reminder keeps showing its real due time, and repeated snoozes do NOT
+ * compound: a second 15-minute snooze ends ~15 minutes after the second
+ * press, not 30 minutes after the first. (This replaces the destructive
+ * `dueTime: "Snoozed +Nm"` overwrite, which lost the original due time
+ * and made repeated snoozes pile up.)
  */
 export function applySnoozeReminder(
   storage: StorageLike | null,
@@ -269,7 +291,14 @@ export function applySnoozeReminder(
 ): ReminderAction {
   const target = current.find((r) => r.id === id);
   if (!target) return { next: current, persisted: true, toast: null };
-  const next = current.map((r) => (r.id === id ? { ...r, dueTime: `Snoozed +${mins}m` } : r));
+  // Garbage in must never produce a junk timestamp: clamp the snooze
+  // length to 1 minute .. 24 hours. Non-positive/non-finite input is a
+  // no-op (same contract as an unknown id — nothing happened, no toast).
+  const safeMins = Number.isFinite(mins) ? Math.floor(mins) : 0;
+  if (safeMins <= 0) return { next: current, persisted: true, toast: null };
+  const cappedMins = Math.min(safeMins, 24 * 60);
+  const snoozedUntil = new Date(Date.now() + cappedMins * 60_000).toISOString();
+  const next = current.map((r) => (r.id === id ? { ...r, snoozedUntil } : r));
   const persisted = saveReminders(storage, key, next);
   if (!persisted) {
     return {
@@ -278,7 +307,37 @@ export function applySnoozeReminder(
       toast: { text: 'Could not save change — storage unavailable', type: 'error' },
     };
   }
-  return { next, persisted, toast: { text: `Snoozed for ${mins} minutes`, type: 'info' } };
+  return { next, persisted, toast: { text: `Snoozed for ${cappedMins} minutes`, type: 'info' } };
+}
+
+/**
+ * Clear a reminder's snooze: drops snoozedUntil; dueTime is untouched (it
+ * was never overwritten by snoozing). Writes FIRST; on write failure the
+ * list and toast stay unchanged.
+ */
+export function applyUnsnoozeReminder(
+  storage: StorageLike | null,
+  key: string,
+  current: StoredReminder[],
+  id: string,
+): ReminderAction {
+  const target = current.find((r) => r.id === id);
+  if (!target || !target.snoozedUntil) return { next: current, persisted: true, toast: null };
+  const next = current.map((r) => {
+    if (r.id !== id) return r;
+    const copy: StoredReminder = { ...r };
+    delete copy.snoozedUntil;
+    return copy;
+  });
+  const persisted = saveReminders(storage, key, next);
+  if (!persisted) {
+    return {
+      next: current,
+      persisted,
+      toast: { text: 'Could not save change — storage unavailable', type: 'error' },
+    };
+  }
+  return { next, persisted, toast: { text: 'Snooze cleared', type: 'info' } };
 }
 
 /**

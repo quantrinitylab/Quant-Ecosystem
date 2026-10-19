@@ -26,6 +26,7 @@ import {
   applyCreateReminder,
   applyToggleReminder,
   applySnoozeReminder,
+  applyUnsnoozeReminder,
   applyDeleteReminder,
 } from '../lib/calendar-reminders-storage';
 import {
@@ -1745,6 +1746,34 @@ export interface ScheduledReminder {
   dueTime: string;
   priority: 'urgent' | 'medium' | 'low';
   completed: boolean;
+  /** ISO-8601 timestamp until which this reminder is snoozed; absent = not snoozed. */
+  snoozedUntil?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Reminder snooze display helpers
+//
+// Snoozing never rewrites dueTime — the reminder always shows its real due
+// time. A live snooze is rendered as a separate "Snoozed until HH:MM" chip.
+// These are pure helpers (no hooks) so they stay unit-testable and cheap.
+// ---------------------------------------------------------------------------
+
+/** Milliseconds-epoch of a live (future, parseable) snooze, else null. */
+function liveSnoozeUntilMs(iso: string | undefined): number | null {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) && ms > Date.now() ? ms : null;
+}
+
+/** "4:45 PM" style label for a snooze expiry instant. */
+function formatSnoozeTime(ms: number): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(
+      new Date(ms),
+    );
+  } catch {
+    return '';
+  }
 }
 
 export interface CalendarScheduleSubViewProps {
@@ -1869,6 +1898,16 @@ function CalendarScheduleSubViewInner({
     const key = requireAccountKey();
     if (!key) return;
     const result = applySnoozeReminder(safeStorage(), key, binding.list, id, mins);
+    if (result.persisted) {
+      setBinding({ ...binding, list: result.next });
+    }
+    if (result.toast) showToast(result.toast);
+  };
+
+  const handleUnsnooze = (id: string) => {
+    const key = requireAccountKey();
+    if (!key) return;
+    const result = applyUnsnoozeReminder(safeStorage(), key, binding.list, id);
     if (result.persisted) {
       setBinding({ ...binding, list: result.next });
     }
@@ -2170,7 +2209,11 @@ function CalendarScheduleSubViewInner({
 
           {/* Reminders List */}
           <div className="space-y-2.5">
-            {filteredReminders.map((r) => (
+            {filteredReminders.map((r) => {
+              // Snoozing never rewrites r.dueTime — the real due time always
+              // renders. A live snooze is shown as a separate chip.
+              const snoozeMs = liveSnoozeUntilMs(r.snoozedUntil);
+              return (
               <div
                 key={r.id}
                 className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-all ${
@@ -2202,6 +2245,14 @@ function CalendarScheduleSubViewInner({
                     </h4>
                     <div className="flex items-center gap-2 text-[11px] text-[var(--quant-muted-foreground)] mt-0.5">
                       <span className="font-mono">{r.dueTime}</span>
+                      {snoozeMs != null && (
+                        <>
+                          <span>·</span>
+                          <span className="px-1.5 py-px rounded text-[10px] uppercase font-bold text-[var(--app-accent)] bg-[var(--app-accent)]/10">
+                            Snoozed until {formatSnoozeTime(snoozeMs)}
+                          </span>
+                        </>
+                      )}
                       <span>·</span>
                       <span
                         className={`px-1.5 py-px rounded text-[var(--q-type-xs)] uppercase font-bold ${
@@ -2219,6 +2270,16 @@ function CalendarScheduleSubViewInner({
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {!r.completed && snoozeMs != null && (
+                    <button
+                      type="button"
+                      onClick={() => handleUnsnooze(r.id)}
+                      className="px-2 py-1 rounded-lg text-[10px] font-medium text-[var(--quant-muted-foreground)] hover:text-white bg-[var(--quant-surface-subtle)] border border-[#232938] flex items-center gap-1"
+                      title="Clear snooze"
+                    >
+                      <span>Unsnooze</span>
+                    </button>
+                  )}
                   {!r.completed && (
                     <button
                       type="button"
@@ -2241,7 +2302,8 @@ function CalendarScheduleSubViewInner({
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
 
             {filteredReminders.length === 0 && (
               <div className="py-8 text-center text-xs text-[var(--quant-muted-foreground)]/60 bg-[var(--quant-surface)] rounded-xl border border-dashed border-[#232938] space-y-1">
