@@ -113,7 +113,7 @@ export function ContactGroupModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={group ? 'Edit Contact Group' : 'Create Contact Group'}
+      title={group ? 'Edit Contact Group' : 'New Group'}
       className="max-w-md"
     >
       <form onSubmit={handleSubmit} className="space-y-4 pt-2">
@@ -234,7 +234,7 @@ export function ContactGroupModal({
               Cancel
             </Button>
             <Button type="submit" variant="primary" size="sm" disabled={isSaving}>
-              {isSaving ? 'Saving...' : group ? 'Save Changes' : 'Create Group'}
+              {isSaving ? 'Saving...' : group ? 'Save Changes' : 'New Group'}
             </Button>
           </div>
         </div>

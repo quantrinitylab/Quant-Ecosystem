@@ -73,7 +73,7 @@ export function AddFolderModal({
     e.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setError('Please provide a folder name');
+      setError('Please provide a group name');
       nameInputRef.current?.focus();
       return;
     }
@@ -121,7 +121,7 @@ export function AddFolderModal({
             </div>
             <div className="min-w-0">
               <h2 id={titleId} className="text-sm font-bold text-white truncate">
-                Add Custom Folder
+                New Group
               </h2>
               <p className="text-[11px] text-[var(--quant-muted-foreground)] truncate">
                 Create a custom mailbox lens or contact filter
@@ -159,10 +159,10 @@ export function AddFolderModal({
             </div>
           )}
 
-          {/* Folder Name */}
+          {/* Group Name */}
           <div className="space-y-1.5">
             <label htmlFor="folder-name-input" className="block text-xs font-semibold text-[#E2E8F0]">
-              Folder Name <span className="text-[var(--quant-primary)]">*</span>
+              Group name <span className="text-[var(--quant-primary)]">*</span>
             </label>
             <input
               ref={nameInputRef}
@@ -315,7 +315,7 @@ export function AddFolderModal({
               type="submit"
               className="px-4 py-2 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] active:bg-[var(--brand-primary-pressed)] text-[var(--quant-background)] text-xs font-bold transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
-              Create Folder
+              New Group
             </button>
           </div>
         </form>
