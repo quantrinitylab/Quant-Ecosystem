@@ -4746,3 +4746,7 @@ Status: [x] DONE (R26 regression audit complete 2026-10-20 ~01:05 IST; 2 calenda
 - VERDICT-LIVE: HEALTHY. Proxy 127.0.0.1:8888 healthy (google 204 0.43s; no restart). GET /calendar -> 307 -> /login?returnTo=%2Fcalendar; GET /api/events + /api/calendars -> 401 x2 honest; GET / -> 307. Desktop 1440x900 + mobile 390x844 (iPhone 14, wait_s=14 hydrated) /calendar sign-in shots REVIEWED: clay M-mark current, honest sign-in copy + tri-cards ('Mail + chat threads', 'AI triage', 'Encrypted in transit'), 'ONE IDENTITY. ACCESS TO ALL QUANT APPS.' footer, (c) 2026, pure black, mail-orange, zero old-logo flash; white ghost on 'AI triage' card = standing known issue (not re-filed); known P3 'Quant Mail' wordmark spacing re-seen, not re-filed. Shots reviewed + deleted; my 9334/9335 chrome dirs cleaned, sibling 9333 session untouched. Signed-in calendar = needs-auth (protocol), not faked. Window merges on main only (#1243 deploy hold ACTIVE — live verification of #1402/#1403 waits on deploy).
 Rotation -> QM-SCREEN-010/011 (drive) ROUND 26 regression, queued.
 Audit started: 2026-10-20 ~00:40 IST (lane-1 deep audit loop, ROUND 26)
+
+## QM-SCREEN-010/011 R26 — Drive regression (ROUND 26)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-010r26, started 2026-10-20 ~01:40 IST)
+- Base: R25 @ 68da5453cc99 -> origin/main f28fef5f8 (fresh fetch, 31 first-parent merges). Code read from origin/main tree only (qe-main working tree ignored per stale-tree lesson; ledger work in ~/workspace/worktrees/ledger-lane-1).
