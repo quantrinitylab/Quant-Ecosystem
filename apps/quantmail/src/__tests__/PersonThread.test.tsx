@@ -9,7 +9,7 @@
 // world.
 // ============================================================================
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import React, { act } from 'react';
 
 // Silence React 19's "not configured to support act(...)" warning under vitest.
@@ -704,5 +704,93 @@ describe('PersonThread invalid-date sort guard', () => {
     const allRows = container.querySelectorAll('[data-testid="thread-message"]');
     expect(allRows).toHaveLength(52);
     expect(allRows[0].textContent).toContain('message with a broken timestamp');
+  });
+});
+
+describe('PersonThread snooze (fix/qm-people-snooze)', () => {
+  /**
+   * AnchoredMenu paints the menu one animation frame after the trigger
+   * click (positioning first). Flush that frame before querying menuitems.
+   */
+  async function openHeaderSnoozeMenu(trigger: Element): Promise<void> {
+    act(() => {
+      trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+  }
+
+  it('renders no snooze control when onSnooze is absent', () => {
+    const container = renderIntoDom(
+      <PersonThread conversation={makeConversation()} currentUserEmail={ME} />,
+    );
+    expect(
+      container.querySelector('button[aria-label="Snooze this conversation"]'),
+    ).toBeNull();
+  });
+
+  it('snoozes the whole conversation from the header with the real message ids', async () => {
+    const conversation = makeConversation();
+    const onSnooze = vi.fn();
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} onSnooze={onSnooze} />,
+    );
+
+    const trigger = container.querySelector(
+      'button[aria-label="Snooze this conversation"]',
+    );
+    expect(trigger).not.toBeNull();
+
+    await openHeaderSnoozeMenu(trigger!);
+
+    const items = Array.from(container.querySelectorAll('[role="menuitem"]'));
+    expect(items.length).toBeGreaterThan(0);
+    const laterToday = items.find((b) => b.textContent?.includes('Later today'));
+    expect(laterToday).toBeDefined();
+    act(() => {
+      laterToday!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onSnooze).toHaveBeenCalledTimes(1);
+    const [messageIds, until] = onSnooze.mock.calls[0];
+    // Every real message id of the conversation — the legacy inbox snoozes
+    // the whole conversation, and so does the People thread.
+    expect(messageIds).toEqual(['m1', 'm2']);
+    expect(until).toBeInstanceOf(Date);
+    expect(until.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('never hands pending optimistic bubble ids to the snooze mutation', async () => {
+    const pending = {
+      ...makeEmail({ id: 'pending-abc123' }),
+      pendingSend: true,
+    } as Email;
+    const conversation = makeConversation({
+      messages: [makeEmail({ id: 'm1' }), pending],
+      lastMessage: pending,
+    });
+    const onSnooze = vi.fn();
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} onSnooze={onSnooze} />,
+    );
+
+    const trigger = container.querySelector(
+      'button[aria-label="Snooze this conversation"]',
+    );
+    expect(trigger).not.toBeNull();
+    await openHeaderSnoozeMenu(trigger!);
+
+    const tomorrow = Array.from(container.querySelectorAll('[role="menuitem"]')).find((b) =>
+      b.textContent?.includes('Tomorrow'),
+    );
+    expect(tomorrow).toBeDefined();
+    act(() => {
+      tomorrow!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onSnooze).toHaveBeenCalledTimes(1);
+    // The `pending-abc123` bubble has no server row — it must not be snoozed.
+    expect(onSnooze.mock.calls[0][0]).toEqual(['m1']);
   });
 });

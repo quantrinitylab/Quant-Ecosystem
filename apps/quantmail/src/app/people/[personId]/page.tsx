@@ -440,6 +440,18 @@ export default function PersonPage() {
               onEventDraft={(draft: EmailEventDraft) => {
                 router.push(`/calendar?emailDraft=${encodeEmailDraft(draft)}`);
               }}
+              // fix/qm-people-snooze: header snooze on the person thread —
+              // the same shared mutation the legacy inbox rows use (toast +
+              // Undo + reconcile); ids are already real-message-only
+              // (PersonThread filters out pending "Sending…" bubbles).
+              // After snoozing the conversation leaves the inbox corpus, so
+              // — like the archive shortcut above — return to the people
+              // list instead of stranding the view on "Conversation not
+              // found".
+              onSnooze={(ids, until) => {
+                void mutations.snooze(ids, until);
+                router.push(backHref);
+              }}
             />
           )}
         </div>

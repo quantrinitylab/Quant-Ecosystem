@@ -19,6 +19,7 @@ import { htmlToPlainText } from '../lib/htmlToPlainText';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailSafetyBanner } from './EmailSafetyBanner';
 import { AttachmentPreview } from './AttachmentPreview';
+import { EmailSnooze } from './EmailSnooze';
 import { attachmentServiceId } from '../lib/mail-attachments';
 import { showToast } from './InboxToast';
 import { useRegisterCommands } from '../lib/keyboard/hooks';
@@ -47,6 +48,17 @@ export interface PersonThreadProps {
    * /calendar?emailDraft=. Absent → no event button and no `b` binding.
    */
   onEventDraft?: (draft: EmailEventDraft) => void;
+  /**
+   * fix/qm-people-snooze — the People home is the default surface and had
+   * zero snooze UI (the legacy inbox rows and ConversationalThreadView were
+   * the only places that could snooze). When present, the thread header
+   * shows a Snooze clock button opening the same EmailSnooze preset menu.
+   * Receives the conversation's REAL message ids — pending optimistic
+   * "Sending…" bubbles are filtered out before this is called, so the
+   * parent never hands a `pending-<clientId>` id to the backend. Absent →
+   * no snooze control, exactly as before.
+   */
+  onSnooze?: (messageIds: string[], snoozeUntil: Date) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,10 +248,19 @@ function MessageRow({
 function ThreadHeader({
   conversation,
   onCreateEvent,
+  snoozeIds,
+  onSnooze,
 }: {
   conversation: PersonConversation;
   /** fix/qm-calendar-nlp-quickadd: one-key event-from-email entry point. */
   onCreateEvent?: () => void;
+  /**
+   * fix/qm-people-snooze: the conversation's REAL message ids (pending
+   * "Sending…" bubbles already filtered out). Snooze renders only when both
+   * this and `onSnooze` are present and non-empty.
+   */
+  snoozeIds?: string[];
+  onSnooze?: (messageIds: string[], snoozeUntil: Date) => void;
 }) {
   const headerAction = onCreateEvent ? (
     <button
@@ -247,7 +268,7 @@ function ThreadHeader({
       onClick={onCreateEvent}
       title="Create event from email (B)"
       aria-label="Create calendar event from this conversation"
-      className="ml-auto flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-2 text-zinc-500 transition-all hover:bg-zinc-800 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-info)] sm:min-h-0 sm:min-w-0"
+      className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-2 text-zinc-500 transition-all hover:bg-zinc-800 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-info)] sm:min-h-0 sm:min-w-0"
     >
       <svg
         className="size-[18px]"
@@ -266,6 +287,26 @@ function ThreadHeader({
       </svg>
     </button>
   ) : null;
+
+  // fix/qm-people-snooze: the People default home could not snooze anything
+  // — snooze lived only in the legacy inbox rows and
+  // ConversationalThreadView. The header gets the same EmailSnooze preset
+  // menu (min-44px touch target, matching the event button beside it).
+  const snoozeControl =
+    onSnooze && snoozeIds && snoozeIds.length > 0 ? (
+      <EmailSnooze
+        onSnooze={(until) => onSnooze(snoozeIds, until)}
+        triggerLabel="Snooze this conversation"
+        triggerClassName="snooze-trigger min-h-[44px] min-w-[44px]"
+      />
+    ) : null;
+
+  const trailingActions = (
+    <>
+      {snoozeControl}
+      {headerAction}
+    </>
+  );
 
   if (conversation.world === 'groups') {
     const participants = conversation.participantEmails ?? [];
@@ -287,7 +328,9 @@ function ThreadHeader({
             {extra > 0 ? ` · +${extra} more` : ''}
           </div>
         </div>
-        {headerAction}
+        {(snoozeControl || headerAction) && (
+          <div className="ml-auto flex shrink-0 items-center">{trailingActions}</div>
+        )}
       </div>
     );
   }
@@ -301,7 +344,9 @@ function ThreadHeader({
         </div>
         <div className="truncate text-xs text-zinc-500">{conversation.email}</div>
       </div>
-      {headerAction}
+      {(snoozeControl || headerAction) && (
+        <div className="ml-auto flex shrink-0 items-center">{trailingActions}</div>
+      )}
     </div>
   );
 }
@@ -351,6 +396,7 @@ export function PersonThread({
   currentUserEmail,
   renderComposer,
   onEventDraft,
+  onSnooze,
 }: PersonThreadProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showNewMessagesPill, setShowNewMessagesPill] = useState(false);
@@ -361,6 +407,24 @@ export function PersonThread({
   // an unparseable receivedAt sorts to the start of the thread so the
   // visible 50-message tail window never clips real messages around it.
   const messages = [...(conversation.messages ?? [])].sort(compareMessagesChronologically);
+
+  /*
+   * fix/qm-people-snooze: snooze acts on the conversation's REAL message
+   * ids only. Optimistic "Sending…" bubbles (id `pending-<clientId>`) have
+   * no server row yet — handing one to the snooze mutation would 404/500
+   * and withdraw the toast dishonestly.
+   */
+  const snoozableIds = useMemo(
+    () =>
+      messages
+        .filter(
+          (m) =>
+            (m as { pendingSend?: boolean }).pendingSend !== true &&
+            !String(m.id).startsWith('pending-'),
+        )
+        .map((m) => m.id),
+    [messages],
+  );
 
   /*
    * fix/qm-calendar-nlp-quickadd — one-key event-from-email. Same draft
@@ -457,6 +521,8 @@ export function PersonThread({
       <ThreadHeader
         conversation={conversation}
         onCreateEvent={onEventDraft ? () => handleCreateEventFromEmail('event') : undefined}
+        snoozeIds={snoozableIds}
+        onSnooze={onSnooze}
       />
 
       <div className="relative min-h-0 flex-1">

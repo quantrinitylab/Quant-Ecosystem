@@ -525,3 +525,103 @@ describe('PeopleList attachment signal', () => {
     expect(el.querySelectorAll('[data-testid="row-attachments"]')).toHaveLength(0);
   });
 });
+
+describe('PeopleList snooze (fix/qm-people-snooze)', () => {
+  /**
+   * AnchoredMenu paints the menu one animation frame after the trigger
+   * click (positioning first). Flush that frame before querying menuitems.
+   */
+  async function openSnoozeMenu(trigger: Element): Promise<void> {
+    act(() => {
+      trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+  }
+
+  function snoozeTriggerFor(container: ParentNode, name: string): HTMLButtonElement {
+    const trigger = Array.from(container.querySelectorAll('button.snooze-trigger')).find((b) =>
+      b.getAttribute('aria-label')?.includes(name),
+    );
+    if (!trigger) throw new Error(`no snooze trigger found for ${name}`);
+    return trigger as HTMLButtonElement;
+  }
+
+  it('renders no snooze control when onSnooze is absent', () => {
+    const el = render(
+      <PeopleList
+        conversations={fixtureConversations()}
+        onSelect={() => {}}
+        searchQuery=""
+        onSearchQuery={() => {}}
+      />,
+    );
+    expect(el.querySelectorAll('button.snooze-trigger')).toHaveLength(0);
+  });
+
+  it('renders one snooze trigger per row when onSnooze is provided', () => {
+    const el = render(
+      <PeopleList
+        conversations={fixtureConversations()}
+        onSelect={() => {}}
+        searchQuery=""
+        onSearchQuery={() => {}}
+        onSnooze={() => {}}
+      />,
+    );
+    const triggers = el.querySelectorAll('button.snooze-trigger');
+    expect(triggers).toHaveLength(2);
+    expect(triggers[0].getAttribute('aria-label')).toContain('Alice');
+    expect(triggers[1].getAttribute('aria-label')).toContain('Bob');
+  });
+
+  it('opening the menu and picking a preset calls onSnooze with that conversation and a future date', async () => {
+    const conversations = fixtureConversations();
+    const onSnooze = vi.fn();
+    const el = render(
+      <PeopleList
+        conversations={conversations}
+        onSelect={() => {}}
+        searchQuery=""
+        onSearchQuery={() => {}}
+        onSnooze={onSnooze}
+      />,
+    );
+
+    await openSnoozeMenu(snoozeTriggerFor(el, 'Alice'));
+
+    const items = Array.from(el.querySelectorAll('[role="menuitem"]'));
+    expect(items.length).toBeGreaterThan(0);
+    const tomorrow = items.find((b) => b.textContent?.includes('Tomorrow'));
+    expect(tomorrow).toBeDefined();
+    act(() => {
+      tomorrow!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onSnooze).toHaveBeenCalledTimes(1);
+    const [conversation, until] = onSnooze.mock.calls[0];
+    // The exact conversation object for Alice's row, not a copy.
+    expect(conversation).toBe(conversations.find((c) => c.personKey === 'alice@example.com'));
+    // A real future date (EmailSnooze guarantees never-the-past).
+    expect(until).toBeInstanceOf(Date);
+    expect(until.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('opening a row menu never fires onSelect', async () => {
+    const onSelect = vi.fn();
+    const el = render(
+      <PeopleList
+        conversations={fixtureConversations()}
+        onSelect={onSelect}
+        searchQuery=""
+        onSearchQuery={() => {}}
+        onSnooze={() => {}}
+      />,
+    );
+
+    await openSnoozeMenu(snoozeTriggerFor(el, 'Bob'));
+
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+});

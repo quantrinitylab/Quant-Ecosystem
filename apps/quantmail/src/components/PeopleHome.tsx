@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from './AppShell';
 import { AppSidebar } from './AppSidebar';
 import { useInbox } from '../hooks/useInbox';
+import { useMailMutations } from '../hooks/useMailMutations';
 import { useAuth } from '../providers/auth-provider';
 import {
   groupEmailsByPerson,
@@ -58,6 +59,10 @@ export function PeopleHome() {
     isLoadingMore,
   } = useInbox(isSpamLens ? { folderType: 'SPAM' } : undefined);
   const [searchQuery, setSearchQuery] = useState('');
+  // fix/qm-people-snooze: the shared optimistic snooze mutation — the same
+  // one the legacy inbox rows use (toast + Undo + reconcile). Snoozing a
+  // person acts on every real message id in their conversation.
+  const mutations = useMailMutations();
 
   const conversations = useMemo<PersonConversation[]>(
     () => groupEmailsByPerson(emails ?? [], currentUserEmail),
@@ -158,6 +163,15 @@ export function PeopleHome() {
                 onLoadMore={() => void loadMore()}
                 hasMore={hasMore}
                 loadingMore={isLoadingMore}
+                // fix/qm-people-snooze: Gmail-parity snooze on the People
+                // home rows — the default home can snooze a conversation,
+                // not just the legacy inbox.
+                onSnooze={(conversation, until) =>
+                  void mutations.snooze(
+                    conversation.messages.map((message) => message.id),
+                    until,
+                  )
+                }
               />
             </>
           )}
