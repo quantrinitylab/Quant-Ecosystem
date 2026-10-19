@@ -1,6 +1,5 @@
 'use client';
 
-import { useMemo } from 'react';
 import { IdentityAvatar } from './IdentityAvatar';
 
 interface TimelineEvent {
@@ -113,6 +112,21 @@ const EVENT_CONFIG: Record<TimelineEvent['type'], { label: string; color: string
 };
 
 /**
+ * Format a timeline event timestamp. Only a valid Date gets the locale
+ * formatting — an invalid/bad timestamp falls back to the raw string so the
+ * timeline never prints "Invalid Date".
+ */
+export function formatTimelineTimestamp(timestamp: string): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return timestamp;
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+/**
  * Thread activity timeline — shows a chronological view of all thread events.
  * GitHub has this for issues/PRs (timeline of comments, commits, labels).
  * We bring the same concept to email threads — showing every interaction
@@ -142,12 +156,7 @@ export function EmailThreadTimeline({ events }: EmailThreadTimelineProps) {
                   </span>
                   <span className="timeline-event-action">{config.label.toLowerCase()}</span>
                   <time className="timeline-event-time">
-                    {new Date(event.timestamp).toLocaleString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {formatTimelineTimestamp(event.timestamp)}
                   </time>
                 </div>
               </div>
