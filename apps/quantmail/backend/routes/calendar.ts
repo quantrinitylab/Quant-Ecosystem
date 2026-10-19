@@ -3106,7 +3106,9 @@ export default async function calendarRoutes(
   ) => {
     return reply.send({
       success: true,
-      data: await bookingService().getBookingLink(request.params.slug),
+      // Public (unauthenticated) endpoint: serves the public DTO — the link
+      // owner's internal userId is stripped (fix/qm-booking-link-public-dto).
+      data: await bookingService().getPublicBookingLink(request.params.slug),
     });
   };
 
