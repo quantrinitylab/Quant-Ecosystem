@@ -384,7 +384,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
 
                 {/* Block actions popover */}
                 {blockMenuId === block.id && (
-                  <div className="absolute left-6 top-0 w-44 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-1 shadow-2xl z-50 space-y-0.5">
+                  <div className="absolute left-6 top-0 w-44 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-1 shadow-2xl z-50 space-y-0.5">
                     <button
                       type="button"
                       onClick={() => {
@@ -538,7 +538,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                           ),
                         );
                       }}
-                      className="mt-1 w-4 h-4 rounded border-[#30363D] bg-[var(--quant-background)] text-[var(--app-accent)] focus:ring-0 accent-[var(--app-accent)] cursor-pointer"
+                      className="mt-1 w-4 h-4 rounded border-[var(--quant-border)] bg-[var(--quant-background)] text-[var(--app-accent)] focus:ring-0 accent-[var(--app-accent)] cursor-pointer"
                     />
                     <input
                       ref={(el) => {
@@ -643,7 +643,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                 )}
 
                 {block.type === 'callout' && (
-                  <div className="flex items-start gap-3 p-3.5 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] my-1 shadow-sm">
+                  <div className="flex items-start gap-3 p-3.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] my-1 shadow-sm">
                     <span className="text-xl select-none leading-none shrink-0">
                       {block.calloutIcon || '💡'}
                     </span>
@@ -679,7 +679,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                 )}
 
                 {block.type === 'code' && (
-                  <div className="rounded-xl border border-[#30363D] bg-[var(--quant-background)] overflow-hidden my-2 shadow-sm font-mono text-sm">
+                  <div className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-background)] overflow-hidden my-2 shadow-sm font-mono text-sm">
                     <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--quant-surface-elevated)] text-xs">
                       <select
                         value={block.language || 'typescript'}
@@ -728,7 +728,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                 )}
 
                 {block.type === 'table' && (
-                  <div className="overflow-x-auto my-2 rounded-xl border border-[#30363D] bg-[var(--quant-background)]">
+                  <div className="overflow-x-auto my-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-background)]">
                     <table className="w-full text-left text-xs border-collapse">
                       <tbody>
                         {(
@@ -746,7 +746,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                             {row.map((cell, cIdx) => (
                               <td
                                 key={cIdx}
-                                className="border border-[#30363D] p-1.5 focus-within:bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]"
+                                className="border border-[var(--quant-border)] p-1.5 focus-within:bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]"
                               >
                                 <input
                                   type="text"

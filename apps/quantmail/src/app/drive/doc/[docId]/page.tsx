@@ -274,14 +274,14 @@ export default function DocumentPage() {
                   <button
                     type="button"
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="w-12 h-12 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] hover:border-[var(--app-accent)] flex items-center justify-center text-2xl transition-all shadow-sm"
+                    className="w-12 h-12 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] hover:border-[var(--app-accent)] flex items-center justify-center text-2xl transition-all shadow-sm"
                     title="Change icon"
                   >
                     {metadata.icon || '📄'}
                   </button>
 
                   {showEmojiPicker && (
-                    <div className="absolute left-0 top-full mt-2 w-64 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-2 shadow-2xl z-50">
+                    <div className="absolute left-0 top-full mt-2 w-64 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-2 shadow-2xl z-50">
                       <div className="text-[10px] font-semibold text-[#8B949E] px-1 py-1 uppercase tracking-wider">
                         Select Icon
                       </div>
@@ -336,7 +336,7 @@ export default function DocumentPage() {
                       type="button"
                       onClick={handleAddSubpage}
                       disabled={isCreatingSubpage}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-[var(--quant-surface-elevated)] text-[#C9D1D9] hover:bg-[#21262D] hover:text-[var(--app-accent)] border border-[#30363D] transition-colors"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-[var(--quant-surface-elevated)] text-[#C9D1D9] hover:bg-[#21262D] hover:text-[var(--app-accent)] border border-[var(--quant-border)] transition-colors"
                     >
                       <span>+ Add subpage</span>
                     </button>
@@ -348,7 +348,7 @@ export default function DocumentPage() {
                         <Link
                           key={subpage.id}
                           href={`/drive/doc/${subpage.id}`}
-                          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[var(--quant-surface-elevated)]/70 border border-[#30363D]/60 hover:border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all group"
+                          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[var(--quant-surface-elevated)]/70 border border-[var(--quant-border)]/60 hover:border-[color-mix(in_srgb,var(--app-accent)_60%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all group"
                         >
                           <span className="text-base shrink-0">
                             {(subpage.metadata as any)?.icon || '📄'}

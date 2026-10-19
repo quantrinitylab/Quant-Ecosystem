@@ -360,7 +360,7 @@ export function FileDetailsPanel({
       className="fixed inset-0 z-[110]"
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
-      <aside className="absolute right-0 top-0 h-full w-full max-w-sm bg-[var(--quant-surface-subtle)] border-l border-[#232938] shadow-2xl flex flex-col animate-slide-in-right">
+      <aside className="absolute right-0 top-0 h-full w-full max-w-sm bg-[var(--quant-surface-subtle)] border-l border-[var(--quant-border)] shadow-2xl flex flex-col animate-slide-in-right">
         {/* Header */}
         <div className="flex items-start gap-3 px-5 py-4 shrink-0">
           <div className="min-w-0 flex-1">

@@ -48,7 +48,7 @@ export function DriveStarredSubView({
       className="space-y-6"
     >
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#232938] bg-[var(--quant-surface)] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
         <div className="flex items-center gap-3.5">
           <div className="size-11 rounded-xl bg-[var(--quant-warning)]/10 border border-[var(--quant-warning)]/30 flex items-center justify-center text-[var(--quant-warning)] shrink-0">
             <StarFilledIcon className="size-5" />
@@ -69,8 +69,8 @@ export function DriveStarredSubView({
 
       {/* Starred Files Grid */}
       {activeItems.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[var(--quant-surface)] px-6 py-12 text-center">
-          <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[#232938] flex items-center justify-center text-[#64748B]">
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center">
+          <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[var(--quant-border)] flex items-center justify-center text-[#64748B]">
             <StarFilledIcon className="size-5" />
           </div>
           <p className="text-sm font-semibold text-[#F8FAFC]">No starred files yet</p>
@@ -84,7 +84,7 @@ export function DriveStarredSubView({
           <div
             key={item.id}
             onClick={() => onPreviewItem?.(item)}
-            className="group relative flex flex-col justify-between p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[var(--quant-warning)]/40 hover:bg-[var(--quant-surface-elevated)] transition-all cursor-pointer shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
+            className="group relative flex flex-col justify-between p-4 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[var(--quant-warning)]/40 hover:bg-[var(--quant-surface-elevated)] transition-all cursor-pointer shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
           >
             <div>
               <div className="flex items-start justify-between gap-2 mb-2">

@@ -115,14 +115,14 @@ export function DocumentVersionHistoryModal({
         {/* Create Named Snapshot Form */}
         <form
           onSubmit={handleCreateSnapshot}
-          className="flex items-center gap-2 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-3"
+          className="flex items-center gap-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3"
         >
           <input
             type="text"
             value={newSnapshotTitle}
             onChange={(e) => setNewSnapshotTitle(e.target.value)}
             placeholder="Name a new checkpoint (e.g. Major draft complete)"
-            className="flex-1 rounded-lg border border-[#30363D] bg-[var(--quant-background)] px-3 py-1.5 text-xs text-[#F0F6FC] placeholder-[#8B949E] focus:outline-none focus:border-[var(--app-accent)]"
+            className="flex-1 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-1.5 text-xs text-[#F0F6FC] placeholder-[#8B949E] focus:outline-none focus:border-[var(--app-accent)]"
           />
           <Button
             variant="primary"
@@ -170,7 +170,7 @@ export function DocumentVersionHistoryModal({
                   className={`rounded-xl border p-3 transition-all ${
                     isSelectedForPreview
                       ? 'border-[var(--app-accent)] bg-[#21262D]'
-                      : 'border-[#30363D] bg-[var(--quant-surface-elevated)] hover:border-[#484F58]'
+                      : 'border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] hover:border-[#484F58]'
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -204,7 +204,7 @@ export function DocumentVersionHistoryModal({
                       <button
                         type="button"
                         onClick={() => setPreviewVersion(isSelectedForPreview ? null : ver)}
-                        className="rounded-lg border border-[#30363D] bg-[#21262D] px-2.5 py-1 text-[11px] font-medium text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
+                        className="rounded-lg border border-[var(--quant-border)] bg-[#21262D] px-2.5 py-1 text-[11px] font-medium text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
                       >
                         {isSelectedForPreview ? 'Hide Preview' : 'Preview'}
                       </button>
@@ -221,7 +221,7 @@ export function DocumentVersionHistoryModal({
 
                   {/* Inline Preview */}
                   {isSelectedForPreview && (
-                    <div className="mt-3 rounded-lg border border-[#30363D] bg-[var(--quant-background)] p-3 text-xs text-[#C9D1D9] max-h-48 overflow-y-auto font-mono whitespace-pre-wrap">
+                    <div className="mt-3 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] p-3 text-xs text-[#C9D1D9] max-h-48 overflow-y-auto font-mono whitespace-pre-wrap">
                       {ver.content || '(Empty document)'}
                     </div>
                   )}

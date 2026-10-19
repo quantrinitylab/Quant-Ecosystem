@@ -166,7 +166,7 @@ export const SlashMenu: React.FC<SlashMenuProps> = ({ query, onSelect, onClose, 
       ref={menuRef}
       role="menu"
       aria-label="Slash commands"
-      className="absolute z-50 w-72 max-h-80 overflow-y-auto rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-1.5 shadow-2xl backdrop-blur-md no-scrollbar"
+      className="absolute z-50 w-72 max-h-80 overflow-y-auto rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-1.5 shadow-2xl backdrop-blur-md no-scrollbar"
       style={{
         top: position ? `${position.top}px` : 'auto',
         left: position ? `${position.left}px` : 'auto',
@@ -203,7 +203,7 @@ export const SlashMenu: React.FC<SlashMenuProps> = ({ query, onSelect, onClose, 
                   className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-mono font-bold shrink-0 border ${
                     isSelected
                       ? 'border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)]'
-                      : 'border-[#30363D] bg-[var(--quant-background)] text-[#8B949E]'
+                      : 'border-[var(--quant-border)] bg-[var(--quant-background)] text-[#8B949E]'
                   }`}
                 >
                   {cmd.icon}
@@ -212,7 +212,7 @@ export const SlashMenu: React.FC<SlashMenuProps> = ({ query, onSelect, onClose, 
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-medium text-[#F0F6FC] truncate">{cmd.title}</span>
                     {cmd.badge && (
-                      <span className="text-[10px] font-mono px-1.5 py-px rounded bg-[var(--quant-background)] text-[#8B949E] border border-[#30363D]">
+                      <span className="text-[10px] font-mono px-1.5 py-px rounded bg-[var(--quant-background)] text-[#8B949E] border border-[var(--quant-border)]">
                         {cmd.badge}
                       </span>
                     )}
