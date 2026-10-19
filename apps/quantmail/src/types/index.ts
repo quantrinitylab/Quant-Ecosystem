@@ -87,6 +87,19 @@ export interface Email extends BaseEntity {
    */
   deliveredAt?: string | Date;
   readAt?: string | Date;
+  /**
+   * Open tracking (Superhuman-class read statuses on sent mail). The beacon
+   * counts image loads by EXTERNAL recipients; the internal readAt ticks
+   * above cover QuantMail recipients. `openTrackingEnabled` is the
+   * per-message opt-out (composer default ON); `openCount`/`firstOpenedAt`/
+   * `lastOpenedAt` are stamped by GET /track/open/:token. Absent or zero =
+   * never opened — an honest unknown when the recipient blocks remote
+   * images, not proof of non-reading.
+   */
+  openTrackingEnabled?: boolean;
+  openCount?: number;
+  firstOpenedAt?: string | Date;
+  lastOpenedAt?: string | Date;
   aiSummary?: string;
   aiCategory?: EmailCategory;
   phishingScore?: number;
@@ -178,6 +191,12 @@ export interface ComposeEmailRequest {
    * update that omits it.
    */
   messageKind?: MessageKind;
+  /**
+   * Per-message open-tracking beacon opt-out. Omitted = ON (the backend
+   * applies the same default), so a composer that never heard of tracking
+   * still sends tracked mail; pass false only from an explicit user toggle.
+   */
+  trackOpens?: boolean;
 }
 
 export interface SearchEmailRequest {

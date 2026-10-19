@@ -45,3 +45,39 @@ export function receiptStatusOf(
   if (deliveredAt) return { status: 'delivered', deliveredAt };
   return { status: 'sent' };
 }
+
+/**
+ * Open-tracking status for a sent message — the Superhuman-class "read
+ * statuses" for EXTERNAL recipients, complementing the internal WhatsApp
+ * ticks above. The beacon (GET /track/open/:token) stamps openCount /
+ * firstOpenedAt / lastOpenedAt on the sender's Email row.
+ *
+ * Returns null when there is nothing honest to show:
+ *  - tracking disabled and no opens (the common case), and
+ *  - tracking enabled but zero opens — an honest UNKNOWN, not a zero: the
+ *    recipient may block remote images (including QuantMail's own reader,
+ *    which strips 1x1 pixels on inbound), so "not opened" must never render
+ *    as a badge claiming non-reading.
+ *
+ * openCount > 0 is the only render trigger, which also keeps this safe on
+ * every surface: inbound rows, self-sends, and internal copies never carry a
+ * beacon in their bodies, so their counts can never move.
+ */
+export interface OpenStatus {
+  openCount: number;
+  firstOpenedAt?: string;
+  lastOpenedAt?: string;
+}
+
+export function openStatusOf(message: Email): OpenStatus | null {
+  const openCount =
+    typeof message.openCount === 'number' && Number.isFinite(message.openCount)
+      ? message.openCount
+      : 0;
+  if (openCount <= 0) return null;
+  return {
+    openCount,
+    firstOpenedAt: message.firstOpenedAt ? String(message.firstOpenedAt) : undefined,
+    lastOpenedAt: message.lastOpenedAt ? String(message.lastOpenedAt) : undefined,
+  };
+}

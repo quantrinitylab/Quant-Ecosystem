@@ -38,6 +38,15 @@ declare module '@prisma/client' {
     sentAt: Date | null;
     deletedAt: Date | null;
     deliveryStatus?: string | null;
+    // fix/qm-composer-open-tracking: per-message open tracking (beacon) for
+    // sent mail. Keep in sync with schema.prisma's Email model — this stub
+    // shadows the generated @prisma/client types for the whole backend
+    // compilation unit.
+    openTrackingEnabled: boolean;
+    openToken: string | null;
+    openCount: number;
+    firstOpenedAt: Date | null;
+    lastOpenedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
   }

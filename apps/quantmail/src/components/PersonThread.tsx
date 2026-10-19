@@ -19,8 +19,8 @@ import { htmlToPlainText } from '../lib/htmlToPlainText';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailSafetyBanner } from './EmailSafetyBanner';
 import { AttachmentPreview } from './AttachmentPreview';
-import { EmailReadReceipt } from './EmailReadReceipt';
-import { receiptStatusOf } from '../lib/readReceipt';
+import { EmailReadReceipt, OpenTrackingIndicator } from './EmailReadReceipt';
+import { receiptStatusOf, openStatusOf } from '../lib/readReceipt';
 import { attachmentServiceId } from '../lib/mail-attachments';
 import { showToast } from './InboxToast';
 import { useRegisterCommands } from '../lib/keyboard/hooks';
@@ -122,6 +122,9 @@ function MessageRow({
    * like a messaging app.
    */
   const receipt = receiptStatusOf(message, fromMe, currentUserEmail);
+  // Open tracking (fix/qm-composer-open-tracking-2): external-recipient read
+  // status; null unless the beacon fired.
+  const openStatus = openStatusOf(message);
   const visibleText = expanded || !isLong ? fullText : `${fullText.slice(0, SNIPPET_LENGTH).trimEnd()}…`;
   const attachments = message.attachments ?? [];
 
@@ -246,6 +249,14 @@ function MessageRow({
                     deliveredAt={receipt.deliveredAt}
                   />
                 )}
+                  {/* Open tracking (fix/qm-composer-open-tracking-2): Superhuman-class read status for external recipients — shows only when the beacon fired (openStatusOf returns null otherwise). */}
+                  {openStatus && (
+                    <OpenTrackingIndicator
+                      openCount={openStatus.openCount}
+                      firstOpenedAt={openStatus.firstOpenedAt}
+                      lastOpenedAt={openStatus.lastOpenedAt}
+                    />
+                  )}
               </>
             )}
           </div>

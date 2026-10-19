@@ -36,7 +36,7 @@ import {
   ThreadRelatedSection,
   subjectChangedNewSubject,
 } from './ThreadRelatedPanel';
-import { EmailReadReceipt } from './EmailReadReceipt';
+import { EmailReadReceipt, OpenTrackingIndicator } from './EmailReadReceipt';
 import { Quanty } from './Quanty';
 import { QuickActionBar } from './QuickActionBar';
 import { useRegisterCommands } from '../lib/keyboard/hooks';
@@ -64,7 +64,7 @@ import {
   threadKindMix,
   threadParticipants,
 } from '../lib/threading';
-import { receiptStatusOf } from '../lib/readReceipt';
+import { receiptStatusOf, openStatusOf } from '../lib/readReceipt';
 import { looksLikeMarkdown, useSafeMarkdownHtml } from '../lib/markdown';
 import { formatDetailDate } from '../lib/honest-date';
 import { invalidateMailLists } from '../lib/offline/folders';
@@ -2790,6 +2790,10 @@ export function ConversationalThreadView({
              * self-sends (a read receipt on a note to yourself says nothing).
              */
             const receipt = receiptStatusOf(message, isOutbound, currentEmail);
+            // Open tracking (fix/qm-composer-open-tracking-2): external-recipient
+            // read status; null unless the beacon fired, so nothing renders for
+            // unopened or untracked mail.
+            const openStatus = openStatusOf(message);
 
             // Day-group divider (chat-bubble vision): a centered pill whenever
             // the day changes — "Today", "Yesterday", weekday, or full date.
@@ -2938,6 +2942,14 @@ export function ConversationalThreadView({
                           deliveredAt={receipt.deliveredAt}
                         />
                       )}
+                        {/* Open tracking (fix/qm-composer-open-tracking-2): Superhuman-class read status for external recipients — shows only when the beacon fired (openStatusOf returns null otherwise). */}
+                        {openStatus && (
+                          <OpenTrackingIndicator
+                            openCount={openStatus.openCount}
+                            firstOpenedAt={openStatus.firstOpenedAt}
+                            lastOpenedAt={openStatus.lastOpenedAt}
+                          />
+                        )}
                       <svg
                         className="size-4 text-[var(--quant-text-muted)] group-hover:text-[var(--quant-muted-foreground)] transition-colors"
                         viewBox="0 0 24 24"
@@ -3023,6 +3035,14 @@ export function ConversationalThreadView({
                           deliveredAt={receipt.deliveredAt}
                         />
                       )}
+                        {/* Open tracking (fix/qm-composer-open-tracking-2): Superhuman-class read status for external recipients — shows only when the beacon fired (openStatusOf returns null otherwise). */}
+                        {openStatus && (
+                          <OpenTrackingIndicator
+                            openCount={openStatus.openCount}
+                            firstOpenedAt={openStatus.firstOpenedAt}
+                            lastOpenedAt={openStatus.lastOpenedAt}
+                          />
+                        )}
                     </div>
                   </div>
                 ) : (
@@ -3098,6 +3118,14 @@ export function ConversationalThreadView({
                                 deliveredAt={receipt.deliveredAt}
                               />
                             )}
+                              {/* Open tracking (fix/qm-composer-open-tracking-2): Superhuman-class read status for external recipients — shows only when the beacon fired (openStatusOf returns null otherwise). */}
+                              {openStatus && (
+                                <OpenTrackingIndicator
+                                  openCount={openStatus.openCount}
+                                  firstOpenedAt={openStatus.firstOpenedAt}
+                                  lastOpenedAt={openStatus.lastOpenedAt}
+                                />
+                              )}
                           </div>
 
                           {/* "to me ⌵" Security Accordion Trigger */}

@@ -165,5 +165,14 @@ export function formatEmailRecord<T extends Record<string, any>>(email: T): T {
       (email.deliveryStatus === 'queued' && email.sentAt ? email.sentAt : undefined),
     trashedAt:
       email.trashedAt ?? (email.isTrash ? (email.deletedAt ?? email.updatedAt ?? null) : undefined),
+    /*
+     * Open tracking (fix/qm-composer-open-tracking-2): the count/timestamp
+     * fields ride the spread above for the sent-view indicator. The beacon
+     * TOKEN is deliberately withheld — it is the only credential authorizing
+     * an open count for this message, and no client surface needs it (the
+     * pixel URL lives only in outbound MIME). `undefined` keys do not
+     * survive JSON, so the wire shape stays clean.
+     */
+    openToken: undefined,
   };
 }

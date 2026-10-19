@@ -1,7 +1,7 @@
 'use client';
 
 import type { ComponentType } from 'react';
-import { IconCheck, IconCheckDouble, IconCircle, type IconProps } from './icons';
+import { IconCheck, IconCheckDouble, IconCircle, IconEye, type IconProps } from './icons';
 
 interface EmailReadReceiptProps {
   status: 'sent' | 'delivered' | 'read' | 'unknown';
@@ -50,4 +50,37 @@ export function EmailReadReceipt({ status, readAt, deliveredAt }: EmailReadRecei
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+interface OpenTrackingIndicatorProps {
+  openCount: number;
+  firstOpenedAt?: string;
+  lastOpenedAt?: string;
+}
+
+/**
+ * Open-tracking indicator — Superhuman-class "read statuses" for sent mail.
+ * Renders next to EmailReadReceipt on outbound messages whose beacon fired
+ * (openCount > 0). Mail-orange accent (the Mail per-app accent) keeps it
+ * distinct from the green internal read ticks: orange = an EXTERNAL
+ * recipient's client loaded the beacon; green = a QuantMail recipient opened
+ * the thread. Zero opens renders nothing — an honest unknown, not a claim
+ * of non-reading (recipients may block remote images).
+ */
+export function OpenTrackingIndicator({ openCount, firstOpenedAt, lastOpenedAt }: OpenTrackingIndicatorProps) {
+  const label =
+    `Opened ${openCount} time${openCount === 1 ? '' : 's'}` +
+    (firstOpenedAt ? `, first opened ${formatTime(firstOpenedAt)}` : '') +
+    (lastOpenedAt && lastOpenedAt !== firstOpenedAt ? `, last ${formatTime(lastOpenedAt)}` : '');
+  return (
+    <span
+      className="open-tracking-indicator inline-flex items-center gap-0.5 text-[var(--quant-primary)]"
+      title={label}
+      role="img"
+      aria-label={label}
+    >
+      <IconEye size={13} aria-hidden={true} />
+      <span className="text-[11px] font-medium leading-none">{openCount > 99 ? '99+' : openCount}</span>
+    </span>
+  );
 }

@@ -765,6 +765,22 @@ model Email {
   // delivered nor read.
   deliveredAt     DateTime?
   readAt          DateTime?
+  // Open tracking (Superhuman-class read statuses on sent mail). Distinct from
+  // the WhatsApp-style readAt ticks above: readAt fires when a QuantMail
+  // recipient opens the thread (internal, markThreadRead); the beacon below
+  // counts image loads by EXTERNAL recipients (Gmail, Outlook, ...) who never
+  // touch our thread view. `openTrackingEnabled` is the per-message opt-out
+  // the composer sets (default on); `openToken` is the unguessable beacon id
+  // embedded in the outbound MIME at transmit time — never in the stored
+  // bodyHtml, so the sender's own Sent/thread views can never self-trigger a
+  // count. `openCount`/`firstOpenedAt`/`lastOpenedAt` are stamped by
+  // GET /track/open/:token. Nullable/count-zero = never opened (or the
+  // recipient's client blocks remote images — an honest unknown, not a zero).
+  openTrackingEnabled Boolean   @default(false)
+  openToken             String?   @unique
+  openCount             Int       @default(0)
+  firstOpenedAt         DateTime?
+  lastOpenedAt          DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
