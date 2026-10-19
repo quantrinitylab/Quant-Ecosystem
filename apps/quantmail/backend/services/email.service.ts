@@ -10,6 +10,7 @@ import { emitOutbox, MailOutboxEvents } from '../lib/outbox-events';
 import { MutationOptions, resolveRequestId } from '../lib/mutation-context';
 import { versionedUpdate, VersionedTx } from '../lib/optimistic-update';
 import { buildSnippet } from '../lib/snippet';
+import { mintOpenToken, withOpenTrackingPixel } from './open-tracking.service';
 import {
   RecipientAttachmentCopier,
   type RecipientAttachmentStore,
@@ -112,6 +113,12 @@ export interface ComposeEmailInput {
    * consumers can tie the event back to the originating HTTP request.
    */
   requestId?: string;
+  /**
+   * fix/qm-composer-open-tracking: per-message open-tracking beacon opt-out.
+   * Omitted means ON (Superhuman parity) — the routes apply the default, so
+   * every compose path behaves identically.
+   */
+  trackOpens?: boolean;
 }
 
 /**
@@ -251,6 +258,10 @@ export class EmailService {
           attachments: input.attachments ?? [],
           messageKind: toMessageKind(input.messageKind),
           priority: toPriority(input.priority),
+          // fix/qm-composer-open-tracking: the sender's per-message beacon
+          // choice, persisted on the draft so send() honors it without any
+          // extra plumbing on the /:id/send path.
+          openTrackingEnabled: input.trackOpens ?? true,
         } as never,
       });
       await emitOutbox(tx, {
@@ -710,6 +721,20 @@ export class EmailService {
      */
     const messageId =
       (email as { messageId?: string | null }).messageId ?? `<${emailId}@quantmail.in>`;
+    /*
+     * fix/qm-composer-open-tracking: mint the beacon token here — inside the
+     * durable flip, so the token and the send are one atomic fact. A re-send
+     * (deferred -> retry) reuses the existing token: the beacon identity of a
+     * message never changes, or opens would split across two ids. The token
+     * is persisted on the row but the beacon itself is injected only into the
+     * OUTBOUND mime at transmit time (below and in the delivery worker) —
+     * never into the stored bodyHtml — so the sender's own Sent/thread views
+     * can never self-trigger a count.
+     */
+    const openTrackingEnabled =
+      (email as { openTrackingEnabled?: boolean | null }).openTrackingEnabled === true;
+    const existingOpenToken = (email as { openToken?: string | null }).openToken ?? null;
+    const openToken = openTrackingEnabled ? existingOpenToken ?? mintOpenToken() : null;
     // K1: sent-flip + outbox row in ONE transaction (doc 05) — and it commits
     // BEFORE any external transmit. The flip is the durable, exactly-once
     // "send claimed" record: `requireUnsent` makes the flip itself the atomic
@@ -749,6 +774,9 @@ export class EmailService {
            */
           receivedAt: (email as { receivedAt?: Date | null }).receivedAt ?? sentAt,
           deliveryStatus: provisionalStatus,
+          // fix/qm-composer-open-tracking: persist the newly minted beacon
+          // token (no-op write when the row already carries one).
+          ...(openToken && openToken !== existingOpenToken ? { openToken } : {}),
           /*
            * Read-receipt pipeline: the message is delivered the moment this send
            * completes (internal recipients get their copies below; external
@@ -837,7 +865,12 @@ export class EmailService {
             cc: externalCc.length > 0 ? externalCc : undefined,
             bcc: externalBcc.length > 0 ? externalBcc : undefined,
             subject: email.subject,
-            ...(bodyHtmlClean ? { bodyHtml: bodyHtmlClean } : {}),
+            // fix/qm-composer-open-tracking: the beacon is injected into the
+            // OUTBOUND mime only — never into the stored bodyHtml, so the
+            // sender's own Sent/thread views can never self-trigger a count.
+            // withOpenTrackingPixel returns the input unchanged when tracking
+            // is off (openToken null).
+            ...(bodyHtmlClean ? { bodyHtml: withOpenTrackingPixel(bodyHtmlClean, openToken) } : {}),
             ...(bodyPlainClean ? { bodyText: bodyPlainClean } : {}),
             replyTo: fromAddress,
             attachments,

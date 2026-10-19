@@ -252,6 +252,11 @@ const composeSchema = z
     messageKind: messageKindSchema,
     priority: prioritySchema,
     sendAt: z.string().optional(),
+    // Open tracking (fix/qm-composer-open-tracking): per-message opt-out for
+    // the invisible open beacon. Default ON (Superhuman parity); the composer
+    // surfaces a toggle. Absent on drafts composed before this existed —
+    // EmailService.compose applies the same default server-side.
+    trackOpens: z.boolean().optional(),
   })
   .refine(
     (data) => (data.toAddresses && data.toAddresses.length > 0) || (data.to && data.to.length > 0),
@@ -279,6 +284,7 @@ const composeSchema = z
     messageKind: d.messageKind,
     priority: d.priority,
     sendAt: d.sendAt,
+    trackOpens: d.trackOpens,
   }));
 
 const moveSchema = z.object({
@@ -416,6 +422,10 @@ export default async function emailsRoutes(
       attachments: d.attachments,
       messageKind: toMessageKind(d.messageKind),
       priority: d.priority,
+      // fix/qm-composer-open-tracking: per-message beacon opt-out; default ON
+      // (applied here so every compose path — /emails, /emails/compose —
+      // behaves identically even when the client omits the flag).
+      trackOpens: d.trackOpens ?? true,
       // QM-BACK-002: correlate the draftCreated outbox event with this request.
       requestId: mutationOpts(request, reply).requestId,
     });
@@ -605,6 +615,10 @@ export default async function emailsRoutes(
               // Only rewrite the kind when the caller states one, so saving a draft from
               // a composer that does not know about kinds cannot silently reclassify it.
               ...(d.messageKind ? { messageKind: toMessageKind(d.messageKind) } : {}),
+              // fix/qm-composer-open-tracking: same absent-key discipline as
+              // the other flags — an autosave that omits trackOpens must not
+              // flip the sender's opt-out back on.
+              ...(provided('trackOpens') ? { openTrackingEnabled: d.trackOpens ?? true } : {}),
               ...(d.attachments
                 ? {
                     attachments: d.attachments,
@@ -895,6 +909,9 @@ export default async function emailsRoutes(
          * compose surfaces). Past times are 400s, never silently sent now.
          */
         sendAt: z.string().optional(),
+        // fix/qm-composer-open-tracking: per-message beacon opt-out, same
+        // default-ON contract as the compose schema.
+        trackOpens: z.boolean().optional(),
       })
       .safeParse(request.body);
     if (!parsed.success) throw parsed.error;
@@ -1015,6 +1032,9 @@ export default async function emailsRoutes(
       threadId: targetThreadId ?? undefined,
       inReplyTo: original.id,
       messageKind,
+          // fix/qm-composer-open-tracking: replies carry the same per-message
+          // beacon opt-out as composed mail (default ON).
+          trackOpens: parsed.data.trackOpens ?? true,
           // QM-BACK-002: correlate the draftCreated outbox event with this request.
       requestId: mutationOpts(request, reply).requestId,
 });

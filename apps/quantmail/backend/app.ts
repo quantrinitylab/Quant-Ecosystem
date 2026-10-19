@@ -51,6 +51,7 @@ import { chunkedUploadRoutes } from './routes/chunked-upload';
 import aiComposeRoutes from './routes/ai-compose';
 import aiChatRoutes from './routes/ai-chat';
 import inboundWebhookRoutes from './routes/inbound-webhook';
+import openTrackingRoutes from './routes/open-tracking';
 import { createMemoryService } from '@quant/ai';
 import { DeliverabilityAuthService } from './services/deliverability-auth.service';
 import { extractCollabWsToken } from './services/collab-ws-auth';
@@ -168,6 +169,16 @@ export function getConfig(): AppConfig {
       // cannot present a bearer token. See routes/inbound-webhook.ts.
       '/webhook/inbound',
       '/webhook/inbound/*',
+      // Open-tracking beacon (fix/qm-composer-open-tracking): the 1x1 image
+      // in tracked outbound mail, fetched by the RECIPIENT's mail client with
+      // no QuantMail session. Public BY DESIGN — the unguessable 48-hex token
+      // is the only credential, and it authorizes nothing but counting this
+      // one message's opens. Scoped to GET only (exact:false prefix match
+      // covers /track/open and /track/open/<token> and nothing else); the
+      // handler still answers 200 + GIF for unknown tokens so validity is
+      // never leaked.
+      { path: '/track/open', methods: ['GET'], exact: false },
+      { path: '/api/track/open', methods: ['GET'], exact: false },
       // Leaf Smart HTTP transport. It performs PAT verification itself; never
       // mount repository administration, PR, review, or issue routes below it.
       '/api/code/gitd',
@@ -487,6 +498,11 @@ export async function buildApp(config?: AppConfig) {
   await app.register(documentRoutes, { prefix: '/api/documents' });
   await app.register(deliverabilityRoutes, { prefix: '/deliverability' });
   await app.register(deliverabilityRoutes, { prefix: '/api/deliverability' });
+  // Open-tracking beacon (fix/qm-composer-open-tracking): the 1x1 image in
+  // tracked outbound mail. Fetched by the recipient's mail client with no
+  // QuantMail session, so the path is public (GET only) in publicPaths above.
+  await app.register(openTrackingRoutes, { prefix: '/track' });
+  await app.register(openTrackingRoutes, { prefix: '/api/track' });
   await app.register(auditLogsRoutes, { prefix: '/audit-logs' });
   await app.register(auditLogsRoutes, { prefix: '/api/audit-logs' });
   await app.register(adminRoutes, { prefix: '/admin' });

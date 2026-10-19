@@ -158,6 +158,9 @@ describe('EmailService', () => {
           // moment it exists.
           messageKind: 'MAIL',
           priority: 'NORMAL',
+          // fix/qm-composer-open-tracking: the sender's per-message beacon
+          // choice, defaulting ON — persisted on the draft so send() honors it.
+          openTrackingEnabled: true,
         },
       });
     });

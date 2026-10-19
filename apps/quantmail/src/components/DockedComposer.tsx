@@ -183,6 +183,17 @@ function IconTrash({ className = 'size-4' }: { className?: string }) {
   );
 }
 
+// Open tracking (fix/qm-composer-open-tracking-2): eye glyph for the
+// per-composer "Track opens" toggle in the toolbar.
+function IconEye({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2.2 12S5.8 5.5 12 5.5 21.8 12 21.8 12 18.2 18.5 12 18.5 2.2 12 2.2 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
 function IconBold({ className = 'size-3.5' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -444,6 +455,12 @@ export function DockedComposer({
   // uses (same pick logic, same past-time rejection, same backend contract).
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
+  // Open tracking (fix/qm-composer-open-tracking-2): per-composer opt-out for
+  // the invisible open beacon. Default ON (Superhuman parity) — but NEVER
+  // invisible: the toolbar toggle below is clearly labeled and one-tap, and
+  // the choice rides the draft + send payloads.
+  const [trackOpens, setTrackOpens] = useState(true);
+
   // (Recipient autocomplete is owned by RecipientChipInput now.)
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -563,6 +580,10 @@ export function DockedComposer({
       attachments: attachments as any,
       inReplyTo: replyToId,
       messageKind: initialMessageKind,
+      // fix/qm-composer-open-tracking-2: persist the tracking choice with the
+      // draft so send() honors it; the update path applies absent-key
+      // discipline (omitting the flag never flips a saved opt-out back on).
+      trackOpens,
     };
     const ref = serverDraftRef.current;
     const shareKey = draftShareKey(replyToId);
@@ -1099,6 +1120,8 @@ export function DockedComposer({
             inReplyTo: draftSnapshot.replyToId,
             scheduledAt: draftSnapshot.scheduledAt,
             messageKind: initialMessageKind,
+            // fix/qm-composer-open-tracking-2: per-composer beacon opt-out.
+            trackOpens,
           });
           if (!composeRes.success || !composeRes.data?.id) {
             throw new Error(composeRes.error?.message || 'Failed to compose email');
@@ -1564,6 +1587,29 @@ export function DockedComposer({
             title="Formatting options"
           >
             <IconFormat className="size-4" />
+          </button>
+
+          {/* Open tracking toggle (fix/qm-composer-open-tracking-2): the
+              clearly-labeled per-composer opt-out for the invisible beacon.
+              Default ON (Superhuman parity); one tap disables tracking for
+              this message. The recipient's client loading a 1x1 image is a
+              privacy-relevant choice, so the button names it explicitly. */}
+          <button
+            type="button"
+            onClick={() => setTrackOpens((prev) => !prev)}
+            aria-pressed={trackOpens}
+            aria-label={trackOpens ? 'Open tracking on — tap to turn off' : 'Open tracking off — tap to turn on'}
+            data-testid="docked-composer-track-opens-toggle"
+            className={`relative p-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] border transition-colors ${
+              trackOpens
+                ? 'border-[var(--quant-primary)]/50 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)]'
+                : 'border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white'
+            }`}
+            title={trackOpens
+              ? 'Track opens: ON — a tiny invisible image tells you when recipients open this email. Tap to send without tracking.'
+              : 'Track opens: OFF — this email sends with no open tracking. Tap to turn tracking on.'}
+          >
+            <IconEye className="size-4" />
           </button>
 
           {/* Attachment Button with 25MB Guard */}

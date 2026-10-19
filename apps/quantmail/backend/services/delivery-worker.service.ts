@@ -16,6 +16,7 @@ import { sendViaSes, isSesConfigured, buildMultipartBody } from '../lib/ses-send
 import { resolveOutboundAttachments, type OutboundAttachmentDb } from '../lib/outbound-attachments';
 import { QUANT_INTERNAL_DOMAINS } from '../lib/domains';
 import { EmailService } from './email.service';
+import { withOpenTrackingPixel } from './open-tracking.service';
 import { MailOutboxEvents, emitOutbox } from '../lib/outbox-events';
 
 /**
@@ -502,6 +503,18 @@ export class DeliveryWorker {
     // M-F16: Transmit authoritative message preserving To, Cc, Bcc, replyTo, and fromName.
     // In AWS SESv2, sending to, cc, and bcc together delivers to all recipients while
     // preserving To/Cc headers for Reply-All and hiding Bcc recipients from To/Cc headers.
+    // fix/qm-composer-open-tracking: the beacon is injected into the OUTBOUND
+    // mime only — never into the stored bodyHtml — so the sender's own
+    // Sent/thread views can never self-trigger a count. Computed once here so
+    // the SES, multipart, and direct-SMTP transmit shapes below all carry the
+    // identical pixel. Token presence implies tracking was enabled at send
+    // time (minted in EmailService.send's flip); withOpenTrackingPixel is a
+    // no-op without it, so untracked mail transmits byte-identically.
+    const trackedBodyHtml = withOpenTrackingPixel(
+      email.bodyHtml && email.bodyHtml.trim().length > 0 ? email.bodyHtml : undefined,
+      email.openTrackingEnabled ? email.openToken : null,
+    );
+
     // NOTE: external recipients only — internal ones are already delivered above.
     if (extRecipients.length > 0 && isSesConfigured()) {
       const from = email.fromName ? `${email.fromName} <${fromAddress}>` : fromAddress;
@@ -522,7 +535,7 @@ export class DeliveryWorker {
           cc: extCc.length > 0 ? extCc : undefined,
           bcc: extBcc.length > 0 ? extBcc : undefined,
           subject: email.subject ?? '',
-          bodyHtml: email.bodyHtml && email.bodyHtml.trim().length > 0 ? email.bodyHtml : undefined,
+          bodyHtml: trackedBodyHtml,
           bodyText:
             email.bodyPlain && email.bodyPlain.trim().length > 0 ? email.bodyPlain : undefined,
           replyTo: fromAddress,
@@ -564,7 +577,7 @@ export class DeliveryWorker {
       if (extCc.length > 0) {
         headers.cc = extCc.join(', ');
       }
-      const body = email.bodyHtml ?? email.bodyPlain ?? data.body ?? '';
+      const body = trackedBodyHtml ?? email.bodyPlain ?? data.body ?? '';
 
       let rawMessage: string | undefined;
       try {
@@ -581,8 +594,7 @@ export class DeliveryWorker {
           const mime = buildMultipartBody({
             bodyText:
               email.bodyPlain && email.bodyPlain.trim().length > 0 ? email.bodyPlain : undefined,
-            bodyHtml:
-              email.bodyHtml && email.bodyHtml.trim().length > 0 ? email.bodyHtml : undefined,
+            bodyHtml: trackedBodyHtml,
             attachments,
           });
           headers['mime-version'] = '1.0';

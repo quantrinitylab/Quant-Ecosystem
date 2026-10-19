@@ -174,6 +174,11 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^public\/invites\/[^/]+$/, methods: ['GET'] },
   { pattern: /^invites\/[^/]+\/accept$/, methods: ['POST'] },
   { pattern: /^webhook\/inbound$/, methods: ['POST'] },
+  // Open-tracking beacon (fix/qm-composer-open-tracking): the 1x1 image in
+  // tracked outbound mail, fetched by the recipient's mail client with no
+  // QuantMail session. GET-only; the backend route answers 200 + GIF for
+  // unknown tokens too, so nothing about token validity leaks.
+  { pattern: /^track\/open\/[^/]+$/, methods: ['GET'] },
 
   // ── Folders (Task R11) ─────────────────────────────────────────────────────
   // foldersRoutes registered with prefix '/folders' in backend/app.ts

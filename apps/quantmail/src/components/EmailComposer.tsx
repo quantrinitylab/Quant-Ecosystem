@@ -664,6 +664,11 @@ export function EmailComposer({
   const [showThreeDotsMenu, setShowThreeDotsMenu] = useState(false);
   const [showSendOptionsDropdown, setShowSendOptionsDropdown] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  // Open tracking (fix/qm-composer-open-tracking-2): per-composer opt-out for
+  // the invisible open beacon. Default ON (Superhuman parity) — but NEVER
+  // invisible: the Send-options dropup carries a clearly-labeled one-tap
+  // toggle, and the choice rides every compose/draft/save payload below.
+  const [trackOpens, setTrackOpens] = useState(true);
   // Saved email templates (backend /email-templates CRUD, via the
   // EmailTemplates picker). Anchored to the toolbar button via a portaled
   // popover (fixed positioning) so the scrollable toolbar's overflow can
@@ -1251,6 +1256,9 @@ export function EmailComposer({
             attachments: draftSnapshot.attachments,
             scheduledAt: draftSnapshot.scheduledAt,
             inReplyTo: draftSnapshot.replyToId,
+            // fix/qm-composer-open-tracking-2: the host page sends through its
+            // own path — carry the composer's tracking choice along.
+            trackOpens,
           });
         } else {
           // A chat message is a thread start, not a letter: the backend
@@ -1269,6 +1277,8 @@ export function EmailComposer({
             inReplyTo: draftSnapshot.replyToId,
             scheduledAt: draftSnapshot.scheduledAt,
             messageKind: initialMessageKind,
+            // fix/qm-composer-open-tracking-2: per-composer beacon opt-out.
+            trackOpens,
           };
           // Reuse the autosaved server draft when one exists instead of
           // orphaning it with a fresh compose (a duplicate draft left in
@@ -1513,6 +1523,9 @@ export function EmailComposer({
           bodyHtml,
           attachments,
           inReplyTo: inReplyTo || initialReplyToId,
+          // fix/qm-composer-open-tracking-2: persist the tracking choice with
+          // the draft so send() honors it without extra plumbing.
+          trackOpens,
         });
       } else {
         // A recipient is the only hard requirement (subject optional, #1126).
@@ -1527,6 +1540,8 @@ export function EmailComposer({
           attachments: attachments as any,
           inReplyTo: inReplyTo || initialReplyToId,
           messageKind: initialMessageKind,
+          // fix/qm-composer-open-tracking-2: per-composer beacon opt-out.
+          trackOpens,
         };
         const ref = fallbackDraftRef.current;
         fallbackConflictDuringSaveRef.current = false;
@@ -3220,6 +3235,42 @@ export function EmailComposer({
                       >
                         <IconFileText className="size-3.5 text-[var(--quant-muted-foreground)]" />
                         <span>{isSaving ? 'Saving draft…' : 'Save draft'}</span>
+                      </button>
+
+                      {/* Open tracking (fix/qm-composer-open-tracking-2): the
+                          clearly-labeled per-composer opt-out. Default ON
+                          (Superhuman parity) — one tap here disables the
+                          invisible beacon for this message. Never invisible:
+                          the recipient's client loading a 1x1 image is a
+                          privacy-relevant choice, so the toggle names it. */}
+                      <button
+                        type="button"
+                        role="menuitemcheckbox"
+                        aria-checked={trackOpens}
+                        onClick={() => setTrackOpens((prev) => !prev)}
+                        className="flex items-center gap-2.5 w-full px-3.5 py-2 min-h-[44px] text-left text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)]"
+                        title="When on, a tiny invisible image tells you when recipients open this email. Turn off to send without tracking."
+                      >
+                        <span
+                          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                            trackOpens ? 'bg-[var(--quant-primary)]' : 'bg-[#3A3E48]'
+                          }`}
+                          aria-hidden="true"
+                        >
+                          <span
+                            className={`inline-block size-4 rounded-full bg-white shadow transition-transform ${
+                              trackOpens ? 'translate-x-4' : 'translate-x-0.5'
+                            }`}
+                          />
+                        </span>
+                        <span className="flex-1">
+                          <span className="block text-[var(--quant-foreground)]">Track opens</span>
+                          <span className="block text-[10px] text-[var(--quant-muted-foreground)]">
+                            {trackOpens
+                              ? 'On — you\u2019ll see when it\u2019s opened'
+                              : 'Off — no open tracking'}
+                          </span>
+                        </span>
                       </button>
                       </div>
                     </>,
