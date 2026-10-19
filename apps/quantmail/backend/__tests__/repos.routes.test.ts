@@ -2784,6 +2784,7 @@ describe('QuantGit Database-Backed Repos Routes', () => {
             prId: 'pr-1',
             status: 'APPROVED',
             reviewerId: { not: 'user-1' },
+            dismissed: { not: true },
           },
         });
         expect(prisma.pullRequest.update).toHaveBeenCalledWith(
