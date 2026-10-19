@@ -579,7 +579,7 @@ export default function PublicBookingPage(props: PageProps) {
   return (
     <div className="min-h-screen bg-[var(--quant-background)] text-[var(--quant-foreground)] font-sans flex flex-col justify-between selection:bg-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] selection:text-white">
       {/* Top Brand Bar */}
-      <header className="border-b border-[var(--quant-surface-elevated)]/60 bg-black/80 backdrop-blur-md px-6 py-4 flex items-center justify-between">
+      <header className="bg-black/80 backdrop-blur-md px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="size-8 rounded-xl bg-gradient-to-tr from-[var(--app-accent)] to-[color-mix(in_srgb,var(--app-accent),white_30%)] flex items-center justify-center text-[var(--quant-background)] font-black text-sm shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_20%,transparent)]">
             Q
@@ -606,7 +606,7 @@ export default function PublicBookingPage(props: PageProps) {
           {/* ================================================================= */}
           {/* LEFT COLUMN: Host Information, Brand, Timezone & Meeting Info     */}
           {/* ================================================================= */}
-          <section className="md:col-span-5 p-6 sm:p-8 border-b md:border-b-0 md:border-r border-[var(--quant-surface-elevated)]/80 bg-[#0e1014]/70 flex flex-col justify-between space-y-6">
+          <section className="md:col-span-5 p-6 sm:p-8 bg-black/70 flex flex-col justify-between space-y-6">
             <div className="space-y-5">
               {/* Host Brand Mark / Avatar */}
               <div className="flex items-center gap-3.5">
@@ -631,7 +631,7 @@ export default function PublicBookingPage(props: PageProps) {
               </div>
 
               {/* Meeting Title & Description */}
-              <div className="space-y-2 pt-2 border-t border-[var(--quant-surface-elevated)]/60">
+              <div className="space-y-2 pt-2">
                 <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
                   {meetingDetails.title}
                 </h1>
@@ -676,7 +676,7 @@ export default function PublicBookingPage(props: PageProps) {
             </div>
 
             {/* Left Column Bottom: Timezone Selector & Footer Note */}
-            <div className="space-y-4 pt-6 border-t border-[var(--quant-surface-elevated)]/60">
+            <div className="space-y-4 pt-6">
               <div>
                 <label htmlFor="booking-timezone" className="block text-[11px] font-semibold text-[var(--quant-muted-foreground)] mb-1.5">
                   Your Timezone
@@ -730,7 +730,7 @@ export default function PublicBookingPage(props: PageProps) {
                   {/* Mini Month Calendar Grid */}
                   <div className="sm:col-span-7 space-y-3">
                     {/* Month Stepper Header */}
-                    <div className="flex items-center justify-between pb-2 border-b border-[var(--quant-surface-elevated)]/60">
+                    <div className="flex items-center justify-between pb-2">
                       <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
                         <span>{MONTH_NAMES[calendarMonth.month - 1]}</span>
                         <span className="text-[var(--quant-muted-foreground)] font-normal">
@@ -799,7 +799,7 @@ export default function PublicBookingPage(props: PageProps) {
 
                   {/* Available Time Slots List */}
                   <div className="sm:col-span-5 space-y-3 sm:border-l sm:border-[var(--quant-surface-elevated)]/60 sm:pl-6">
-                    <div className="text-xs font-bold text-white flex items-center justify-between pb-1 border-b border-[var(--quant-surface-elevated)]/60">
+                    <div className="text-xs font-bold text-white flex items-center justify-between pb-1">
                       <span>Available Slots</span>
                       <span className="text-[10px] text-[var(--quant-muted-foreground)] font-normal truncate">
                         {formatGuestDayShort(selectedDate)}
@@ -859,7 +859,7 @@ export default function PublicBookingPage(props: PageProps) {
                 onSubmit={handleConfirmBooking}
                 className="space-y-5 animate-in fade-in duration-200"
               >
-                <div className="flex items-center justify-between pb-3 border-b border-[var(--quant-surface-elevated)]/60">
+                <div className="flex items-center justify-between pb-3">
                   <div>
                     <h2 className="text-lg font-bold text-white tracking-tight">
                       Enter Your Details
@@ -896,7 +896,7 @@ export default function PublicBookingPage(props: PageProps) {
                       onChange={(e) => setBookerName(e.target.value)}
                       placeholder="e.g. Sarah Connor"
                       required
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white placeholder-[#8E939E] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] text-xs transition-colors"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-[var(--quant-surface-elevated)] text-white placeholder-[#8E939E] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] text-xs transition-colors"
                     />
                   </div>
 
@@ -911,7 +911,7 @@ export default function PublicBookingPage(props: PageProps) {
                       onChange={(e) => setBookerEmail(e.target.value)}
                       placeholder="you@example.com"
                       required
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white placeholder-[#8E939E] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] text-xs transition-colors"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-[var(--quant-surface-elevated)] text-white placeholder-[#8E939E] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] text-xs transition-colors"
                     />
                   </div>
 
@@ -925,12 +925,12 @@ export default function PublicBookingPage(props: PageProps) {
                       onChange={(e) => setBookerNotes(e.target.value)}
                       placeholder="Please share anything that will help prepare for our meeting…"
                       rows={3}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white placeholder-[#8E939E] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] text-xs transition-colors"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black border border-[var(--quant-surface-elevated)] text-white placeholder-[#8E939E] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] text-xs transition-colors"
                     />
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-[var(--quant-surface-elevated)]/60 flex items-center justify-between">
+                <div className="pt-4 flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() => setCurrentStep(1)}
@@ -981,7 +981,7 @@ export default function PublicBookingPage(props: PageProps) {
 
                 {/* Confirmed Details Card */}
                 <div className="p-5 rounded-2xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] text-left space-y-3 max-w-md mx-auto text-xs">
-                  <div className="font-bold text-sm text-white flex items-center gap-2 border-b border-[var(--quant-surface-elevated)]/60 pb-2">
+                  <div className="font-bold text-sm text-white flex items-center gap-2 pb-2">
                     <span className="text-[var(--app-accent)]">●</span> {confirmedBooking.title}
                   </div>
 
@@ -1081,7 +1081,7 @@ export default function PublicBookingPage(props: PageProps) {
       </main>
 
       {/* Footer */}
-      <footer className="py-4 text-center text-xs text-[#5E6472] border-t border-[var(--quant-surface-elevated)]/60 bg-black">
+      <footer className="py-4 text-center text-xs text-[#5E6472] bg-black">
         QuantCalendar • Sovereign Scheduling Platform • Zero Ads
       </footer>
     </div>

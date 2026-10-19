@@ -315,7 +315,7 @@ export function CalendarEventForm({
             transition={
               isSheetDragging ? { duration: 0 } : { type: 'spring', damping: 28, stiffness: 300 }
             }
-            className="relative w-full max-w-lg bg-[#121216] border-t md:border border-[#3A404D]/60 rounded-t-3xl md:rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-10 flex flex-col transition-all overflow-hidden h-[86vh] max-h-[86vh] mt-12 md:mt-0"
+            className="relative w-full max-w-lg bg-black border-t md:border border-[#3A404D]/60 rounded-t-3xl md:rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-10 flex flex-col transition-all overflow-hidden h-[86vh] max-h-[86vh] mt-12 md:mt-0"
           >
             {/* Drag Handle & Sticky Top Header */}
             <div
@@ -323,7 +323,7 @@ export function CalendarEventForm({
               onPointerMove={handleSheetPointerMove}
               onPointerUp={handleSheetPointerUp}
               onPointerCancel={handleSheetPointerUp}
-              className="pt-3 pb-1 px-4 flex flex-col cursor-grab active:cursor-grabbing select-none touch-none bg-[#121216] border-b border-[var(--quant-surface-elevated)]/80 shrink-0"
+              className="pt-3 pb-1 px-4 flex flex-col cursor-grab active:cursor-grabbing select-none touch-none bg-black shrink-0"
               style={{ touchAction: 'none' }}
             >
               <div
@@ -439,7 +439,7 @@ export function CalendarEventForm({
             {/* Form Content Body */}
             <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4 text-xs text-white pb-24">
               {/* Account Row */}
-              <div className="flex items-center justify-between py-1 border-b border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)]">
+              <div className="flex items-center justify-between py-1 text-[var(--quant-muted-foreground)]">
                 <span className="text-xs text-[var(--quant-muted-foreground)]">Account</span>
                 <span className="text-[11px] font-semibold text-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)] px-2.5 py-0.5 rounded-full border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)] shadow-[0_0_10px_color-mix(in_srgb,var(--app-accent)_12%,transparent)] flex items-center gap-1.5">
                   <svg
@@ -468,13 +468,13 @@ export function CalendarEventForm({
                       value={formState.title}
                       onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                       placeholder="Add event title"
-                      className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[var(--quant-muted-foreground)] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[var(--app-accent)]"
+                      className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[var(--quant-muted-foreground)] pb-2 focus:outline-none"
                       autoFocus
                       data-autofocus
                     />
                   </div>
 
-                  <div className="flex items-center justify-between py-2 border-b border-[var(--quant-surface-elevated)]/60">
+                  <div className="flex items-center justify-between py-2">
                     <div className="flex items-center gap-2.5 text-[var(--quant-muted-foreground)]">
                       <IconClock className="size-4 text-[var(--app-accent)]" />
                       <span className="font-semibold">All-day</span>
@@ -542,7 +542,7 @@ export function CalendarEventForm({
                   <button
                     type="button"
                     onClick={() => setIsTimezoneModalOpen(true)}
-                    className="w-full min-h-[44px] sm:min-h-0 flex items-center justify-between text-left text-[var(--quant-muted-foreground)] hover:text-white py-2 border-b border-[var(--quant-surface-elevated)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                    className="w-full min-h-[44px] sm:min-h-0 flex items-center justify-between text-left text-[var(--quant-muted-foreground)] hover:text-white py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                   >
                     <div className="flex items-center gap-2.5">
                       <IconGlobe className="size-4 text-cyan-400" />
@@ -557,7 +557,7 @@ export function CalendarEventForm({
                   <button
                     type="button"
                     onClick={() => setIsRecurrenceModalOpen(true)}
-                    className="w-full min-h-[44px] sm:min-h-0 flex items-center justify-between text-left text-[var(--quant-muted-foreground)] hover:text-white py-2 border-b border-[var(--quant-surface-elevated)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                    className="w-full min-h-[44px] sm:min-h-0 flex items-center justify-between text-left text-[var(--quant-muted-foreground)] hover:text-white py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                   >
                     <div className="flex items-center gap-2.5">
                       <IconRefresh className="size-4 text-[var(--app-accent)]" />
@@ -566,7 +566,7 @@ export function CalendarEventForm({
                     <span className="text-[var(--quant-text-muted)] text-xs">›</span>
                   </button>
 
-                  <div className="py-2 border-b border-[var(--quant-surface-elevated)]/60 space-y-2">
+                  <div className="py-2 space-y-2">
                     <div className="flex items-center gap-2.5 text-[var(--quant-muted-foreground)]">
                       <IconUsers className="size-4 text-indigo-400" />
                       <input
@@ -668,7 +668,7 @@ export function CalendarEventForm({
                     )}
                   </div>
 
-                  <div className="py-2 border-b border-[var(--quant-surface-elevated)]/60 space-y-1.5">
+                  <div className="py-2 space-y-1.5">
                     <div className="flex items-center gap-2.5 text-[var(--quant-muted-foreground)]">
                       <IconMapPin className="size-4 text-rose-400" />
                       <input
@@ -693,7 +693,7 @@ export function CalendarEventForm({
                     </div>
                   </div>
 
-                  <div className="py-2 border-b border-[var(--quant-surface-elevated)]/60 space-y-2">
+                  <div className="py-2 space-y-2">
                     <div className="flex items-center justify-between text-[var(--quant-muted-foreground)]">
                       <div className="flex items-center gap-2.5">
                         <IconBell className="size-4 text-[var(--app-accent)]" />
@@ -727,7 +727,7 @@ export function CalendarEventForm({
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-2.5 py-2 border-b border-[var(--quant-surface-elevated)]/60 text-[var(--quant-muted-foreground)]">
+                  <div className="flex items-start gap-2.5 py-2 text-[var(--quant-muted-foreground)]">
                     <span className="text-base mt-1">≡</span>
                     <textarea
                       rows={2}
@@ -762,13 +762,13 @@ export function CalendarEventForm({
                       value={formState.title}
                       onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                       placeholder="Add task title"
-                      className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[var(--quant-muted-foreground)] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[var(--app-accent)]"
+                      className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[var(--quant-muted-foreground)] pb-2 focus:outline-none"
                       autoFocus
                       data-autofocus
                     />
                   </div>
 
-                  <div className="flex items-center justify-between py-2 border-b border-[var(--quant-surface-elevated)]/60">
+                  <div className="flex items-center justify-between py-2">
                     <span className="text-[var(--quant-muted-foreground)] font-semibold">Priority</span>
                     <div className="flex items-center gap-1.5">
                       {(
@@ -807,7 +807,7 @@ export function CalendarEventForm({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between py-2 border-b border-[var(--quant-surface-elevated)]/60">
+                  <div className="flex items-center justify-between py-2">
                     <div className="flex items-center gap-2 text-[var(--quant-muted-foreground)]">
                       <IconCalendar className="size-4 text-[var(--app-accent)]" />
                       <span className="font-semibold">Due Date</span>
@@ -863,7 +863,7 @@ export function CalendarEventForm({
                     ))}
                   </div>
 
-                  <div className="flex items-start gap-2.5 py-2 border-b border-[var(--quant-surface-elevated)]/60 text-[var(--quant-muted-foreground)]">
+                  <div className="flex items-start gap-2.5 py-2 text-[var(--quant-muted-foreground)]">
                     <span className="text-base mt-1">≡</span>
                     <textarea
                       rows={2}
@@ -885,13 +885,13 @@ export function CalendarEventForm({
                       value={formState.title}
                       onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                       placeholder="Add person's name (e.g. Rahul's Birthday)"
-                      className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[var(--quant-muted-foreground)] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-emerald-500"
+                      className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[var(--quant-muted-foreground)] pb-2 focus:outline-none"
                       autoFocus
                       data-autofocus
                     />
                   </div>
 
-                  <div className="flex items-center justify-between py-2 border-b border-[var(--quant-surface-elevated)]/60">
+                  <div className="flex items-center justify-between py-2">
                     <div className="flex items-center gap-2 text-[var(--quant-muted-foreground)]">
                       <IconCake className="size-4 text-emerald-400" />
                       <span className="font-semibold">Birthday Date</span>
@@ -905,7 +905,7 @@ export function CalendarEventForm({
                     />
                   </div>
 
-                  <div className="flex items-center justify-between py-2 border-b border-[var(--quant-surface-elevated)]/60">
+                  <div className="flex items-center justify-between py-2">
                     <div className="flex items-center gap-2 text-[var(--quant-muted-foreground)]">
                       <IconCalendar className="size-4 text-emerald-400" />
                       <span className="font-semibold">Birth Year (Optional)</span>
@@ -920,7 +920,7 @@ export function CalendarEventForm({
                     />
                   </div>
 
-                  <div className="flex items-start gap-2.5 py-2 border-b border-[var(--quant-surface-elevated)]/60 text-[var(--quant-muted-foreground)]">
+                  <div className="flex items-start gap-2.5 py-2 text-[var(--quant-muted-foreground)]">
                     <svg
                       className="size-4 text-emerald-400 mt-1 shrink-0"
                       viewBox="0 0 24 24"
@@ -1018,7 +1018,7 @@ export function CalendarEventForm({
                               className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                                 formState.flowIntensity === flow.key
                                   ? 'bg-rose-600 border-rose-400 text-white font-black'
-                                  : 'bg-[#1e1e24] border-rose-500/20 text-rose-300 hover:bg-[var(--quant-surface-elevated)]'
+                                  : 'bg-black border-rose-500/20 text-rose-300 hover:bg-[var(--quant-surface-elevated)]'
                               }`}
                             >
                               <span className="flex items-center gap-px" aria-hidden="true">
@@ -1049,7 +1049,7 @@ export function CalendarEventForm({
                               className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                                 formState.collectionMethod === cm.label
                                   ? 'bg-rose-600/40 border-rose-400 text-white font-black shadow'
-                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
+                                  : 'bg-black border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
                               }`}
                             >
                               <cm.Icon className="size-4" />
@@ -1081,7 +1081,7 @@ export function CalendarEventForm({
                               className={`flex min-h-11 items-center justify-center gap-2 rounded-2xl border p-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                                 formState.spottingColor === sp.key
                                   ? 'bg-rose-600/30 border-rose-500 text-white font-black shadow'
-                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
+                                  : 'bg-black border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
                               }`}
                             >
                               <IconDot size={11} tone={sp.tone} />
@@ -1108,7 +1108,7 @@ export function CalendarEventForm({
                                 className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                                   isSelected
                                     ? 'bg-[var(--app-accent-pressed)]/30 border-[var(--app-accent)] text-[var(--brand-accent-hover)] font-black shadow'
-                                    : 'bg-[#1e1e24] border-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--brand-accent)] hover:bg-[var(--quant-surface-elevated)]'
+                                    : 'bg-black border-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--brand-accent)] hover:bg-[var(--quant-surface-elevated)]'
                                 }`}
                               >
                                 <f.Icon className="size-[18px]" />
@@ -1139,7 +1139,7 @@ export function CalendarEventForm({
                                 className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                                   isSelected
                                     ? 'bg-blue-600/30 border-blue-400 text-blue-200 font-black shadow'
-                                    : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
+                                    : 'bg-black border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
                                 }`}
                               >
                                 <p.Icon className="size-[18px]" />
@@ -1169,7 +1169,7 @@ export function CalendarEventForm({
                               className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                                 formState.intimateHealth === intm.label
                                   ? 'bg-pink-600/30 border-pink-400 text-pink-200 font-black shadow'
-                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
+                                  : 'bg-black border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
                               }`}
                             >
                               <intm.Icon className="size-4" />
@@ -1197,7 +1197,7 @@ export function CalendarEventForm({
                               className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                                 formState.hotFlashes === hf.label
                                   ? 'bg-amber-600/30 border-amber-400 text-amber-200 font-black shadow'
-                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
+                                  : 'bg-black border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
                               }`}
                             >
                               <span className="flex items-center gap-px h-4" aria-hidden="true">
@@ -1232,7 +1232,7 @@ export function CalendarEventForm({
                               className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                                 formState.sleep === sl.label
                                   ? 'bg-indigo-600/30 border-indigo-400 text-indigo-200 font-black shadow'
-                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
+                                  : 'bg-black border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
                               }`}
                             >
                               <sl.Icon className="size-4" />
@@ -1259,7 +1259,7 @@ export function CalendarEventForm({
                               className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                                 formState.sexLife === sx.label
                                   ? 'bg-rose-600/30 border-rose-400 text-rose-200 font-black shadow'
-                                  : 'bg-[#1e1e24] border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
+                                  : 'bg-black border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
                               }`}
                             >
                               <sx.Icon className="size-4" />
@@ -1286,7 +1286,7 @@ export function CalendarEventForm({
                               className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] ${
                                 formState.energy === en.label
                                   ? 'bg-[var(--app-accent-pressed)]/30 border-[var(--app-accent)] text-[var(--brand-accent)] font-black shadow'
-                                  : 'bg-[#1e1e24] border-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--brand-accent)] hover:bg-[var(--quant-surface-elevated)]'
+                                  : 'bg-black border-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--brand-accent)] hover:bg-[var(--quant-surface-elevated)]'
                               }`}
                             >
                               <en.Icon className="size-4" />
@@ -1299,7 +1299,7 @@ export function CalendarEventForm({
                       </div>
 
                       {/* 11. BODY METRICS */}
-                      <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-[#1e1e24] border border-[var(--quant-surface-elevated)]">
+                      <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-black border border-[var(--quant-surface-elevated)]">
                         <div>
                           <span className="flex items-center gap-1 text-[10px] text-[var(--quant-muted-foreground)] mb-1">
                             <IconThermometer size={11} /> Basal Body Temp
@@ -1339,7 +1339,7 @@ export function CalendarEventForm({
                             setFormState({ ...formState, customTagInput: e.target.value })
                           }
                           onKeyDown={handleAddCustomTag}
-                          className="w-full min-h-[44px] sm:min-h-0 bg-[#1e1e24] border border-[var(--quant-surface-elevated)] rounded-2xl p-2.5 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                          className="w-full min-h-[44px] sm:min-h-0 bg-black border border-[var(--quant-surface-elevated)] rounded-2xl p-2.5 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                         />
                         {formState.customTags.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 pt-1">
@@ -1373,7 +1373,7 @@ export function CalendarEventForm({
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="w-full bg-[#1e1e24] border border-[var(--quant-surface-elevated)] rounded-2xl p-3 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-rose-500 resize-none"
+                          className="w-full bg-black border border-[var(--quant-surface-elevated)] rounded-2xl p-3 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-rose-500 resize-none"
                         />
                       </div>
                     </div>
@@ -1415,7 +1415,7 @@ export function CalendarEventForm({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-[#1e1e24] border border-[var(--quant-surface-elevated)] text-[11px]">
+                      <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-black border border-[var(--quant-surface-elevated)] text-[11px]">
                         <div>
                           <label htmlFor="evt-period-length" className="block text-[var(--quant-muted-foreground)] mb-1">
                             Period Length ({formState.periodDays}d)
@@ -1468,7 +1468,7 @@ export function CalendarEventForm({
                         </p>
 
                         <div className="grid grid-cols-2 gap-2">
-                          <div className="p-3 rounded-2xl bg-[#1e1e24] border border-[var(--quant-surface-elevated)] flex items-center justify-between">
+                          <div className="p-3 rounded-2xl bg-black border border-[var(--quant-surface-elevated)] flex items-center justify-between">
                             <div>
                               <span className="text-[10px] text-[var(--quant-muted-foreground)]">Cycle length</span>
                               <h4 className="text-base font-extrabold text-rose-400">
@@ -1478,7 +1478,7 @@ export function CalendarEventForm({
                             <IconCircle className="size-4 text-rose-400" />
                           </div>
 
-                          <div className="p-3 rounded-2xl bg-[#1e1e24] border border-[var(--quant-surface-elevated)] flex items-center justify-between">
+                          <div className="p-3 rounded-2xl bg-black border border-[var(--quant-surface-elevated)] flex items-center justify-between">
                             <div>
                               <span className="text-[10px] text-[var(--quant-muted-foreground)]">Cycle variation</span>
                               <h4 className="text-base font-extrabold text-[var(--quant-muted-foreground)]">±1 day</h4>
@@ -1488,7 +1488,7 @@ export function CalendarEventForm({
                         </div>
                       </div>
 
-                      <div className="p-4 rounded-3xl bg-[#1e1e24] border border-[var(--quant-surface-elevated)] space-y-3">
+                      <div className="p-4 rounded-3xl bg-black border border-[var(--quant-surface-elevated)] space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-white">Your cycle phase</span>
                           <span className="text-[10px] text-rose-400 font-semibold">
@@ -1497,11 +1497,11 @@ export function CalendarEventForm({
                         </div>
 
                         <div className="h-14 w-full rounded-2xl bg-[var(--quant-background)] border border-[var(--quant-surface-elevated)] overflow-hidden flex relative">
-                          <div className="w-[45%] bg-rose-900/60 border-r border-rose-500/40 flex items-center justify-center text-[10px] text-rose-200 font-bold">
+                          <div className="w-[45%] bg-rose-900/60 flex items-center justify-center text-[10px] text-rose-200 font-bold">
                             Follicular
                           </div>
                           <div
-                            className="w-[10%] bg-cyan-900/60 border-r border-cyan-400 flex items-center justify-center text-cyan-300"
+                            className="w-[10%] bg-cyan-900/60 flex items-center justify-center text-cyan-300"
                             title="Ovulation window"
                           >
                             <IconDot size={8} />

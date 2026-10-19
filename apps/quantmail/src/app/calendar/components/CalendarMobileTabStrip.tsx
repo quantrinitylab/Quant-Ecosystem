@@ -25,7 +25,7 @@ export interface CalendarMobileTabStripProps {
  */
 export function CalendarMobileTabStrip({ activeTab, onSelectTab }: CalendarMobileTabStripProps) {
   return (
-    <div className="md:hidden border-b border-[#232938] bg-[#0c0c10]">
+    <div className="md:hidden bg-black">
       <div
         role="tablist"
         aria-label="Calendar views"
