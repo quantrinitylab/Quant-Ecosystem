@@ -2693,6 +2693,15 @@ body {
     inset 2px 0 0 0 var(--quant-primary);
 }
 
+/* People home: the `j`/`k` cursor ring on a person row. Same language as the
+   inbox's `.mail-row.is-focused` — ring only, no background wash, Mail
+   orange — so the cursor reads identically on both surfaces. */
+.people-row.is-focused {
+  box-shadow:
+    inset 0 0 0 1px rgba(249, 115, 22, 0.35),
+    inset 2px 0 0 0 #f97316;
+}
+
 /* ========================================================================== */
 /* Gmail-killer: Toast Notifications                                          */
 /* ========================================================================== */
