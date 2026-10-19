@@ -4,7 +4,22 @@ import { fileURLToPath } from 'node:url';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SecurityTab } from '../components/SecurityTab';
-import { INITIAL_SECURITY_ALERTS } from '../constants';
+import type { SecurityAlert } from '../types';
+
+// Minimal clearly-labeled sample alert (the dead mock-fixture module
+// quantgit/constants.ts was removed; tests must not depend on it).
+const SAMPLE_SECURITY_ALERTS: SecurityAlert[] = [
+  {
+    id: 'test-alert-1',
+    package: 'test-pkg-sample',
+    severity: 'high',
+    cve: 'CVE-TEST-0001',
+    title: 'Sample vulnerability used only to render the fix-PR button',
+    state: 'open',
+    vulnerableRange: '< 9.9.9',
+    patchedVersion: '9.9.9',
+  },
+];
 
 /**
  * Dependabot fix-PR honesty regression tests.
@@ -50,7 +65,7 @@ describe('Dependabot fix-PR honesty (no invented PR numbers)', () => {
   it('renders the Create fix PR button with no pre-seeded "opened" badge', () => {
     const html = renderToStaticMarkup(
       <SecurityTab
-        securityAlerts={INITIAL_SECURITY_ALERTS}
+        securityAlerts={SAMPLE_SECURITY_ALERTS}
         showToast={vi.fn()}
         initialSubTab="dependabot"
       />,

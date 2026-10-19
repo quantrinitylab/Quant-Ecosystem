@@ -1,15 +1,67 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { SecurityTab } from '../components/SecurityTab';
-import {
-  INITIAL_SECURITY_ALERTS,
-  INITIAL_SECRET_ALERTS,
-  INITIAL_CODEQL_ALERTS,
-  INITIAL_BRANCH_SECURITY_RULES,
-  DEFAULT_SECURITY_POLICY,
-} from '../constants';
-import type { SecurityAlert, SecretScanningAlert, CodeQLAlert } from '../types';
+import { SecurityTab, DEFAULT_SECURITY_POLICY } from '../components/SecurityTab';
+import type { SecurityAlert } from '../types';
+
+// Clearly-labeled SAMPLE test data. The dead mock-fixture module
+// quantgit/constants.ts (INITIAL_SECURITY_ALERTS etc.) was removed because no
+// production code imported it; these rows exist only to exercise the tab's
+// rendering structure and are never presented as real scan results.
+const SAMPLE_SECURITY_ALERTS: SecurityAlert[] = [
+  {
+    id: 'test-alert-crit',
+    package: 'test-pkg-crit',
+    severity: 'critical',
+    cve: 'CVE-TEST-0001',
+    title: 'Sample critical finding (test data only)',
+    state: 'open',
+    vulnerableRange: '< 9.9.1',
+    patchedVersion: '9.9.1',
+    cvss: 9.0,
+    cweTitle: 'CWE-TEST-94: Sample test weakness',
+    createdAt: '2026-01-01',
+  },
+  {
+    id: 'test-alert-high',
+    package: 'test-pkg-high',
+    severity: 'high',
+    cve: 'CVE-TEST-0002',
+    title: 'Sample high finding (test data only)',
+    state: 'open',
+    vulnerableRange: '< 9.9.2',
+    patchedVersion: '9.9.2',
+    cvss: 7.0,
+    cweTitle: 'CWE-TEST-22: Sample test weakness',
+    createdAt: '2026-01-02',
+  },
+  {
+    id: 'test-alert-mod',
+    package: 'test-pkg-mod',
+    severity: 'moderate',
+    cve: 'CVE-TEST-0003',
+    title: 'Sample moderate finding (test data only)',
+    state: 'open',
+    vulnerableRange: '< 9.9.3',
+    patchedVersion: '9.9.3',
+    cvss: 5.0,
+    cweTitle: 'CWE-TEST-33: Sample test weakness',
+    createdAt: '2026-01-03',
+  },
+  {
+    id: 'test-alert-low',
+    package: 'test-pkg-low',
+    severity: 'low',
+    cve: 'CVE-TEST-0004',
+    title: 'Sample low finding (test data only)',
+    state: 'open',
+    vulnerableRange: '< 9.9.4',
+    patchedVersion: '9.9.4',
+    cvss: 3.0,
+    cweTitle: 'CWE-TEST-44: Sample test weakness',
+    createdAt: '2026-01-04',
+  },
+];
 
 describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Secret Scanning)', () => {
   const MOCK_TOAST = vi.fn();
@@ -19,7 +71,7 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
     it('renders security overview header with open alert counts', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={SAMPLE_SECURITY_ALERTS}
           showToast={MOCK_TOAST}
           initialSubTab="dependabot"
         />,
@@ -35,7 +87,7 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
     it('renders 4 dedicated sub-tab buttons with correct labels', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={SAMPLE_SECURITY_ALERTS}
           showToast={MOCK_TOAST}
           initialSubTab="dependabot"
         />,
@@ -54,7 +106,7 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
     it('renders severity summary pills (Critical, High, Moderate, Low) with count badges', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={SAMPLE_SECURITY_ALERTS}
           showToast={MOCK_TOAST}
           initialSubTab="dependabot"
         />,
@@ -75,41 +127,41 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
     it('renders detailed advisory cards with Package, Vulnerable Range, Patched Version, CVE, CVSS, and CWE', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={SAMPLE_SECURITY_ALERTS}
           showToast={MOCK_TOAST}
           initialSubTab="dependabot"
         />,
       );
 
-      // Package names
-      expect(html).toContain('express');
-      expect(html).toContain('tar');
-      expect(html).toContain('micromatch');
-      expect(html).toContain('ws');
+      // Package names (test-data only)
+      expect(html).toContain('test-pkg-crit');
+      expect(html).toContain('test-pkg-high');
+      expect(html).toContain('test-pkg-mod');
+      expect(html).toContain('test-pkg-low');
 
-      // CVE IDs
-      expect(html).toContain('CVE-2026-3849');
-      expect(html).toContain('CVE-2024-37890');
-      expect(html).toContain('CVE-2024-4067');
-      expect(html).toContain('CVE-2024-37891');
+      // CVE IDs (test-data only)
+      expect(html).toContain('CVE-TEST-0001');
+      expect(html).toContain('CVE-TEST-0002');
+      expect(html).toContain('CVE-TEST-0003');
+      expect(html).toContain('CVE-TEST-0004');
 
       // CVSS Scores
-      expect(html).toContain('CVSS 9.8');
-      expect(html).toContain('CVSS 7.5');
-      expect(html).toContain('CVSS 5.3');
-      expect(html).toContain('CVSS 3.7');
+      expect(html).toContain('CVSS 9');
+      expect(html).toContain('CVSS 7');
+      expect(html).toContain('CVSS 5');
+      expect(html).toContain('CVSS 3');
 
       // CWE Titles
-      expect(html).toContain('CWE-94');
-      expect(html).toContain('CWE-22');
-      expect(html).toContain('CWE-1333');
-      expect(html).toContain('CWE-208');
+      expect(html).toContain('CWE-TEST-94');
+      expect(html).toContain('CWE-TEST-22');
+      expect(html).toContain('CWE-TEST-33');
+      expect(html).toContain('CWE-TEST-44');
 
       // Version ranges
-      expect(html).toContain('&lt; 4.18.2');
-      expect(html).toContain('4.18.2');
-      expect(html).toContain('&lt; 6.2.1');
-      expect(html).toContain('6.2.1');
+      expect(html).toContain('&lt; 9.9.1');
+      expect(html).toContain('9.9.1');
+      expect(html).toContain('&lt; 9.9.2');
+      expect(html).toContain('9.9.2');
 
       // Create fix PR button
       expect(html).toContain('Create fix PR');
@@ -118,7 +170,7 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
     it('renders state filter controls (Open, Dismissed, Closed, All) and search input', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={SAMPLE_SECURITY_ALERTS}
           showToast={MOCK_TOAST}
           initialSubTab="dependabot"
         />,
@@ -136,7 +188,7 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
     it('renders secret scanning view with active scanner badge and trigger scan button', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={SAMPLE_SECURITY_ALERTS}
           showToast={MOCK_TOAST}
           initialSubTab="secrets"
         />,
@@ -153,11 +205,7 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
 
     it('shows honest empty state instead of fabricated secret alerts', () => {
       const html = renderToStaticMarkup(
-        <SecurityTab
-          securityAlerts={[]}
-          showToast={MOCK_TOAST}
-          initialSubTab="secrets"
-        />,
+        <SecurityTab securityAlerts={[]} showToast={MOCK_TOAST} initialSubTab="secrets" />,
       );
 
       expect(html).toContain('data-testid="secret-scanning-view"');
@@ -169,11 +217,7 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
 
     it('does not fabricate file paths for secret locations', () => {
       const html = renderToStaticMarkup(
-        <SecurityTab
-          securityAlerts={[]}
-          showToast={MOCK_TOAST}
-          initialSubTab="secrets"
-        />,
+        <SecurityTab securityAlerts={[]} showToast={MOCK_TOAST} initialSubTab="secrets" />,
       );
 
       expect(html).not.toContain('config/aws-credentials.env:14');
@@ -183,11 +227,7 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
 
     it('shows empty secret list without fabricated status badges', () => {
       const html = renderToStaticMarkup(
-        <SecurityTab
-          securityAlerts={[]}
-          showToast={MOCK_TOAST}
-          initialSubTab="secrets"
-        />,
+        <SecurityTab securityAlerts={[]} showToast={MOCK_TOAST} initialSubTab="secrets" />,
       );
 
       expect(html).toContain('data-testid="secret-scanning-view"');
@@ -201,7 +241,7 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
     it('renders CodeQL SAST view with CLI version and rule matrix', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={SAMPLE_SECURITY_ALERTS}
           showToast={MOCK_TOAST}
           initialSubTab="codeql"
         />,
@@ -218,11 +258,7 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
 
     it('shows honest empty state instead of fabricated CodeQL alerts', () => {
       const html = renderToStaticMarkup(
-        <SecurityTab
-          securityAlerts={[]}
-          showToast={MOCK_TOAST}
-          initialSubTab="codeql"
-        />,
+        <SecurityTab securityAlerts={[]} showToast={MOCK_TOAST} initialSubTab="codeql" />,
       );
 
       expect(html).toContain('data-testid="codeql-sast-view"');
@@ -237,11 +273,7 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
 
     it('does not fabricate file paths or fix diffs for CodeQL', () => {
       const html = renderToStaticMarkup(
-        <SecurityTab
-          securityAlerts={[]}
-          showToast={MOCK_TOAST}
-          initialSubTab="codeql"
-        />,
+        <SecurityTab securityAlerts={[]} showToast={MOCK_TOAST} initialSubTab="codeql" />,
       );
 
       expect(html).not.toContain('apps/quantmail/backend/routes/repos.ts:42-48');
@@ -254,7 +286,7 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
     it('renders SECURITY.md editor & viewer with supported versions table', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={SAMPLE_SECURITY_ALERTS}
           showToast={MOCK_TOAST}
           initialSubTab="policy"
         />,
@@ -273,7 +305,7 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
     it('renders branch protection security checks with switches and Enforced badge', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={SAMPLE_SECURITY_ALERTS}
           showToast={MOCK_TOAST}
           initialSubTab="policy"
         />,
@@ -299,32 +331,15 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
     });
   });
 
-  describe('5. Security Alerts Data Contracts', () => {
-    it('exports rich constants conforming to GitHub security parity schema', () => {
-      expect(INITIAL_SECURITY_ALERTS.length).toBeGreaterThanOrEqual(4);
-      const cveAlert = INITIAL_SECURITY_ALERTS.find((a) => a.cve === 'CVE-2026-3849');
-      expect(cveAlert).toBeDefined();
-      expect(cveAlert?.package).toBe('express');
-      expect(cveAlert?.cvss).toBe(9.8);
-      expect(cveAlert?.vulnerableRange).toBe('< 4.18.2');
-      expect(cveAlert?.patchedVersion).toBe('4.18.2');
-
-      expect(INITIAL_SECRET_ALERTS.length).toBeGreaterThanOrEqual(5);
-      const awsSecret = INITIAL_SECRET_ALERTS.find((s) => s.secretType === 'AWS Access Key');
-      expect(awsSecret).toBeDefined();
-      expect(awsSecret?.maskedSecret).toContain('AKIA');
-      expect(awsSecret?.lineNumber).toBe(14);
-
-      expect(INITIAL_CODEQL_ALERTS.length).toBeGreaterThanOrEqual(4);
-      const sqlAlert = INITIAL_CODEQL_ALERTS.find((c) => c.ruleId === 'js/sql-injection');
-      expect(sqlAlert).toBeDefined();
-      expect(sqlAlert?.severity).toBe('critical');
-
-      expect(INITIAL_BRANCH_SECURITY_RULES.requirePullRequestReviews).toBe(true);
-      expect(INITIAL_BRANCH_SECURITY_RULES.requireStatusChecks).toBe(true);
-      expect(INITIAL_BRANCH_SECURITY_RULES.requireCleanSecretScanning).toBe(true);
-
+  describe('5. Default security policy template', () => {
+    it('ships an honest default SECURITY.md template next to its consumer', () => {
+      // The default template is real UI copy (the policy editor's starting
+      // content), not scan data — it lives beside SecurityTab now that the
+      // dead fixture module is gone.
+      expect(DEFAULT_SECURITY_POLICY).toContain('# Security Policy');
+      expect(DEFAULT_SECURITY_POLICY).toContain('Supported Versions');
       expect(DEFAULT_SECURITY_POLICY).toContain('Reporting a Vulnerability');
+      expect(DEFAULT_SECURITY_POLICY).toContain('security@quantrinity.in');
     });
   });
 });

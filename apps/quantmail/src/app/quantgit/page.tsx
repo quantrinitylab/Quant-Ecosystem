@@ -114,8 +114,12 @@ function QuantGitContent() {  const router = useRouter();
   }, [tabParam]);
 
   // Re-tap active app tab → refresh QuantGit view (P1: app-switcher refresh).
-  // QuantGit data is largely static/mock; re-tap resets to repos tab and
-  // scrolls to top as visible acknowledgment.
+  // QuantGit repos load LIVE from the Prisma-backed /api/repos endpoint
+  // (fetchRepos maps the response to Repo[] and re-fetches each sub-view
+  // from its own /api/repos/:id/... route); an empty or failed response
+  // degrades to the honest "No repositories yet" empty state — nothing is
+  // seeded from static/mock data. Re-tap resets to the repos tab and scrolls
+  // to top as visible acknowledgment.
   useEffect(() => {
     const handleRefresh = () => {
       setActiveContextSubTab('repos');

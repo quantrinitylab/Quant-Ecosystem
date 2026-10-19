@@ -19,8 +19,29 @@ import type {
   SecretType,
   Repo,
 } from '../types';
-import { DEFAULT_SECURITY_POLICY } from '../constants';
 import { apiFetchRaw } from '@quant/api-client';
+
+// Default SECURITY.md template for the Security Policy editor. Lives here
+// (next to its only consumer) after the dead mock-fixture module
+// apps/quantmail/src/app/quantgit/constants.ts was removed — no production
+// code ever imported the fixture data, only this policy string.
+export const DEFAULT_SECURITY_POLICY = `# Security Policy
+
+## Supported Versions
+
+| Version | Supported          |
+| ------- | ------------------ |
+| 1.0.x   | :white_check_mark: |
+| 0.9.x   | :x:                |
+
+## Reporting a Vulnerability
+
+If you discover a security vulnerability, please report it privately instead of opening a public issue:
+
+1. **Email**: security@quantrinity.in
+
+Please do not disclose security issues publicly until a fix has been released.
+`;
 
 export interface SecurityTabProps {
   securityAlerts?: SecurityAlert[];

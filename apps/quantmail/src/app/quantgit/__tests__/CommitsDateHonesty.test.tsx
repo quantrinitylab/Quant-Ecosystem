@@ -4,8 +4,30 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { CommitsTab } from '../components/CommitsTab';
 import { formatCommitRelativeTime, mapBackendCommitToItem } from '../components/mapBackendCommit';
 import { computeRepoInsights } from '../components/InsightsTab';
-import { INITIAL_REPOS } from '../constants';
-import type { CommitItem } from '../types';
+import type { CommitItem, Repo } from '../types';
+
+// Minimal clearly-labeled test repo (the dead mock-fixture module
+// quantgit/constants.ts was removed; tests must not depend on it).
+const TEST_REPO: Repo = {
+  id: 'test-repo',
+  name: 'test-repo',
+  fullName: 'tester/test-repo',
+  description: 'Test repo for commit-date honesty tests',
+  visibility: 'private',
+  language: '',
+  stars: 0,
+  forks: 0,
+  watching: 0,
+  cloneUrl: '',
+  defaultBranch: 'main',
+  latestCommit: '',
+  latestCommitSha: '',
+  latestCommitTime: '',
+  checksStatus: 'unknown',
+  license: '',
+  website: '',
+  topics: [],
+};
 
 // Date-honesty regression suite: the Commits tab used to fall back to a
 // hardcoded historical date (`date: c.date || 'Sep 26, 2026'`) when the
@@ -109,7 +131,7 @@ describe('formatCommitRelativeTime — honest units, no false claims', () => {
 });
 
 describe('CommitsTab — undated commits are honest, never misdated', () => {
-  const repo = INITIAL_REPOS[0];
+  const repo = TEST_REPO;
 
   it('groups dateless commits under "Undated commits" with no invented date anywhere', () => {
     const html = renderToStaticMarkup(
