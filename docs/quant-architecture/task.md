@@ -4500,6 +4500,9 @@ Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-007r24, started 2026
 - Rotation -> QM-SCREEN-008/009 (calendar) ROUND 24 regression, queued.
 Status: [x] DONE (R24 regression audit complete 2026-10-19 ~03:55 IST; 1 in-scope merge #1352 reviewed sound, prior fixes byte-verified intact, 0 new findings, origin healthy with full logged-out live verification; fixes tracked via their PRs)
 
+## QM-SCREEN-007 R25 — Search regression (ROUND 25)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-007r25, started 2026-10-19 ~13:40 IST; R24 base 181895e48 -> origin/main 034ea8a993, fresh fetch)
+
 ## QM-SCREEN-008/009 R24 — Calendar regression (ROUND 24)
 Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-008r24, started 2026-10-19 ~04:40 IST; R22 base 3fc1c679dee -> origin/main 9dbfa92577, fresh fetch)
 - Base: R22 @ 3fc1c679dee -> origin/main 9dbfa92577 (fresh fetch, 31 first-parent window merges). Code read from origin/main tree only (qe-main working tree ignored per stale-tree lesson; ledger work in ~/workspace/worktrees/ledger-lane-1; remote arch tip 5d3da69ed == HEAD before writing, no merge needed).
