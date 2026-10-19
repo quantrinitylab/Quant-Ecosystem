@@ -979,6 +979,13 @@ export async function websocketRoutes(fastify: FastifyInstance) {
           presence.heartbeat(userId, 'quantchat');
 
           if (message.type === 'heartbeat' || message.type === 'ping') {
+            // QC-F-302 — proof-of-life reply. The client's dead-socket
+            // watchdog counts inbound silence, which is only an honest
+            // signal if the server answers heartbeats: without this pong
+            // an idle-but-alive socket receives no inbound frames at all,
+            // so silence could never be distinguished from a half-open
+            // (dead) transport. The reply goes only to this socket.
+            socket.send(JSON.stringify({ type: 'pong' }));
             return;
           }
 
