@@ -254,6 +254,74 @@ describe('groupEmailsByPerson', () => {
     expect(convs.map((c) => c.personKey)).toEqual(['bob@example.com', 'alice@example.com']);
   });
 
+  it('sinks invalid-dated conversations to the bottom deterministically (NaN-guard)', () => {
+    // A garbage-but-truthy receivedAt used to yield NaN from the sort
+    // comparator, landing these rows at arbitrary positions in the People
+    // list. The contract is "undated messages sort as the oldest".
+    const garbage = (from: string) =>
+      email({
+        from: { email: from },
+        to: [{ email: ME }],
+        receivedAt: 'not-a-real-date' as unknown as Date,
+      });
+    const alice = garbage('alice@example.com');
+    const bob = garbage('bob@example.com');
+    const carol = email({
+      from: { email: 'carol@example.com' },
+      to: [{ email: ME }],
+      receivedAt: at('2026-10-10T09:00:00Z'),
+    });
+    const dave = email({
+      from: { email: 'dave@example.com' },
+      to: [{ email: ME }],
+      receivedAt: at('2026-10-10T08:00:00Z'),
+    });
+
+    const convs = groupEmailsByPerson([alice, bob, carol, dave], ME);
+    // Valid dates newest-first, then the undated rows in a stable
+    // personKey order — never an arbitrary position.
+    expect(convs.map((c) => c.personKey)).toEqual([
+      'carol@example.com',
+      'dave@example.com',
+      'alice@example.com',
+      'bob@example.com',
+    ]);
+    expect(Number.isNaN(convs[2].lastActivityAt.getTime())).toBe(true);
+  });
+
+  it('produces an identical order on every run with undated conversations', () => {
+    // A NaN comparator return violates the sort contract and V8 keeps the
+    // input order, so shuffling the input shuffled the output. With the
+    // guard the output must be input-order-independent.
+    const mk = () => [
+      email({ from: { email: 'zed@example.com' }, to: [{ email: ME }], receivedAt: 'junk' as unknown as Date }),
+      email({ from: { email: 'amy@example.com' }, to: [{ email: ME }], receivedAt: 'junk' as unknown as Date }),
+      email({ from: { email: 'mid@example.com' }, to: [{ email: ME }], receivedAt: at('2026-10-10T09:00:00Z') }),
+    ];
+    const expected = groupEmailsByPerson(mk(), ME).map((c) => c.personKey);
+    for (let i = 0; i < 5; i += 1) {
+      const shuffled = mk().reverse();
+      expect(groupEmailsByPerson(shuffled, ME).map((c) => c.personKey)).toEqual(expected);
+    }
+    expect(expected).toEqual(['mid@example.com', 'amy@example.com', 'zed@example.com']);
+  });
+
+  it('sorts an invalid-dated message oldest within its conversation', () => {
+    const valid = email({
+      from: { email: 'alice@example.com' },
+      to: [{ email: ME }],
+      receivedAt: at('2026-10-10T09:00:00Z'),
+    });
+    const invalid = email({
+      from: { email: 'alice@example.com' },
+      to: [{ email: ME }],
+      receivedAt: 'junk' as unknown as Date,
+    });
+    const convs = groupEmailsByPerson([valid, invalid], ME);
+    expect(convs).toHaveLength(1);
+    expect(convs[0].messages.map((m) => m.id)).toEqual([invalid.id, valid.id]);
+  });
+
   it('collapses a send and its delivered copy into one message', () => {
     const sentAt = at('2026-10-10T10:00:00Z');
     const sent = email({

@@ -187,9 +187,58 @@ function otherPartyKey(email: Email, currentUserEmail: string): string {
   return SELF_KEY;
 }
 
-/** Comparable timestamp for ordering; undated messages sort as the oldest. */
+/**
+ * Comparable timestamp for ordering; undated messages sort as the oldest.
+ *
+ * NaN-guard — sister to `messageSortTime` in `components/PersonThread`
+ * (#1376): a garbage-but-truthy `receivedAt` parses to an Invalid Date, whose
+ * `getTime()` is NaN. Per the documented contract it maps to -Infinity so
+ * those conversations deterministically sink to the bottom of the People
+ * list instead of landing at arbitrary positions (a NaN comparator return
+ * violates the sort contract). Valid timestamps are unaffected.
+ */
 function messageTime(email: Email): number {
-  return new Date(email.receivedAt || email.createdAt || 0).getTime();
+  const t = new Date(email.receivedAt || email.createdAt || 0).getTime();
+  return Number.isNaN(t) ? Number.NEGATIVE_INFINITY : t;
+}
+
+/**
+ * Three-way chronological comparator (oldest first) — never subtraction, so
+ * the sort contract holds even when both messages are undated
+ * (-Infinity - -Infinity is itself NaN). Stable `id` tie-break keeps the
+ * order deterministic across renders.
+ */
+function compareMessagesAsc(a: Email, b: Email): number {
+  const ta = messageTime(a);
+  const tb = messageTime(b);
+  if (ta < tb) return -1;
+  if (ta > tb) return 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/**
+ * `lastActivityAt` is an Invalid Date for undated conversations (the People
+ * list renders an empty time slot for those — see `formatRelativeTime` in
+ * `components/PeopleList`); its `getTime()` is NaN, so guard it here to keep
+ * the People-list ordering contract — undated conversations sink to the
+ * bottom — deterministic.
+ */
+function activityTime(at: Date): number {
+  const t = at instanceof Date ? at.getTime() : new Date(at).getTime();
+  return Number.isNaN(t) ? Number.NEGATIVE_INFINITY : t;
+}
+
+/**
+ * People-list order (newest first). Three-way comparison — never subtraction —
+ * for the same NaN reason as `compareMessagesAsc`; the `personKey` tie-break
+ * keeps the order stable and deterministic across renders.
+ */
+function compareConversationsByRecency(a: PersonConversation, b: PersonConversation): number {
+  const ta = activityTime(a.lastActivityAt);
+  const tb = activityTime(b.lastActivityAt);
+  if (ta > tb) return -1;
+  if (ta < tb) return 1;
+  return a.personKey < b.personKey ? -1 : a.personKey > b.personKey ? 1 : 0;
 }
 
 /**
@@ -380,7 +429,7 @@ export function groupEmailsByPerson(
 
   const conversations: PersonConversation[] = [];
   for (const [personKey, bucket] of buckets) {
-    bucket.sort((a, b) => messageTime(a) - messageTime(b));
+    bucket.sort(compareMessagesAsc);
     const messages = collapseDuplicateSends(bucket);
     const lastMessage = messages[messages.length - 1];
     const participantEmails = otherParticipants(messages, currentUserEmail);
@@ -404,7 +453,7 @@ export function groupEmailsByPerson(
     });
   }
 
-  conversations.sort((a, b) => b.lastActivityAt.getTime() - a.lastActivityAt.getTime());
+  conversations.sort(compareConversationsByRecency);
   return conversations;
 }
 
