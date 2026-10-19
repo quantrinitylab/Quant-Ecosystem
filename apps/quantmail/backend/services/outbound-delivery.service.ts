@@ -283,6 +283,18 @@ export class OutboundDeliveryPipeline {
     return this.prisma.email.findUnique({ where: { id: emailId } });
   }
 
+  /**
+   * fix/qm-stuck-send-reconciler: queue-ownership probe for the stuck-send
+   * reconciler. A `queued` email row whose deterministic job still exists in
+   * the queue (waiting, delayed, active, completed or failed — jobs are kept,
+   * `removeOnComplete/removeOnFail: false`) is owned by the queue and is NOT
+   * stuck; only a row with NO job record is a candidate for re-enqueue.
+   */
+  async hasJob(emailId: string): Promise<boolean> {
+    const job = await this.queue.getJob(`${OUTBOUND_DELIVERY_QUEUE}-${emailId}`);
+    return job != null;
+  }
+
   /** Cancel a previously-enqueued send job if still pending in queue. */
   async cancelSend(userId: string, emailId: string): Promise<boolean> {
     const email = await this.prisma.email.findUnique({ where: { id: emailId } });

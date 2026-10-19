@@ -1,5 +1,5 @@
 import type { PrismaClient, Email } from '@prisma/client';
-import { createAppError } from '@quant/server-core';
+import { createAppError, RemoteCallTimeoutError } from '@quant/server-core';
 import type { OutboundDeliveryPipeline } from './outbound-delivery.service';
 import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
 import { resolveOutboundAttachments, type OutboundAttachmentDb } from '../lib/outbound-attachments';
@@ -845,19 +845,38 @@ export class EmailService {
           updated = await this.finalizeSendDelivery(emailId, userId, flipped, 'delivered', sentAt, messageId, sendRequestId);
         } catch (error) {
           deliveryError = error instanceof Error ? error.message : String(error);
-          /*
-           * 'deferred', not 'failed': 'failed' is not a member of the
-           * EmailDeliveryStatus enum (draft | queued | sent | deferred |
-           * bounced | delivered), so Prisma rejects the final update below and
-           * the draft is never flipped into a Sent message. 'deferred' is the
-           * design's transient-failure state and keeps the undo window open
-           * for a manual retry. (Matches main's fix from Muse's QA round.)
-           */
-          updated = await this.finalizeSendDelivery(emailId, userId, flipped, 'deferred', sentAt, messageId, sendRequestId);
-          // eslint-disable-next-line no-console
-          console.error(
-            `[EmailService.send: SES delivery failed] emailId=${emailId} userId=${userId}: ${deliveryError}`,
-          );
+          if (error instanceof RemoteCallTimeoutError) {
+            /*
+             * fix/qm-stuck-send-reconciler — provider-accepted-but-response-lost:
+             * the SES call timed out, so the transmit MAY have been accepted.
+             * This is an UNKNOWN outcome, not a definitive failure: marking it
+             * 'deferred' would silently allow a re-fire (duplicate send), and
+             * marking it 'delivered' would be a lie. 'unknown' is preserved
+             * honestly — the worker fire-gate never fires it, the stuck-send
+             * reconciler never re-enqueues it, and it surfaces for manual
+             * resolution instead of auto-retry.
+             */
+            updated = await this.finalizeSendDelivery(emailId, userId, flipped, 'unknown', sentAt, messageId, sendRequestId, deliveryError);
+            // eslint-disable-next-line no-console
+            console.error(
+              `[EmailService.send: SES transmit outcome unknown] emailId=${emailId} userId=${userId}: ${deliveryError}`,
+            );
+          } else {
+            /*
+             * 'deferred', not 'failed': 'failed' is not a member of the
+             * EmailDeliveryStatus enum (draft | queued | sent | deferred |
+             * bounced | delivered | unknown), so Prisma rejects the final update
+             * below and the draft is never flipped into a Sent message.
+             * 'deferred' is the design's transient-failure state and keeps the
+             * undo window open for a manual retry. (Matches main's fix from
+             * Muse's QA round.)
+             */
+            updated = await this.finalizeSendDelivery(emailId, userId, flipped, 'deferred', sentAt, messageId, sendRequestId);
+            // eslint-disable-next-line no-console
+            console.error(
+              `[EmailService.send: SES delivery failed] emailId=${emailId} userId=${userId}: ${deliveryError}`,
+            );
+          }
         }
       } else if (!enqueued) {
         // CUST-P0-2: never fake a successful send. The pipeline died between
@@ -907,10 +926,11 @@ export class EmailService {
     emailId: string,
     userId: string,
     flipped: Email,
-    status: 'delivered' | 'deferred',
+    status: 'delivered' | 'deferred' | 'unknown',
     sentAt: Date,
     messageId: string,
     requestId: string,
+    detail?: string,
   ): Promise<Email> {
     return this.prisma.$transaction(async (tx) => {
       const current = (await tx.email.findUnique({ where: { id: emailId } })) as unknown as {
@@ -938,7 +958,7 @@ export class EmailService {
       });
       await emitOutbox(tx, {
         event:
-          status === 'deferred'
+          status === 'deferred' || status === 'unknown'
             ? MailOutboxEvents.outboundDeferred
             : MailOutboxEvents.outboundSubmitted,
         aggregateType: 'Email',
@@ -949,6 +969,13 @@ export class EmailService {
           messageId,
           deliveryStatus: status,
           requestId,
+          // fix/qm-stuck-send-reconciler: 'unknown' reuses the spec'd
+          // mail.outbound.deferred.v1 name (no invented event names) but the
+          // payload marks the outcome honestly so consumers can tell a
+          // provider-accepted-but-response-lost transmit from a definitive
+          // failure.
+          ...(status === 'unknown' ? { outcome: 'unknown' as const } : {}),
+          ...(detail ? { error: detail } : {}),
         },
       });
       return finalized;

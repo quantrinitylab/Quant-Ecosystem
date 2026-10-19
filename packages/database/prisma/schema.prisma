@@ -818,6 +818,10 @@ enum EmailDeliveryStatus {
   deferred
   bounced
   delivered
+  // fix/qm-stuck-send-reconciler: explicit UNKNOWN outcome — a transmit whose
+  // provider response was lost (timeout after accept). Preserved honestly:
+  // never auto-retried, never auto-reconciled, never marked delivered.
+  unknown
 }
 
 // Mail or chat: the two ways a message in a QuantMail conversation can be
