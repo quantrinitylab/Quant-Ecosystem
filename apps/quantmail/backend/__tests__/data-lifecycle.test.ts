@@ -38,6 +38,7 @@ interface FakeDb {
   checkpoints: Map<string, Row>;
   emails: Map<string, Row>;
   folders: Map<string, Row>;
+  notifications: Map<string, Row>;
   outbox: Row[];
   failOutbox: boolean;
   $transaction<T>(cb: (tx: FakeTx) => Promise<T>): Promise<T>;
@@ -82,6 +83,9 @@ interface FakeTx {
     findFirst(a: { where: Row }): Promise<Row | null>;
     create(a: { data: Row }): Promise<Row>;
   };
+  notification: {
+    deleteMany(a: { where: Row }): Promise<{ count: number }>;
+  };
   outboxEvent: { create(a: { data: Row }): Promise<Row> };
 }
 
@@ -122,6 +126,7 @@ function createFakeDb(opts: { failOutbox?: boolean } = {}): FakeDb {
     checkpoints: new Map(),
     emails: new Map(),
     folders: new Map(),
+    notifications: new Map(),
     outbox: [],
     failOutbox: opts.failOutbox ?? false,
     $transaction: async <T>(cb: (tx: FakeTx) => Promise<T>): Promise<T> => {
@@ -265,6 +270,23 @@ function createFakeDb(opts: { failOutbox?: boolean } = {}): FakeDb {
         const row = { id: nid('folder'), ...data };
         db.folders.set(row.id as string, row);
         return row;
+      },
+    },
+    // Notification retention: the sweep prunes rows whose expiresAt passed.
+    // Mirrors the real Prisma `deleteMany({ where: { expiresAt: { lte } } })`
+    // semantics — null-expiresAt rows are never removed.
+    notification: {
+      deleteMany: async ({ where }) => {
+        const lte = new Date((where.expiresAt as { lte: Date }).lte).getTime();
+        let count = 0;
+        for (const [id, row] of db.notifications) {
+          const exp = row.expiresAt as Date | null;
+          if (exp !== null && new Date(exp).getTime() <= lte) {
+            db.notifications.delete(id);
+            count++;
+          }
+        }
+        return { count };
       },
     },
     outboxEvent: {
@@ -492,6 +514,23 @@ describe('QM-BACK-006 data-lifecycle events', () => {
     const result = await runRetentionSweep(db as never, 'system', new Date('2026-10-08'));
     expect(result.policiesRun).toBe(0);
     expect(RETENTION_SWEEP_BATCH_LIMIT).toBe(500);
+  });
+
+  it('runRetentionSweep: expired notifications are pruned and honestly counted', async () => {
+    db.notifications.set('n-old', { id: 'n-old', userId: 'u-1', expiresAt: new Date('2020-01-01') });
+    db.notifications.set('n-null', { id: 'n-null', userId: 'u-1', expiresAt: null });
+    db.notifications.set('n-fresh', {
+      id: 'n-fresh',
+      userId: 'u-1',
+      expiresAt: new Date('2026-12-01'),
+    });
+    // No retention policies at all — the notification prune is unconditional.
+    const result = await runRetentionSweep(db as never, 'system', new Date('2026-10-08'));
+    expect(result.policiesRun).toBe(0);
+    expect(result.notificationsPruned).toBe(1);
+    expect(db.notifications.has('n-old')).toBe(false);
+    expect(db.notifications.has('n-null')).toBe(true);
+    expect(db.notifications.has('n-fresh')).toBe(true);
   });
 
   it('recordDeletionBlocked: refusal is an audit fact with a blocked operation', async () => {

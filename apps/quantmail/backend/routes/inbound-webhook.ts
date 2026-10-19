@@ -47,6 +47,7 @@ import {
 import { InboundIngestAdapter, type InboundRawMessage } from '../services/inbound-ingest.service';
 import { InboundAttachmentKeeper } from '../services/inbound-attachments.service';
 import { deliverPushToUser } from '../services/push-delivery.service';
+import { newMailNotificationExpiresAt } from '../services/notification-retention.service';
 import {
   isImportantMail,
   readUserMailNotificationMode,
@@ -605,6 +606,10 @@ async function createNewMailNotification(
         sourceApp: 'quantmail',
         sourceEntityId: email.id,
         actionUrl,
+        // Notification retention: without a TTL these rows accumulated
+        // unboundedly (one per inbound email per user, forever). The TTL feeds
+        // the prune path in notification-retention.service.ts.
+        expiresAt: newMailNotificationExpiresAt(),
         data: { emailId: email.id, threadId: email.threadId, snippet: email.snippet },
       },
     });

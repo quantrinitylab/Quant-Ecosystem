@@ -23,12 +23,14 @@ const mockUseNotifications = vi.fn();
 const mockMarkRead = vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false }));
 const mockMarkAllRead = vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false }));
 const mockDeleteOne = vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false }));
+const mockClearAll = vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false }));
 
 vi.mock('../hooks/useNotifications', () => ({
   useNotifications: () => mockUseNotifications(),
   useMarkNotificationRead: () => mockMarkRead(),
   useMarkAllNotificationsRead: () => mockMarkAllRead(),
   useDeleteNotification: () => mockDeleteOne(),
+  useClearAllNotifications: () => mockClearAll(),
 }));
 
 import NotificationsPage from '../app/notifications/page';
@@ -87,6 +89,16 @@ describe('Notifications center', () => {
     const html = renderToStaticMarkup(<NotificationsPage />);
     expect(html).not.toContain('Mark all read');
     expect(html).toContain('all caught up');
+  });
+
+  it('shows the clear-all action only when notifications exist', () => {
+    loaded([N1, N2], 1);
+    expect(renderToStaticMarkup(<NotificationsPage />)).toContain('Clear all');
+
+    loaded([], 0);
+    const html = renderToStaticMarkup(<NotificationsPage />);
+    expect(html).not.toContain('Clear all');
+    expect(html).toContain('No notifications');
   });
 
   it('renders the All / Unread / Read filters', () => {
