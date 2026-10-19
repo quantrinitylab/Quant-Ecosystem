@@ -33,6 +33,7 @@ import {
   dayBucket,
   type UseQuantyAgent,
   type QuantyTaskStatus,
+  type QuantyActivityEntry,
 } from '../components/QuantyLiveAgent';
 
 afterEach(() => {
@@ -144,6 +145,28 @@ describe('quantyTime helpers', () => {
     expect(dayBucket('2026-10-06T09:00:00+05:30', now)).toBe('today');
     expect(dayBucket('2026-10-05T09:00:00+05:30', now)).toBe('yesterday');
     expect(dayBucket('2026-09-01T09:00:00+05:30', now)).toBe('older');
+  });
+});
+
+describe('QuantyActivityTab broken-timestamp guard', () => {
+  it('never files a broken-timestamp entry under the "Older" heading', () => {
+    // Entry 5 minutes ago lands in "Today" relative to the component's own
+    // `new Date()` now; the broken-timestamp entry must be excluded from the
+    // day groups instead of being silently bucketed as "Older" (PR #894
+    // defect family).
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const html = renderToStaticMarkup(
+      React.createElement(QuantyActivityTab, {
+        entries: [
+          { id: 'e1', title: 'Todays work', timestamp: fiveMinAgo, icon: 'agent' },
+          { id: 'e2', title: 'Broken entry', timestamp: 'garbage', icon: 'agent' },
+        ] as QuantyActivityEntry[],
+      }),
+    );
+    expect(html).toContain('Todays work');
+    expect(html).toContain('>Today<');
+    expect(html).not.toContain('Broken entry');
+    expect(html).not.toContain('>Older<');
   });
 });
 

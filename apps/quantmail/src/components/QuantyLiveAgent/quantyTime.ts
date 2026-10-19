@@ -46,10 +46,20 @@ export function formatRelativeTime(iso: string, now = new Date()): string {
   }
 }
 
-/** Day bucket for the activity timeline: 'today' | 'yesterday' | 'older'. */
-export function dayBucket(iso: string, now = new Date()): 'today' | 'yesterday' | 'older' {
+/**
+ * Day bucket for the activity timeline.
+ *
+ * Returns '' for unparseable input — `new Date(garbage)` never throws, so the
+ * try/catch below is dead code; without the explicit NaN guard a broken
+ * timestamp would fail every >= comparison and land in the 'older' bucket,
+ * rendering as a genuine "Older" group entry (PR #894 defect family — the
+ * sibling quantyTime formatters already degrade to ''). Callers must treat
+ * '' as "no bucket" and never file the entry under a real heading.
+ */
+export function dayBucket(iso: string, now = new Date()): 'today' | 'yesterday' | 'older' | '' {
   try {
     const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
     const startOfToday = new Date(now);
     startOfToday.setHours(0, 0, 0, 0);
     const startOfYesterday = new Date(startOfToday);
@@ -58,7 +68,7 @@ export function dayBucket(iso: string, now = new Date()): 'today' | 'yesterday' 
     if (d >= startOfYesterday) return 'yesterday';
     return 'older';
   } catch {
-    return 'older';
+    return '';
   }
 }
 

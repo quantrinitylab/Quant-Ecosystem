@@ -59,4 +59,13 @@ describe('dayBucket', () => {
     expect(dayBucket('2026-10-05T09:00:00+05:30', NOW)).toBe('yesterday');
     expect(dayBucket('2026-09-01T09:00:00+05:30', NOW)).toBe('older');
   });
+
+  it('degrades to "" for unparseable input — never a silent "older"', () => {
+    // Same defect family as the formatClockTime/formatRelativeTime guards:
+    // `new Date(garbage)` never throws, so without the NaN guard every >=
+    // comparison is false and garbage falls through to the 'older' bucket.
+    for (const input of GARBAGE) {
+      expect(dayBucket(input, NOW)).toBe('');
+    }
+  });
 });
