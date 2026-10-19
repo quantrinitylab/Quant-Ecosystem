@@ -52,17 +52,37 @@ export function formatCommitRelativeTime(timestamp: unknown): string {
   if (diffMs < yearMs) return ago(Math.round(diffMs / monthMs), 'month');
   return ago(Math.round(diffMs / yearMs), 'year');
 }
+/**
+ * Message/author honesty (same invented-data defect family as the Branches
+ * tab's 'Update branch' fallback, fixed in mapBackendBranch.ts): the commits
+ * endpoint may legitimately return rows with no `message` and/or no `author`
+ * fields. The old mapper invented `message: c.message || 'Commit update'` and
+ * attributed every author-less commit to the VIEWER (`c.author?.name ||
+ * c.author || currentUsername`, and even fabricated
+ * `${currentUsername}@quantmail.in` as the author's email). We now degrade to
+ * honest empty strings: CommitsTab renders its own honest 'Unknown' author
+ * fallback and a muted "No message" slot instead of invented data. The
+ * viewer's identity is never substituted as a commit author.
+ */
 export function mapBackendCommitToItem(c: any, currentUsername: string): CommitItem {
+  void currentUsername;
+  // Never invent a commit message the backend did not provide.
+  // Never attribute an author-less commit to the viewer or invent an email
+  // for them — a backend `author` may be an object or a plain string name.
+  const authorObject = c.author && typeof c.author === 'object' ? c.author : undefined;
+  const authorString = typeof c.author === 'string' ? c.author : '';
+  const authorName = authorObject?.name || authorString || '';
+  const authorUsername = authorObject?.username || authorString || '';
   return {
     sha: c.sha || c.commitSha || '',
     shortSha: (c.sha || c.commitSha || '').slice(0, 7),
-    message: c.message || 'Commit update',
+    message: c.message || '',
     body: c.body || '',
     author: {
-      name: c.author?.name || c.author || currentUsername,
-      username: c.author?.username || c.author || currentUsername,
-      email: c.author?.email || `${currentUsername}@quantmail.in`,
-      avatarUrl: c.author?.avatarUrl || '',
+      name: authorName,
+      username: authorUsername,
+      email: authorObject?.email || '',
+      avatarUrl: authorObject?.avatarUrl || '',
     },
     // Never invent a specific date the backend did not provide.
     date: c.date || '',
