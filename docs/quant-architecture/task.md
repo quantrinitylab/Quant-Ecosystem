@@ -4715,3 +4715,10 @@ Status: [x] DONE (R25 regression audit complete 2026-10-19 ~22:50 IST; zero in-s
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents spawned (P0/P1-only protocol; subagent.list 0 active at run start). findings.md untouched (clean pass).
 - VERDICT-LIVE: HEALTHY. Proxy 127.0.0.1:8888 healthy (google 204 0.58s, no restart). GET /help /privacy /terms /sso -> 200 4/4; /api/oauth/jwks -> 200 (real RSA keys, baseline match); /api/oauth/userinfo -> 401 honest. Desktop 1440x900 + mobile 390x844 (iPhone 14, wait_s=14 hydrated) /help shots REVIEWED: clay M-mark current, 'How can we help?'/'Help center', 3 honest topic cards (Signing in incl. recovery-not-available honesty + support@quantrinity.in, Resetting your password, Creating an address), mail-orange links, ONE IDENTITY footer, (c) 2026, pure black, zero old-logo flash; white ghost on 'AI triage' card = standing known issue (not re-filed); P3 'Quant Mail' wordmark spacing re-seen, not re-filed. Shots reviewed + deleted; chrome orphans cleaned; 9333/9334 free at start. Signed-in help/sso flows = needs-auth (protocol), not faked. All 32 window merges on main only (#1243 deploy hold ACTIVE — live verification of window code waits on deploy).
 - Rotation -> ROUND 26: QM-SCREEN-007 (search) regression, queued.
+
+## QM-SCREEN-007 R26 — Search regression (ROUND 26)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-007r26
+Audit started: 2026-10-19 ~23:40 IST (lane-1 deep audit loop, ROUND 26)
+Base: R25 @ 034ea8a993 -> origin/main e925c0f12 (fresh fetch, 25 first-parent window merges). Code read from origin/main tree only (qe-main working tree ignored per stale-tree lesson; ledger work in ~/workspace/worktrees/ledger-lane-1; remote arch tip 150b53b8d == HEAD before claim, no merge needed).
