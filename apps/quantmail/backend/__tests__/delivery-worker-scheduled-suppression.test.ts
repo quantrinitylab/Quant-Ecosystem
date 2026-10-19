@@ -307,7 +307,9 @@ describe('DeliveryWorker reply-arrival suppression (scheduled sends)', () => {
 });
 
 describe('DeliveryWorker fire-gate (job outlives its send)', () => {
-  it.each(['draft', 'sent', 'delivered', 'bounced'] as const)(
+  // fix/qm-stuck-send-reconciler: 'unknown' (transmit outcome uncertain —
+  // provider accepted but the response was lost) must never fire either.
+  it.each(['draft', 'sent', 'delivered', 'bounced', 'unknown'] as const)(
     'never transmits when the row is already %s (e.g. user cancelled via cancel-send)',
     async (deliveryStatus) => {
       const prisma = makePrisma(
