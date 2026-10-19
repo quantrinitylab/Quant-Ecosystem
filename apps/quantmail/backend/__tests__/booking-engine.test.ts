@@ -223,7 +223,7 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       expect('userId' in body.data).toBe(false);
       expect('hostTitle' in body.data).toBe(false);
       expect(body.data.hostName).toBe('Alex Host');
-      expect(body.data.hostEmail).toBe('alex.host@quantmail.io');
+      expect(body.data.hostEmail).toBe('alex.host@quantmail.in');
       expect(body.data.duration).toBe(30);
       expect(body.data.availableDays).toEqual([1, 2, 3, 4, 5]);
       expect(body.data.startHour).toBe(9);
