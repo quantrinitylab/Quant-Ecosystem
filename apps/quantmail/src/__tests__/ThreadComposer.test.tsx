@@ -64,17 +64,27 @@ vi.mock('../components/PeopleWorldTabs', () => ({
     </div>
   ),
 }));
-vi.mock('../components/PeopleList', () => ({
-  PeopleList: ({ conversations, onSelect, searchQuery, loading }: any) => (
-    <div data-testid="people-list" data-search={searchQuery} data-loading={String(!!loading)}>
-      {conversations.map((c: any) => (
-        <button key={c.personKey} data-testid={`person-${c.personKey}`} onClick={() => onSelect(c)}>
-          {c.name}
-        </button>
-      ))}
-    </div>
-  ),
-}));
+vi.mock('../components/PeopleList', async () => {
+  // fix/qm-people-keyboard-triage: PeopleHome imports conversationMatchesQuery
+  // from this module for its keyboard-triage row filtering. Re-export the
+  // REAL helper so the filtered-rows contract stays honest under the
+  // component mock (the mock list renders the pre-filtered rows it gets).
+  const actual = await vi.importActual<typeof import('../components/PeopleList')>(
+    '../components/PeopleList',
+  );
+  return {
+    PeopleList: ({ conversations, onSelect, searchQuery, loading }: any) => (
+      <div data-testid="people-list" data-search={searchQuery} data-loading={String(!!loading)}>
+        {conversations.map((c: any) => (
+          <button key={c.personKey} data-testid={`person-${c.personKey}`} onClick={() => onSelect(c)}>
+            {c.name}
+          </button>
+        ))}
+      </div>
+    ),
+    conversationMatchesQuery: actual.conversationMatchesQuery,
+  };
+});
 vi.mock('../components/PersonThread', () => ({
   PersonThread: ({ conversation, renderComposer }: any) => {
     // Captured for the phantom-bubble tests: the page-level assertion reads
