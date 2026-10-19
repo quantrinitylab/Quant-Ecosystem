@@ -8,7 +8,7 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { EmailComposer } from '../../components/EmailComposer';
 import type { ComposerMessageData } from '../../components/EmailComposer';
 import { showToast } from '../../components/InboxToast';
-import { stripTrailingSignature } from '../../lib/email-body';
+import { buildReplyQuote, stripTrailingSignature } from '../../lib/email-body';
 import { filterValidRecipients } from '../../lib/email-validation';
 import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
@@ -120,6 +120,61 @@ export default function ComposePage() {
       active = false;
     };
   }, [draftId]);
+
+  // Reply quote: `?replyTo=<id>` used to open with a blank body — the page
+  // fetched nothing, so there was no "On <date>, <who> wrote:" quote. Fetch
+  // the original and prefill a Gmail-class quoted body. Explicit `?body=`,
+  // a restored draft (undo-draft or `?draftId=`), or a saved server draft
+  // always win: the quote is only the fallback when the page has no other
+  // body to show.
+  //
+  // `replyTo` may be a message id (thread view's reply action) or a thread
+  // id (the inbox keyboard's reply command passes `focusedRow.threadId`) —
+  // try the message endpoint first, then fall back to the thread's latest
+  // message. If the original cannot be loaded the composer honestly stays
+  // blank; nothing is invented.
+  //
+  // The composer is held behind the load on purpose: EmailComposer applies a
+  // changed `initialBody` to its editable body, so a quote arriving after the
+  // user has started typing would silently clobber their words.
+  const [quoteBody, setQuoteBody] = useState<string | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(
+    () => Boolean(replyTo && !prefillBody && !draftId),
+  );
+
+  useEffect(() => {
+    if (!replyTo || prefillBody || draftId || draftData?.body) {
+      setQuoteLoading(false);
+      return;
+    }
+    let active = true;
+    const loadQuote = async () => {
+      try {
+        const one = await apiClient.getEmail(replyTo);
+        if (!active) return;
+        if (one.success && one.data) {
+          setQuoteBody(buildReplyQuote(one.data));
+          return;
+        }
+        const thread = await apiClient.getThread(replyTo);
+        if (!active || !thread.success || !thread.data?.messages?.length) return;
+        const latest = [...thread.data.messages].sort(
+          (a, b) =>
+            new Date(b.receivedAt ?? b.createdAt ?? 0).getTime() -
+            new Date(a.receivedAt ?? a.createdAt ?? 0).getTime(),
+        )[0];
+        if (latest) setQuoteBody(buildReplyQuote(latest));
+      } catch {
+        // No quote — the composer stays honestly blank.
+      } finally {
+        if (active) setQuoteLoading(false);
+      }
+    };
+    void loadQuote();
+    return () => {
+      active = false;
+    };
+  }, [replyTo, prefillBody, draftId, draftData?.body]);
 
   // `?kind=chat` (from the inbox's "New chat" button) starts a chat thread
   // instead of a letter; the kind travels to the backend compose call and to
@@ -365,10 +420,10 @@ export default function ComposePage() {
     [],
   );
 
-  if (draftLoading) {
+  if (draftLoading || quoteLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[var(--quant-surface-subtle)] text-[var(--quant-muted-foreground)] text-sm">
-        <p>Loading draft…</p>
+        <p>{draftLoading ? 'Loading draft…' : 'Loading quoted message…'}</p>
       </div>
     );
   }
@@ -386,7 +441,10 @@ export default function ComposePage() {
             draftData?.subject ??
             (prefillSubject ? normalizeReplySubject(prefillSubject) : '')
           }
-          initialBody={draftData?.body ?? prefillBody ?? undefined}
+          // `initialBody` precedence: a restored draft (undo-draft or
+          // `?draftId=`) wins, then an explicit `?body=`, then the fetched
+          // reply quote; a failed quote load honestly stays blank.
+          initialBody={draftData?.body ?? prefillBody ?? quoteBody ?? undefined}
           inReplyTo={replyTo || undefined}
           onSend={handleSend}
           onSaveDraft={handleSaveDraft}

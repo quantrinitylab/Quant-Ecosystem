@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   SIGNATURE_DELIMITER,
+  buildReplyQuote,
   composeMessageBodies,
   escapeHtml,
   htmlToPlainText,
@@ -214,5 +215,59 @@ describe('stripTrailingSignature', () => {
     const second = composeMessageBodies(restored, '<p>Kundan</p>').bodyText;
     expect(second).toBe(first);
     expect(stripTrailingSignature(second)).toBe('Body line');
+  });
+});
+
+describe('buildReplyQuote', () => {
+  it('quotes the full original under a Gmail-class header with typing room above', () => {
+    const quote = buildReplyQuote({
+      from: { email: 'jane@example.com', name: 'Jane' },
+      receivedAt: '2026-10-18T12:34:00.000Z',
+      bodyText: 'Hello there.\n\nSecond paragraph.',
+    });
+    // Two blank lines so the reply starts on fresh ground, then the header.
+    expect(quote.startsWith('\n\nOn ')).toBe(true);
+    expect(quote).toContain('Jane wrote:');
+    // Every line of the original is quoted — nothing elided or summarized.
+    expect(quote).toContain('> Hello there.');
+    expect(quote).toContain('>');
+    expect(quote).toContain('> Second paragraph.');
+  });
+
+  it('prefers the sender name, falls back to the email address', () => {
+    const named = buildReplyQuote({ from: { email: 'a@b.c', name: '  Ada  ' }, bodyText: 'x' });
+    expect(named).toContain('Ada wrote:');
+    const unnamed = buildReplyQuote({ from: { email: 'a@b.c' }, bodyText: 'x' });
+    expect(unnamed).toContain('a@b.c wrote:');
+  });
+
+  it('falls back from bodyText to bodyHtml, then to the snippet', () => {
+    const html = buildReplyQuote({
+      from: { email: 'a@b.c' },
+      bodyText: '',
+      bodyHtml: '<p>Rich <b>words</b></p><p>more</p>',
+    });
+    expect(html).toContain('> Rich words');
+    expect(html).toContain('> more');
+    const snip = buildReplyQuote({ from: { email: 'a@b.c' }, snippet: 'Just a snippet' });
+    expect(snip).toContain('> Just a snippet');
+  });
+
+  it('stays honest when the message has no usable date or content', () => {
+    const empty = buildReplyQuote({ from: { email: 'a@b.c' } });
+    expect(empty).toContain('an unknown date');
+    expect(empty).toContain('> (the original message has no text to quote)');
+    const badDate = buildReplyQuote({
+      from: { email: 'a@b.c' },
+      receivedAt: 'not-a-date',
+      bodyText: 'x',
+    });
+    expect(badDate).toContain('an unknown date');
+    expect(badDate).not.toContain('Invalid Date');
+  });
+
+  it('never invents a sender when from is missing', () => {
+    const quote = buildReplyQuote({ bodyText: 'x' });
+    expect(quote).toContain('Unknown sender wrote:');
   });
 });
