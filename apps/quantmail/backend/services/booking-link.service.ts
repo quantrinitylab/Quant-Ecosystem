@@ -809,7 +809,7 @@ export class BookingLinkService {
 
     const eventRecord = createdEvent as Record<string, unknown>;
     const eventId = String(eventRecord?.['id'] ?? randomUUID());
-    const uid = `${eventId}@quantmail.io`;
+    const uid = `${eventId}@quantmail.in`;
 
     const icsContent = generateIcsInvite({
       uid,

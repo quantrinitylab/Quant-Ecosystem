@@ -23,7 +23,7 @@ function createInMemoryPrisma() {
 
   users.set('host-user-1', {
     id: 'host-user-1',
-    email: 'alex.host@quantmail.io',
+    email: 'alex.host@quantmail.in',
     displayName: 'Alex Host',
   });
 
@@ -938,7 +938,9 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       expect(ics).toContain('METHOD:REQUEST');
       expect(ics).toContain('BEGIN:VEVENT');
       expect(ics).toContain('UID:');
-      expect(ics).toContain('@quantmail.io');
+      // Server-generated booking ICS must use the product org domain (quantmail.in),
+      // consistent with the client-side fallback in booking-utils.ts — never @quantmail.io.
+      expect(ics).toMatch(/^UID:[^\r\n]*@quantmail\.in\r?$/m);
       expect(ics).toContain('DTSTAMP:');
       expect(ics).toContain(`DTSTART:${formatIcsDateTime(targetSlot)}`);
       expect(ics).toContain(
@@ -946,7 +948,7 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       );
       expect(ics).toContain('SUMMARY:Advisory Call with Clara Client');
       expect(ics).toContain('DESCRIPTION:Quarterly compliance audit and scaling milestones');
-      expect(ics).toContain('ORGANIZER;CN=Alex Host:mailto:alex.host@quantmail.io');
+      expect(ics).toContain('ORGANIZER;CN=Alex Host:mailto:alex.host@quantmail.in');
       expect(ics).toContain(
         'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=Clara Client:mailto:clara@client.com',
       );
@@ -1013,7 +1015,7 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       expect(bookBody.data.icsContent).toContain('BEGIN:VCALENDAR');
       expect(bookBody.data.icsContent).toContain('ATTENDEE;CUTYPE=INDIVIDUAL');
       expect(bookBody.data.icsContent).toContain(
-        'ORGANIZER;CN=Alex Host:mailto:alex.host@quantmail.io',
+        'ORGANIZER;CN=Alex Host:mailto:alex.host@quantmail.in',
       );
     });
 
@@ -1053,22 +1055,22 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
 
     it('generates fully compliant RFC 5545 VCALENDAR VEVENT block', () => {
       const ics = generateIcsInvite({
-        uid: 'evt-custom-123@quantmail.io',
+        uid: 'evt-custom-123@quantmail.in',
         summary: 'Demo Call',
         description: 'Line 1\nLine 2',
         startTime: new Date('2028-11-01T15:00:00.000Z'),
         endTime: new Date('2028-11-01T15:30:00.000Z'),
-        organizer: { name: 'Host Team', email: 'team@quantmail.io' },
+        organizer: { name: 'Host Team', email: 'team@quantmail.in' },
         attendee: { name: 'Guest User', email: 'guest@external.com' },
       });
 
       expect(ics).toContain('BEGIN:VCALENDAR\r\n');
-      expect(ics).toContain('UID:evt-custom-123@quantmail.io\r\n');
+      expect(ics).toContain('UID:evt-custom-123@quantmail.in\r\n');
       expect(ics).toContain('DTSTART:20281101T150000Z\r\n');
       expect(ics).toContain('DTEND:20281101T153000Z\r\n');
       expect(ics).toContain('SUMMARY:Demo Call\r\n');
       expect(ics).toContain('DESCRIPTION:Line 1\\nLine 2\r\n');
-      expect(ics).toContain('ORGANIZER;CN=Host Team:mailto:team@quantmail.io\r\n');
+      expect(ics).toContain('ORGANIZER;CN=Host Team:mailto:team@quantmail.in\r\n');
       expect(ics).toContain(
         'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=Guest User:mailto:guest@external.com\r\n',
       );
@@ -1077,7 +1079,7 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
 
     it('omits the ORGANIZER line when the host email is unknown (never fabricates one)', () => {
       const ics = generateIcsInvite({
-        uid: 'evt-unknown-host@quantmail.io',
+        uid: 'evt-unknown-host@quantmail.in',
         summary: 'Demo Call',
         startTime: new Date('2028-11-01T15:00:00.000Z'),
         endTime: new Date('2028-11-01T15:30:00.000Z'),
@@ -1104,7 +1106,7 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
 
       const fetched = await service.getBookingLink('identity-real-host');
       expect(fetched.hostName).toBe('Alex Host');
-      expect(fetched.hostEmail).toBe('alex.host@quantmail.io');
+      expect(fetched.hostEmail).toBe('alex.host@quantmail.in');
     });
 
     it('getBookingLink returns null host fields when the owner user record is missing (honest unknown)', async () => {
@@ -1143,8 +1145,8 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       });
 
       expect(result.hostName).toBe('Alex Host');
-      expect(result.hostEmail).toBe('alex.host@quantmail.io');
-      expect(result.icsContent).toContain('ORGANIZER;CN=Alex Host:mailto:alex.host@quantmail.io');
+      expect(result.hostEmail).toBe('alex.host@quantmail.in');
+      expect(result.icsContent).toContain('ORGANIZER;CN=Alex Host:mailto:alex.host@quantmail.in');
     });
 
     it('confirmBooking stays honest when the host user cannot be resolved: null fields, no ORGANIZER', async () => {
