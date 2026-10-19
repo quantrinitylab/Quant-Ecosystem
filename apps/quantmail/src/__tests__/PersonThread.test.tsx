@@ -11,6 +11,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import React, { act } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Silence React 19's "not configured to support act(...)" warning under vitest.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -709,6 +710,18 @@ describe('PersonThread invalid-date sort guard', () => {
 
 describe('PersonThread snooze (fix/qm-people-snooze)', () => {
   /**
+   * The snooze preset menu (EmailSnooze) drives useMailMutations, which
+   * calls useQueryClient — it needs a QueryClientProvider in the test tree,
+   * the same as the root layout provides in production. Fresh client per
+   * render so no query cache leaks between tests.
+   */
+  function withQueryClient(ui: React.ReactElement): React.ReactElement {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
+  }
+  /**
    * AnchoredMenu paints the menu one animation frame after the trigger
    * click (positioning first). Flush that frame before querying menuitems.
    */
@@ -723,7 +736,9 @@ describe('PersonThread snooze (fix/qm-people-snooze)', () => {
 
   it('renders no snooze control when onSnooze is absent', () => {
     const container = renderIntoDom(
-      <PersonThread conversation={makeConversation()} currentUserEmail={ME} />,
+      withQueryClient(
+        <PersonThread conversation={makeConversation()} currentUserEmail={ME} />,
+      ),
     );
     expect(
       container.querySelector('button[aria-label="Snooze this conversation"]'),
@@ -734,7 +749,9 @@ describe('PersonThread snooze (fix/qm-people-snooze)', () => {
     const conversation = makeConversation();
     const onSnooze = vi.fn();
     const container = renderIntoDom(
-      <PersonThread conversation={conversation} currentUserEmail={ME} onSnooze={onSnooze} />,
+      withQueryClient(
+        <PersonThread conversation={conversation} currentUserEmail={ME} onSnooze={onSnooze} />,
+      ),
     );
 
     const trigger = container.querySelector(
@@ -772,7 +789,9 @@ describe('PersonThread snooze (fix/qm-people-snooze)', () => {
     });
     const onSnooze = vi.fn();
     const container = renderIntoDom(
-      <PersonThread conversation={conversation} currentUserEmail={ME} onSnooze={onSnooze} />,
+      withQueryClient(
+        <PersonThread conversation={conversation} currentUserEmail={ME} onSnooze={onSnooze} />,
+      ),
     );
 
     const trigger = container.querySelector(

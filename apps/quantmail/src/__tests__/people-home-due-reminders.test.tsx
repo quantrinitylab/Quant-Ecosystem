@@ -18,6 +18,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Email } from '../types';
 import type { FollowUpReminder } from '../services/api-client';
 
@@ -149,12 +150,25 @@ function reminder(over: Partial<FollowUpReminder> = {}): FollowUpReminder {
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
+/**
+ * fix/qm-people-snooze: PeopleHome now calls useMailMutations() (snooze on
+ * the home rows), which needs a QueryClientProvider — the root layout
+ * provides it in production. Fresh client per render so no query cache leaks
+ * between tests.
+ */
+function withProviders(ui: React.ReactElement): React.ReactElement {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
+}
+
 async function renderHome(): Promise<HTMLDivElement> {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
   await act(async () => {
-    root!.render(<PeopleHome />);
+    root!.render(withProviders(<PeopleHome />));
   });
   return host;
 }

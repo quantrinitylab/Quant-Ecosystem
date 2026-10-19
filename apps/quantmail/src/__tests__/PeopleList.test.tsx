@@ -11,6 +11,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import React, { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PeopleList, formatRelativeTime } from '../components/PeopleList';
 import { groupEmailsByPerson, type PersonConversation } from '../lib/peopleGrouping';
 import type { Email } from '../types';
@@ -528,6 +529,18 @@ describe('PeopleList attachment signal', () => {
 
 describe('PeopleList snooze (fix/qm-people-snooze)', () => {
   /**
+   * The snooze preset menu (EmailSnooze) drives useMailMutations, which
+   * calls useQueryClient — it needs a QueryClientProvider in the test tree,
+   * the same as the root layout provides in production. Fresh client per
+   * render so no query cache leaks between tests.
+   */
+  function withQueryClient(ui: React.ReactElement): React.ReactElement {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
+  }
+  /**
    * AnchoredMenu paints the menu one animation frame after the trigger
    * click (positioning first). Flush that frame before querying menuitems.
    */
@@ -550,25 +563,29 @@ describe('PeopleList snooze (fix/qm-people-snooze)', () => {
 
   it('renders no snooze control when onSnooze is absent', () => {
     const el = render(
-      <PeopleList
-        conversations={fixtureConversations()}
-        onSelect={() => {}}
-        searchQuery=""
-        onSearchQuery={() => {}}
-      />,
+      withQueryClient(
+        <PeopleList
+          conversations={fixtureConversations()}
+          onSelect={() => {}}
+          searchQuery=""
+          onSearchQuery={() => {}}
+        />,
+      ),
     );
     expect(el.querySelectorAll('button.snooze-trigger')).toHaveLength(0);
   });
 
   it('renders one snooze trigger per row when onSnooze is provided', () => {
     const el = render(
-      <PeopleList
-        conversations={fixtureConversations()}
-        onSelect={() => {}}
-        searchQuery=""
-        onSearchQuery={() => {}}
-        onSnooze={() => {}}
-      />,
+      withQueryClient(
+        <PeopleList
+          conversations={fixtureConversations()}
+          onSelect={() => {}}
+          searchQuery=""
+          onSearchQuery={() => {}}
+          onSnooze={() => {}}
+        />,
+      ),
     );
     const triggers = el.querySelectorAll('button.snooze-trigger');
     expect(triggers).toHaveLength(2);
@@ -580,13 +597,15 @@ describe('PeopleList snooze (fix/qm-people-snooze)', () => {
     const conversations = fixtureConversations();
     const onSnooze = vi.fn();
     const el = render(
-      <PeopleList
-        conversations={conversations}
-        onSelect={() => {}}
-        searchQuery=""
-        onSearchQuery={() => {}}
-        onSnooze={onSnooze}
-      />,
+      withQueryClient(
+        <PeopleList
+          conversations={conversations}
+          onSelect={() => {}}
+          searchQuery=""
+          onSearchQuery={() => {}}
+          onSnooze={onSnooze}
+        />,
+      ),
     );
 
     await openSnoozeMenu(snoozeTriggerFor(el, 'Alice'));
@@ -611,13 +630,15 @@ describe('PeopleList snooze (fix/qm-people-snooze)', () => {
   it('opening a row menu never fires onSelect', async () => {
     const onSelect = vi.fn();
     const el = render(
-      <PeopleList
-        conversations={fixtureConversations()}
-        onSelect={onSelect}
-        searchQuery=""
-        onSearchQuery={() => {}}
-        onSnooze={() => {}}
-      />,
+      withQueryClient(
+        <PeopleList
+          conversations={fixtureConversations()}
+          onSelect={onSelect}
+          searchQuery=""
+          onSearchQuery={() => {}}
+          onSnooze={() => {}}
+        />,
+      ),
     );
 
     await openSnoozeMenu(snoozeTriggerFor(el, 'Bob'));
