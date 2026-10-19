@@ -50,7 +50,14 @@ export function QuantyActivityTab({ entries = [], loading = false, className = '
       yesterday: [],
       older: [],
     };
-    for (const e of sorted) buckets[dayBucket(e.timestamp)].push(e);
+    for (const e of sorted) {
+      const bucket = dayBucket(e.timestamp);
+      // dayBucket degrades to '' on unparseable timestamps (PR #894 defect
+      // family): a broken timestamp must never be indexed into the buckets
+      // map under the honest-looking "Older" heading — the entry is excluded
+      // from the day groups instead.
+      if (bucket !== '') buckets[bucket].push(e);
+    }
     return (['today', 'yesterday', 'older'] as const)
       .map((key) => ({ key, label: DAY_BUCKET_LABEL[key], entries: buckets[key] }))
       .filter((g) => g.entries.length > 0);
