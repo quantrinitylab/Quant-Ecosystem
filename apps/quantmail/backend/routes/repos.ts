@@ -336,6 +336,7 @@ const branchProtectionSchema = z.object({
   branchPattern: z.string().min(1),
   requiredApprovals: z.number().int().min(0).default(1),
   requireStatusChecks: z.boolean().default(false),
+  dismissStaleApprovals: z.boolean().default(false),
 });
 
 const updateRepoSchema = z.object({
@@ -2337,6 +2338,20 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           reviewerId: userId,
           status: parsed.data.status,
           body: parsed.data.body ?? '',
+          // Record the head SHA the reviewer actually saw, so the push path
+          // can dismiss this approval as stale when new commits land
+          // (GitHub parity). Null when the branch row is unavailable — an
+          // honest unknown, never an invented SHA.
+          reviewedCommitSha: prisma.branch?.findUnique
+            ? (
+                await prisma.branch
+                  .findUnique({
+                    where: { repoId_name: { repoId: repo.id, name: pr.sourceBranch } },
+                    select: { commitSha: true },
+                  })
+                  .catch(() => null)
+              )?.commitSha ?? null
+            : null,
         },
       });
 
@@ -2655,12 +2670,15 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       const protectionRule = await getBranchProtectionRule(prisma, repo.id, pr.targetBranch);
       if (protectionRule) {
         if (protectionRule.requiredApprovals > 0) {
+          // Dismissed (stale) approvals never count: an approval revoked by a
+          // later push must be re-issued on the new head (GitHub parity).
           const approvedCount = prisma.review
             ? await prisma.review.count({
                 where: {
                   prId: pr.id,
                   status: 'APPROVED',
                   reviewerId: { not: pr.authorId },
+                  dismissed: { not: true },
                 },
               })
             : 0;
@@ -2879,6 +2897,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         data: {
           requiredApprovals: parsed.data.requiredApprovals,
           requireStatusChecks: parsed.data.requireStatusChecks,
+          dismissStaleApprovals: parsed.data.dismissStaleApprovals,
         },
       });
     } else if (prisma.branchProtection?.create) {
@@ -2888,6 +2907,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           branchPattern: parsed.data.branchPattern,
           requiredApprovals: parsed.data.requiredApprovals,
           requireStatusChecks: parsed.data.requireStatusChecks,
+          dismissStaleApprovals: parsed.data.dismissStaleApprovals,
         },
       });
     }

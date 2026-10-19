@@ -58,6 +58,7 @@ describe('ReviewService', () => {
           reviewerId: 'user-2',
           status: 'APPROVED',
           body: 'Looks good!',
+          reviewedCommitSha: null,
         },
       });
     });
@@ -84,8 +85,57 @@ describe('ReviewService', () => {
           reviewerId: 'user-3',
           status: 'COMMENTED',
           body: null,
+          reviewedCommitSha: null,
         },
       });
+    });
+
+    it('records the source branch head SHA as reviewedCommitSha', async () => {
+      const prismaWithGit = {
+        ...prisma,
+        pullRequest: {
+          findUnique: vi.fn().mockResolvedValue({ repoId: 'repo-1', sourceBranch: 'feature/x' }),
+        },
+        branch: {
+          findUnique: vi.fn().mockResolvedValue({ commitSha: 'a'.repeat(40) }),
+        },
+      };
+      const svc = new ReviewService(prismaWithGit as never);
+      prisma.review.create.mockResolvedValue({ id: 'review-3' });
+
+      await svc.submitReview({ prId: 'pr-1', reviewerId: 'user-2', status: 'APPROVED' });
+
+      expect(prismaWithGit.branch.findUnique).toHaveBeenCalledWith({
+        where: { repoId_name: { repoId: 'repo-1', name: 'feature/x' } },
+        select: { commitSha: true },
+      });
+      expect(prisma.review.create).toHaveBeenCalledWith({
+        data: {
+          prId: 'pr-1',
+          reviewerId: 'user-2',
+          status: 'APPROVED',
+          body: null,
+          reviewedCommitSha: 'a'.repeat(40),
+        },
+      });
+    });
+
+    it('falls back to null reviewedCommitSha when the branch row is missing', async () => {
+      const prismaWithGit = {
+        ...prisma,
+        pullRequest: {
+          findUnique: vi.fn().mockResolvedValue({ repoId: 'repo-1', sourceBranch: 'feature/x' }),
+        },
+        branch: { findUnique: vi.fn().mockResolvedValue(null) },
+      };
+      const svc = new ReviewService(prismaWithGit as never);
+      prisma.review.create.mockResolvedValue({ id: 'review-4' });
+
+      await svc.submitReview({ prId: 'pr-1', reviewerId: 'user-2', status: 'APPROVED' });
+
+      expect(prisma.review.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ reviewedCommitSha: null }) }),
+      );
     });
   });
 
@@ -144,6 +194,9 @@ describe('ReviewService', () => {
           reviewerId: 'user-2',
           status: 'CHANGES_REQUESTED',
           body: 'Please fix the formatting',
+          // the mocked prisma has no branch table, so the service honestly
+          // records an unknown head SHA (null) instead of inventing one
+          reviewedCommitSha: null,
         },
       });
     });
@@ -166,6 +219,7 @@ describe('ReviewService', () => {
           reviewerId: 'user-3',
           status: 'CHANGES_REQUESTED',
           body: null,
+          reviewedCommitSha: null,
         },
       });
     });

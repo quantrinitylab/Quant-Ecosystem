@@ -171,4 +171,60 @@ describe('MergeEligibilityService.evaluateMergeEligibility', () => {
       code: 'PR_NOT_FOUND',
     });
   });
+
+  it('does not count dismissed (stale) approvals toward requiredApprovals', async () => {
+    prisma.pullRequest.findUnique.mockResolvedValue(OPEN_PR);
+    prisma.branchProtection.findMany.mockResolvedValue([
+      {
+        id: 'rule-1',
+        branchPattern: 'main',
+        requiredApprovals: 1,
+        requireStatusChecks: false,
+        dismissStaleApprovals: true,
+      },
+    ]);
+    // The only approval was dismissed by a later push — the PR must be
+    // re-reviewed before it can merge.
+    const stale = { ...review('r1', 'APPROVED'), dismissed: true, reviewedCommitSha: 'a'.repeat(40) };
+    prisma.review.findMany.mockResolvedValue([stale]);
+
+    const decision = await service.evaluateMergeEligibility('pr-1');
+
+    expect(decision.mergeable).toBe(false);
+    expect(decision.checks.approvals).toBe(0);
+    expect(decision.checks.dismissedApprovals).toBe(1);
+    expect(decision.reasons).toContain('Requires 1 approval(s), but only has 0');
+    expect(decision.reasons.some((r) => r.includes('dismissed as stale'))).toBe(true);
+  });
+
+  it('counts fresh approvals alongside dismissed ones', async () => {
+    prisma.pullRequest.findUnique.mockResolvedValue(OPEN_PR);
+    prisma.branchProtection.findMany.mockResolvedValue([
+      { id: 'rule-1', branchPattern: 'main', requiredApprovals: 1, requireStatusChecks: false },
+    ]);
+    const stale = { ...review('r1', 'APPROVED'), dismissed: true };
+    const fresh = { ...review('r2', 'APPROVED'), dismissed: false };
+    prisma.review.findMany.mockResolvedValue([fresh, stale]);
+
+    const decision = await service.evaluateMergeEligibility('pr-1');
+
+    expect(decision.checks.approvals).toBe(1);
+    expect(decision.checks.dismissedApprovals).toBe(1);
+    expect(decision.mergeable).toBe(true);
+  });
+
+  it('a dismissed CHANGES_REQUESTED no longer blocks (reviewer must re-review the new head)', async () => {
+    prisma.pullRequest.findUnique.mockResolvedValue(OPEN_PR);
+    prisma.branchProtection.findMany.mockResolvedValue([
+      { id: 'rule-1', branchPattern: 'main', requiredApprovals: 1, requireStatusChecks: false },
+    ]);
+    const staleBlock = { ...review('r1', 'CHANGES_REQUESTED'), dismissed: true };
+    const freshApproval = { ...review('r2', 'APPROVED'), dismissed: false };
+    prisma.review.findMany.mockResolvedValue([freshApproval, staleBlock]);
+
+    const decision = await service.evaluateMergeEligibility('pr-1');
+
+    expect(decision.checks.changesRequested).toBe(false);
+    expect(decision.mergeable).toBe(true);
+  });
 });
