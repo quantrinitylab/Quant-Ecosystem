@@ -122,8 +122,20 @@ export function belongsInFolder(email: Email, folderType: string | undefined): b
       // and the client `Email` type both carry, so the client predicate can
       // mirror the server filter exactly.
       return !isTrashed && email.isDraft === true;
-    case 'SNOOZED': {
-      // Mirrored from `GET /emails?folderType=SNOOZED`
+    case 'STARRED':
+      // Starred is a flag, not a folder: the backend's
+      // `GET /emails?folderType=STARRED` filters `isStarred = true,
+      // isTrash = false, isDraft = false, isSpam = false`
+      // (backend/routes/emails.ts). Falling through to `default` admitted
+      // every non-trashed message into the cached Starred list, so the
+      // moment a starred view ships, its offline seed / error fallback
+      // (useInbox) and the optimistic reconcile fan-out would list
+      // received/draft/spam mail as starred — the same bug class as the
+      // SENT/SPAM/DRAFTS cases above (QM-UIUX-082 / PAUD-P0-1). `isStarred`
+      // is a first-class column the wire and the client `Email` type both
+      // carry, so the client predicate mirrors the server filter exactly.
+      return !isTrashed && email.isStarred === true && !email.isDraft && !email.isSpam;
+    case 'SNOOZED': {      // Mirrored from `GET /emails?folderType=SNOOZED`
       // (backend/routes/emails.ts): `isTrash = false, isDraft = false,
       // isSpam = false` plus `thread.is.snoozedUntil > now` (a future wake
       // time the row carries bridged onto the wire). The predicate used to
