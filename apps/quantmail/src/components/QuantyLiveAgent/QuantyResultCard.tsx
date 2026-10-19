@@ -1,7 +1,8 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
-import type { QuantyTask } from './types';
+import { useI18n } from '../../i18n';
+import { RESULT_DISMISS_LABEL, RESULT_DISMISS_LABEL_HI, type QuantyTask } from './types';
 
 export interface QuantyResultCardProps {
   task: QuantyTask;
@@ -20,6 +21,11 @@ export interface QuantyResultCardProps {
  */
 export function QuantyResultCard({ task, onUndo, onRetry, onDismiss, className = '' }: QuantyResultCardProps) {
   const reduceMotion = useReducedMotion();
+  // Locale-consistency: the dismiss aria-label previously hardcoded
+  // Roman-script Hinglish ('Result band karein') while the UI was English.
+  // Copy now follows the app locale, same convention as PR #868.
+  const { locale } = useI18n();
+  const dismissLabel = locale === 'hi' ? RESULT_DISMISS_LABEL_HI : RESULT_DISMISS_LABEL;
   const isSuccess = task.status === 'done';
   const isFailure = task.status === 'failed';
 
@@ -99,7 +105,7 @@ export function QuantyResultCard({ task, onUndo, onRetry, onDismiss, className =
               <button
                 type="button"
                 onClick={onDismiss}
-                aria-label="Result band karein"
+                aria-label={dismissLabel}
                 className="flex h-9 items-center rounded-xl px-3 text-sm text-zinc-400 transition hover:bg-white/5 hover:text-zinc-200"
               >
                 Theek hai

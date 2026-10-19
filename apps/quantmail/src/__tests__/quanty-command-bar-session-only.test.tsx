@@ -99,7 +99,7 @@ beforeEach(() => {
 });
 
 function commandInput(container: ParentNode): HTMLInputElement {
-  const input = container.querySelector<HTMLInputElement>('input[aria-label="Quanty ko command dein"]');
+  const input = container.querySelector<HTMLInputElement>('input[aria-label="Give Quanty a command"]');
   expect(input, 'command input renders').not.toBeNull();
   return input!;
 }
@@ -115,7 +115,7 @@ function typeCommand(container: ParentNode, value: string) {
 
 function submitCommand(container: ParentNode, value: string) {
   typeCommand(container, value);
-  const send = container.querySelector<HTMLButtonElement>('button[aria-label="Command bhejein"]');
+  const send = container.querySelector<HTMLButtonElement>('button[aria-label="Send command"]');
   expect(send, 'send button renders').not.toBeNull();
   expect(send!.disabled, 'send button enables once a command is typed').toBe(false);
   act(() => {
@@ -126,7 +126,7 @@ function submitCommand(container: ParentNode, value: string) {
 
 function recentToggle(container: ParentNode): HTMLButtonElement {
   const toggle = container.querySelector<HTMLButtonElement>(
-    'button[aria-label="Recent commands dekhein"], button[aria-label="Recent commands band karein"]',
+    'button[aria-label="Show recent commands"], button[aria-label="Close recent commands"]',
   );
   expect(toggle, 'recent commands toggle renders').not.toBeNull();
   return toggle!;

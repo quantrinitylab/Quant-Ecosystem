@@ -10,6 +10,8 @@ import { QuantyActivityFeed } from './QuantyActivityFeed';
 import { QuantyResultCard } from './QuantyResultCard';
 import { QuantyActionHighlight } from './QuantyActionHighlight';
 import { useQuantyAgent } from './useQuantyAgent';
+import { useI18n } from '../../i18n';
+import { VOICE_SESSION_CLOSE_LABEL, VOICE_SESSION_CLOSE_LABEL_HI } from './types';
 import type {
   QuantyAgentMode,
   QuantyLiveAgentHandle,
@@ -68,6 +70,11 @@ interface Highlight {
 export const QuantyLiveAgent = forwardRef<QuantyLiveAgentHandle, QuantyLiveAgentProps>(
   function QuantyLiveAgent({ apiBase, popupApiBase, onChatSelect, onEditIdentity, className = '' }, ref) {
     const reduceMotion = useReducedMotion();
+    // Locale-consistency: the voice-panel close aria-label previously hardcoded
+    // Roman-script Hinglish ('Voice session band karein') while the UI was
+    // English. Copy now follows the app locale, same convention as PR #868.
+    const { locale } = useI18n();
+    const voiceCloseLabel = locale === 'hi' ? VOICE_SESSION_CLOSE_LABEL_HI : VOICE_SESSION_CLOSE_LABEL;
     const [mode, setMode] = useState<QuantyAgentMode>('hidden');
     const [popupOpen, setPopupOpen] = useState(false);
     const [panelExpanded, setPanelExpanded] = useState(true);
@@ -219,7 +226,7 @@ export const QuantyLiveAgent = forwardRef<QuantyLiveAgentHandle, QuantyLiveAgent
                 <button
                   type="button"
                   onClick={close}
-                  aria-label="Voice session band karein"
+                  aria-label={voiceCloseLabel}
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-zinc-300 backdrop-blur-md transition hover:bg-black/80 hover:text-white"
                 >
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">

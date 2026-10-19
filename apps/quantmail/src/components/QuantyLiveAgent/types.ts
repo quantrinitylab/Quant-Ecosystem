@@ -268,3 +268,120 @@ export const BROWSER_TASK_STATUS_LABEL_HI: Record<QuantyBrowserTask['status'], s
   done: 'पूरा हुआ',
   failed: 'असफल हुआ',
 };
+
+/**
+ * Locale-following copy for the Quanty voice/session surfaces — follows the
+ * app locale (English default, Devanagari for 'hi'), same convention as PR
+ * #868 and the ActivityFeed/BrowserTab label fix. These aria-labels and the
+ * visible mic failure lines previously hardcoded Roman-script Hinglish
+ * ('Voice session band karein', 'Sunna band karein', 'Mic ki permission nahi
+ * mili…'), leaking into an otherwise English UI.
+ */
+
+/** Voice-panel close button aria-label ('Voice session band karein'). */
+export const VOICE_SESSION_CLOSE_LABEL = 'Close voice session';
+/** Devanagari voice-panel close aria-label, used when the app locale is 'hi'. */
+export const VOICE_SESSION_CLOSE_LABEL_HI = 'वॉयस सेशन बंद करें';
+
+/** Inspector popup close button aria-label ('Popup band karein'). */
+export const POPUP_CLOSE_LABEL = 'Close popup';
+/** Devanagari popup close aria-label, used when the app locale is 'hi'. */
+export const POPUP_CLOSE_LABEL_HI = 'पॉपअप बंद करें';
+
+/**
+ * Share button copy. The same locale-following string drives the visible
+ * title AND the aria-label so they can never drift languages again (the
+ * aria-label was hardcoded Hinglish 'Copy ho gaya'/'Status share karein'
+ * while the title was already English 'Copied!'/'Share').
+ */
+export const POPUP_SHARE_LABEL: Record<'share' | 'copied', string> = {
+  share: 'Share',
+  copied: 'Copied!',
+};
+/** Devanagari share-button copy, used when the app locale is 'hi'. */
+export const POPUP_SHARE_LABEL_HI: Record<'share' | 'copied', string> = {
+  share: 'साझा करें',
+  copied: 'कॉपी हो गया',
+};
+
+/** Result-card dismiss button aria-label ('Result band karein'). */
+export const RESULT_DISMISS_LABEL = 'Dismiss result';
+/** Devanagari result-dismiss aria-label, used when the app locale is 'hi'. */
+export const RESULT_DISMISS_LABEL_HI = 'परिणाम बंद करें';
+
+/** Command-bar recent-commands toggle aria-label. */
+export const RECENT_TOGGLE_LABEL: Record<'open' | 'close', string> = {
+  open: 'Show recent commands',
+  close: 'Close recent commands',
+};
+/** Devanagari recent-toggle aria-label, used when the app locale is 'hi'. */
+export const RECENT_TOGGLE_LABEL_HI: Record<'open' | 'close', string> = {
+  open: 'हाल के कमांड देखें',
+  close: 'हाल के कमांड बंद करें',
+};
+
+/** Command-bar text input aria-label ('Quanty ko command dein'). */
+export const COMMAND_INPUT_LABEL = 'Give Quanty a command';
+/** Devanagari command-input aria-label, used when the app locale is 'hi'. */
+export const COMMAND_INPUT_LABEL_HI = 'क्वांटी को कमांड दें';
+
+/** Command-bar mic toggle aria-label ('Sunna band karein' / 'Bol kar command dein'). */
+export const MIC_TOGGLE_LABEL: Record<'start' | 'stop', string> = {
+  start: 'Speak your command',
+  stop: 'Stop listening',
+};
+/** Devanagari mic-toggle aria-label, used when the app locale is 'hi'. */
+export const MIC_TOGGLE_LABEL_HI: Record<'start' | 'stop', string> = {
+  start: 'बोलकर कमांड दें',
+  stop: 'सुनना बंद करें',
+};
+
+/** Command-bar send button aria-label ('Command bhejein'). */
+export const COMMAND_SEND_LABEL = 'Send command';
+/** Devanagari send-button aria-label, used when the app locale is 'hi'. */
+export const COMMAND_SEND_LABEL_HI = 'कमांड भेजें';
+
+/**
+ * Command-bar default placeholder (visible copy). Used only when the caller
+ * passes no placeholder prop; follows the app locale.
+ */
+export const COMMAND_PLACEHOLDER = 'Tell Quanty… "archive my unread emails"';
+/** Devanagari command-bar default placeholder, used when the app locale is 'hi'. */
+export const COMMAND_PLACEHOLDER_HI = 'क्वांटी से कहें… "मेरे अपठित ईमेल आर्काइव कर दो"';
+
+/**
+ * Visible mic failure lines. Every voice failure explains itself in the UI —
+ * honest, never swallowed — so the copy must follow the app locale like every
+ * other user-facing string.
+ */
+export type MicErrorKind =
+  | 'noSpeechApi'
+  | 'permission'
+  | 'noSpeech'
+  | 'noMic'
+  | 'network'
+  | 'unknown'
+  | 'startFailed';
+
+/** Mic failure lines for the default (English) locale. */
+export const MIC_ERROR: Record<MicErrorKind, string> = {
+  noSpeechApi: "Voice input isn't available in this browser — type your command instead.",
+  permission: "Mic permission wasn't granted — allow mic access in your browser settings, then try again.",
+  noSpeech: "Didn't catch that — please speak again.",
+  noMic: "No mic found — check your device's mic.",
+  network: "Couldn't reach the voice service — type your command instead.",
+  unknown: 'Voice ran into a problem — type your command instead.',
+  startFailed: "Voice couldn't start — tap the mic button again or type your command.",
+};
+
+/** Devanagari mic failure lines, used when the app locale is 'hi'. */
+export const MIC_ERROR_HI: Record<MicErrorKind, string> = {
+  noSpeechApi: 'इस ब्राउज़र में वॉयस इनपुट उपलब्ध नहीं है — अपना कमांड टाइप करें।',
+  permission: 'माइक की अनुमति नहीं मिली — ब्राउज़र सेटिंग्स में माइक की अनुमति दें, फिर दोबारा कोशिश करें।',
+  noSpeech: 'कुछ सुनाई नहीं दिया — दोबारा बोलें।',
+  noMic: 'माइक नहीं मिला — डिवाइस का माइक जांचें।',
+  network: 'वॉयस सेवा से कनेक्ट नहीं हो सका — अपना कमांड टाइप करें।',
+  unknown: 'वॉयस में समस्या हुई — अपना कमांड टाइप करें।',
+  startFailed: 'वॉयस शुरू नहीं हो सका — माइक बटन दोबारा दबाएं या अपना कमांड टाइप करें।',
+
+};
