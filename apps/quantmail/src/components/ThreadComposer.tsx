@@ -35,34 +35,38 @@ export interface ThreadComposerProps {
   /**
    * Fired when the send is CONFIRMED — i.e. after the undo window closes and
    * the real compose+send resolved. The host refetches and swaps the
-   * optimistic bubble for the confirmed message. Carries (text, subject) so
-   * the host can withdraw only this send's bubble: a second send may still
-   * be inside its own recall window.
+   * optimistic bubble for the confirmed message. Carries (text, subject,
+   * clientId): `clientId` is the id this send's `onSendStart` minted, so the
+   * host withdraws exactly this send's bubble — a second send may still be
+   * inside its own recall window with identical text+subject, and its bubble
+   * must stay (qm-optimistic-bubble-miscorrelation).
    */
-  onSent?: (text: string, subject: string) => void;
+  onSent?: (text: string, subject: string, clientId?: string) => void;
   /**
    * P1-C: fired the moment the user hits send, before the network round-trip.
    * The host renders an optimistic "Sending…" bubble so the thread never
    * looks empty on slow mobile data. The text stays in the box only when the
-   * send actually fails (see handleSend).
+   * send actually fails (see handleSend). The `clientId` returned in the
+   * call is this send's correlation id — the host must key its bubble by it
+   * and pass it back through onSent/onSendError/onSendUndo.
    */
-  onSendStart?: (text: string, subject: string) => void;
+  onSendStart?: (text: string, subject: string, clientId?: string) => void;
   /**
    * Fired when the send fails (compose or delivery), right after the error
    * toast. The host must withdraw the optimistic "Sending…" bubble that
    * `onSendStart` added — a failed send must never look like a sent message.
    * The typed text is handed back to the box (the failure contract is
-   * unchanged).
+   * unchanged). Correlated by the send's `clientId`.
    */
-  onSendError?: (text: string, subject: string) => void;
+  onSendError?: (text: string, subject: string, clientId?: string) => void;
   /**
    * Fired when the user recalls a queued send inside the undo window (the
    * bar's Undo button, or the Z key). Nothing was sent, so this is neither
    * success nor failure: the host must withdraw the optimistic "Sending…"
    * bubble exactly like `onSendError`, and the composer itself hands the
-   * words back to the box.
+   * words back to the box. Correlated by the send's `clientId`.
    */
-  onSendUndo?: (text: string, subject: string) => void;
+  onSendUndo?: (text: string, subject: string, clientId?: string) => void;
   /**
    * QM fix qm-personthread-smart-replies: a smart-reply chip the user tapped
    * above the box (SmartReplySuggestions). `{ text, nonce }` — the host
@@ -87,6 +91,20 @@ export function defaultReplySubject(lastSubject: string): string {
   const trimmed = (lastSubject ?? '').trim();
   if (!trimmed) return 'Re:';
   return /^re:\s*/i.test(trimmed) ? trimmed : `Re: ${trimmed}`;
+}
+
+/**
+ * Mint the per-send correlation id threaded through onSendStart / onSent /
+ * onSendError / onSendUndo. The host keys optimistic "Sending…" bubbles by
+ * it, so identical rapid sends (same text+subject) withdraw the RIGHT bubble
+ * even when the undo queue's flush-previous contract delivers an earlier
+ * send while a later identical one is still queued — match-by-(text,subject)
+ * would remove the newest match, i.e. the wrong bubble.
+ */
+export function mintSendClientId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 /**
@@ -473,7 +491,12 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
     }
     setIsSending(true);
     // P1-C: optimistic bubble first — the host shows it as "Sending…".
-    onSendStart?.(text, subject);
+    // qm-optimistic-bubble-miscorrelation: mint ONE correlation id per
+    // handleSend and thread it through every callback below, so the host
+    // withdraws exactly this send's bubble (identical rapid sends share
+    // text+subject and cannot be told apart any other way).
+    const sendClientId = mintSendClientId();
+    onSendStart?.(text, subject, sendClientId);
     // The box clears the moment Send is pressed (like quick reply's bar and
     // the composer closing on Send): the words now live in the optimistic
     // bubble, and the undo queue below owns the in-flight state. A failed
@@ -526,14 +549,14 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
             if (!outcome.ok) {
               throw new Error(outcome.errorMessage || 'Failed to send message');
             }
-            onSent?.(text, subject);
+            onSent?.(text, subject, sendClientId);
           },
           onSendFailed: () => {
-            onSendError?.(text, subject);
+            onSendError?.(text, subject, sendClientId);
             restoreDraft();
           },
           onUndo: () => {
-            onSendUndo?.(text, subject);
+            onSendUndo?.(text, subject, sendClientId);
             restoreDraft();
             // The words are back — put the caret there so the user can edit.
             requestAnimationFrame(() => textareaRef.current?.focus());
@@ -545,9 +568,9 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
         // and keeps the text. Nothing navigates, nothing is discarded.
         const outcome = await executeThreadSend(deps, conversation, subject, text, scheduledAt);
         if (outcome.ok) {
-          onSent?.(text, subject);
+          onSent?.(text, subject, sendClientId);
         } else {
-          onSendError?.(text, subject);
+          onSendError?.(text, subject, sendClientId);
           restoreDraft();
         }
       }

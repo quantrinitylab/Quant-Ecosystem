@@ -12,7 +12,7 @@ import { groupEmailsByPerson, type PersonConversation } from '../../../lib/peopl
 import { inboxSelectTarget } from '../../../lib/inbox-nav';
 import { PersonThread } from '../../../components/PersonThread';
 import { encodeEmailDraft, type EmailEventDraft } from '../../../lib/emailToEvent';
-import { ThreadComposer } from '../../../components/ThreadComposer';
+import { ThreadComposer, mintSendClientId } from '../../../components/ThreadComposer';
 import { SmartReplySuggestions } from '../../../components/SmartReplySuggestions';
 import type { Email } from '../../../types';
 import { useThreadViewKeyboard } from '../../../hooks/useThreadViewKeyboard';
@@ -97,23 +97,37 @@ export default function PersonPage() {
   }, [personKey]);
 
   /**
-   * Withdraw one optimistic bubble, identified by its (text, subject) —
-   * shared by the failure path (P1-C: a failed send must never look like a
-   * sent message) and by undoing a queued send inside the recall window
-   * (the message never went out). Sends are serialized per composer in the
-   * direct path, and the undo queue flushes an earlier queued send when a
-   * second one arrives, so the last matching entry is the right one.
+   * Withdraw one optimistic bubble, identified by the send's clientId —
+   * qm-optimistic-bubble-miscorrelation: identical rapid sends share
+   * (text, subject), so match-by-(text, subject) could withdraw the WRONG
+   * bubble (the flush-previous contract delivers an earlier queued send
+   * while a later identical one is still queued, and the newest match was
+   * the pending one). The clientId path is authoritative; the legacy
+   * last-(text, subject) match only fires when the caller passes no clientId
+   * (defensive — the composer always mints one).
    */
-  const withdrawPendingSend = useCallback((text: string, subject: string) => {
-    setPendingSends((prev) => {
-      for (let i = prev.length - 1; i >= 0; i -= 1) {
-        if (prev[i].bodyText === text && prev[i].subject === subject) {
-          return [...prev.slice(0, i), ...prev.slice(i + 1)];
+  const withdrawPendingSend = useCallback(
+    (clientId: string | undefined, text?: string, subject?: string) => {
+      setPendingSends((prev) => {
+        if (clientId) {
+          const idx = prev.findIndex((p) => p.clientId === clientId);
+          if (idx >= 0) {
+            return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+          }
+          // Unknown id: nothing to withdraw — never fall through to a
+          // fuzzy match, which could remove an unrelated bubble.
+          return prev;
         }
-      }
-      return prev;
-    });
-  }, []);
+        for (let i = prev.length - 1; i >= 0; i -= 1) {
+          if (prev[i].bodyText === text && prev[i].subject === subject) {
+            return [...prev.slice(0, i), ...prev.slice(i + 1)];
+          }
+        }
+        return prev;
+      });
+    },
+    [],
+  );
 
   const conversation = useMemo(() => {
     if (!personKey) return undefined;
@@ -409,26 +423,31 @@ export default function PersonPage() {
                       conversation={conversation}
                       currentUserId={currentUserId}
                       suggestedReply={suggestedReply}
-                    onSendStart={(text, subject) => {
-                      const clientId =
-                        typeof crypto !== 'undefined' && 'randomUUID' in crypto
-                          ? crypto.randomUUID()
-                          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                    onSendStart={(text, subject, clientId) => {
+                      // qm-optimistic-bubble-miscorrelation: the composer
+                      // mints the correlation id — key the bubble by IT, so
+                      // the four send callbacks withdraw exactly this send's
+                      // bubble even when rapid sends share text+subject.
+                      const bubbleId = clientId || mintSendClientId();
                       setPendingSends((prev) => [
                         ...prev,
-                        { clientId, bodyText: text, subject, sentAt: new Date() },
+                        { clientId: bubbleId, bodyText: text, subject, sentAt: new Date() },
                       ]);
                     }}
-                    onSent={(text, subject) => {
+                    onSent={(text, subject, clientId) => {
                       // The send is CONFIRMED (real send resolved after the
                       // undo window): refetch, then swap only this send's
                       // optimistic bubble for the confirmed message — a
                       // second send may still be inside its own recall window
                       // and its bubble must stay.
-                      void refetch().finally(() => withdrawPendingSend(text, subject));
+                      void refetch().finally(() => withdrawPendingSend(clientId, text, subject));
                     }}
-                    onSendError={withdrawPendingSend}
-                    onSendUndo={withdrawPendingSend}
+                    onSendError={(text, subject, clientId) =>
+                      withdrawPendingSend(clientId, text, subject)
+                    }
+                    onSendUndo={(text, subject, clientId) =>
+                      withdrawPendingSend(clientId, text, subject)
+                    }
                     />
                   </>
                 )

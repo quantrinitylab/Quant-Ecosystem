@@ -356,7 +356,7 @@ describe('ThreadComposer schedule-send through the shared queue', () => {
     // The exact backend contract DockedComposer and /compose use.
     expect(sendMock).toHaveBeenCalledWith('draft-7', { sendAt: FUTURE_ISO });
     expect(onSent).toHaveBeenCalledTimes(1);
-    expect(onSent).toHaveBeenCalledWith('scheduled words', 'Re: Hi there');
+    expect(onSent).toHaveBeenCalledWith('scheduled words', 'Re: Hi there', expect.any(String));
     expect(onSendUndo).not.toHaveBeenCalled();
 
     await m.unmount();
@@ -383,7 +383,7 @@ describe('ThreadComposer schedule-send through the shared queue', () => {
 
     // Bubble withdrawn through the undo contract, words handed back…
     expect(onSendUndo).toHaveBeenCalledTimes(1);
-    expect(onSendUndo).toHaveBeenCalledWith('second thoughts', 'Re: Hi there');
+    expect(onSendUndo).toHaveBeenCalledWith('second thoughts', 'Re: Hi there', expect.any(String));
     expect(m.textarea.value).toBe('second thoughts');
     // …and the schedule NEVER fires, even long past the window.
     await act(async () => {
