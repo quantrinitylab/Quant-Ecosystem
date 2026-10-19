@@ -44,6 +44,7 @@ import {
   contactDisplayName,
 } from './components/ContactsSubViews';
 import type { DedupCollisionPair, DedupCollisionRecord } from './components/ContactsSubViews';
+import { SUBVIEW_TABS, type ContactsTabId, ContactsSecondaryTabStrip } from './components/ContactsSecondaryTabs';
 import type { Contact, ContactGroup, ContactActivitySuggestion } from '../../types';
 import { showToast } from '../../components/InboxToast';
 import { apiClient } from '../../services/api-client';
@@ -54,16 +55,7 @@ const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
 // sub-views. Those sub-views replace the whole split-pane (including its tab
 // bar), so without this strip there is no in-page way to navigate back to
 // All/Favorites or between the sub-view tabs — navigation must never dead-end.
-const SUBVIEW_TABS = [
-  { id: 'all', label: 'All' },
-  { id: 'favorites', label: 'Favorites' },
-  { id: 'companies', label: 'Companies' },
-  { id: 'dedup', label: 'Dedup' },
-  { id: 'groups', label: 'Groups' },
-] as const;
-
-type ContactsTabId = 'all' | 'favorites' | 'groups' | 'companies' | 'dedup';
-
+// (Tab id → label constants live in ./components/ContactsSecondaryTabs.)
 function SubviewTabNav({ activeTab, onTabChange }: { activeTab: ContactsTabId; onTabChange: (tab: ContactsTabId) => void }) {
   // SIA-P2-10: on desktop (md+) the pinned DesktopContextSidebar context rail
   // already offers Home/Favorites/Groups/Companies/Dedup for this pillar —
@@ -1064,29 +1056,12 @@ export default function ContactsPage() {
                   </button>
                 </div>
 
-                {/* AUD-P0-N2: Secondary tabs — real entry points to the
-                    Companies/Dedup/Groups sub-views (previously reachable only
-                    by hand-typed ?tab= URLs).
-                    SIA-P2-10: md:hidden — on desktop the pinned sidebar rail
-                    already lists Companies/Groups/Dedup; showing them here
-                    too duplicated the same destinations on one screen. */}
-                <div className="flex items-center gap-1.5 md:hidden">
-                  {(['companies', 'dedup', 'groups'] as const).map((tab) => (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => handleTabChange(tab)}
-                      aria-current={activeTab === tab ? 'page' : undefined}
-                      className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold capitalize transition-all ${
-                        activeTab === tab
-                          ? 'bg-[var(--app-accent)]/20 text-[var(--app-accent)] border border-[var(--app-accent)]/40 shadow-sm'
-                          : 'text-[var(--quant-muted-foreground)] hover:text-white border border-transparent'
-                      }`}
-                    >
-                      {tab}
-                    </button>
-                  ))}
-                </div>
+                {/* qm-contacts-secondary-tabs-labels: mobile secondary tabs render
+                    EXPLICIT labels from ContactsSecondaryTabs (never CSS
+                    `capitalize` over raw ids). md:hidden lives in the strip:
+                    desktop's pinned sidebar rail already lists
+                    Companies/Groups/Dedup. */}
+                <ContactsSecondaryTabStrip activeTab={activeTab} onTabChange={handleTabChange} />
 
                 {/* Group Filter Chips (if any exist) */}
                 {contactGroups.length > 0 && (
