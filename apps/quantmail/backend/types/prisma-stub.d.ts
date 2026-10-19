@@ -242,6 +242,22 @@ declare module '@prisma/client' {
     updatedAt: Date;
   }
 
+  // schema.prisma FollowUpReminder (String id cuid, userId, emailId,
+  // threadId?, subject?, remindAt, dismissedAt?, createdAt, updatedAt) —
+  // keep in sync with the model; this stub shadows the generated
+  // @prisma/client types for the whole backend compilation unit.
+  export interface FollowUpReminder {
+    id: string;
+    userId: string;
+    emailId: string;
+    threadId: string | null;
+    subject: string | null;
+    remindAt: Date;
+    dismissedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
   export interface VacationResponder {
     id: string;
     userId: string;
@@ -593,6 +609,7 @@ declare module '@prisma/client' {
     contactGroup: ModelDelegate<ContactGroup>;
     label: ModelDelegate<Label>;
     mailFilter: ModelDelegate<MailFilter>;
+    followUpReminder: ModelDelegate<FollowUpReminder>;
     vacationResponder: ModelDelegate<VacationResponder>;
     vacationAutoReplyLog: ModelDelegate<VacationAutoReplyLog>;
     emailTemplate: ModelDelegate<EmailTemplate>;

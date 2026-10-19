@@ -411,6 +411,16 @@ export class InboundIngestAdapter {
           });
         }
 
+        // 5b) Dismiss-on-reply (fix/qm-followup-auto-dismiss-2): an inbound
+        //     message in a thread with an ACTIVE follow-up reminder means the
+        //     other side replied — the reminder has served its purpose.
+        //     Spam-quarantined mail does not count as a reply. Best-effort:
+        //     the method swallows its own faults, so this can never break
+        //     ingest.
+        if (!quarantine) {
+          await this.dismissFollowUpRemindersOnInboundReply(userId, threadId);
+        }
+
         // 6) Apply the user's server-side filters/rules to non-quarantined mail.
         //    Filter actions may re-route the message (move/archive/spam), flag it
         //    (read/star), label it, forward it, or delete it. Best-effort: a
@@ -494,6 +504,46 @@ export class InboundIngestAdapter {
       ...(rawMessage.clientIp !== undefined ? { clientIp: rawMessage.clientIp } : {}),
       ...(rawMessage.heloDomain !== undefined ? { heloDomain: rawMessage.heloDomain } : {}),
     };
+  }
+
+  /**
+   * Dismiss-on-reply (fix/qm-followup-auto-dismiss-2): an inbound message in
+   * a thread with an ACTIVE follow-up reminder means the other side replied —
+   * the reminder has served its purpose and must not resurface in the
+   * People-home "Due reminders" strip or the thread banner (Gmail/Superhuman
+   * behavior: nudges only fire on mail with no reply).
+   *
+   * Thread-keyed rows match on (userId, threadId). Legacy threadId-null rows
+   * are keyed on the sent email's id — they are dismissed when that email
+   * lives in this thread. Best-effort: a dismissal fault must never break
+   * mail ingest, so everything here is swallowed.
+   */
+  private async dismissFollowUpRemindersOnInboundReply(
+    userId: string,
+    threadId: string,
+  ): Promise<void> {
+    const now = new Date();
+    try {
+      await this.prisma.followUpReminder.updateMany({
+        where: { userId, threadId, dismissedAt: null },
+        data: { dismissedAt: now },
+      });
+      // Legacy threadId-null rows: resolve the sent email ids in this thread
+      // so an emailId-keyed row whose mail got a reply is dismissed too.
+      const threadEmails = await this.prisma.email.findMany({
+        where: { userId, threadId },
+        select: { id: true },
+      });
+      const ids = threadEmails.map((row) => row.id);
+      if (ids.length > 0) {
+        await this.prisma.followUpReminder.updateMany({
+          where: { userId, threadId: null, dismissedAt: null, emailId: { in: ids } },
+          data: { dismissedAt: now },
+        });
+      }
+    } catch {
+      // Best-effort: a reminder-dismissal fault must never break mail ingest.
+    }
   }
 
   /**
