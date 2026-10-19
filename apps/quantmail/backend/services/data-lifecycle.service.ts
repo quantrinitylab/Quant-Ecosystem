@@ -24,6 +24,7 @@ import {
   LifecycleEvents,
   parseLifecyclePayload,
 } from '../lib/lifecycle-events';
+import { pruneExpiredNotifications } from './notification-retention.service';
 
 /** Structural Prisma surface this service needs (mirrors OutboxTx style). */
 export interface LifecycleDb {
@@ -68,6 +69,9 @@ export interface LifecycleTx {
   emailFolder: {
     findFirst(args: unknown): Promise<Record<string, unknown> | null>;
     create(args: unknown): Promise<Record<string, unknown>>;
+  };
+  notification: {
+    deleteMany(args: unknown): Promise<{ count: number }>;
   };
   outboxEvent: { create(args: unknown): Promise<unknown> };
 }
@@ -402,6 +406,8 @@ export interface RetentionSweepResult {
   archived: number;
   deleted: number;
   blocked: number;
+  /** In-app notification rows physically removed because expiresAt passed. */
+  notificationsPruned: number;
 }
 
 /**
@@ -424,7 +430,7 @@ export async function runRetentionSweep(
   actor = 'system:retention-sweep',
   now: Date = new Date(),
 ): Promise<RetentionSweepResult> {
-  const result: RetentionSweepResult = { policiesRun: 0, archived: 0, deleted: 0, blocked: 0 };
+  const result: RetentionSweepResult = { policiesRun: 0, archived: 0, deleted: 0, blocked: 0, notificationsPruned: 0 };
 
   await db.$transaction(async (tx) => {
     const policies = await tx.retentionPolicyRecord.findMany({ where: { enabled: true } });
@@ -567,6 +573,11 @@ export async function runRetentionSweep(
       result.deleted += deleted;
       result.blocked += blocked;
     }
+
+    // Notification retention (same sweep): rows whose expiresAt passed are
+    // physically removed. Notification rows predate the TTL (created with
+    // expiresAt: null) keep their old behaviour — null never expires.
+    result.notificationsPruned = await pruneExpiredNotifications(tx, { now });
   });
 
   return result;

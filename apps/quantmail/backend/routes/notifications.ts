@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { z } from 'zod';
 import { getPushPublicKey, isPushConfigured } from '../services/push-delivery.service';
+import { pruneExpiredNotifications } from '../services/notification-retention.service';
 import {
   MAIL_NOTIFICATION_MODES,
   readUserMailNotificationMode,
@@ -45,7 +46,14 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
   fastify.get('/', async (request, reply) => {
     const userId = userIdFrom(request);
     const { limit } = listQuerySchema.parse(request.query);
-    const active = { userId, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] };
+    const now = new Date();
+    // Retention (QM fix: unbounded accumulation): expired rows are physically
+    // removed on read, scoped to the caller. This keeps retention
+    // self-enforcing even when the retention sweep never fires — expired
+    // rows are already invisible to the list filter below, so removing them
+    // changes nothing the caller could see.
+    await pruneExpiredNotifications(prisma, { userId, now });
+    const active = { userId, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] };
     const [notifications, unreadCount] = await Promise.all([
       prisma.notification.findMany({ where: active, orderBy: { createdAt: 'desc' }, take: limit }),
       prisma.notification.count({ where: { ...active, isRead: false } }),

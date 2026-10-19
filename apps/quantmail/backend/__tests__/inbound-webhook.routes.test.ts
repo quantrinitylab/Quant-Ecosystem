@@ -827,6 +827,12 @@ describe('POST /webhook/inbound — new mail creates an in-app notification (QM-
       sourceEntityId: 'email-1',
       actionUrl: '/thread/thread-1',
     });
+    // Retention: new rows carry a TTL so the table cannot grow unboundedly.
+    const expiresAt = state.notifications[0]!['expiresAt'] as unknown;
+    expect(expiresAt).toBeInstanceOf(Date);
+    const ttlMs = (expiresAt as Date).getTime() - Date.now();
+    expect(ttlMs).toBeGreaterThan(29 * 24 * 60 * 60 * 1000);
+    expect(ttlMs).toBeLessThanOrEqual(30 * 24 * 60 * 60 * 1000);
   });
 
   it('does not notify for quarantined (spam) mail', async () => {

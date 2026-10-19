@@ -4,7 +4,8 @@
 // QuantMail — Notifications center hooks (K10 / M15).
 //
 // Real backend only: GET /api/notifications, PATCH /api/notifications/:id/read,
-// POST /api/notifications/read-all, DELETE /api/notifications/:id.
+// POST /api/notifications/read-all, DELETE /api/notifications/:id,
+// DELETE /api/notifications (clear all).
 // There is no seed data anywhere in this file — an empty backend means an
 // honest empty state, not fabricated rows.
 // ============================================================================
@@ -101,6 +102,19 @@ export function useDeleteNotification() {
         { method: 'DELETE' },
       );
       if (!response.ok) throw new Error('Could not delete the notification.');
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export function useClearAllNotifications() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const response = await browserApiRequest('/api/notifications', { method: 'DELETE' });
+      if (!response.ok) throw new Error('Could not clear notifications.');
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['notifications'] });

@@ -6,7 +6,8 @@
 // The dedicated notifications screen the audit found missing: only the bell
 // dropdown existed. Everything here is the real backend — GET
 // /api/notifications, PATCH /api/notifications/:id/read,
-// POST /api/notifications/read-all, DELETE /api/notifications/:id.
+// POST /api/notifications/read-all, DELETE /api/notifications/:id, and
+// DELETE /api/notifications (clear all, behind a confirm dialog).
 //
 // Modes follow the spec's center modes where the data supports them:
 // All · Unread · Read. There is no fabricated "Needs You"/"Security" bucket —
@@ -25,6 +26,7 @@ import {
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
   useDeleteNotification,
+  useClearAllNotifications,
   type AppNotification,
 } from '../../hooks/useNotifications';
 import {
@@ -67,11 +69,16 @@ export default function NotificationsPage() {
   // unread badge at once), so it asks first. The dialog copy states only the
   // real count — no invented claims.
   const [confirmMarkAllOpen, setConfirmMarkAllOpen] = useState(false);
+  // The previously dead DELETE /api/notifications (clear-all) is wired here
+  // behind the same confirm pattern as mark-all-read: retention is automatic
+  // (TTL + prune), but users can reclaim space deliberately.
+  const [confirmClearAllOpen, setConfirmClearAllOpen] = useState(false);
 
   const { data, isLoading, error, refetch } = useNotifications(50);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
   const deleteOne = useDeleteNotification();
+  const clearAll = useClearAllNotifications();
 
   const notifications = useMemo(() => data?.notifications ?? [], [data]);
   const unreadCount = data?.unreadCount ?? 0;
@@ -123,16 +130,28 @@ export default function NotificationsPage() {
                   : 'You are all caught up'}
               </p>
             </div>
-            {unreadCount > 0 && (
-              <Button
-                variant="secondary"
-                onClick={() => setConfirmMarkAllOpen(true)}
-                disabled={markAllRead.isPending}
-              >
-                <Icon name="check" className="mr-1.5 h-4 w-4" />
-                {markAllRead.isPending ? 'Marking…' : 'Mark all read'}
-              </Button>
-            )}
+            <div className="flex shrink-0 items-center gap-2">
+              {unreadCount > 0 && (
+                <Button
+                  variant="secondary"
+                  onClick={() => setConfirmMarkAllOpen(true)}
+                  disabled={markAllRead.isPending}
+                >
+                  <Icon name="check" className="mr-1.5 h-4 w-4" />
+                  {markAllRead.isPending ? 'Marking…' : 'Mark all read'}
+                </Button>
+              )}
+              {notifications.length > 0 && (
+                <Button
+                  variant="secondary"
+                  onClick={() => setConfirmClearAllOpen(true)}
+                  disabled={clearAll.isPending}
+                >
+                  <Icon name="trash" className="mr-1.5 h-4 w-4" />
+                  {clearAll.isPending ? 'Clearing…' : 'Clear all'}
+                </Button>
+              )}
+            </div>
           </div>
           <ConfirmDialog
             isOpen={confirmMarkAllOpen}
@@ -145,6 +164,18 @@ export default function NotificationsPage() {
               void run(() => markAllRead.mutateAsync());
             }}
             onCancel={() => setConfirmMarkAllOpen(false)}
+          />
+          <ConfirmDialog
+            isOpen={confirmClearAllOpen}
+            title="Clear all notifications?"
+            message={`This will permanently delete all ${notifications.length} notification${notifications.length === 1 ? '' : 's'}.`}
+            confirmLabel="Clear all"
+            cancelLabel="Cancel"
+            onConfirm={() => {
+              setConfirmClearAllOpen(false);
+              void run(() => clearAll.mutateAsync());
+            }}
+            onCancel={() => setConfirmClearAllOpen(false)}
           />
 
           {/* Filters */}
