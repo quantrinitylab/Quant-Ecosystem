@@ -303,6 +303,7 @@ export type CodeQLAlert = {
 export type BranchSecurityRules = {
   requirePullRequestReviews: boolean;
   requireStatusChecks: boolean;
+  dismissStaleApprovals: boolean;
   requireCleanSecretScanning: boolean;
 };
 

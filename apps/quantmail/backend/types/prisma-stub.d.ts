@@ -117,6 +117,8 @@ declare module '@prisma/client' {
     reviewerId: string;
     status: string;
     body: string | null;
+    reviewedCommitSha: string | null;
+    dismissed: boolean;
     createdAt: Date;
     updatedAt: Date;
   }
@@ -139,6 +141,7 @@ declare module '@prisma/client' {
     branchPattern: string;
     requiredApprovals: number;
     requireStatusChecks: boolean;
+    dismissStaleApprovals: boolean;
     createdAt: Date;
     updatedAt: Date;
   }
@@ -578,9 +581,10 @@ declare module '@prisma/client' {
     findUnique(args: {
       where: WhereUniqueInput;
       include?: Record<string, unknown>;
+      select?: Record<string, unknown>;
     }): Promise<T | null>;
-    findFirst(args?: FindFirstArgs): Promise<T | null>;
-    findMany(args?: FindManyArgs): Promise<T[]>;
+    findFirst(args?: FindFirstArgs & { select?: Record<string, unknown> }): Promise<T | null>;
+    findMany(args?: FindManyArgs & { select?: Record<string, unknown> }): Promise<T[]>;
     create(args: CreateArgs): Promise<T>;
     createMany(args: CreateManyArgs): Promise<{ count: number }>;
     update(args: UpdateArgs): Promise<T>;

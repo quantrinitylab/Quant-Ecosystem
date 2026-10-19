@@ -98,6 +98,9 @@ export async function evaluatePreReceive(
 }
 
 async function synchronizeBranches(prisma: PrismaClient, payload: GitHookPayload): Promise<void> {
+  const branchProtection = new BranchProtectionService(prisma);
+  const advanced: Array<{ branch: string; newSha: string }> = [];
+
   await prisma.$transaction(async (tx) => {
     for (const command of payload.commands) {
       const branch = branchName(command.ref);
@@ -110,9 +113,23 @@ async function synchronizeBranches(prisma: PrismaClient, payload: GitHookPayload
           update: { commitSha: command.newSha },
           create: { repoId: payload.repoId, name: branch, commitSha: command.newSha },
         });
+        advanced.push({ branch, newSha: command.newSha });
       }
     }
   });
+
+  // Dismiss stale approvals AFTER the heads have advanced: a push to an open
+  // PR's source branch revokes approvals that did not review the new head
+  // (only when the target branch's protection rule opts into
+  // dismissStaleApprovals — GitHub parity).
+  for (const { branch, newSha } of advanced) {
+    try {
+      await branchProtection.dismissStaleApprovalsOnPush(payload.repoId, branch, newSha);
+    } catch {
+      // Dismissal is a best-effort follow-up to a push that already landed;
+      // it must never fail the post-receive sync itself.
+    }
+  }
 }
 
 export class GitHookServer {

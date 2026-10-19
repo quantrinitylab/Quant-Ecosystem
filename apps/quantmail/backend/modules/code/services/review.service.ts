@@ -25,12 +25,37 @@ export class ReviewService {
   async submitReview(input: SubmitReviewInput): Promise<Review> {
     const validated = SubmitReviewInputSchema.parse(input);
 
+    // Record the head SHA of the PR's source branch at review time. This is
+    // the commit the reviewer actually saw — the push path uses it to decide
+    // whether the approval went stale ("dismiss stale approvals", GitHub
+    // parity). Null when the branch row is unavailable: an honest unknown,
+    // never an invented SHA.
+    let reviewedCommitSha: string | null = null;
+    try {
+      const pr = await this.prisma.pullRequest.findUnique({
+        where: { id: validated.prId },
+        select: { repoId: true, sourceBranch: true },
+      });
+      if (pr) {
+        const branch = this.prisma.branch?.findUnique
+          ? await this.prisma.branch.findUnique({
+              where: { repoId_name: { repoId: pr.repoId, name: pr.sourceBranch } },
+              select: { commitSha: true },
+            })
+          : null;
+        reviewedCommitSha = branch?.commitSha ?? null;
+      }
+    } catch {
+      reviewedCommitSha = null;
+    }
+
     return this.prisma.review.create({
       data: {
         prId: validated.prId,
         reviewerId: validated.reviewerId,
         status: validated.status,
         body: validated.body ?? null,
+        reviewedCommitSha,
       },
     });
   }

@@ -1273,6 +1273,7 @@ export const INITIAL_CODEQL_ALERTS: CodeQLAlert[] = [
 export const INITIAL_BRANCH_SECURITY_RULES: BranchSecurityRules = {
   requirePullRequestReviews: true,
   requireStatusChecks: true,
+  dismissStaleApprovals: false,
   requireCleanSecretScanning: true,
 };
 

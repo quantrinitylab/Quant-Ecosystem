@@ -43,6 +43,8 @@ export interface MergeDecision {
     prOpen: boolean;
     requiredApprovals: number;
     approvals: number;
+    /** APPROVED reviews dismissed as stale by later pushes — never counted. */
+    dismissedApprovals: number;
     changesRequested: boolean;
     requireStatusChecks: boolean;
     /** Status of the PR's latest CI run, or `NONE` when no run exists. */
@@ -106,7 +108,13 @@ export class MergeEligibilityService {
         latestByReviewer.set(review.reviewerId, review);
       }
     }
-    const effectiveReviews = [...latestByReviewer.values()];
+    // Dismissed (stale) reviews are invisible to the verdict: an approval
+    // revoked by a later push must be re-issued on the new head before it can
+    // count again (GitHub "dismiss stale approvals" parity).
+    const effectiveReviews = [...latestByReviewer.values()].filter((r) => !r.dismissed);
+    const dismissedApprovals = [...latestByReviewer.values()].filter(
+      (r) => r.status === 'APPROVED' && r.dismissed,
+    ).length;
 
     const approvals = effectiveReviews.filter((r) => r.status === 'APPROVED').length;
     const changesRequested = effectiveReviews.some((r) => r.status === 'CHANGES_REQUESTED');
@@ -116,6 +124,11 @@ export class MergeEligibilityService {
     }
     if (approvals < requiredApprovals) {
       reasons.push(`Requires ${requiredApprovals} approval(s), but only has ${approvals}`);
+      if (dismissedApprovals > 0) {
+        reasons.push(
+          `${dismissedApprovals} approval(s) were dismissed as stale after new commits were pushed — re-review is required`,
+        );
+      }
     }
 
     // ----- 3. CI STATUS ----------------------------------------------------
@@ -141,6 +154,7 @@ export class MergeEligibilityService {
         prOpen,
         requiredApprovals,
         approvals,
+        dismissedApprovals,
         changesRequested,
         requireStatusChecks,
         ciStatus,

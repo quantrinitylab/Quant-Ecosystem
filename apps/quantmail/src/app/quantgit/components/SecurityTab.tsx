@@ -376,6 +376,7 @@ export function SecurityTab({
   const [branchRules, setBranchRules] = useState<BranchSecurityRules>({
     requirePullRequestReviews: false,
     requireStatusChecks: false,
+    dismissStaleApprovals: false,
     requireCleanSecretScanning: false,
   });
   const [branchRulesConfigured, setBranchRulesConfigured] = useState(false);
@@ -392,6 +393,7 @@ export function SecurityTab({
       setBranchRules({
         requirePullRequestReviews: false,
         requireStatusChecks: false,
+        dismissStaleApprovals: false,
         requireCleanSecretScanning: false,
       });
       setBranchRulesConfigured(false);
@@ -413,6 +415,7 @@ export function SecurityTab({
             branchPattern?: string;
             requiredApprovals?: number;
             requireStatusChecks?: boolean;
+            dismissStaleApprovals?: boolean;
           }>;
         } | null;
         const rule = Array.isArray(json?.data)
@@ -422,6 +425,7 @@ export function SecurityTab({
           setBranchRules({
             requirePullRequestReviews: (rule.requiredApprovals ?? 0) > 0,
             requireStatusChecks: !!rule.requireStatusChecks,
+            dismissStaleApprovals: !!rule.dismissStaleApprovals,
             // The branch-protection API has no secret-scanning field, so this
             // row can never be "configured" from the backend. It stays off and
             // disabled below with an honest note.
@@ -432,6 +436,7 @@ export function SecurityTab({
           setBranchRules({
             requirePullRequestReviews: false,
             requireStatusChecks: false,
+            dismissStaleApprovals: false,
             requireCleanSecretScanning: false,
           });
           setBranchRulesConfigured(false);
@@ -825,6 +830,7 @@ export function SecurityTab({
             branchPattern: protectionBranch,
             requiredApprovals: branchRules.requirePullRequestReviews ? 1 : 0,
             requireStatusChecks: branchRules.requireStatusChecks,
+            dismissStaleApprovals: branchRules.dismissStaleApprovals,
           }),
         },
       );
@@ -1645,7 +1651,9 @@ export function SecurityTab({
                     data-testid="branch-rules-enforced-badge"
                     className={`px-2 py-px rounded-full font-mono text-[10px] font-bold ${
                       branchRulesConfigured &&
-                      (branchRules.requirePullRequestReviews || branchRules.requireStatusChecks)
+                      (branchRules.requirePullRequestReviews ||
+                        branchRules.requireStatusChecks ||
+                        branchRules.dismissStaleApprovals)
                         ? 'bg-[#238636]/20 text-[#3FB950]'
                         : 'bg-[#8B949E]/20 text-[#8B949E]'
                     }`}
@@ -1654,7 +1662,9 @@ export function SecurityTab({
                       ? 'Loading…'
                       : !branchRulesConfigured
                         ? `${protectionBranch}: Not set`
-                        : branchRules.requirePullRequestReviews || branchRules.requireStatusChecks
+                        : branchRules.requirePullRequestReviews ||
+                            branchRules.requireStatusChecks ||
+                            branchRules.dismissStaleApprovals
                           ? `${protectionBranch}: Enforced`
                           : `${protectionBranch}: Not enforced`}
                   </span>
@@ -1741,7 +1751,35 @@ export function SecurityTab({
                 </div>
               </label>
 
-              {/* Check 3: Require secret scanning to be clean before merge.
+              {/* Check 3: Dismiss stale pull request approvals when new commits are pushed */}
+              <label
+                data-testid="rule-dismiss-stale-approvals"
+                className="flex items-start gap-3 pt-3 cursor-pointer group"
+              >
+                <input
+                  type="checkbox"
+                  data-testid="checkbox-dismiss-stale-approvals"
+                  checked={branchRules.dismissStaleApprovals}
+                  onChange={(e) =>
+                    setBranchRules((prev) => ({
+                      ...prev,
+                      dismissStaleApprovals: e.target.checked,
+                    }))
+                  }
+                  className="mt-0.5 rounded border-[#30363D] bg-[#0D1117] text-[#58A6FF] focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                />
+                <div className="space-y-0.5">
+                  <span className="font-semibold text-white group-hover:text-[#58A6FF] transition-colors">
+                    Dismiss stale pull request approvals when new commits are pushed
+                  </span>
+                  <p className="text-[11px] text-[#7D8590]">
+                    When enabled, pushing new commits to a pull request dismisses existing
+                    approvals — the pull request cannot merge until it is re-reviewed.
+                  </p>
+                </div>
+              </label>
+
+              {/* Check 4: Require secret scanning to be clean before merge.
                   The branch-protection API has no field for this rule, so it
                   cannot be persisted or enforced — it stays disabled with an
                   honest note rather than pretending to save. */}

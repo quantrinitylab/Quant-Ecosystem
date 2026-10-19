@@ -11,8 +11,12 @@ function createMockPrisma() {
       update: vi.fn(),
       delete: vi.fn(),
     },
+    pullRequest: {
+      findMany: vi.fn(),
+    },
     review: {
       count: vi.fn(),
+      updateMany: vi.fn(),
     },
     ciRun: {
       findFirst: vi.fn(),
@@ -46,6 +50,7 @@ describe('BranchProtectionService', () => {
         branchPattern: 'main',
         requiredApprovals: 2,
         requireStatusChecks: true,
+        dismissStaleApprovals: true,
       });
 
       expect(result.branchPattern).toBe('main');
@@ -56,6 +61,7 @@ describe('BranchProtectionService', () => {
           branchPattern: 'main',
           requiredApprovals: 2,
           requireStatusChecks: true,
+          dismissStaleApprovals: true,
         },
       });
     });
@@ -81,6 +87,7 @@ describe('BranchProtectionService', () => {
           branchPattern: 'release/*',
           requiredApprovals: 1,
           requireStatusChecks: false,
+          dismissStaleApprovals: false,
         },
       });
     });
@@ -274,6 +281,138 @@ describe('BranchProtectionService', () => {
       const result = await service.enforceOnPush('repo-1', 'main', 'pr-1');
 
       expect(result.allowed).toBe(true);
+    });
+
+    it('excludes dismissed approvals from the approval count', async () => {
+      prisma.branchProtection.findMany.mockResolvedValue([
+        { id: 'rule-1', branchPattern: 'main', requiredApprovals: 1, requireStatusChecks: false },
+      ]);
+      prisma.review.count.mockResolvedValue(0);
+
+      await service.enforceOnPush('repo-1', 'main', 'pr-1');
+
+      expect(prisma.review.count).toHaveBeenCalledWith({
+        where: { prId: 'pr-1', status: 'APPROVED', dismissed: { not: true } },
+      });
+    });
+  });
+
+  describe('dismissStaleApprovalsOnPush', () => {
+    const NEW_SHA = 'b'.repeat(40);
+    const OLD_SHA = 'a'.repeat(40);
+
+    function ruleWith(dismissStaleApprovals: boolean) {
+      return [
+        {
+          id: 'rule-1',
+          repoId: 'repo-1',
+          branchPattern: 'main',
+          requiredApprovals: 1,
+          requireStatusChecks: false,
+          dismissStaleApprovals,
+        },
+      ];
+    }
+
+    beforeEach(() => {
+      prisma.review.updateMany.mockResolvedValue({ count: 1 });
+    });
+
+    it('dismisses approvals that did not review the new head when the rule opts in', async () => {
+      prisma.pullRequest.findMany.mockResolvedValue([{ id: 'pr-1', targetBranch: 'main' }]);
+      prisma.branchProtection.findMany.mockResolvedValue(ruleWith(true));
+
+      const dismissed = await service.dismissStaleApprovalsOnPush('repo-1', 'feature/x', NEW_SHA);
+
+      expect(dismissed).toBe(1);
+      expect(prisma.pullRequest.findMany).toHaveBeenCalledWith({
+        where: { repoId: 'repo-1', sourceBranch: 'feature/x', status: 'OPEN' },
+        select: { id: true, targetBranch: true },
+      });
+      expect(prisma.review.updateMany).toHaveBeenCalledWith({
+        where: {
+          prId: 'pr-1',
+          status: 'APPROVED',
+          dismissed: false,
+          OR: [{ reviewedCommitSha: { not: NEW_SHA } }, { reviewedCommitSha: null }],
+        },
+        data: { dismissed: true },
+      });
+    });
+
+    it('does nothing when the rule does not opt into dismissStaleApprovals', async () => {
+      prisma.pullRequest.findMany.mockResolvedValue([{ id: 'pr-1', targetBranch: 'main' }]);
+      prisma.branchProtection.findMany.mockResolvedValue(ruleWith(false));
+
+      const dismissed = await service.dismissStaleApprovalsOnPush('repo-1', 'feature/x', NEW_SHA);
+
+      expect(dismissed).toBe(0);
+      expect(prisma.review.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when no open PRs use the pushed branch as source', async () => {
+      prisma.pullRequest.findMany.mockResolvedValue([]);
+
+      const dismissed = await service.dismissStaleApprovalsOnPush('repo-1', 'feature/x', NEW_SHA);
+
+      expect(dismissed).toBe(0);
+      expect(prisma.review.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('only dismisses for PRs whose target rule opts in', async () => {
+      prisma.pullRequest.findMany.mockResolvedValue([
+        { id: 'pr-1', targetBranch: 'main' },
+        { id: 'pr-2', targetBranch: 'dev' },
+      ]);
+      prisma.branchProtection.findMany.mockResolvedValue([
+        ...ruleWith(true),
+        {
+          id: 'rule-2',
+          repoId: 'repo-1',
+          branchPattern: 'dev',
+          requiredApprovals: 1,
+          requireStatusChecks: false,
+          dismissStaleApprovals: false,
+        },
+      ]);
+
+      const dismissed = await service.dismissStaleApprovalsOnPush('repo-1', 'feature/x', NEW_SHA);
+
+      expect(dismissed).toBe(1);
+      expect(prisma.review.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.review.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ prId: 'pr-1' }) }),
+      );
+    });
+
+    it('dismisses pre-migration reviews with unknown reviewedCommitSha on a real push', async () => {
+      // reviewedCommitSha NULL cannot prove the review saw the new head, so
+      // the updateMany's NULL arm catches it — GitHub behaves the same way
+      // for pushes that land after the setting is enabled.
+      prisma.pullRequest.findMany.mockResolvedValue([{ id: 'pr-1', targetBranch: 'main' }]);
+      prisma.branchProtection.findMany.mockResolvedValue(ruleWith(true));
+
+      await service.dismissStaleApprovalsOnPush('repo-1', 'feature/x', NEW_SHA);
+
+      const where = prisma.review.updateMany.mock.calls[0][0].where;
+      expect(where.OR).toContainEqual({ reviewedCommitSha: null });
+      expect(where.OR).toContainEqual({ reviewedCommitSha: { not: NEW_SHA } });
+    });
+
+    it('never dismisses a review that already reviewed the new head', async () => {
+      // A review with reviewedCommitSha === newSha is fresh; the `not: newSha`
+      // arm excludes it from the updateMany.
+      prisma.pullRequest.findMany.mockResolvedValue([{ id: 'pr-1', targetBranch: 'main' }]);
+      prisma.branchProtection.findMany.mockResolvedValue(ruleWith(true));
+
+      await service.dismissStaleApprovalsOnPush('repo-1', 'feature/x', NEW_SHA);
+
+      const where = prisma.review.updateMany.mock.calls[0][0].where;
+      expect(where.OR).toEqual(
+        expect.arrayContaining([{ reviewedCommitSha: { not: NEW_SHA } }]),
+      );
+      // Sanity: the same head SHA would be excluded by the not-arm.
+      expect(OLD_SHA).not.toBe(NEW_SHA);
     });
   });
 });

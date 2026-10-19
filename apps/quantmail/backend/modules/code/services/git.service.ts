@@ -171,6 +171,15 @@ export class GitService {
         });
       }
 
+      // The branch head advanced: dismiss approvals that did not review the
+      // new head, when the PR target's protection rule opts in (GitHub
+      // parity — best-effort, never fails a landed push).
+      try {
+        await this.branchProtection.dismissStaleApprovalsOnPush(repo.id, branch, newSha);
+      } catch {
+        // ignore — dismissal must not fail the push
+      }
+
       outcomes.push({ ref: update.ref, branch, status: 'advanced', newSha });
     }
 

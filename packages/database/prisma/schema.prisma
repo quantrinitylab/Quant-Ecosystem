@@ -1874,6 +1874,15 @@ model Review {
   reviewerId String
   status     ReviewStatus @default(PENDING)
   body       String?
+  // Head SHA of the PR's source branch at the moment this review was
+  // submitted. Null for reviews recorded before this field existed.
+  // Powers "dismiss stale approvals": when new commits are pushed, approvals
+  // whose reviewedCommitSha differs from the new head are stale.
+  reviewedCommitSha String?
+  // Set by the push path when dismissStaleApprovals is enabled on the target
+  // branch's protection rule and new commits landed after this review.
+  // Dismissed approvals never count toward requiredApprovals (GitHub parity).
+  dismissed  Boolean      @default(false)
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
@@ -1950,6 +1959,11 @@ model BranchProtection {
   branchPattern       String
   requiredApprovals   Int      @default(1)
   requireStatusChecks Boolean  @default(false)
+  // GitHub parity: "Dismiss stale pull request approvals when new commits
+  // are pushed". When true, a push to an open PR's source branch dismisses
+  // APPROVED reviews whose reviewedCommitSha is not the new head, so the PR
+  // cannot merge until it is re-reviewed.
+  dismissStaleApprovals Boolean @default(false)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
