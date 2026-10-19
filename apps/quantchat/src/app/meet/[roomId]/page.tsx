@@ -40,6 +40,14 @@ import {
   apiClient,
   type MeetingRoomSummary,
 } from '../../../services/api-client';
+import {
+  applyAudioOnlyToPublication,
+  applyAudioOnlyToPublications,
+  cameraCaptureOptions,
+  publishTrackForDataMode,
+  setCameraEnabledForDataMode,
+  type RemotePublicationLike,
+} from '../../../lib/call-data';
 import { routes } from '../../../lib/navigation';
 import {
   buildRaiseQueue,
@@ -136,6 +144,19 @@ export default function MeetRoomPage() {
   const [handBusy, setHandBusy] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
 
+  // QC-F-296: low-data mode — single home is the settings contract's
+  // `calls` section; this state mirrors it (gate checkbox starts from the
+  // saved pref, every change writes back). lowDataRef mirrors it for the
+  // join/toggle callbacks. Audio-only is SESSION-only, never persisted.
+  const [lowData, setLowData] = useState(false);
+  const lowDataRef = useRef(false);
+  const [lowDataBusy, setLowDataBusy] = useState(false);
+  const [lowDataSaveFailed, setLowDataSaveFailed] = useState(false);
+  const [lowDataPrefFailed, setLowDataPrefFailed] = useState(false);
+  const [audioOnly, setAudioOnly] = useState(false);
+  const audioOnlyRef = useRef(false);
+  const cameraOnBeforeAudioOnlyRef = useRef(true);
+
   // QC-F-322: background blur, bound to whichever camera track is live
   // right now — the studio preview track before joining, the published
   // camera publication track in the meeting. The hook's status is proof
@@ -176,6 +197,64 @@ export default function MeetRoomPage() {
       cancelled = true;
     };
   }, [roomId]);
+
+  // QC-F-296: load the saved low-data preference once, so the gate
+  // checkbox starts from the user's real setting. A failed read leaves
+  // the honest default (off) and is announced, never silently assumed.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiClient.getSettings();
+        if (cancelled) return;
+        if (res.success && res.data) {
+          const saved = res.data.calls?.lowDataMode === true;
+          lowDataRef.current = saved;
+          setLowData(saved);
+        } else {
+          setLowDataPrefFailed(true);
+        }
+      } catch {
+        if (!cancelled) setLowDataPrefFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // QC-F-296: persist a low-data change; failure is reported honestly —
+  // the in-session value still applies, a fake "saved" never shows.
+  const saveLowDataPref = useCallback(async (next: boolean) => {
+    setLowDataSaveFailed(false);
+    try {
+      const res = await apiClient.updateSettings({ calls: { lowDataMode: next } });
+      if (!res.success) setLowDataSaveFailed(true);
+    } catch {
+      setLowDataSaveFailed(true);
+    }
+  }, []);
+
+  const handleLowDataChange = useCallback(
+    (next: boolean) => {
+      lowDataRef.current = next;
+      setLowData(next);
+      void saveLowDataPref(next);
+    },
+    [saveLowDataPref],
+  );
+
+  // QC-F-296: every remote video publication currently in the room —
+  // the receive side of the audio-only mode.
+  const collectRemoteVideoPublications = useCallback((): RemotePublicationLike[] => {
+    const pubs: RemotePublicationLike[] = [];
+    room.remoteParticipants.forEach((participant) => {
+      participant.trackPublications.forEach((pub) => {
+        pubs.push(pub as unknown as RemotePublicationLike);
+      });
+    });
+    return pubs;
+  }, [room]);
 
   const stopPreview = useCallback(() => {
     if (meterRafRef.current !== null) {
@@ -311,7 +390,17 @@ export default function MeetRoomPage() {
       room
         .on(RoomEvent.ParticipantConnected, refreshParticipants)
         .on(RoomEvent.ParticipantDisconnected, refreshParticipants)
-        .on(RoomEvent.TrackSubscribed, refreshParticipants)
+        .on(RoomEvent.TrackSubscribed, (_track, publication) => {
+          // QC-F-296: a publication subscribed while audio-only is on
+          // (a late joiner) joins the mode immediately.
+          if (audioOnlyRef.current) {
+            applyAudioOnlyToPublication(
+              publication as unknown as RemotePublicationLike,
+              true,
+            );
+          }
+          refreshParticipants();
+        })
         .on(RoomEvent.TrackUnsubscribed, refreshParticipants)
         .on(RoomEvent.TrackMuted, refreshParticipants)
         .on(RoomEvent.TrackUnmuted, refreshParticipants)
@@ -354,9 +443,18 @@ export default function MeetRoomPage() {
       let cameraOn = !cameraOff;
       if (cameraOn && background.mode === 'blur') {
         try {
-          const track = await createLocalVideoTrack(
-            cameraId ? { deviceId: cameraId } : undefined,
-          );
+          // QC-F-296: the low-data cap rides BOTH halves of this path —
+          // the capture resolution on track creation (the selected
+          // deviceId is preserved, never dropped) and the publish
+          // encoding AFTER the processor is applied. The QC-F-322 order
+          // is unchanged: process first, publish second, raw never.
+          const captureOpts = cameraCaptureOptions(lowDataRef.current);
+          const track = await createLocalVideoTrack({
+            ...(cameraId ? { deviceId: cameraId } : {}),
+            ...(captureOpts?.resolution
+              ? { resolution: captureOpts.resolution }
+              : {}),
+          });
           try {
             await applyBackgroundBlur(track, {
               assetPath: BACKGROUND_ASSET_PATH,
@@ -369,7 +467,11 @@ export default function MeetRoomPage() {
             }
             throw e;
           }
-          await room.localParticipant.publishTrack(track);
+          await publishTrackForDataMode(
+            room.localParticipant,
+            track,
+            lowDataRef.current,
+          );
         } catch {
           cameraOn = false;
           setNotice(
@@ -378,7 +480,11 @@ export default function MeetRoomPage() {
         }
         setIsCameraEnabled(cameraOn);
       } else {
-        await room.localParticipant.setCameraEnabled(cameraOn);
+        await setCameraEnabledForDataMode(
+          room.localParticipant,
+          cameraOn,
+          lowDataRef.current,
+        );
         setIsCameraEnabled(cameraOn);
       }
 
@@ -414,9 +520,75 @@ export default function MeetRoomPage() {
 
   const toggleCamera = useCallback(async () => {
     const next = !isCameraEnabled;
-    await room.localParticipant.setCameraEnabled(next);
+    if (next) {
+      // QC-F-296: re-enabling the camera keeps the CURRENT low-data
+      // caps, and ends audio-only (the user asked to send video again):
+      // remote video is restored first.
+      if (audioOnlyRef.current) {
+        audioOnlyRef.current = false;
+        setAudioOnly(false);
+        applyAudioOnlyToPublications(collectRemoteVideoPublications(), false);
+      }
+      await setCameraEnabledForDataMode(
+        room.localParticipant,
+        true,
+        lowDataRef.current,
+      );
+    } else {
+      await room.localParticipant.setCameraEnabled(false);
+    }
     setIsCameraEnabled(next);
-  }, [room, isCameraEnabled]);
+  }, [room, isCameraEnabled, collectRemoteVideoPublications]);
+
+  // QC-F-296 §5.3: mid-meeting low-data toggle — a camera restart (the
+  // button shows "Applying…" for exactly that), never claimed seamless.
+  // On the blur path the restart goes through the plain enable: the
+  // QC-F-322 hook re-processes the NEW camera track before anything may
+  // claim blur is on, exactly as after a camera toggle.
+  const toggleLowData = useCallback(async () => {
+    const next = !lowData;
+    lowDataRef.current = next;
+    setLowData(next);
+    setLowDataBusy(true);
+    try {
+      if (isCameraEnabled) {
+        await room.localParticipant.setCameraEnabled(false);
+        await setCameraEnabledForDataMode(room.localParticipant, true, next);
+        refreshParticipants();
+      }
+    } finally {
+      setLowDataBusy(false);
+    }
+    await saveLowDataPref(next);
+  }, [room, lowData, isCameraEnabled, refreshParticipants, saveLowDataPref]);
+
+  // QC-F-296 §5.4: audio-only — publish-stop AND receive-side disable,
+  // session-only. Off restores remote video and restores the camera
+  // ONLY if it was on before (never force-opens a camera).
+  const toggleAudioOnly = useCallback(async () => {
+    const next = !audioOnly;
+    audioOnlyRef.current = next;
+    setAudioOnly(next);
+    if (next) {
+      cameraOnBeforeAudioOnlyRef.current = isCameraEnabled;
+      if (isCameraEnabled) {
+        await room.localParticipant.setCameraEnabled(false);
+        setIsCameraEnabled(false);
+      }
+      applyAudioOnlyToPublications(collectRemoteVideoPublications(), true);
+    } else {
+      applyAudioOnlyToPublications(collectRemoteVideoPublications(), false);
+      if (cameraOnBeforeAudioOnlyRef.current) {
+        await setCameraEnabledForDataMode(
+          room.localParticipant,
+          true,
+          lowDataRef.current,
+        );
+        setIsCameraEnabled(true);
+        refreshParticipants();
+      }
+    }
+  }, [room, audioOnly, isCameraEnabled, collectRemoteVideoPublications, refreshParticipants]);
 
   // QC-F-263: raise/lower my hand. Current state is read from the local
   // participant's attributes (never a parallel useState), and a failed
@@ -528,7 +700,30 @@ export default function MeetRoomPage() {
               />
               Camera off
             </label>
+            {/* QC-F-296: pre-join low-data choice — starts from the saved
+                preference and writes changes back to it. */}
+            <label className="flex items-center gap-3 text-base text-gray-900 dark:text-gray-100">
+              <input
+                type="checkbox"
+                checked={lowData}
+                onChange={(e) => handleLowDataChange(e.target.checked)}
+                className="h-5 w-5"
+                data-testid="low-data-checkbox"
+              />
+              Use less data
+            </label>
           </div>
+          {lowDataPrefFailed && (
+            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+              Couldn&apos;t load your saved call settings, so this meeting
+              starts with the default quality.
+            </p>
+          )}
+          {lowDataSaveFailed && (
+            <p role="alert" className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+              Couldn&apos;t save this setting — it applies to this meeting only.
+            </p>
+          )}
 
           {deviceCheck === 'denied' && (
             <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
@@ -726,8 +921,18 @@ export default function MeetRoomPage() {
             <p className="px-4 pb-1 text-center text-xs text-gray-400" aria-live="polite">
               {participants.length} in meeting · media encrypted in transit
             </p>
+            {audioOnly && (
+              <p className="bg-gray-900 px-4 pt-2 text-center text-xs text-gray-400">
+                Audio only for this meeting — you won&apos;t send or receive video.
+              </p>
+            )}
+            {lowDataSaveFailed && (
+              <p role="alert" className="bg-gray-900 px-4 pt-2 text-center text-xs text-amber-400">
+                Couldn&apos;t save this setting — it applies to this meeting only.
+              </p>
+            )}
             {/* Control dock */}
-            <div className="relative flex items-center justify-center gap-3 bg-gray-900 px-4 py-4">
+            <div className="relative flex flex-wrap items-center justify-center gap-3 bg-gray-900 px-4 py-4">
               <button
                 type="button"
                 onClick={() => void toggleMic()}
@@ -782,6 +987,36 @@ export default function MeetRoomPage() {
                   presentation="responsive"
                 />
               </div>
+              {/* QC-F-296: in-meeting low-data + audio-only toggles. */}
+              <button
+                type="button"
+                onClick={() => void toggleLowData()}
+                disabled={lowDataBusy}
+                aria-pressed={lowData}
+                aria-label="Low data"
+                data-testid="toggle-low-data"
+                className={`flex h-12 items-center justify-center rounded-full px-4 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                  lowData
+                    ? 'bg-white text-black hover:bg-gray-200'
+                    : 'bg-gray-700 text-white hover:bg-gray-600'
+                }`}
+              >
+                {lowDataBusy ? 'Applying…' : 'Low data'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void toggleAudioOnly()}
+                aria-pressed={audioOnly}
+                aria-label="Audio only"
+                data-testid="toggle-audio-only"
+                className={`flex h-12 items-center justify-center rounded-full px-4 text-xs font-semibold transition-colors ${
+                  audioOnly
+                    ? 'bg-white text-black hover:bg-gray-200'
+                    : 'bg-gray-700 text-white hover:bg-gray-600'
+                }`}
+              >
+                Audio only
+              </button>
               <button
                 type="button"
                 onClick={() => void handleLeave()}
