@@ -543,7 +543,7 @@ export default function SearchPage() {
                         key={search}
                         type="button"
                         onClick={() => runSearchString(search)}
-                        className="group flex w-full items-center gap-3 border-b border-[var(--quant-border)] px-3.5 py-2.5 text-left text-sm last:border-b-0 transition-colors hover:bg-[var(--quant-muted)]"
+                        className="group flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors hover:bg-white/5"
                       >
                         <Icon
                           name="clock"
@@ -634,7 +634,7 @@ export default function SearchPage() {
               honestly labeled as offline/partial, never as full results. */}
           {scope === 'mail' && hasSearched && !isLoading && error && offlineHits.length > 0 && (
             <div className="p-4 pb-0" role="alert">
-              <div className="flex items-start gap-3 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)]/60 p-3">
+              <div className="flex items-start gap-3 rounded-xl border border-[var(--quant-border)] bg-black p-3">
                 <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-orange-500" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-[var(--quant-foreground)]">
@@ -681,7 +681,7 @@ export default function SearchPage() {
                       variants={listItemVariants}
                       type="button"
                       onClick={() => handleEmailClick(email)}
-                      className="flex w-full items-start gap-3 border-b border-[var(--quant-border)] bg-[var(--quant-surface)]/40 px-3.5 py-3 text-left last:border-b-0 transition-colors hover:bg-[var(--quant-muted)]"
+                      className="flex w-full items-start gap-3 px-3.5 py-3 text-left transition-colors hover:bg-white/5"
                     >
                       <span
                         aria-hidden="true"
