@@ -10,7 +10,9 @@
 //   POST /ai/translate           → auto-detect source, translate           12.6
 //   POST /ai/generate-content    → caption/story-text/reel descriptions    12.7
 //
-// All AI output carries `isAIGenerated: true` (Task 12.8 / Property 33).
+// AI results exist only when real @quant/ai inference produced them and
+// carry `isAIGenerated: true` (Task 12.8 / Property 33); when inference is
+// unavailable the agent throws 503 AI_UNAVAILABLE instead (QC-F-519).
 // ============================================================================
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -96,7 +98,7 @@ function getPrisma(fastify: FastifyInstance): ScheduledMessagePrisma {
 export interface AIAgentRouteOptions {
   /** Shared auto-reply manager (decorated at boot). A local one is used if omitted. */
   autoReplyManager?: AutoReplyManager;
-  /** Inject an AIEngine (tests). Falls back to a new engine, then templates. */
+  /** Inject an AIEngine (tests). Defaults to a new engine. */
   agent?: QuantAIAgent;
   /** Inject the whole auto-reply service (tests). */
   autoReplyService?: AutoReplyService;
@@ -110,8 +112,8 @@ export default async function aiAgentRoutes(
   fastify: FastifyInstance,
   opts: AIAgentRouteOptions = {},
 ) {
-  // Construct an AIEngine; if no provider key is configured the agent transparently
-  // falls back to deterministic templates (see QuantAIAgent.tryInfer).
+  // Construct an AIEngine; if no provider key is configured the agent fails
+  // honestly with 503 AI_UNAVAILABLE (see QuantAIAgent, QC-F-519).
   const agent = opts.agent ?? new QuantAIAgent(new AIEngine());
 
   // QC-F-067: auto-reply state is per-user + persisted (AutoReplyService).
