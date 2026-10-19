@@ -3,8 +3,30 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { BranchesTab } from '../components/BranchesTab';
 import { mapBackendBranchToItem } from '../components/mapBackendBranch';
-import { INITIAL_REPOS } from '../constants';
-import type { BranchItem } from '../types';
+import type { BranchItem, Repo } from '../types';
+
+// Minimal clearly-labeled test repo (the dead mock-fixture module
+// quantgit/constants.ts was removed; tests must not depend on it).
+const TEST_REPO: Repo = {
+  id: 'test-repo',
+  name: 'test-repo',
+  fullName: 'tester/test-repo',
+  description: 'Test repo for branch-author honesty tests',
+  visibility: 'private',
+  language: '',
+  stars: 0,
+  forks: 0,
+  watching: 0,
+  cloneUrl: '',
+  defaultBranch: 'main',
+  latestCommit: '',
+  latestCommitSha: '',
+  latestCommitTime: new Date(Date.now() - 5*60*60*1000).toISOString(),
+  checksStatus: 'unknown',
+  license: '',
+  website: '',
+  topics: [],
+};
 
 // Author/message-honesty regression suite: the Branches tab used to map the
 // backend payload with `lastCommitAuthor: b.lastCommitAuthor ||
@@ -109,7 +131,7 @@ describe('mapBackendBranchToItem — no invented branch authors or messages', ()
 });
 
 describe('BranchesTab — branch rows never misattribute authorship', () => {
-  const repo = INITIAL_REPOS[0];
+  const repo = TEST_REPO;
 
   function mappedBranches(): BranchItem[] {
     // Simulate exactly what the page's fetchRepoBranches does now.

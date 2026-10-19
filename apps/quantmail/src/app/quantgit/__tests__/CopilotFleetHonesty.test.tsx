@@ -69,10 +69,9 @@ describe('CopilotFleetModeView honesty (QM-PLAT-008)', () => {
   });
 
   it('constants.ts no longer carries the fabricated agent fleet catalog', () => {
-    const constants = readFileSync(srcPath('../constants.ts'), 'utf8');
-    expect(constants).not.toContain('AGENT_FLEET_CATALOG');
-    expect(constants).not.toContain('Executive Lead & Architecture Gatekeeper');
-    expect(constants).not.toContain('Thought Chain');
+    // The dead mock-fixture module was removed entirely (fix/qm-quantgit-dead-constants-fixtures);
+    // its fabricated agent-fleet catalog is gone with it.
+    expect(existsSync(srcPath('../constants.ts'))).toBe(false);
   });
 
   it('the fabricated delivery-globe component is removed', () => {

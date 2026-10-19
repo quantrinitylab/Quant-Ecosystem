@@ -3,8 +3,30 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CommitsTab } from '../components/CommitsTab';
 import { mapBackendCommitToItem } from '../components/mapBackendCommit';
-import { INITIAL_REPOS } from '../constants';
-import type { CommitItem } from '../types';
+import type { CommitItem, Repo } from '../types';
+
+// Minimal clearly-labeled test repo (the dead mock-fixture module
+// quantgit/constants.ts was removed; tests must not depend on it).
+const TEST_REPO: Repo = {
+  id: 'test-repo',
+  name: 'test-repo',
+  fullName: 'tester/test-repo',
+  description: 'Test repo for commit-message honesty tests',
+  visibility: 'private',
+  language: '',
+  stars: 0,
+  forks: 0,
+  watching: 0,
+  cloneUrl: '',
+  defaultBranch: 'main',
+  latestCommit: '',
+  latestCommitSha: '',
+  latestCommitTime: new Date(Date.now() - 5*60*60*1000).toISOString(),
+  checksStatus: 'unknown',
+  license: '',
+  website: '',
+  topics: [],
+};
 
 // Message/author-honesty regression suite: mapBackendCommitToItem used to map
 // the backend payload with `message: c.message || 'Commit update'` and
@@ -101,7 +123,7 @@ describe('mapBackendCommitToItem — no invented commit messages or authors', ()
 });
 
 describe('CommitsTab — commits tab never invents messages or authors', () => {
-  const repo = INITIAL_REPOS[0];
+  const repo = TEST_REPO;
 
   it('renders honest "No message"/"Unknown" slots for a message-less, author-less row', () => {
     const row = mapBackendCommitToItem(
