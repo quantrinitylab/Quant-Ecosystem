@@ -179,6 +179,12 @@ beforeEach(() => {
   apiDouble.dismiss.mockReset();
   apiDouble.list.mockResolvedValue({ success: true, data: [] });
   apiDouble.dismiss.mockResolvedValue({ success: true, data: { message: 'Reminder dismissed' } });
+  // Midnight-safe clock: formatRelativeTime() day-buckets on LOCAL calendar
+  // days, so a fixed "1h ago" fixture flips to "Yesterday" when the suite runs
+  // in the first hour after midnight (CI in UTC hits this nightly, failing
+  // full-sweep). Pin system time to local midday so the label is deterministic.
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 5, 15, 12, 0, 0));
 });
 
 afterEach(() => {
@@ -190,6 +196,7 @@ afterEach(() => {
   root = null;
   host?.remove();
   host = null;
+  vi.useRealTimers();
 });
 
 describe('PeopleHome due-reminder delivery', () => {

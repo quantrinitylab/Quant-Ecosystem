@@ -50,6 +50,18 @@ vi.mock('@quant/shared-ui', () => ({
 
 const HOUR = 3_600_000;
 
+// Midnight-safe clock: formatRelativeTime() day-buckets on LOCAL calendar
+// days, so a fixed "1h ago" fixture flips to "Yesterday" when the suite runs
+// in the first hour after midnight (CI in UTC hits this nightly, failing
+// full-sweep). Pin system time to local midday so the label is deterministic.
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 5, 15, 12, 0, 0));
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 function reminder(over: Partial<FollowUpReminder> = {}): FollowUpReminder {
   return {
     id: 'r1',
