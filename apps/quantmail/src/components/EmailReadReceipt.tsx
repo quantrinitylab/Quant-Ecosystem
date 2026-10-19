@@ -68,6 +68,10 @@ interface OpenTrackingIndicatorProps {
  * of non-reading (recipients may block remote images).
  */
 export function OpenTrackingIndicator({ openCount, firstOpenedAt, lastOpenedAt }: OpenTrackingIndicatorProps) {
+  // Zero/non-positive counts render nothing — an honest unknown, not a claim
+  // of non-reading (recipients may block remote images). Guarded here so the
+  // honesty contract holds even when a caller forgets to check first.
+  if (!Number.isFinite(openCount) || openCount <= 0) return null;
   const label =
     `Opened ${openCount} time${openCount === 1 ? '' : 's'}` +
     (firstOpenedAt ? `, first opened ${formatTime(firstOpenedAt)}` : '') +

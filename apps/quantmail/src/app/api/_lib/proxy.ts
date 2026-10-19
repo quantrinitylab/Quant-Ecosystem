@@ -111,6 +111,20 @@ export async function proxyToBackend(
     return new Response(res.body, { status: res.status, headers: streamHeaders });
   }
 
+  // fix/qm-composer-open-tracking: binary passthrough for image responses.
+  // The generic path below does `await res.json()` + `NextResponse.json()`,
+  // which turns any non-JSON answer into a 502 INVALID_RESPONSE. The
+  // open-tracking beacon (GET /api/track/open/<token>) is a 1x1 GIF — every
+  // pixel request proxied through [...path] 502'd instead of loading. Binary
+  // bodies are piped untouched with the backend's content-type; opens must
+  // never be cached.
+  if (backendContentType.startsWith('image/') && res.body) {
+    const binaryHeaders = new Headers();
+    binaryHeaders.set('content-type', backendContentType);
+    binaryHeaders.set('cache-control', res.headers.get('cache-control') ?? 'no-store');
+    return new Response(res.body, { status: res.status, headers: binaryHeaders });
+  }
+
   try {
     const data = await res.json();
     // fix/qm-api-roundtrip-latency: the backend is authoritative on freshness.

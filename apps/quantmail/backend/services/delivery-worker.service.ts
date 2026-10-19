@@ -16,7 +16,7 @@ import { sendViaSes, isSesConfigured, buildMultipartBody } from '../lib/ses-send
 import { resolveOutboundAttachments, type OutboundAttachmentDb } from '../lib/outbound-attachments';
 import { QUANT_INTERNAL_DOMAINS } from '../lib/domains';
 import { EmailService } from './email.service';
-import { withOpenTrackingPixel } from './open-tracking.service';
+import { withOpenTrackingPixel, trackingHtmlAlternative } from './open-tracking.service';
 import { MailOutboxEvents, emitOutbox } from '../lib/outbox-events';
 
 /**
@@ -510,10 +510,17 @@ export class DeliveryWorker {
     // identical pixel. Token presence implies tracking was enabled at send
     // time (minted in EmailService.send's flip); withOpenTrackingPixel is a
     // no-op without it, so untracked mail transmits byte-identically.
-    const trackedBodyHtml = withOpenTrackingPixel(
-      email.bodyHtml && email.bodyHtml.trim().length > 0 ? email.bodyHtml : undefined,
-      email.openTrackingEnabled ? email.openToken : null,
-    );
+    const bodyHtmlClean =
+      email.bodyHtml && email.bodyHtml.trim().length > 0 ? email.bodyHtml : undefined;
+    const openTokenForTransmit = email.openTrackingEnabled ? email.openToken : null;
+    const trackedBodyHtml = withOpenTrackingPixel(bodyHtmlClean, openTokenForTransmit);
+    // Plain-text-only tracked mail (e.g. quick replies): the fallback body
+    // below keeps preferring text; only the SES multipart path gets the HTML
+    // alternative so the beacon can ride it.
+    const sesBodyHtml =
+      bodyHtmlClean
+        ? trackedBodyHtml
+        : trackingHtmlAlternative(email.bodyPlain, openTokenForTransmit);
 
     // NOTE: external recipients only — internal ones are already delivered above.
     if (extRecipients.length > 0 && isSesConfigured()) {
@@ -535,7 +542,7 @@ export class DeliveryWorker {
           cc: extCc.length > 0 ? extCc : undefined,
           bcc: extBcc.length > 0 ? extBcc : undefined,
           subject: email.subject ?? '',
-          bodyHtml: trackedBodyHtml,
+          bodyHtml: sesBodyHtml,
           bodyText:
             email.bodyPlain && email.bodyPlain.trim().length > 0 ? email.bodyPlain : undefined,
           replyTo: fromAddress,

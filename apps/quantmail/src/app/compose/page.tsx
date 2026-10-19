@@ -253,6 +253,10 @@ export default function ComposePage() {
         inReplyTo: replyTo || undefined,
         attachments: (data.attachments as any) || [],
         isDraft: true,
+        // fix/qm-composer-open-tracking: the composer's tracking choice rides
+        // the draft payload — dropping it forced the backend default (ON) and
+        // silently ignored a user's opt-out on the /compose page path.
+        trackOpens: data.trackOpens,
         // Stated rather than left to the server's default so the thread's mark
         // comes from what the sender actually chose.
         messageKind: composeKind,

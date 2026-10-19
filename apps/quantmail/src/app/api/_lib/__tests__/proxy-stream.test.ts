@@ -146,3 +146,33 @@ describe('proxyToBackend SSE stream-through', () => {
     expect(received).toBe('chunk-1\n\nchunk-2\n\n');
   });
 });
+
+describe('proxyToBackend binary passthrough (fix/qm-composer-open-tracking)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('pipes a GIF beacon response untouched instead of 502-ing on res.json()', async () => {
+    const gif = new Uint8Array([71, 73, 70, 56, 57, 97, 1, 0, 1, 0]); // GIF89a…
+    fetchMock.mockResolvedValueOnce(
+      new Response(gif, {
+        status: 200,
+        headers: { 'content-type': 'image/gif', 'cache-control': 'no-store' },
+      }),
+    );
+    const res = await proxyToBackend(getRequest('/api/track/open/abc123'), '/track/open/abc123');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/gif');
+    const buf = new Uint8Array(await res.arrayBuffer());
+    expect(buf[0]).toBe(71); // 'G'
+    expect(buf.length).toBe(gif.length);
+  });
+});

@@ -15,6 +15,7 @@ import {
   openTrackingBeaconUrl,
   recordOpen,
   withOpenTrackingPixel,
+  trackingHtmlAlternative,
   type OpenTrackingStore,
 } from '../services/open-tracking.service';
 
@@ -180,5 +181,27 @@ describe('OPEN_TRACKING_GIF', () => {
     expect(OPEN_TRACKING_GIF.length).toBeGreaterThan(0);
     // GIF89a magic
     expect(OPEN_TRACKING_GIF.subarray(0, 6).toString('ascii')).toBe('GIF89a');
+  });
+});
+
+describe('trackingHtmlAlternative', () => {
+  const TOKEN = 'a'.repeat(48);
+  it('builds a safe HTML alternative with the beacon for plain-text-only mail', () => {
+    const html = trackingHtmlAlternative('hello\nworld', TOKEN);
+    expect(html).toContain('<p>hello</p>');
+    expect(html).toContain('<p>world</p>');
+    expect(html).toContain(`/api/track/open/${TOKEN}`);
+  });
+  it('escapes HTML in the plain text', () => {
+    const html = trackingHtmlAlternative('<script>alert(1)</script>', TOKEN);
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;script&gt;');
+  });
+  it('returns undefined when tracking is off (no token)', () => {
+    expect(trackingHtmlAlternative('hello', null)).toBeUndefined();
+    expect(trackingHtmlAlternative('hello', '')).toBeUndefined();
+  });
+  it('returns undefined for empty text', () => {
+    expect(trackingHtmlAlternative('   ', TOKEN)).toBeUndefined();
   });
 });

@@ -129,6 +129,10 @@ export interface ComposerMessageData {
   priority?: 'low' | 'normal' | 'high';
   scheduledAt?: string;
   attachments?: Attachment[];
+  // fix/qm-composer-open-tracking: the sender's per-message beacon opt-out
+  // travels on the composer data object so host pages (e.g. /compose) can
+  // persist it with the server draft.
+  trackOpens?: boolean;
 }
 
 /**

@@ -93,6 +93,31 @@ export function withOpenTrackingPixel(
   return `${bodyHtml}\n${beacon}`;
 }
 
+/**
+ * Plain-text-only tracked mail: build a minimal safe HTML alternative so the
+ * beacon has something to ride. The text part still transmits unchanged —
+ * this only adds the HTML alternative for HTML-capable clients. Returns
+ * undefined when tracking is off or there is no text (never invents a token).
+ */
+export function trackingHtmlAlternative(
+  bodyPlain: string | null | undefined,
+  token: string | null
+): string | undefined {
+  if (!token || !OPEN_TRACKING_TOKEN_RE.test(token)) return undefined;
+  const text = (bodyPlain ?? '').trim();
+  if (!text) return undefined;
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const paragraphs = escaped
+    .split(/\r?\n/)
+    .map((line) => (line.trim() ? `<p>${line}</p>` : '<p><br></p>'))
+    .join('');
+  return withOpenTrackingPixel(paragraphs, token);
+}
+
 export interface OpenTrackingStore {
   email: {
     findUnique(args: unknown): Promise<{ id: string; firstOpenedAt?: Date | null } | null>;

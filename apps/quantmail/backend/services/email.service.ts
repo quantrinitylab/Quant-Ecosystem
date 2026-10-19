@@ -10,7 +10,7 @@ import { emitOutbox, MailOutboxEvents } from '../lib/outbox-events';
 import { MutationOptions, resolveRequestId } from '../lib/mutation-context';
 import { versionedUpdate, VersionedTx } from '../lib/optimistic-update';
 import { buildSnippet } from '../lib/snippet';
-import { mintOpenToken, withOpenTrackingPixel } from './open-tracking.service';
+import { mintOpenToken, withOpenTrackingPixel, trackingHtmlAlternative } from './open-tracking.service';
 import {
   RecipientAttachmentCopier,
   type RecipientAttachmentStore,
@@ -869,8 +869,14 @@ export class EmailService {
             // OUTBOUND mime only — never into the stored bodyHtml, so the
             // sender's own Sent/thread views can never self-trigger a count.
             // withOpenTrackingPixel returns the input unchanged when tracking
-            // is off (openToken null).
-            ...(bodyHtmlClean ? { bodyHtml: withOpenTrackingPixel(bodyHtmlClean, openToken) } : {}),
+            // is off (openToken null). Plain-text-only tracked mail gets a
+            // minimal safe HTML alternative so the beacon can ride it; the
+            // text part still transmits unchanged.
+            ...(bodyHtmlClean
+              ? { bodyHtml: withOpenTrackingPixel(bodyHtmlClean, openToken) }
+              : trackingHtmlAlternative(bodyPlainClean, openToken)
+                ? { bodyHtml: trackingHtmlAlternative(bodyPlainClean, openToken) }
+                : {}),
             ...(bodyPlainClean ? { bodyText: bodyPlainClean } : {}),
             replyTo: fromAddress,
             attachments,

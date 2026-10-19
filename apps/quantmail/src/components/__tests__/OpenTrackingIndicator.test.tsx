@@ -67,3 +67,14 @@ describe('OpenTrackingIndicator', () => {
     expect(html).toContain('aria-label="Opened 140 times"');
   });
 });
+
+describe('OpenTrackingIndicator zero/honesty', () => {
+  it('renders nothing for zero opens (honest unknown, not "Opened 0 times")', () => {
+    const html = renderToStaticMarkup(<OpenTrackingIndicator openCount={0} />);
+    expect(html).toBe('');
+  });
+  it('renders nothing for negative/NaN counts', () => {
+    expect(renderToStaticMarkup(<OpenTrackingIndicator openCount={-1} />)).toBe('');
+    expect(renderToStaticMarkup(<OpenTrackingIndicator openCount={NaN} />)).toBe('');
+  });
+});
