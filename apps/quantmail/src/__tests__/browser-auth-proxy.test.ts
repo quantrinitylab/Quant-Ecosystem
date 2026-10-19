@@ -6,6 +6,8 @@ import { POST as login } from '../app/api/auth/login/route';
 import { POST as logout } from '../app/api/auth/logout/route';
 import { POST as refresh } from '../app/api/auth/refresh/route';
 import { POST as verifyTwoFactor } from '../app/api/auth/2fa/verify/route';
+import { POST as requestTwoFactorRecovery } from '../app/api/auth/2fa/recover/route';
+import { POST as confirmTwoFactorRecovery } from '../app/api/auth/2fa/recover/confirm/route';
 import { GET as getUserInfo } from '../app/api/oauth/userinfo/route';
 import { GET as catchAllGet } from '../app/api/[...path]/route';
 
@@ -133,6 +135,55 @@ describe('QuantMail same-origin browser auth proxy', () => {
       success: true,
       data: { accessToken: 'access-after-2fa', expiresIn: 900 },
     });
+  });
+
+  it('forwards 2FA recovery request + confirm through the dedicated proxy routes', async () => {
+    // fix/qm-2fa-challenge-recovery-link: without these route files the
+    // recovery panel's POSTs to /api/auth/2fa/recover(+/confirm) 404 on the
+    // edge, so the locked-out user never reaches the backend.
+    fetchMock.mockResolvedValueOnce(
+      backendJson({ success: true, data: { message: 'neutral copy' } }),
+    );
+    const requestBody = JSON.stringify({ email: 'user@quantmail.in' });
+    const request = new NextRequest('http://localhost:3000/api/auth/2fa/recover', {
+      method: 'POST',
+      headers: { origin: 'http://localhost:3000', 'content-type': 'application/json' },
+      body: requestBody,
+    });
+
+    const response = await requestTwoFactorRecovery(request);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(url.toString()).toBe(new URL('/auth/2fa/recover', BACKEND_URL).toString());
+    expect(init.body).toBe(requestBody);
+    expect(response.status).toBe(200);
+
+    fetchMock.mockResolvedValueOnce(
+      backendJson({ success: true, data: { message: '2FA is off' } }),
+    );
+    const confirmBody = JSON.stringify({
+      email: 'user@quantmail.in',
+      password: 'pw',
+      code: '123456',
+    });
+    const confirmRequest = new NextRequest(
+      'http://localhost:3000/api/auth/2fa/recover/confirm',
+      {
+        method: 'POST',
+        headers: { origin: 'http://localhost:3000', 'content-type': 'application/json' },
+        body: confirmBody,
+      },
+    );
+
+    const confirmResponse = await confirmTwoFactorRecovery(confirmRequest);
+
+    const [confirmUrl, confirmInit] = fetchMock.mock.calls[1] as [URL, RequestInit];
+    expect(confirmUrl.toString()).toBe(
+      new URL('/auth/2fa/recover/confirm', BACKEND_URL).toString(),
+    );
+    expect(confirmInit.body).toBe(confirmBody);
+    expect(confirmResponse.status).toBe(200);
   });
 
   it('forwards the in-memory bearer for profile hydration', async () => {

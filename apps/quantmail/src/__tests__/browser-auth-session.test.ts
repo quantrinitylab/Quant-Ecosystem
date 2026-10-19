@@ -408,4 +408,60 @@ describe('browserAuthSession', () => {
     expect(calledUrl).toBe('/api/auth/2fa/verify');
     expect(calledUrl).not.toMatch(/^\/auth\//);
   });
+
+  it('requests 2FA recovery through /api/auth/2fa/recover with the email', async () => {
+    // fix/qm-2fa-challenge-recovery-link: the lost-authenticator panel's
+    // request leg must hit the real recovery endpoint via the /api proxy.
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ success: true, data: { message: 'neutral copy' } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const result = await browserAuthSession.requestTwoFactorRecovery('user@quantmail.in');
+
+    expect(result.success).toBe(true);
+    expect(result.data?.message).toBe('neutral copy');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/2fa/recover',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify({ email: 'user@quantmail.in' }),
+      }),
+    );
+  });
+
+  it('confirms 2FA recovery through /api/auth/2fa/recover/confirm and surfaces backend errors honestly', async () => {
+    // The confirm leg disables 2FA with password + code and issues no
+    // session: rememberAccess must NOT store anything from it.
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: false,
+          error: { code: 'INVALID_RECOVERY_CODE', message: 'That code was not accepted.', statusCode: 400 },
+        }),
+        { status: 400, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+
+    const result = await browserAuthSession.confirmTwoFactorRecovery(
+      'user@quantmail.in',
+      'correct-horse',
+      '123456',
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('INVALID_RECOVERY_CODE');
+    expect(result.error?.message).toBe('That code was not accepted.');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/auth/2fa/recover/confirm',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ email: 'user@quantmail.in', password: 'correct-horse', code: '123456' }),
+      }),
+    );
+    expect(browserAuthSession.getAccessToken()).toBeNull();
+  });
 });

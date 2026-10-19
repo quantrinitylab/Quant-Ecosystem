@@ -13,6 +13,7 @@ import { safeReturnPath } from '../../lib/safe-return-path';
 import { useAuth } from '../../providers/auth-provider';
 import { browserAuthSession } from '../../services/browser-auth-session';
 import { handoffToExternalDestination } from './sso-handoff';
+import { TwoFactorRecoveryPanel } from './two-factor-recovery-panel';
 
 interface LoginFieldErrors {
   identifier?: string;
@@ -38,11 +39,13 @@ export function LoginForm() {
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
 
   // Second-factor leg
-  const [stage, setStage] = useState<'credentials' | 'two-factor'>('credentials');
+  const [stage, setStage] = useState<'credentials' | 'two-factor' | 'recovery'>('credentials');
   const [codeMode, setCodeMode] = useState<'totp' | 'backup'>('totp');
   const [code, setCode] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [deadline, setDeadline] = useState<number | null>(null);
+  // Post-recovery notice shown on the credentials stage after 2FA is turned off.
+  const [notice, setNotice] = useState<string | null>(null);
   const codeInputRef = useRef<HTMLInputElement | null>(null);
 
   const successMessage = searchParams?.get('success');
@@ -113,6 +116,23 @@ export function LoginForm() {
     [cancelTwoFactor],
   );
 
+  // Recovery finished: 2FA is off, no session was issued — drop the stale
+  // challenge and land on the credentials stage so the user signs in with
+  // the password, then re-enrols a fresh authenticator behind a fresh session.
+  const finishRecovery = useCallback(
+    (message: string) => {
+      cancelTwoFactor();
+      setStage('credentials');
+      setCode('');
+      setCodeMode('totp');
+      setDeadline(null);
+      setSecondsLeft(0);
+      setError(null);
+      setNotice(message);
+    },
+    [cancelTwoFactor],
+  );
+
   useEffect(() => {
     if (stage !== 'two-factor' || deadline === null) return;
 
@@ -136,6 +156,7 @@ export function LoginForm() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setNotice(null);
 
     const errors: LoginFieldErrors = {};
     if (!identifier.trim()) errors.identifier = 'Enter your email address.';
@@ -203,28 +224,31 @@ export function LoginForm() {
 
   return (
     <div>
-      <div className="mb-7">
-        <h1 className="text-2xl sm:text-[28px] font-semibold tracking-[-0.03em] text-white">
-          {stage === 'credentials' ? (
-            <>
-              Sign in to{' '}
-              <span className="signin-wordmark" aria-label="QuantMail">
-                <span className="wm-quant">Quant</span>
-                <span className="wm-mail">Mail</span>
-              </span>
-            </>
-          ) : (
-            'Confirm your identity'
-          )}
-        </h1>
-        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-          {stage === 'credentials'
-            ? 'Enter your email address and password.'
-            : codeMode === 'totp'
-              ? 'Open your authenticator app and enter the current 6-digit code.'
-              : 'Enter one of the recovery codes saved during two-factor setup.'}
-        </p>
-      </div>
+      {/* The recovery panel renders its own heading. */}
+      {stage !== 'recovery' ? (
+        <div className="mb-7">
+          <h1 className="text-2xl sm:text-[28px] font-semibold tracking-[-0.03em] text-white">
+            {stage === 'credentials' ? (
+              <>
+                Sign in to{' '}
+                <span className="signin-wordmark" aria-label="QuantMail">
+                  <span className="wm-quant">Quant</span>
+                  <span className="wm-mail">Mail</span>
+                </span>
+              </>
+            ) : (
+              'Confirm your identity'
+            )}
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+            {stage === 'credentials'
+              ? 'Enter your email address and password.'
+              : codeMode === 'totp'
+                ? 'Open your authenticator app and enter the current 6-digit code.'
+                : 'Enter one of the recovery codes saved during two-factor setup.'}
+          </p>
+        </div>
+      ) : null}
 
       {stage === 'credentials' && contextNotice ? (
         <div className="mb-5 rounded-xl border border-[var(--quant-primary)]/30 bg-[var(--quant-primary)]/10 shadow-[0_0_16px_rgba(255,140,66,0.1),inset_0_1px_0_0_rgba(255,255,255,0.06)] px-4 py-3 text-sm text-[var(--brand-accent)]">
@@ -239,6 +263,16 @@ export function LoginForm() {
           className="mb-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400"
         >
           {successMessage}
+        </div>
+      ) : null}
+
+      {stage === 'credentials' && notice ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400"
+        >
+          {notice}
         </div>
       ) : null}
 
@@ -349,6 +383,15 @@ export function LoginForm() {
             {isLoading ? 'Authenticating…' : 'Sign in'}
           </button>
         </form>
+      ) : stage === 'recovery' ? (
+        <TwoFactorRecoveryPanel
+          accountEmail={identifier}
+          onBackToChallenge={() => {
+            setError(null);
+            setStage('two-factor');
+          }}
+          onRecovered={finishRecovery}
+        />
       ) : (
         <form onSubmit={handleCodeSubmit} noValidate className="space-y-4">
           <div>
@@ -424,6 +467,16 @@ export function LoginForm() {
           ) : null}
 
           <div className="flex flex-col items-center gap-1 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setStage('recovery');
+              }}
+              className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-[var(--quant-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+            >
+              Can&apos;t use your authenticator?
+            </button>
             <button
               type="button"
               onClick={() => {
