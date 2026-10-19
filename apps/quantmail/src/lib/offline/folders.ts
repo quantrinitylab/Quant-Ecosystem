@@ -133,12 +133,26 @@ export function belongsInFolder(email: Email, folderType: string | undefined): b
       // it: a phantom row that vanished on the next refetch.
       return !isTrashed && !email.isDraft && !email.isSpam && Boolean(email.snoozedUntil);
     }
-    case 'INBOX':
-      // A scheduled send joins the conversation when it fires, not when it is
-      // scheduled — the server's inbox filter excludes it the same way.
+    case 'INBOX': {
+      // Mirrored from the default-inbox filter of `GET /emails`
+      // (backend/routes/emails.ts): `isDraft = false, isSpam = false,
+      // isTrash = false` plus the inbox's own exclusions (archived, snoozed,
+      // pending scheduled send). The predicate used to admit drafts and
+      // spam, so an optimistic draft-save or report-spam patch
+      // ({isDraft:true}/{isSpam:true}) lingered in the cached inbox list
+      // until the next refetch — the same bug class as the SNOOZED/SPAM
+      // cases above.
+      // A scheduled send joins the conversation when it fires, not when it
+      // is scheduled — the server's inbox filter excludes it the same way.
       return (
-        !isTrashed && !email.isArchived && !email.snoozedUntil && !isPendingScheduledSend(email)
+        !isTrashed &&
+        !email.isDraft &&
+        !email.isSpam &&
+        !email.isArchived &&
+        !email.snoozedUntil &&
+        !isPendingScheduledSend(email)
       );
+    }
     default:
       // Search results and label views: everything except the trash.
       return !isTrashed;
