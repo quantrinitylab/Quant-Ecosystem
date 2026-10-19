@@ -74,7 +74,7 @@ export function DriveSharedSubView({
       className="space-y-6"
     >
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#232938] bg-[var(--quant-surface)] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
         <div className="flex items-center gap-3.5">
           <div className="size-11 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
             <SharedUsersIcon className="size-5" />
@@ -96,7 +96,7 @@ export function DriveSharedSubView({
           <button
             type="button"
             onClick={onRefresh}
-            className="self-start sm:self-center px-3 py-1.5 rounded-lg border border-[#232938] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+            className="self-start sm:self-center px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] text-xs font-semibold text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
           >
             Refresh Shares
           </button>
@@ -105,8 +105,8 @@ export function DriveSharedSubView({
 
       {/* Shared Items List */}
       {activeShares.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[var(--quant-surface)] px-6 py-12 text-center">
-          <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[#232938] flex items-center justify-center text-[#64748B]">
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center">
+          <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[var(--quant-border)] flex items-center justify-center text-[#64748B]">
             <SharedUsersIcon className="size-5" />
           </div>
           <p className="text-sm font-semibold text-[#F8FAFC]">No shared files yet</p>
@@ -131,7 +131,7 @@ export function DriveSharedSubView({
           return (
             <div
               key={item.id}
-              className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all gap-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.25)]"
+              className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all gap-3.5 shadow-[0_2px_12px_rgba(0,0,0,0.25)]"
             >
               {/* File Info & Collaborator Avatar */}
               <div className="flex items-center gap-3.5 min-w-0 flex-1">
@@ -210,7 +210,7 @@ export function DriveSharedSubView({
                       // share record id, so the preview modal and
                       // recordFileOpen hit the real target.
                       onClick={() => onPreviewItem?.(item.fileId ? { ...item, id: item.fileId } : item)}
-                      className="px-2.5 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#232938] text-xs font-medium text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[#1E2433] transition-colors focus-visible:outline-none"
+                      className="px-2.5 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-xs font-medium text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[#1E2433] transition-colors focus-visible:outline-none"
                     >
                       Preview
                     </button>

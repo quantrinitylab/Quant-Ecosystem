@@ -40,7 +40,7 @@ function PermissionBadge({ permission }: { permission: string }) {
 
 function ShareRow({ share }: { share: FileShareEntry }) {
   return (
-    <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-[var(--quant-background)] border border-[#21262D]">
+    <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-[var(--quant-background)] border border-[var(--quant-border)]">
       <div className="flex items-center gap-2.5 min-w-0">
         <div
           aria-hidden="true"
@@ -64,7 +64,7 @@ function ShareRow({ share }: { share: FileShareEntry }) {
 
 function LinkRow({ link }: { link: FileLinkEntry }) {
   return (
-    <div className="p-3 rounded-lg bg-[var(--quant-background)] border border-[#21262D] space-y-2">
+    <div className="p-3 rounded-lg bg-[var(--quant-background)] border border-[var(--quant-border)] space-y-2">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <div
@@ -95,11 +95,11 @@ function LinkRow({ link }: { link: FileLinkEntry }) {
             Expired
           </span>
         ) : link.expiresAt ? (
-          <span className="text-[11px] px-2 py-0.5 rounded font-medium border border-[#30363D] bg-[var(--quant-surface-elevated)] text-[#8B949E]">
+          <span className="text-[11px] px-2 py-0.5 rounded font-medium border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] text-[#8B949E]">
             Expires {formatDate(link.expiresAt)}
           </span>
         ) : (
-          <span className="text-[11px] px-2 py-0.5 rounded font-medium border border-[#30363D] bg-[var(--quant-surface-elevated)] text-[#8B949E]">
+          <span className="text-[11px] px-2 py-0.5 rounded font-medium border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] text-[#8B949E]">
             No expiry set
           </span>
         )}
@@ -170,7 +170,7 @@ export function FileAccessView({
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-[#6E7681] p-3 rounded-lg bg-[var(--quant-background)] border border-[#21262D]">
+              <p className="text-xs text-[#6E7681] p-3 rounded-lg bg-[var(--quant-background)] border border-[var(--quant-border)]">
                 No one else has access to &ldquo;{fileName}&rdquo;.
               </p>
             )}
@@ -186,7 +186,7 @@ export function FileAccessView({
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-[#6E7681] p-3 rounded-lg bg-[var(--quant-background)] border border-[#21262D]">
+              <p className="text-xs text-[#6E7681] p-3 rounded-lg bg-[var(--quant-background)] border border-[var(--quant-border)]">
                 No share links for &ldquo;{fileName}&rdquo;.
               </p>
             )}

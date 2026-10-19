@@ -98,12 +98,12 @@ export const FileShareModal: React.FC<FileShareModalProps> = ({
               placeholder="teammate@example.com"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              className="flex-1 bg-[var(--quant-background)] border border-[#30363D] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[var(--app-accent)]"
+              className="flex-1 bg-[var(--quant-background)] border border-[var(--quant-border)] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[var(--app-accent)]"
             />
             <select
               value={invitePermission}
               onChange={(e) => setInvitePermission(e.target.value as SharePermission)}
-              className="bg-[var(--quant-background)] border border-[#30363D] rounded-xl px-2.5 py-2 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--app-accent)]"
+              className="bg-[var(--quant-background)] border border-[var(--quant-border)] rounded-xl px-2.5 py-2 text-xs text-[#F0F6FC] focus:outline-none focus:border-[var(--app-accent)]"
               aria-label="Permission"
             >
               <option value="view">Can view</option>
@@ -124,7 +124,7 @@ export const FileShareModal: React.FC<FileShareModalProps> = ({
               {sharedWith.map((s) => (
                 <div
                   key={s.email}
-                  className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--quant-background)] border border-[#21262D]"
+                  className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--quant-background)] border border-[var(--quant-border)]"
                 >
                   <div className="flex items-center gap-2.5">
                     <div className="w-6 h-6 rounded-full bg-[var(--app-accent)] text-black flex items-center justify-center text-[10px] font-bold">

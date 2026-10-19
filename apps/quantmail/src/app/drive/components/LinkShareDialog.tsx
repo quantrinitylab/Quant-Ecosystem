@@ -70,7 +70,7 @@ function scopeTitle(scope: LinkScope): string {
 }
 
 const inputClass =
-  'bg-[var(--quant-background)] border border-[#30363D] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[var(--app-accent)]';
+  'bg-[var(--quant-background)] border border-[var(--quant-border)] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[var(--app-accent)]';
 
 export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileName }) => {
   const [links, setLinks] = useState<DriveLinkEntry[] | null>(null);
@@ -263,7 +263,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
   };
 
   return (
-    <div className="p-4 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] space-y-3">
+    <div className="p-4 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] space-y-3">
       <div className="flex items-center gap-2.5">
         <div className="w-8 h-8 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)]">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -309,7 +309,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
               {links.map((link) => (
                 <div
                   key={link.id}
-                  className="p-3 rounded-lg bg-[var(--quant-background)] border border-[#21262D] space-y-1.5"
+                  className="p-3 rounded-lg bg-[var(--quant-background)] border border-[var(--quant-border)] space-y-1.5"
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-[#F0F6FC]">
@@ -325,7 +325,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
                       {link.expired ? 'Expired' : 'Active'}
                     </span>
                     {link.requiresPassword && (
-                      <span className="text-[10px] px-2 py-0.5 rounded font-medium border border-[#30363D] text-[#8B949E]">
+                      <span className="text-[10px] px-2 py-0.5 rounded font-medium border border-[var(--quant-border)] text-[#8B949E]">
                         Password
                       </span>
                     )}
@@ -405,7 +405,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
                 className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
                   scope === opt.value
                     ? 'border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)]'
-                    : 'border-[#21262D] bg-[var(--quant-background)] hover:border-[#30363D]'
+                    : 'border-[var(--quant-border)] bg-[var(--quant-background)] hover:border-[var(--quant-border)]'
                 }`}
               >
                 <input
@@ -562,7 +562,7 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
       {view === 'confirm' && (
         <div className="space-y-3 pt-1">
           <p className="text-sm font-semibold text-[#F0F6FC]">{confirmCopy().title}</p>
-          <div className="rounded-lg bg-[var(--quant-background)] border border-[#21262D]">
+          <div className="rounded-lg bg-[var(--quant-background)] border border-[var(--quant-border)]">
             {summaryRows().map(([label, value]) => (
               <div key={label} className="flex items-start justify-between gap-3 px-3 py-2.5">
                 <span className="text-[11px] text-[#8B949E] shrink-0">{label}</span>

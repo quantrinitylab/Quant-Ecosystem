@@ -134,7 +134,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
         {/* Right Cluster: Sync Status, Presence, and Actions */}
         <div className="flex items-center gap-2">
           {/* Connection & Sync Status Indicator */}
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--quant-surface-elevated)] border border-[#30363D] text-[11px]">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-[11px]">
             {syncStatus === 'connected' && (
               <>
                 <span className="relative flex h-2 w-2">
@@ -195,7 +195,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
           <button
             type="button"
             onClick={() => setShowShareModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] text-xs font-medium text-[#F0F6FC] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] text-xs font-medium text-[#F0F6FC] transition-colors"
           >
             <svg
               className="w-3.5 h-3.5 text-[var(--app-accent)]"
@@ -217,7 +217,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
           <button
             type="button"
             onClick={onExportMarkdown}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] text-xs font-medium text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] text-xs font-medium text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
             title="Download as Markdown (.md)"
           >
             <svg
@@ -241,7 +241,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             <button
               type="button"
               onClick={onOpenVersionHistory}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] text-xs font-medium text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] text-xs font-medium text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
               title="View Version History"
             >
               <svg
@@ -272,7 +272,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             <button
               type="button"
               onClick={() => setShowMoreMenu(!showMoreMenu)}
-              className="p-1.5 rounded-lg border border-[#30363D] bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] text-[#8B949E] hover:text-[#F0F6FC] transition-colors"
+              className="p-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] hover:bg-[#21262D] text-[#8B949E] hover:text-[#F0F6FC] transition-colors"
               title="More actions"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -283,7 +283,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             </button>
 
             {showMoreMenu && (
-              <div className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border border-[#30363D] bg-[var(--quant-surface-elevated)] p-1.5 shadow-2xl z-50 space-y-1">
+              <div className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-1.5 shadow-2xl z-50 space-y-1">
                 <div className="px-2.5 py-1.5 text-[11px] text-[#8B949E]">
                   <p>
                     {wordCount} words • {readingTime} min read

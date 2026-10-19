@@ -20,6 +20,12 @@ import { FormattingToolbar } from '../app/drive/doc/[docId]/FormattingToolbar';
 // `w-px` class token.
 const VERTICAL_DIVIDER_CLASS_RE = /(^|["'`\s])w-px(?![a-z0-9-])/;
 
+// Hard-coded GitHub-dark gray outline tokens (#232938 / #30363D / #21262D)
+// must never come back: card-and-input outlines use var(--quant-border).
+// Matches border-[#232938] plus variant-prefixed forms (hover:border-[...],
+// focus:border-[...]) and opacity-modified forms (border-[#30363D]/60).
+const HARDCODED_GRAY_OUTLINE_RE = /(^|["'`\s:])(hover:|focus:|focus-within:|active:)?border-\[#?(232938|30363d|21262d)\]/i;
+
 const DRIVE_DIR = path.resolve(__dirname, '../app/drive');
 
 function driveSourceFiles(): string[] {
@@ -101,6 +107,36 @@ describe('Drive design lock: no divider lines, pure-black surfaces', () => {
       if (hits.length > 0) offenders.push(`${path.relative(DRIVE_DIR, f)}: ${hits[0].trim()}`);
     }
     expect(offenders, 'vertical hairlines violate the no-divider-lines lock').toEqual([]);
+  });
+
+  it('no hard-coded GitHub-dark gray outlines in any Drive source file — outlines use var(--quant-border)', () => {
+    const offenders: string[] = [];
+    for (const f of files) {
+      const src = fs.readFileSync(f, 'utf8');
+      const hits = src.split('\n').filter((line) => HARDCODED_GRAY_OUTLINE_RE.test(line));
+      if (hits.length > 0) offenders.push(`${path.relative(DRIVE_DIR, f)}: ${hits[0].trim()}`);
+    }
+    expect(offenders, 'hard-coded gray outlines violate the --quant-border lock').toEqual([]);
+  });
+
+  it('rendered DriveStarredSubView cards carry no hard-coded gray outlines', () => {
+    const html = renderToStaticMarkup(
+      <DriveStarredSubView
+        items={[
+          {
+            id: 's1',
+            name: 'pinned-doc.pdf',
+            type: 'file',
+            mimeType: 'application/pdf',
+            size: 1024,
+            modifiedAt: '2026-10-11T10:00:00Z',
+            isStarred: true,
+            scanStatus: 'clean',
+          },
+        ]}
+      />,
+    );
+    expect(html).not.toMatch(HARDCODED_GRAY_OUTLINE_RE);
   });
 
   it('rendered FormattingToolbar carries no vertical hairline (group spacing via gap-1 only)', () => {

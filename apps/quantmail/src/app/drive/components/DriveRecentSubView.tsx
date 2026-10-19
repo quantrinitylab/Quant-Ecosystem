@@ -88,7 +88,7 @@ export function DriveRecentSubView({
       className="space-y-6"
     >
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[#232938] bg-[var(--quant-surface)] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
         <div className="flex items-center gap-3.5">
           <div className="size-11 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
             <ClockIcon className="size-5" />
@@ -114,7 +114,7 @@ export function DriveRecentSubView({
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] space-y-3 animate-pulse"
+              className="p-4 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] space-y-3 animate-pulse"
             >
               <div className="h-9 w-9 rounded-lg bg-[var(--quant-surface-elevated)]" />
               <div className="h-3 w-3/4 rounded bg-[var(--quant-surface-elevated)]" />
@@ -126,7 +126,7 @@ export function DriveRecentSubView({
 
       {/* Error state — honest failure, never a fabricated list. */}
       {!loading && error && (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[var(--quant-surface)] px-6 py-12 text-center">
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center">
           <p className="text-sm font-semibold text-[#F8FAFC]">Couldn&apos;t load recent files</p>
           <p className="text-xs text-[#94A3B8]">{error}</p>
         </div>
@@ -135,8 +135,8 @@ export function DriveRecentSubView({
       {/* Honest empty state — shown only after the backend confirmed there is
           nothing to show. Never fabricates entries. */}
       {!loading && !error && items.length === 0 && (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#232938] bg-[var(--quant-surface)] px-6 py-12 text-center">
-          <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[#232938] flex items-center justify-center text-[#64748B]">
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center">
+          <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[var(--quant-border)] flex items-center justify-center text-[#64748B]">
             <ClockIcon className="size-5" />
           </div>
           <p className="text-sm font-semibold text-[#F8FAFC]">No recent files</p>
@@ -165,7 +165,7 @@ export function DriveRecentSubView({
                 <div
                   key={item.id}
                   onClick={() => onPreviewItem?.(item)}
-                  className="group relative flex flex-col justify-between p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all cursor-pointer shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
+                  className="group relative flex flex-col justify-between p-4 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all cursor-pointer shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-2">
@@ -241,7 +241,7 @@ export function DriveRecentSubView({
               <button
                 type="button"
                 onClick={onLoadMore}
-                className="px-4 py-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] text-xs font-semibold text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-colors"
+                className="px-4 py-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] text-xs font-semibold text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-colors"
               >
                 Load more
               </button>

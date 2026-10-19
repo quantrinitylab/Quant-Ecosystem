@@ -175,7 +175,7 @@ export function DriveFilesSubView({
       className="space-y-6"
     >
       {/* 1. Storage Quota Meter — real numbers from GET /api/drive/quota */}
-      <div className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-4 sm:p-5 shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
+      <div className="rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-4 sm:p-5 shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-3">
             <div className="size-10 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
@@ -239,7 +239,7 @@ export function DriveFilesSubView({
           className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-destructive)] ${
             typeFilter === 'pdf'
               ? 'bg-[var(--quant-destructive)]/15 border-[var(--quant-destructive)]/60 shadow-[0_0_16px_rgba(239,68,68,0.2)]'
-              : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[var(--quant-destructive)]/40 hover:bg-[var(--quant-destructive)]/5'
+              : 'bg-[var(--quant-surface)] border-[var(--quant-border)] hover:border-[var(--quant-destructive)]/40 hover:bg-[var(--quant-destructive)]/5'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
@@ -263,7 +263,7 @@ export function DriveFilesSubView({
           className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-info)] ${
             typeFilter === 'doc'
               ? 'bg-[var(--quant-info)]/15 border-[var(--quant-info)]/60 shadow-[0_0_16px_rgba(59,130,246,0.2)]'
-              : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[var(--quant-info)]/40 hover:bg-[var(--quant-info)]/5'
+              : 'bg-[var(--quant-surface)] border-[var(--quant-border)] hover:border-[var(--quant-info)]/40 hover:bg-[var(--quant-info)]/5'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
@@ -287,7 +287,7 @@ export function DriveFilesSubView({
           className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#10B981] ${
             typeFilter === 'code'
               ? 'bg-[#10B981]/15 border-[#10B981]/60 shadow-[0_0_16px_rgba(16,185,129,0.2)]'
-              : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[#10B981]/40 hover:bg-[#10B981]/5'
+              : 'bg-[var(--quant-surface)] border-[var(--quant-border)] hover:border-[#10B981]/40 hover:bg-[#10B981]/5'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
@@ -311,7 +311,7 @@ export function DriveFilesSubView({
           className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-warning)] ${
             typeFilter === 'zip'
               ? 'bg-[var(--quant-warning)]/15 border-[var(--quant-warning)]/60 shadow-[0_0_16px_rgba(245,158,11,0.2)]'
-              : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[var(--quant-warning)]/40 hover:bg-[var(--quant-warning)]/5'
+              : 'bg-[var(--quant-surface)] border-[var(--quant-border)] hover:border-[var(--quant-warning)]/40 hover:bg-[var(--quant-warning)]/5'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
@@ -330,7 +330,7 @@ export function DriveFilesSubView({
       </div>
 
       {typeFilter !== 'all' && (
-        <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[var(--quant-surface)] border border-[#232938] text-xs">
+        <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[var(--quant-surface)] border border-[var(--quant-border)] text-xs">
           <span className="text-[#94A3B8]">
             Filtering by <strong className="text-[var(--app-accent)] uppercase">{typeFilter}</strong> ({displayedFiles.length} match{displayedFiles.length === 1 ? '' : 'es'})
           </span>
@@ -362,7 +362,7 @@ export function DriveFilesSubView({
                   className={`group relative flex items-center gap-2.5 p-3 rounded-xl border transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_15%,transparent)]'
-                      : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)]'
+                      : 'bg-[var(--quant-surface)] border-[var(--quant-border)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)]'
                   }`}
                 >
                   <div className="size-8 rounded-lg bg-[var(--quant-warning)]/15 border border-[var(--quant-warning)]/30 flex items-center justify-center text-[var(--quant-warning)] shrink-0">
@@ -390,7 +390,7 @@ export function DriveFilesSubView({
         </div>
 
         {displayedFiles.length === 0 ? (
-          <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[var(--quant-surface)]/40 p-8 space-y-3">
+          <div className="text-center py-16 rounded-2xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)]/40 p-8 space-y-3">
             <div className="flex justify-center text-[#64748B]">
               <HardDriveIcon className="size-12" />
             </div>
@@ -410,7 +410,7 @@ export function DriveFilesSubView({
                   className={`group relative flex flex-col justify-between p-3.5 rounded-xl border transition-all duration-150 cursor-pointer ${
                     isSelected
                       ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] shadow-[0_0_14px_color-mix(in_srgb,var(--app-accent)_18%,transparent)]'
-                      : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)] shadow-[0_2px_12px_rgba(0,0,0,0.25)]'
+                      : 'bg-[var(--quant-surface)] border-[var(--quant-border)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)] shadow-[0_2px_12px_rgba(0,0,0,0.25)]'
                   }`}
                 >
                   <div>
@@ -500,7 +500,7 @@ export function DriveFilesSubView({
                   className={`group flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] shadow-[0_0_12px_color-mix(in_srgb,var(--app-accent)_15%,transparent)]'
-                      : 'bg-[var(--quant-surface)] border-[#232938] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)]'
+                      : 'bg-[var(--quant-surface)] border-[var(--quant-border)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)]'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
