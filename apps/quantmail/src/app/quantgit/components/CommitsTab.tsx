@@ -174,7 +174,10 @@ export function CommitsTab({
                 <span className="font-mono text-xs text-[#7D8590]">{activeCommit.sha}</span>
               </div>
               <h3 className="text-base font-bold text-white tracking-tight">
-                {activeCommit.message}
+                {/* Honest empty message: never invent "Commit update" here either. */}
+                {activeCommit.message || (
+                  <span className="text-[#7D8590] italic font-normal">No message</span>
+                )}
               </h3>
               {activeCommit.body && (
                 <p className="text-xs text-[#7D8590] mt-1 whitespace-pre-line font-mono bg-[#0D1117] p-2 rounded border border-[#21262D]">
@@ -238,7 +241,11 @@ export function CommitsTab({
 
             <div className="flex items-center gap-1.5">
               <span className="text-[#7D8590] text-[11px]">Author:</span>
-              <span className="font-semibold text-white">{activeCommit.author.name}</span>
+              {/* Honest author fallback: the mapper emits '' when the backend
+                  provides no author, never the viewer's name. */}
+              <span className="font-semibold text-white">
+                {activeCommit.author.name || 'Unknown'}
+              </span>
               {/* No dangling separator when the backend gave no usable time */}
               {activeCommit.relativeTime ? (
                 <>
@@ -366,9 +373,11 @@ export function CommitsTab({
                 {items.map((commit) => {
                   const shortSha = commit.shortSha || commit.sha.slice(0, 7);
                   const isExpanded = expandedCommitSha === commit.sha;
-                  const authorInitial = commit.author.name
-                    ? commit.author.name.charAt(0).toUpperCase()
-                    : 'K';
+                  // Honest author fallback (BranchesTab's 'Unknown' convention):
+                  // the mapper emits '' when the backend provides no author —
+                  // never the viewer's name — so the row admits it is unknown.
+                  const authorName = commit.author.name || 'Unknown';
+                  const authorInitial = authorName.charAt(0).toUpperCase();
 
                   return (
                     <div
@@ -389,9 +398,15 @@ export function CommitsTab({
                           <span
                             data-testid="commit-message"
                             className="font-bold text-white hover:text-[#58A6FF] transition-colors truncate max-w-xl text-sm"
-                            title={commit.message}
+                            title={commit.message || undefined}
                           >
-                            {commit.message}
+                            {/* Honest empty message: never invent "Commit update"
+                                for a backend row with no message. */}
+                            {commit.message || (
+                              <span className="text-[#7D8590] italic font-normal">
+                                No message
+                              </span>
+                            )}
                           </span>
 
                           {commit.body && (
@@ -407,7 +422,7 @@ export function CommitsTab({
                             {commit.author.avatarUrl ? (
                               <img
                                 src={commit.author.avatarUrl}
-                                alt={commit.author.name}
+                                alt={authorName}
                                 className="w-4 h-4 rounded-full"
                                 loading="lazy"
                                 decoding="async"
@@ -418,7 +433,7 @@ export function CommitsTab({
                               </span>
                             )}
                             <span className="font-semibold text-[#E6EDF3]">
-                              {commit.author.name}
+                              {authorName}
                             </span>
                           </div>
 
