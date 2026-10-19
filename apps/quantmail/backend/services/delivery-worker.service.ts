@@ -47,7 +47,14 @@ import { MailOutboxEvents, emitOutbox } from '../lib/outbox-events';
 // ---------------------------------------------------------------------------
 
 /** Full email-level delivery lifecycle literals (matches EmailDeliveryStatus). */
-export type DeliveryState = 'draft' | 'queued' | 'deferred' | 'sent' | 'bounced' | 'delivered';
+export type DeliveryState =
+  | 'draft'
+  | 'queued'
+  | 'deferred'
+  | 'sent'
+  | 'bounced'
+  | 'delivered'
+  | 'unknown';
 
 /** Per-recipient attempt status literals (matches DeliveryAttemptStatus). */
 export type AttemptStatus = 'queued' | 'sent' | 'deferred' | 'bounced';
@@ -58,11 +65,18 @@ export type AttemptStatus = 'queued' | 'sent' | 'deferred' | 'bounced';
  * `deferred` ranks below `sent` so a deferred recipient may still progress to
  * `sent`; `bounced` and `delivered` are both terminal (equal rank), so a recipient
  * never flips between them.
+ *
+ * `unknown` (fix/qm-stuck-send-reconciler) is the parked outcome of a transmit
+ * whose provider response was lost: `queued → unknown` records the uncertainty
+ * honestly, and it may only leave via explicit resolution (`unknown → sent →
+ * delivered`); no automatic path ever advances OUT of `unknown`, which is what
+ * keeps an uncertain transmit from being silently re-sent.
  */
 export const DELIVERY_STATE_RANK: Record<DeliveryState, number> = {
   draft: 0,
   queued: 1,
   deferred: 2,
+  unknown: 3,
   sent: 4,
   bounced: 5,
   delivered: 5,
@@ -398,12 +412,17 @@ export class DeliveryWorker {
     // Firing then would transmit a message the user cancelled — or double-send.
     // Only a still-`queued` row may fire; `deferred` stays allowed so BullMQ
     // backoff retries keep working.
+    // fix/qm-stuck-send-reconciler: `unknown` NEVER fires — it is the parked
+    // outcome of a transmit whose provider response was lost (accepted or
+    // not, we cannot know). Firing it would be a silent re-send of an
+    // uncertain effect; it leaves only via explicit manual resolution.
     const fireStatus = (email as unknown as EmailDeliveryFields).deliveryStatus ?? 'queued';
     if (
       fireStatus === 'draft' ||
       fireStatus === 'sent' ||
       fireStatus === 'delivered' ||
-      fireStatus === 'bounced'
+      fireStatus === 'bounced' ||
+      fireStatus === 'unknown'
     ) {
       return { emailId: email.id, deliveryStatus: fireStatus, recipients: [] };
     }

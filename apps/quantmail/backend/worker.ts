@@ -22,6 +22,10 @@ import {
   NetSmtpTransport,
 } from './services/delivery-worker.service';
 import { resolveRedisConnection } from './services/outbound-delivery.service';
+import {
+  startStuckSendReconciler,
+  type StuckSendPrisma,
+} from './services/stuck-send-reconciler.service';
 
 function buildWorker(): ReturnType<typeof createDeliveryWorker> {
   // The generated @quant/database client and the backend's structural Prisma
@@ -47,12 +51,21 @@ function buildWorker(): ReturnType<typeof createDeliveryWorker> {
 async function main(): Promise<void> {
   const worker = buildWorker();
 
+  // fix/qm-stuck-send-reconciler: restart-before-enqueue recovery — one pass
+  // runs immediately on boot, then a periodic sweep re-enqueues 'queued' rows
+  // whose flip committed but whose delivery job never existed. Idempotent and
+  // two-replica-safe; a DB/Redis blip at boot only skips the first pass.
+  const stopReconciler = startStuckSendReconciler(prisma as unknown as StuckSendPrisma, {
+    intervalMs: Number(process.env['STUCK_SEND_RECONCILE_INTERVAL_MS'] ?? 300_000),
+  });
+
   // eslint-disable-next-line no-console
   console.log('[quantmail:worker] outbound-delivery worker started');
 
   const shutdown = async (signal: string): Promise<void> => {
     // eslint-disable-next-line no-console
     console.log(`[quantmail:worker] received ${signal}, draining...`);
+    await stopReconciler();
     await worker.close();
     process.exit(0);
   };

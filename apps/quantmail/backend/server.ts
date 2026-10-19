@@ -5,11 +5,25 @@
 // ============================================================================
 import { buildApp, getConfig } from './app.js';
 import { buildWorker } from './worker.js';
+import {
+  startStuckSendReconciler,
+  type StuckSendPrisma,
+} from './services/stuck-send-reconciler.service.js';
 
 async function main(): Promise<void> {
   const config = getConfig();
   const app = await buildApp(config);
   const deliveryWorker = buildWorker();
+
+  // fix/qm-stuck-send-reconciler: the API process is the one that flips sends,
+  // so it also runs the recovery sweep (restart-before-enqueue recovery +
+  // periodic). Safe to run alongside worker.ts's instance — idempotent.
+  const prisma = (app as unknown as { prisma?: unknown }).prisma;
+  const stopReconciler = prisma
+    ? startStuckSendReconciler(prisma as unknown as StuckSendPrisma, {
+        intervalMs: Number(process.env['STUCK_SEND_RECONCILE_INTERVAL_MS'] ?? 300_000),
+      })
+    : null;
 
   await app.listen({ port: config.port, host: config.host });
   app.log.info('outbound delivery worker started');
@@ -23,6 +37,7 @@ async function main(): Promise<void> {
     try {
       // Stop queue consumption before closing the app and its shared database
       // resources so in-flight delivery state is persisted safely.
+      if (stopReconciler) await stopReconciler();
       await deliveryWorker.close();
       await app.close();
       process.exit(0);

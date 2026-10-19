@@ -916,7 +916,7 @@ export class EmailService {
    * fix/qm-send-transmit-before-flip: second-phase delivery-state write for
    * the inline (non-pipeline) transmit path. Runs strictly AFTER the durable
    * flip, so the flip stays the exactly-once record and this only advances
-   * deliveryStatus monotonically (queued -> delivered | deferred) plus the
+   * deliveryStatus monotonically (queued -> delivered | deferred | unknown) plus the
    * matching outbox event, in ONE transaction (K1).
    *
    * An undo-send that raced the transmit already flipped the row back to a
