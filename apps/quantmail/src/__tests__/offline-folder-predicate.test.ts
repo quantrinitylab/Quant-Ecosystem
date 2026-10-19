@@ -324,3 +324,80 @@ describe('belongsInFolder — DRAFTS (drafts-offline-seed P1)', () => {
     expect(next.map((m) => m.id)).toEqual(['draft-1']);
   });
 });
+
+describe('belongsInFolder — STARRED (starred-offline-seed P2)', () => {
+  // The backend's `GET /emails?folderType=STARRED` filters
+  // `isStarred = true, isTrash = false, isDraft = false, isSpam = false`
+  // (backend/routes/emails.ts), and `isStarred` is a first-class column the
+  // wire and the client `Email` type both carry — so the client predicate
+  // mirrors the server exactly. The case was latent (no client view ships a
+  // starred list yet); these tests pin the contract before one does, so the
+  // offline seed / error fallback (useInbox) and the optimistic reconcile
+  // fan-out can never list received/draft/spam mail as starred.
+  it('admits a starred non-draft non-spam message into STARRED', () => {
+    expect(belongsInFolder(email({ isStarred: true }), 'STARRED')).toBe(true);
+  });
+
+  it('does not admit an unstarred message into STARRED', () => {
+    // Before the fix STARRED had no case and fell through to `default`
+    // ("everything but the trash"), so a future starred view's offline
+    // seed would have listed every non-trashed cached email as starred.
+    expect(belongsInFolder(email({ isStarred: false }), 'STARRED')).toBe(false);
+    expect(belongsInFolder(email({}), 'STARRED')).toBe(false);
+  });
+
+  it('keeps trashed starred mail out of STARRED even when flagged', () => {
+    expect(
+      belongsInFolder(email({ isStarred: true, trashedAt: new Date() }), 'STARRED'),
+    ).toBe(false);
+  });
+
+  it('keeps starred drafts out of STARRED — the server filters isDraft = false', () => {
+    expect(belongsInFolder(email({ isStarred: true, isDraft: true }), 'STARRED')).toBe(false);
+  });
+
+  it('keeps starred spam out of STARRED — the server filters isSpam = false', () => {
+    expect(belongsInFolder(email({ isStarred: true, isSpam: true }), 'STARRED')).toBe(false);
+  });
+
+  it('admits a starred archived message — the server does not exclude archived rows', () => {
+    expect(belongsInFolder(email({ isStarred: true, isArchived: true }), 'STARRED')).toBe(true);
+  });
+
+  it('the offline seed keeps starred rows and drops received mail', () => {
+    // Mirrors useInbox's seed: cached.filter((e) => belongsInFolder(e, 'STARRED')).
+    const cached: Email[] = [
+      email({ id: 'starred-1', isStarred: true }),
+      email({ id: 'received-1', isStarred: false }),
+    ];
+    const seeded = cached.filter((e) => belongsInFolder(e, 'STARRED'));
+    expect(seeded.map((e) => e.id)).toEqual(['starred-1']);
+  });
+
+  it('reconcileList admits a freshly-starred message into the cached STARRED list', () => {
+    // Pins the optimistic star toggle: the warm cached Starred list must
+    // gain the row (and the seed below pins it must never have gained it
+    // before the toggle).
+    const cached: Email[] = [];
+    const patched = new Map<string, Email>([['m1', email({ id: 'm1', isStarred: true })]]);
+    const next = reconcileList(cached, patched, 'STARRED');
+    expect(next.map((m) => m.id)).toEqual(['m1']);
+  });
+
+  it('reconcileList drops an unstarred message from the cached STARRED list', () => {
+    const cached: Email[] = [email({ id: 'starred-1', isStarred: true })];
+    const patched = new Map<string, Email>([
+      ['starred-1', email({ id: 'starred-1', isStarred: false })],
+    ]);
+    const next = reconcileList(cached, patched, 'STARRED');
+    expect(next.map((m) => m.id)).toEqual([]);
+  });
+
+  it('reconcileList does not admit a starred draft into the cached STARRED list', () => {
+    const cached: Email[] = [];
+    const patched = new Map<string, Email>([
+      ['m1', email({ id: 'm1', isStarred: true, isDraft: true })],
+    ]);
+    expect(reconcileList(cached, patched, 'STARRED')).toEqual([]);
+  });
+});
