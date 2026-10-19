@@ -1361,6 +1361,8 @@ FOLLOW-UP P1 VERDICT: handleMergePR FIXED/INTACT (interpretMergeResult, merged o
 R2 NEW-FINDINGS COUNT: 1 P0 + 8 P1 + 7 P2. FIX AGENTS (PR-only, tracked separately, reconcile when they return): lane1-fix-013r2-review-theater (P0 fabricated review + 2 P1 fabricated comments + 2 P1 toast-only review/inline-comment submits + P1 Fork toast-only); lane1-fix-013r2-ux-theater (P1 SECURITY.md + P1 Watch sidebar + P1 MCP + P1 invented Copilot models + 6 P2 toast/theater/template/branchRules). Rotation -> QM-SCREEN-014 R2.
 
 ## QM-SCREEN-014 — Quanty workspace / inline / voice / cross-app task graph
+### R24 claim (post-audit, no [~] contention — claim-first protocol; all pre-claim work read-only)
+[~] CLAIM — LANE-1, branch lane1-audit-014r24. R24 REGRESSION STARTED (2026-10-19 ~08:35 IST). Base: R18 @ 216505b09 -> origin/main 1e2022226396 (fresh fetch, 53 first-parent merges). Auditing Quanty workspace: #1358 (fix/qm-create-repo-nullsha, quanty-agent git-tools) + #1317 (fix/qm-task-status-labels, QuantyLiveAgent) expected in scope per pre-scan.
 ### R18 claim (post-audit, no [~] contention — claim-first protocol; all pre-claim work read-only)
 [~] CLAIM — LANE-1, branch lane1-audit-014r18. R18 REGRESSION STARTED (2026-10-18 ~12:35 IST). Base: R17 @ d1d628a98 -> origin/main 216505b09 (fresh fetch, 11 first-parent merges). Auditing Quanty workspace: #1311 (fix/qm-copilot-schedule-send, QuantyCopilotDrawer.tsx) expected in scope per pre-scan.
 ### R18 DONE
