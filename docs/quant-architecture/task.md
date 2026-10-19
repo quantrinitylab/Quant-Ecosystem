@@ -1361,6 +1361,8 @@ FOLLOW-UP P1 VERDICT: handleMergePR FIXED/INTACT (interpretMergeResult, merged o
 R2 NEW-FINDINGS COUNT: 1 P0 + 8 P1 + 7 P2. FIX AGENTS (PR-only, tracked separately, reconcile when they return): lane1-fix-013r2-review-theater (P0 fabricated review + 2 P1 fabricated comments + 2 P1 toast-only review/inline-comment submits + P1 Fork toast-only); lane1-fix-013r2-ux-theater (P1 SECURITY.md + P1 Watch sidebar + P1 MCP + P1 invented Copilot models + 6 P2 toast/theater/template/branchRules). Rotation -> QM-SCREEN-014 R2.
 
 ## QM-SCREEN-014 — Quanty workspace / inline / voice / cross-app task graph
+### R25
+[~] IN_PROGRESS — LANE-1, branch lane1-audit-014r25 (2026-10-19 ~18:35 IST). Base: R24 @ 1e2022226396 -> origin/main 94113016060b (fresh fetch).
 ### R24 DONE
 [x] DONE — LANE-1, branch lane1-audit-014r24. R24 REGRESSION AUDIT COMPLETE (2026-10-19 ~08:35–09:05 IST). Base: R18 @ 216505b09 -> origin/main 1e2022226396 (fresh fetch, 53 first-parent merges). Code read from origin/main tree only (qe-main working tree ignored per stale-tree lesson; ledger worktree remote tip 9eb77cfeb == HEAD before writing, no merge needed).
 - WINDOW: 2 in-scope quanty-path merges, BOTH REVIEWED SOUND.
