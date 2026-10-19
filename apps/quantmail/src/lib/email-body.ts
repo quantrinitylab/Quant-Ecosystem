@@ -41,6 +41,9 @@
  */
 export const SIGNATURE_DELIMITER = '-- ';
 
+import type { DateLike } from './honest-date';
+import { resolveMessageDate } from './honest-date';
+
 /** Encode text so it cannot become markup. Not a sanitizer — see the file note. */
 export function escapeHtml(text: string): string {
   return text
@@ -168,6 +171,71 @@ export function stripTrailingSignature(text: string): string {
   const at = text.lastIndexOf(marker);
   if (at === -1) return text;
   return text.slice(0, at).replace(/\s+$/, '');
+}
+
+// ============================================================================
+// Reply quoting — the quoted original a reply composer prefills
+// ============================================================================
+//
+// Reply entry points (`/compose?replyTo=<id>`, the inbox keyboard's reply
+// command, the thread view's reply action) used to arrive with `to` and
+// `subject` and a blank body: neither the compose page nor EmailComposer
+// fetched the original to build a quote. A Gmail-class reply starts with the
+// original's words for context, so the page fetches the referenced message
+// and builds the prefill with this pure function — no composer, no DOM, no
+// network needed, so it is unit-testable here.
+
+/**
+ * The minimum an email-like record carries to be quoted. `DateLike` fields
+ * are accepted because the wire hands back ISO strings, not Date instances.
+ */
+export interface QuotableMessage {
+  from?: { email?: string; name?: string } | null;
+  receivedAt?: DateLike;
+  createdAt?: DateLike;
+  updatedAt?: DateLike;
+  bodyText?: string | null;
+  bodyHtml?: string | null;
+  snippet?: string | null;
+}
+
+/**
+ * Build the reply body for a quoted original, Gmail-style:
+ *
+ *     \n\nOn Oct 19, 2026, 6:24 PM, Jane wrote:
+ *     > line one
+ *     > line two
+ *
+ * The two leading blank lines are the typing area above the quote. The
+ * original's full text is quoted (nothing is elided or summarized): a quoted
+ * reply that silently drops half the original would misrepresent it. When the
+ * message carries no usable text at all the header still says what it is
+ * quoting, instead of inventing content.
+ */
+export function buildReplyQuote(message: QuotableMessage): string {
+  const from = message?.from ?? null;
+  const who = from?.name?.trim() || from?.email?.trim() || 'Unknown sender';
+  const when = resolveMessageDate(message ?? {});
+  const whenText = when
+    ? when.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : 'an unknown date';
+  const original =
+    (message?.bodyText && message.bodyText.trim()) ||
+    (message?.bodyHtml ? htmlToPlainText(message.bodyHtml) : '') ||
+    (message?.snippet?.trim() ?? '');
+  const quoted = original
+    ? original
+        .split('\n')
+        .map((line) => (line.trim() ? `> ${line}` : '>'))
+        .join('\n')
+    : '> (the original message has no text to quote)';
+  return `\n\nOn ${whenText}, ${who} wrote:\n${quoted}`;
 }
 
 export interface ComposedBodies {
