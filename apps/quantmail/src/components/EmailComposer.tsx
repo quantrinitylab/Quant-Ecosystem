@@ -61,6 +61,7 @@ import type { DriveFile } from '../hooks/useDrive';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { apiClient } from '../services/api-client';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
+import { AvailabilityInserter } from './AvailabilityInserter';
 
 /**
  * The composer's three heavy overlays, split out of its chunk.
@@ -1782,6 +1783,13 @@ export function EmailComposer({
     showToast({ text: `Template "${template.name}" applied`, type: 'success' });
   };
 
+  // Share-availability insertion: appends the picker's text block to the draft
+  // (same append pattern as applySavedTemplate), with a success toast. The
+  // text is built from the user's real free-busy data by AvailabilityInserter.
+  const insertAvailabilityText = (text: string) => {
+    setBody((prev) => (prev.trim() ? `${prev}\n\n${text}` : text));
+  };
+
   // AI writing assist — the improve/shorten/formalize actions the /compose
   // page wires to the real POST /ai/compose backend (honest 503 when AI is
   // unconfigured). If the body editor holds a selection, only the selection
@@ -3267,6 +3275,14 @@ export function EmailComposer({
                   <IconFileText className="size-4" />
                 </button>
               </div>
+
+              {/* Share availability — drop open calendar slots into the draft
+                  (Superhuman-style). Self-contained: the button renders here,
+                  the picker is portaled above it (same pattern as Templates).
+                  Uses only the user's real calendar data via
+                  /api/calendar/events/free-busy; the panel says honestly that
+                  guests' availability is not visible. */}
+              <AvailabilityInserter onInsert={insertAvailabilityText} />
 
               {/* AI writing assist — improve/shorten/formalize via the onAIAssist
                   prop (real POST /ai/compose backend, honest 503 when AI is

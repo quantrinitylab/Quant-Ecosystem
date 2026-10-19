@@ -23,6 +23,7 @@ import { getInvalidRecipientReason, filterValidRecipients } from '../lib/email-v
 import type { Attachment } from './EmailComposer';
 import { createPortal } from 'react-dom';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
+import { AvailabilityInserter } from './AvailabilityInserter';
 import { ScheduleSendModal, isPastScheduleTime } from './ScheduleSendModal';
 import {
   RecipientChipInput,
@@ -863,6 +864,16 @@ export function DockedComposer({
     bodyRef.current?.focus();
   }, [subject, body]);
 
+  // Share-availability insertion: appends the picker's text block to the
+  // draft, same non-destructive append convention as applySavedTemplate —
+  // existing format ranges point at earlier words and survive untouched.
+  // The text is built from the user's real free-busy data by
+  // AvailabilityInserter.
+  const insertAvailabilityText = useCallback((text: string) => {
+    setBody((prev) => (prev.trim() ? `${prev}\n\n${text}` : text));
+    bodyRef.current?.focus();
+  }, []);
+
   // Format action helpers (QM-UIUX-081)
   //
   // Formatting is recorded as ranges over the plain body text and rendered as
@@ -1645,6 +1656,16 @@ export function DockedComposer({
               <span>Templates</span>
             </button>
           </div>
+
+          {/* Share availability — drop open calendar slots into the draft
+              (Superhuman-style). Self-contained: the pill button renders here,
+              the picker is portaled above it. Uses only the user's real
+              calendar data via /api/calendar/events/free-busy; the panel
+              says honestly that guests' availability is not visible. */}
+          <AvailabilityInserter
+            onInsert={insertAvailabilityText}
+            variant="labeled"
+          />
         </div>
 
         {/* Discard Draft — same close path as X (QM-UIUX-083) */}
