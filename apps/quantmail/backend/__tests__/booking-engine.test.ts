@@ -146,14 +146,17 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
 
       expect(link.slug).toBe('strategy-45m');
       expect(link.title).toBe('Strategy Consultation');
-      expect(link.hostTitle).toBe('Strategy Consultation');
+      // Internal DTO: owner userId retained for server-side lookups;
+      // misleading hostTitle (a copy of the meeting title) is dropped.
+      expect(link.userId).toBe('host-user-1');
+      expect('hostTitle' in link).toBe(false);
       expect(link.duration).toBe(45);
       expect(link.availableDays).toEqual([1, 2, 3, 4]);
       expect(link.startHour).toBe(10);
       expect(link.endHour).toBe(16);
       expect(link.isActive).toBe(true);
 
-      const fetched = await service.getBookingLink('strategy-45m');
+      const fetched = await service.getPublicBookingLink('strategy-45m');
       expect(fetched.id).toBe(link.id);
       expect(fetched.duration).toBe(45);
     });
@@ -214,7 +217,13 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       expect(body.success).toBe(true);
       expect(body.data.slug).toBe('founder-sync');
       expect(body.data.title).toBe('Founder Sync');
-      expect(body.data.hostTitle).toBe('Founder Sync');
+      // fix/qm-booking-link-public-dto: the public DTO strips the link owner's
+      // internal userId and drops the misleading hostTitle; guests only get
+      // the resolved public host identity.
+      expect('userId' in body.data).toBe(false);
+      expect('hostTitle' in body.data).toBe(false);
+      expect(body.data.hostName).toBe('Alex Host');
+      expect(body.data.hostEmail).toBe('alex.host@quantmail.io');
       expect(body.data.duration).toBe(30);
       expect(body.data.availableDays).toEqual([1, 2, 3, 4, 5]);
       expect(body.data.startHour).toBe(9);
@@ -767,9 +776,9 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       expect(hostAnchorTimeZone({ timezone: '' })).toBe('UTC');
     });
 
-    it('getBookingLink exposes the stored host timezone', async () => {
+    it('getPublicBookingLink exposes the stored host timezone', async () => {
       await seedNyLink('link-tz-exposed');
-      const link = await service.getBookingLink('link-tz-exposed');
+      const link = await service.getPublicBookingLink('link-tz-exposed');
       expect(link.timezone).toBe('America/New_York');
     });
   });
@@ -1094,7 +1103,7 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
   });
 
   describe('6. Booking Link Host Identity: real owner, never fabricated', () => {
-    it('getBookingLink returns the real host name/email resolved from the owning user record', async () => {
+    it('getPublicBookingLink returns the real host name/email resolved from the owning user record', async () => {
       await service.createBookingLink({
         userId: 'host-user-1',
         slug: 'identity-real-host',
@@ -1102,12 +1111,14 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
         duration: 30,
       });
 
-      const fetched = await service.getBookingLink('identity-real-host');
+      const fetched = await service.getPublicBookingLink('identity-real-host');
+      // Public DTO: internal owner userId is stripped.
+      expect('userId' in fetched).toBe(false);
       expect(fetched.hostName).toBe('Alex Host');
       expect(fetched.hostEmail).toBe('alex.host@quantmail.io');
     });
 
-    it('getBookingLink returns null host fields when the owner user record is missing (honest unknown)', async () => {
+    it('getPublicBookingLink returns null host fields when the owner user record is missing (honest unknown)', async () => {
       await service.createBookingLink({
         userId: 'deleted-user-9',
         slug: 'identity-unknown-host',
@@ -1115,7 +1126,7 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
         duration: 30,
       });
 
-      const fetched = await service.getBookingLink('identity-unknown-host');
+      const fetched = await service.getPublicBookingLink('identity-unknown-host');
       expect(fetched.hostName).toBeNull();
       expect(fetched.hostEmail).toBeNull();
     });

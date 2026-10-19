@@ -28,7 +28,6 @@ const serverRecord = {
   userId: 'user-1',
   slug: 'strategy-session',
   title: 'Strategy Session',
-  hostTitle: 'Strategy Session',
   description: 'Pick a time',
   duration: 30,
   availableDays: [1, 2, 3, 4, 5],

@@ -7,7 +7,6 @@ export interface BookingLink {
   userId: string;
   slug: string;
   title: string;
-  hostTitle?: string;
   description: string;
   duration: number;
   availableDays: number[];
@@ -26,6 +25,15 @@ export interface BookingLink {
   hostName: string | null;
   hostEmail: string | null;
 }
+/**
+ * Public booking-link DTO served to unauthenticated guests (GET
+ * /booking/links/:slug and /calendar/booking/:slug). The internal userId is
+ * stripped — guests only need the host's public identity (hostName/hostEmail,
+ * already resolved server-side in getInternalBookingLink). The misleading hostTitle
+ * (which was just a copy of the meeting title) is dropped; guests render
+ * `title`.
+ */
+export type PublicBookingLink = Omit<BookingLink, 'userId'>;
 export interface BookingSlot {
   start: Date;
   end: Date;
@@ -431,18 +439,34 @@ export class BookingLinkService {
     return this.toBookingLink(link);
   }
 
-  async getBookingLink(slug: string): Promise<BookingLink> {
+  /**
+   * Internal lookup: full BookingLink including the owner userId, for
+   * server-side flows (availability queries, slot locks, confirmBooking) that
+   * need to scope DB reads to the link owner.
+   */
+  private async getInternalBookingLink(slug: string): Promise<BookingLink> {
     const link = await this.prisma.bookingLink.findUnique({ where: { slug } });
     if (!link) throw createAppError('Booking link not found', 404, 'BOOKING_LINK_NOT_FOUND');
     const base = this.toBookingLink(link);
-    // Public endpoint: attach the real host identity from the owning user
-    // record (or nulls → the client renders an honest "unknown host").
+    // Attach the real host identity from the owning user record (or nulls →
+    // the client renders an honest "unknown host"). The internal userId is
+    // kept here for server-side scoping; getPublicBookingLink strips it for
+    // the public DTO.
     const host = await this.resolveHost(base.userId);
     return {
       ...base,
       hostName: host?.hostName ?? null,
       hostEmail: host?.hostEmail ?? null,
     };
+  }
+
+  /**
+   * Public (unauthenticated) booking-page lookup: the internal owner userId
+   * is stripped — guests only need the host's public identity
+   * (hostName/hostEmail). See PublicBookingLink.
+   */
+  async getPublicBookingLink(slug: string): Promise<PublicBookingLink> {
+    return this.toPublicBookingLink(await this.getInternalBookingLink(slug));
   }
 
   async deleteBookingLink(id: string, userId: string): Promise<void> {
@@ -463,7 +487,7 @@ export class BookingLinkService {
     slotTime: Date,
     bookerEmail: string,
   ): Promise<{ lockId: string; expiresAt: Date }> {
-    const link = await this.getBookingLink(slug);
+    const link = await this.getInternalBookingLink(slug);
     if (!link.isActive)
       throw createAppError('Booking link is inactive', 410, 'BOOKING_LINK_INACTIVE');
 
@@ -555,7 +579,7 @@ export class BookingLinkService {
     date: Date,
     guestTimezone?: string,
   ): Promise<BookingSlot[]> {
-    const link = await this.getBookingLink(slug);
+    const link = await this.getInternalBookingLink(slug);
     if (!link.isActive) return [];
     const slotDuration = link.duration * 60 * 1000;
     // Availability window anchor (fix/qm-booking-tz-availability-2): the
@@ -705,7 +729,7 @@ export class BookingLinkService {
     bookerInfo: BookerInfo,
     lockId?: string,
   ): Promise<BookingConfirmationResult> {
-    const link = await this.getBookingLink(slug);
+    const link = await this.getInternalBookingLink(slug);
     if (!link.isActive)
       throw createAppError('Booking link is inactive', 410, 'BOOKING_LINK_INACTIVE');
     const startTime = new Date(slot);
@@ -873,7 +897,6 @@ export class BookingLinkService {
       userId: record['userId'] as string,
       slug: record['slug'] as string,
       title,
-      hostTitle: title,
       description: (record['description'] as string) ?? '',
       duration: record['duration'] as number,
       availableDays:
@@ -891,5 +914,15 @@ export class BookingLinkService {
       hostName: null,
       hostEmail: null,
     };
+  }
+
+  /**
+   * Strip the internal owner userId for the public (unauthenticated) booking
+   * page. Server-side lookups that need the owner (resolveHost, slot locks,
+   * availability queries) keep using the internal BookingLink.
+   */
+  private toPublicBookingLink(link: BookingLink): PublicBookingLink {
+    const { userId: _userId, ...publicLink } = link;
+    return publicLink;
   }
 }
