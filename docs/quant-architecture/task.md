@@ -4465,6 +4465,9 @@ Status: [x] DONE (R23 regression audit complete 2026-10-19 ~00:55 IST; window re
 - VERDICT-LIVE: HEALTHY. Proxy 127.0.0.1:8888 healthy (google 200 0.54s, no restart; hung-chrome pre-check clean — 9333 free, stale /tmp/chrome-mobile-* cleaned). GET /settings -> 307 -> /login?returnTo=%2Fsettings (honest auth gate); GET /api/auth/sessions -> 401; GET /api/settings/tokens -> 401; GET /api/oauth/grants -> 401; GET /api/oauth/grants/x -> 405 (honest). Desktop 1440x900 + mobile 390x844 (iPhone 14, fully hydrated) /settings screenshots REVIEWED: honest sign-in page, clay M-mark current, pure black, mail-orange accents, "ONE IDENTITY. ACCESS TO ALL QUANT APPS." footer, (c) 2026, zero old-logo flash; white ghost on login 'AI triage' card = standing known issue (not re-filed). Shots reviewed + deleted; chrome orphans cleaned, ports free. Signed-in settings/security flows = needs-auth (protocol), not faked.
 - Rotation -> QM-SCREEN-017 (admin) ROUND 23 regression, queued.
 
+## QM-SCREEN-016 R24 — Settings regression (ROUND 24)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-016r24, started 2026-10-19 ~10:35 IST; R23 base 337af7d5 -> origin/main b964006b8c, fresh fetch)
+
 ## QM-SCREEN-018 R23 — Help regression (ROUND 23)
 Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-018r23, started 2026-10-19 ~02:40 IST; R21 base 8edf374f2 -> origin/main 440cac4ce, fresh fetch)
 Status: [x] DONE (R23 regression audit complete 2026-10-19 ~03:05 IST; window clean (0 in-scope commits), prior fixes byte-verified intact, 0 new findings, live healthy; fixes tracked via their PRs)
