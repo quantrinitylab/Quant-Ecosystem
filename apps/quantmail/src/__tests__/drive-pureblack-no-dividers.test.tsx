@@ -5,12 +5,20 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { DriveStarredSubView } from '../app/drive/components/DriveStarredSubView';
 import { DriveRecentSubView } from '../app/drive/components/DriveRecentSubView';
+import { FormattingToolbar } from '../app/drive/doc/[docId]/FormattingToolbar';
 
 // QM-FIX-LOOP — Drive pure-black / no-divider-lines design lock.
 // The user-locked QuantMail rule: pure-black surfaces, NO divider lines;
-// separation comes from spacing/gap, never border-t/b or divide-y.
+// separation comes from spacing/gap, never border-t/b or divide-y — and
+// NEVER vertical hairlines (w-px) either; group separation is gap-only.
 // This suite fails loudly if any Drive surface file reintroduces a divider
-// class, an <hr>, or a GitHub-dark #0D1117 surface.
+// class, a vertical hairline, an <hr>, or a GitHub-dark #0D1117 surface.
+
+// Vertical hairline: Tailwind `w-px` is only ever used in this codebase for
+// 1px divider lines (verified 2026-10-19: every occurrence was a hairline),
+// so the lock scans for the utility itself — not a substring, but the real
+// `w-px` class token.
+const VERTICAL_DIVIDER_CLASS_RE = /(^|["'`\s])w-px(?![a-z0-9-])/;
 
 const DRIVE_DIR = path.resolve(__dirname, '../app/drive');
 
@@ -61,6 +69,30 @@ describe('Drive design lock: no divider lines, pure-black surfaces', () => {
       if (/#0d1117/i.test(src)) offenders.push(path.relative(DRIVE_DIR, f));
     }
     expect(offenders, '#0D1117 surfaces violate the pure-black lock').toEqual([]);
+  });
+
+  it('no vertical hairlines (w-px) in any Drive source file — group separation is gap-only', () => {
+    const offenders: string[] = [];
+    for (const f of files) {
+      const src = fs.readFileSync(f, 'utf8');
+      const hits = src.split('\n').filter((line) => VERTICAL_DIVIDER_CLASS_RE.test(line));
+      if (hits.length > 0) offenders.push(`${path.relative(DRIVE_DIR, f)}: ${hits[0].trim()}`);
+    }
+    expect(offenders, 'vertical hairlines violate the no-divider-lines lock').toEqual([]);
+  });
+
+  it('rendered FormattingToolbar carries no vertical hairline (group spacing via gap-1 only)', () => {
+    const html = renderToStaticMarkup(
+      <FormattingToolbar
+        currentType="paragraph"
+        onConvertType={() => {}}
+        onFormatText={() => {}}
+      />,
+    );
+    expect(html).toContain('Bold (Ctrl+B)');
+    expect(html).not.toMatch(VERTICAL_DIVIDER_CLASS_RE);
+    // The toolbar container still provides gap-based group separation.
+    expect(html).toMatch(/flex items-center gap-1/);
   });
 
   it('rendered Drive subviews carry no divider classes (DriveStarredSubView)', () => {

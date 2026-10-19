@@ -1371,7 +1371,6 @@ function DrivePageContent() {
                 </span>
               ))
             )}
-            <span className="mx-1 hidden h-4 w-px shrink-0 bg-[var(--quant-surface-elevated)] md:block" />
           </nav>
 
           {/* Filter pills — the only element allowed to overflow */}
