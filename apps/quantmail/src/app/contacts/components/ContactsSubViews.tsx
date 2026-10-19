@@ -29,14 +29,22 @@ export function getInitials(name?: string | null): string {
   return 'CT';
 }
 
+/**
+ * Locked per-app accent: Contacts = amber (see design tokens — Mail orange,
+ * Calendar blue, Drive green, Contacts amber, QuantGit purple). Avatar
+ * gradients in the contacts surface MUST stay inside the amber family; the old
+ * rainbow palette (indigo/purple, pink/rose, blue/cyan, emerald/teal,
+ * violet/fuchsia) broke the lock. The hash keeps avatars deterministic per
+ * contact so the same contact always renders the same gradient.
+ */
 export function getAvatarBgColor(name?: string | null): string {
   const gradients = [
-    'from-indigo-600 to-purple-600',
-    'from-pink-600 to-rose-600',
-    'from-blue-600 to-cyan-600',
-    'from-emerald-600 to-teal-600',
     'from-amber-600 to-orange-600',
-    'from-violet-600 to-fuchsia-600',
+    'from-yellow-600 to-amber-600',
+    'from-amber-500 to-yellow-600',
+    'from-orange-600 to-amber-700',
+    'from-amber-700 to-orange-800',
+    'from-yellow-500 to-orange-600',
   ];
   let hash = 0;
   const seed = name || '';

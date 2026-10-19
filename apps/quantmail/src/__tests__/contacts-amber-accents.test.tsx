@@ -20,10 +20,13 @@ import { ContactsLetterIndex } from '../components/ContactsLetterIndex';
  *  - the letter-index active chip + focus ring use `--app-accent`;
  *  - hero icons use the shared amber `var(--app-accent)` gradient pattern.
  *
- * Intentionally out of scope (asserted absent-free): the AVATAR_GRADIENTS
- * array in ContactsSubViews.tsx — those are decorative per-contact identity
- * colors, not app accents. And ContactGroupModal's PRESET_COLORS — the user
- * picks a group color explicitly.
+ * Avatar gradients ARE in scope (2026-10-20 fix): getAvatarBgColor in
+ * ContactsSubViews.tsx paints the list/detail/companies/circles contact
+ * avatars, so it must only emit amber-family gradients — pinned both by
+ * source-text assertions below and by the runtime test in
+ * contacts-avatar-amber-lock.test.tsx. Still out of scope:
+ * ContactGroupModal's PRESET_COLORS — the user picks a group color
+ * explicitly.
  */
 
 const SUBVIEWS = readFileSync(
@@ -114,6 +117,36 @@ describe('qm-contacts-amber-accents: contacts page (incl. mobile tabs) is amber'
       /bg-\[var\(--app-accent\)\]\/20 text-\[var\(--app-accent\)\] border border-\[var\(--app-accent\)\]\/40 shadow-sm/g,
     );
     expect(actives?.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('qm-contacts-amber-accents: contact avatar gradients are amber-family', () => {
+  const picker =
+    SUBVIEWS.match(/export function getAvatarBgColor[\s\S]*?^}/m)?.[0] ?? '';
+
+  it('picker lists only amber-family gradients', () => {
+    expect(picker.length).toBeGreaterThan(0);
+    const gradients = picker.match(
+      /'(from-(?:amber|orange|yellow)-\d+ to-(?:amber|orange|yellow)-\d+)'/g,
+    );
+    expect(gradients?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('no rainbow hue remains in the avatar gradient picker', () => {
+    for (const hue of [
+      'indigo',
+      'purple',
+      'pink',
+      'rose',
+      'blue',
+      'cyan',
+      'emerald',
+      'teal',
+      'violet',
+      'fuchsia',
+    ]) {
+      expect(picker, `picker leaks the ${hue} hue`).not.toContain(`from-${hue}`);
+    }
   });
 });
 
