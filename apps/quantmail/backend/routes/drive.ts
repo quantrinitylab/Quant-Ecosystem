@@ -181,7 +181,11 @@ function parseLinkExpiry(expiresAt?: string | null, expiresInDays?: number): Dat
 /**
  * Resolve audience emails to user IDs for scope='specific'. Unknown emails
  * are rejected outright: the link must never silently cover fewer people
- * than the creator picked.
+ * than the creator picked. Case-colliding legacy rows (person@example.com vs
+ * Person@example.com — distinct users under a case-sensitive unique index)
+ * fail closed with AUDIENCE_AMBIGUOUS: the lookup stays case-insensitive, but
+ * each normalized email must resolve to exactly one subject, so the stored
+ * audience always matches what the dialog previewed.
  */
 async function resolveLinkAudience(prisma: any, scope: LinkScope, emails?: string[]): Promise<string[]> {
   if (scope !== 'specific') return [];
@@ -196,15 +200,42 @@ async function resolveLinkAudience(prisma: any, scope: LinkScope, emails?: strin
     where: { email: { in: list, mode: 'insensitive' } },
     select: { id: true, email: true },
   });
-  const found = new Set(users.map((u: any) => String(u.email).toLowerCase()));
-  const unknown = list.filter((e) => !found.has(e));
+  // Group rows by normalized email. Returning every match (the old behavior)
+  // would silently widen the audience to every case-colliding legacy row.
+  const byEmail = new Map<string, { id: string; email: string }[]>();
+  for (const u of users) {
+    const key = String(u.email).toLowerCase();
+    const group = byEmail.get(key);
+    if (group) group.push(u);
+    else byEmail.set(key, [u]);
+  }
+  const unknown = list.filter((e) => !byEmail.has(e));
   if (unknown.length > 0)
     throw createAppError(
       `No Quant account found for: ${unknown.join(', ')}`,
       400,
       'AUDIENCE_UNKNOWN',
     );
-  return users.map((u: any) => u.id);
+  // Fail closed on ambiguity: exactly one subject per normalized email.
+  const ambiguous = list.filter((e) => (byEmail.get(e) ?? []).length > 1);
+  if (ambiguous.length > 0)
+    throw createAppError(
+      `Ambiguous account for: ${ambiguous.join(', ')} — more than one account matches this ` +
+        'address. Ask the person for their exact sign-in email and try again.',
+      409,
+      'AUDIENCE_AMBIGUOUS',
+    );
+  // Return in the creator's normalized order so the previewed set and the
+  // stored set are identical.
+  const ids: string[] = [];
+  for (const e of list) {
+    const group = byEmail.get(e);
+    // Unreachable: unknown and ambiguous emails threw above.
+    if (!group || group.length === 0)
+      throw createAppError(`No Quant account found for: ${e}`, 400, 'AUDIENCE_UNKNOWN');
+    ids.push(group[0].id);
+  }
+  return ids;
 }
 
 /** Org IDs the user belongs to (for scope='org' enforcement). */
@@ -1769,9 +1800,12 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       },
     });
 
+    // Preview exactly the resolved IDs: the same set stored on the share and
+    // enforced by enforceLinkScope (AUDIENCE_AMBIGUOUS above keeps the two in
+    // 1:1 correspondence), never the raw input.
     const audienceEmails =
-      scope === 'specific' && parsed.data.audienceEmails
-        ? [...new Set(parsed.data.audienceEmails.map((e) => e.trim().toLowerCase()))]
+      scope === 'specific' && audienceIds.length > 0
+        ? await emailsForUserIds(prisma, audienceIds)
         : [];
     return reply.status(201).send({
       success: true,

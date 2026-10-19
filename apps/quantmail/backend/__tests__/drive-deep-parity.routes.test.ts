@@ -759,6 +759,30 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
       const body = JSON.parse(res.body);
       expect(body.share.scope).toBe('specific');
       expect(JSON.parse(driveShares[0].audience as string)).toEqual(['user_legacy']);
+      // The preview shows the RESOLVED set (the legacy row's stored email),
+      // not the raw lowercased input — the same IDs execution enforces.
+      expect(body.share.audienceEmails).toEqual(['LegacyCase@quantmail.in']);
+    });
+
+    it('fails closed when case-colliding legacy rows share one normalized email', async () => {
+      // Two DISTINCT users whose stored emails differ only by case (possible
+      // under the case-sensitive unique index). The old code returned BOTH
+      // IDs as the link audience; the fixed code must refuse instead.
+      users.push({ id: 'user_legacy_shadow', email: 'legacycase@quantmail.in', displayName: 'Shadow' });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/shares/link',
+        headers: { 'content-type': 'application/json' },
+        payload: {
+          fileId: 'file_spec_1',
+          role: 'viewer',
+          scope: 'specific',
+          audienceEmails: ['legacycase@quantmail.in'],
+        },
+      });
+      expect(res.statusCode).toBe(409);
+      expect(JSON.parse(res.body).error.code).toBe('AUDIENCE_AMBIGUOUS');
+      expect(driveShares.length).toBe(0);
     });
 
     it('rejects specific-people links with unknown emails (no silent shrink)', async () => {
