@@ -2015,12 +2015,6 @@ function DrivePageContent() {
           {activeTab === 'aimemory' && (
             <DriveAiMemorySubView
               memories={memoryItems}
-              onRecallInChat={(mem) =>
-                showToast({
-                  text: `Recalled context from ${mem.app}: "${mem.title}"`,
-                  type: 'success',
-                })
-              }
               onForgetMemory={async (mem) => {
                 const ok = await confirm({
                   title: `Forget "${mem.title}"?`,

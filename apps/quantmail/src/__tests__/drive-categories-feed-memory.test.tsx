@@ -315,7 +315,6 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
               provenance: 'QuantGit repository settings',
             },
           ]}
-          onRecallInChat={() => undefined}
           onForgetMemory={() => undefined}
         />,
       );
@@ -328,7 +327,10 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
       expect(html).toContain('Explicitness: confirmed');
       expect(html).toContain('Policy: memory-v2');
       expect(html).toContain('Source: QuantGit repository settings');
-      expect(html).toContain('Recall Context');
+      // Fake-success recall button removed (2026-10-19): it fired a "Recalled
+      // context" toast without opening any chat, navigation, or API call.
+      expect(html).not.toContain('Recall Context');
+      expect(html).not.toContain('Recalled context');
       expect(html).toContain('Forget');
       expect(html).not.toContain('Production Deployment Architecture Discussion');
       expect(html).not.toContain('ElenaRostova');
