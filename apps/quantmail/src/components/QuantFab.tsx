@@ -124,8 +124,10 @@ export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
    * Scroll-hide, in lockstep with the bottom nav (same `useChromeVisible`
    * store, so the two never drift). Slides down + shrinks + fades on
    * scroll-down; springs back on scroll-up. `pointer-events: none` and
-   * `aria-hidden` while hidden so a phantom button can't eat taps. An open
-   * dial collapses the moment the chrome hides.
+   * `aria-hidden` while hidden so a phantom button can't eat taps — and
+   * `inert` so the trigger + dial rows leave the tab order too: `aria-hidden`
+   * alone would leave them focusable to TalkBack/VoiceOver while invisible.
+   * An open dial collapses the moment the chrome hides.
    */
   const chromeVisible = useChromeVisible();
   useEffect(() => {
@@ -176,6 +178,13 @@ export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
       // bottom-right corner, toasts keep out of it.
       data-quant-fab=""
       aria-hidden={!chromeVisible}
+      // QM-A11Y-CHROME-HIDDEN-INERT (2026-10-19): a scroll-hidden trigger that
+      // stays in the tab order is a focus trap for screen-reader users —
+      // TalkBack/VoiceOver can land on an invisible control. `inert` pulls the
+      // whole subtree (trigger + dial rows) out of the tab order and the
+      // accessibility tree while the chrome is collapsed. Mirrors the drawer
+      // + mobile search row pattern in AppShell (`inert={!isDrawerPresented}`).
+      inert={!chromeVisible}
       // Sits above the bottom bar when the chrome is visible; drops to the
       // screen edge when the bar collapses (the bar is in-flow now, so the
       // offset follows the same visibility bit — no gap, no overlap).
