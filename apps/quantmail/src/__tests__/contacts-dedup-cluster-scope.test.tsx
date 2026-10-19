@@ -122,7 +122,7 @@ function countOccurrences(html: string, needle: string): number {
   return html.split(needle).length - 1;
 }
 
-const RECORD_CARD_CLASS = 'rounded-xl border border-[#1E2433] bg-[#10131B] p-3.5 space-y-1.5';
+const RECORD_CARD_CLASS = 'rounded-xl border border-[#1E2433] bg-black p-3.5 space-y-1.5';
 
 describe('qm-dedup-cluster: wizard renders every record in the merge scope', () => {
   it('renders all 4 record cards for a 4-record cluster', () => {

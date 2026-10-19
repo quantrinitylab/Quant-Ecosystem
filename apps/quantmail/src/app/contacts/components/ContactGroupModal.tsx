@@ -184,11 +184,11 @@ export function ContactGroupModal({
           </div>
 
           {emails.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 rounded-xl bg-[#0D0E11] border border-[var(--quant-surface-elevated)]">
+            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 rounded-xl bg-black border border-[var(--quant-surface-elevated)]">
               {emails.map((email) => (
                 <span
                   key={email}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-[#1F2228] text-[#D1D5DB] border border-[var(--quant-surface-elevated)]"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-black text-[#D1D5DB] border border-[var(--quant-surface-elevated)]"
                 >
                   <span
                     className="w-1.5 h-1.5 rounded-full"
@@ -213,8 +213,8 @@ export function ContactGroupModal({
           )}
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center justify-between pt-4 border-t border-[var(--quant-surface-elevated)]">
+        {/* Actions — spacing, not a divider line */}
+        <div className="flex items-center justify-between pt-4">
           {group && onDelete ? (
             <Button
               type="button"

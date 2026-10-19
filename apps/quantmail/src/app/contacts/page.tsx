@@ -934,10 +934,10 @@ export default function ContactsPage() {
                 role="status"
                 aria-label="Loading companies"
               >
-                <div className="size-8 animate-spin rounded-full border-2 border-[#262C3A] border-t-[var(--app-accent)]" />
+                <svg className="size-8 animate-spin mx-auto text-[var(--app-accent)]" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="4" /><path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" /></svg>
               </div>
             ) : companyGroupsError ? (
-              <div className="rounded-2xl border border-[#262C3A] bg-[#0B0E14] p-8 text-center">
+              <div className="rounded-2xl border border-[#262C3A] bg-black p-8 text-center">
                 <p className="text-sm font-semibold text-[#E2E8F0]">Couldn&apos;t load companies</p>
                 <p className="mt-1 text-xs text-[#94A3B8]">
                   {companyGroupsError instanceof Error
@@ -997,9 +997,9 @@ export default function ContactsPage() {
             {/* ------------------------------------------------------------ */}
             {/* LEFT PANE: 360px Width, Sticky Scrollable Contact List       */}
             {/* ------------------------------------------------------------ */}
-            <div className="w-full md:w-[360px] md:min-w-[360px] md:max-w-[360px] shrink-0 border-r border-[#232938] flex flex-col h-full bg-black relative z-10">
-              {/* Left Pane Top Controls */}
-              <div className="p-3 border-b border-[#232938] bg-[#0E1118] space-y-2.5 shrink-0">
+            <div className="w-full md:w-[360px] md:min-w-[360px] md:max-w-[360px] shrink-0 flex flex-col h-full bg-black relative z-10">
+              {/* Left Pane Top Controls — no divider lines; spacing separates */}
+              <div className="p-3 bg-black space-y-2.5 shrink-0">
                 {/* Search Bar with Icon */}
                 <div className="relative flex items-center">
                   <svg
@@ -1151,8 +1151,8 @@ export default function ContactsPage() {
                   />
                 )}
 
-                {/* Quick Secondary Actions Bar */}
-                <div className="flex items-center justify-between gap-1 pt-1 border-t border-[#1C2230]">
+                {/* Quick Secondary Actions Bar — spacing, not a divider line */}
+                <div className="flex items-center justify-between gap-1 pt-1">
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
@@ -1199,8 +1199,8 @@ export default function ContactsPage() {
                 </div>
               </div>
 
-              {/* Pagination Controls */}
-              <div className="shrink-0 border-b border-[#232938]">
+              {/* Pagination Controls — no divider line; spacing separates */}
+              <div className="shrink-0">
                 <ContactsPagination
                   page={page}
                   pagination={pagination}
@@ -1292,7 +1292,7 @@ export default function ContactsPage() {
                         );
                         return (
                         <div key={group.letter} id={`letter-${group.letter}`} className="space-y-1">
-                          <div className="sticky top-0 z-10 bg-black/95 backdrop-blur-sm px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--app-accent)] border-b border-[#1E2536]">
+                          <div className="sticky top-0 z-10 bg-black/95 backdrop-blur-sm px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--app-accent)]">
                             {headerCount === null ? group.letter : `${group.letter} (${headerCount})`}
                           </div>
 
@@ -1334,7 +1334,7 @@ export default function ContactsPage() {
 
                                   {threads > 0 && (
                                     <span
-                                      className="shrink-0 text-[10px] font-mono px-1.5 py-px rounded bg-[#181E2B] text-[var(--quant-muted-foreground)] border border-[#283144]"
+                                      className="shrink-0 text-[10px] font-mono px-1.5 py-px rounded bg-black text-[var(--quant-muted-foreground)] border border-[#283144]"
                                       title={`${threads} thread${threads === 1 ? '' : 's'} in recent mail`}
                                       aria-label={`${threads} threads in recent mail`}
                                     >
