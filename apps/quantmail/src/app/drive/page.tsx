@@ -2092,7 +2092,7 @@ function DrivePageContent() {
                 <button
                   type="button"
                   onClick={() => setDetailsTarget(previewItem)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[#232938] text-xs font-medium text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] transition-colors"
                   title="Show file details: owner, location, sharing, security scan state, versions"
                 >
                   <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -2251,7 +2251,7 @@ function DrivePageContent() {
                     type="button"
                     onClick={handleCopyTextPreview}
                     disabled={!textPreviewContent || isLoadingTextPreview}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1D2027] border border-[#323642] text-xs font-semibold text-[#E0E2EC] hover:bg-[#252A33] hover:text-white transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-xs font-semibold text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-hover)] transition-colors disabled:opacity-50"
                   >
                     {copiedTextPreview ? (
                       <>
