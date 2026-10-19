@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { PILLAR_ACCENTS } from '../../pillar-accents';
 import {
   QuantMailSuperAppHeader,
   SUPER_APP_PILLARS,
@@ -233,6 +234,29 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
       expect(html).toContain('+ New Event');
       expect(html).toContain('+ Upload File');
       expect(html).toContain('+ New Repo');
+    });
+
+    it('quick-action icons use the pillar-locked accent colors (2026-10-09 lock)', () => {
+      const html = renderToStaticMarkup(<QuantMailSuperAppHeader />);
+
+      const locked: Array<[string, string]> = [
+        ['+ New Email', PILLAR_ACCENTS.mail], // #FF6B35
+        ['+ New Event', PILLAR_ACCENTS.calendar], // #4285F4
+        ['+ Upload File', PILLAR_ACCENTS.drive], // #34A853
+        ['+ New Repo', PILLAR_ACCENTS.quantgit], // #8B5CF6
+      ];
+
+      for (const [label, accent] of locked) {
+        const labelIdx = html.indexOf(label);
+        expect(labelIdx).toBeGreaterThan(-1);
+
+        // the plus-icon <svg> sits immediately before the label inside the same button
+        const scope = html.slice(Math.max(0, labelIdx - 600), labelIdx);
+        const svgIdx = scope.lastIndexOf('<svg');
+        expect(svgIdx).toBeGreaterThan(-1);
+        const svgTag = scope.slice(svgIdx, scope.indexOf('>', svgIdx) + 1);
+        expect(svgTag).toContain(`color:${accent}`);
+      }
     });
   });
 
