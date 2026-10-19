@@ -53,6 +53,10 @@ interface NotificationSettings {
   quietHoursEnd: string;
 }
 
+interface CallSettings {
+  lowDataMode: boolean;
+}
+
 interface ThemeOption {
   id: string;
   name: string;
@@ -138,7 +142,7 @@ const LANGUAGES = [
   { code: 'pt', name: 'Portuguese' },
 ];
 
-const SECTIONS = ['privacy', 'notifications', 'theme', 'blocked', 'data', 'account'] as const;
+const SECTIONS = ['privacy', 'notifications', 'calls', 'theme', 'blocked', 'data', 'account'] as const;
 
 const selectClassName = 'quant-field min-h-[44px] px-3 py-2 text-base';
 const checkboxClassName = 'h-5 w-5 shrink-0 accent-emerald-500';
@@ -227,6 +231,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
     quietHoursStart: '22:00',
     quietHoursEnd: '07:00',
   });
+  const [calls, setCalls] = useState<CallSettings>({ lowDataMode: false });
   const [selectedTheme, setSelectedTheme] = useState<string>('dark');
   const [language, setLanguage] = useState<string>('en');
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
@@ -260,12 +265,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
         : payload) as {
         privacy?: PrivacySettings;
         notifications?: NotificationSettings;
+        calls?: CallSettings;
         theme?: string;
         language?: string;
         blockedUsers?: BlockedUser[];
       };
       if (data.privacy) setPrivacy(data.privacy);
       if (data.notifications) setNotifications(data.notifications);
+      // QC-F-296: a response without a calls section (older backend) keeps
+      // the honest default (off) — never a fabricated "saved" state.
+      if (data.calls) setCalls({ lowDataMode: data.calls.lowDataMode === true });
       if (data.theme) setSelectedTheme(data.theme);
       if (data.language) setLanguage(data.language);
       if (data.blockedUsers) setBlockedUsers(data.blockedUsers);
@@ -290,7 +299,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
         headers: {
           ...getAuthHeadersWithContent(),
         },
-        body: JSON.stringify({ privacy, notifications, theme: selectedTheme, language }),
+        body: JSON.stringify({ privacy, notifications, calls, theme: selectedTheme, language }),
       });
       if (!response.ok) {
         const data = await response.json().catch(() => null);
@@ -305,7 +314,39 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
     } finally {
       setSaving(false);
     }
-  }, [privacy, notifications, selectedTheme, language]);
+  }, [privacy, notifications, calls, selectedTheme, language]);
+
+  // QC-F-296: the low-data toggle saves immediately with ONLY the calls
+  // patch (the backend deep-merges it over the rest). A failed save
+  // reverts the toggle and surfaces the page's real error state — the UI
+  // never shows a preference as saved when the server did not take it.
+  const handleLowDataToggle = useCallback(
+    async (checked: boolean) => {
+      const previous = calls;
+      setCalls({ lowDataMode: checked });
+      setError(null);
+      try {
+        const response = await apiFetchRaw('/api/settings', {
+          method: 'PUT',
+          headers: {
+            ...getAuthHeadersWithContent(),
+          },
+          body: JSON.stringify({ calls: { lowDataMode: checked } }),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          throw new Error(
+            (data as { error?: { message?: string } } | null)?.error?.message ||
+              `Save failed (${response.status})`,
+          );
+        }
+      } catch (err) {
+        setCalls(previous);
+        setError(sanitizeErrorMessage(err) || 'Save failed');
+      }
+    },
+    [calls],
+  );
 
   const handleUnblock = useCallback(async (userId: string) => {
     try {
@@ -608,6 +649,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
                 />
               </div>
             )}
+          </section>
+        )}
+
+        {activeSection === 'calls' && (
+          <section className="rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-4">
+            <h2 className="mb-2 text-base font-semibold">Calls</h2>
+            <ToggleRow
+              label="Use less data for calls"
+              checked={calls.lowDataMode}
+              onChange={(c) => void handleLowDataToggle(c)}
+            />
+            <p className="mt-1 text-sm text-[var(--quant-muted-foreground)]">
+              Calls send and receive video in lower quality, so they use less
+              data. Audio stays on. You can also change this during a call.
+            </p>
           </section>
         )}
 
