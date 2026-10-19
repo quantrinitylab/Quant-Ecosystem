@@ -31,7 +31,7 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
 }
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PersonThread, type PersonConversation } from '../components/PersonThread';
+import { PersonThread, messageSortTime, compareMessagesChronologically, type PersonConversation } from '../components/PersonThread';
 import type { Email } from '../types';
 
 const ME = 'me@quantmail.in';
@@ -572,5 +572,137 @@ describe('PersonThread attachments (interactive chips)', () => {
       <PersonThread conversation={conversation} currentUserEmail={ME} />,
     );
     expect(container.querySelector('[data-testid="thread-attachments"]')).toBeNull();
+  });
+});
+
+// ============================================================================
+// PersonThread invalid-date sort guard (fix/qm-personthread-sort-nan).
+//
+// The old comparator `new Date(a.receivedAt).getTime() -
+// new Date(b.receivedAt).getTime()` returned NaN for an unparseable
+// receivedAt, violating the sort contract: the message landed at an
+// arbitrary position and the 50-message tail windowing could clip real
+// messages around it. Invalid timestamps now pin to -Infinity (start of
+// the thread, behind "Load earlier messages"), and the comparator uses
+// three-way comparison so antisymmetry/transitivity hold for every pair.
+// ============================================================================
+
+function sortEmail(over: Partial<Email> & { id: string }): Email {
+  return makeEmail({ receivedAt: new Date('2026-10-10T08:00:00Z'), ...over });
+}
+
+describe('PersonThread invalid-date sort guard', () => {
+  it('messageSortTime pins an unparseable receivedAt below every valid timestamp', () => {
+    expect(messageSortTime(new Date(NaN))).toBe(Number.NEGATIVE_INFINITY);
+    expect(messageSortTime('not-a-date')).toBe(Number.NEGATIVE_INFINITY);
+    expect(messageSortTime(new Date('2026-10-10T08:00:00Z'))).toBe(
+      new Date('2026-10-10T08:00:00Z').getTime(),
+    );
+  });
+
+  it('compareMessagesChronologically never returns NaN and is antisymmetric', () => {
+    const invalid = sortEmail({ id: 'inv', receivedAt: new Date(NaN) });
+    const valid = sortEmail({ id: 'vld', receivedAt: new Date('2026-10-10T09:00:00Z') });
+    const invalidB = sortEmail({ id: 'inv-b', receivedAt: 'garbage' as unknown as Date });
+    const pairs: Array<[Email, Email]> = [
+      [invalid, valid],
+      [valid, invalid],
+      [invalid, invalidB],
+      [invalidB, invalid],
+      [invalid, { ...invalid }],
+      [valid, { ...valid }],
+    ];
+    for (const [a, b] of pairs) {
+      const ab = compareMessagesChronologically(a, b);
+      const ba = compareMessagesChronologically(b, a);
+      expect(Number.isNaN(ab)).toBe(false);
+      expect(Number.isNaN(ba)).toBe(false);
+      // Antisymmetry: cmp(a,b) and cmp(b,a) must have opposite signs (or both zero).
+      // (Both zero is the equal case: Math.sign(0) === 0 and -0, Object.is-distinct.)
+      expect(Math.sign(ab) === 0 ? Math.sign(ba) === 0 : Math.sign(ab) === -Math.sign(ba)).toBe(true);
+    }
+    // Invalid sorts strictly before valid in both argument orders.
+    expect(compareMessagesChronologically(invalid, valid)).toBe(-1);
+    expect(compareMessagesChronologically(valid, invalid)).toBe(1);
+  });
+
+  it('compareMessagesChronologically is transitive on a mixed triple', () => {
+    const a = sortEmail({ id: 'a', receivedAt: new Date(NaN) });
+    const b = sortEmail({ id: 'b', receivedAt: new Date('2026-10-10T08:00:00Z') });
+    const c = sortEmail({ id: 'c', receivedAt: new Date('2026-10-10T09:00:00Z') });
+    expect(compareMessagesChronologically(a, b)).toBeLessThan(0);
+    expect(compareMessagesChronologically(b, c)).toBeLessThan(0);
+    expect(compareMessagesChronologically(a, c)).toBeLessThan(0);
+    // Sorted order is fully deterministic: invalid first, then ascending, id tie-break.
+    const shuffled = [c, a, b].sort(compareMessagesChronologically);
+    expect(shuffled.map((m) => m.id)).toEqual(['a', 'b', 'c']);
+    // Two invalid-date messages order deterministically by id, not arbitrarily.
+    const i1 = sortEmail({ id: 'zz', receivedAt: new Date(NaN) });
+    const i2 = sortEmail({ id: 'aa', receivedAt: 'nope' as unknown as Date });
+    expect([i1, i2].sort(compareMessagesChronologically).map((m) => m.id)).toEqual(['aa', 'zz']);
+  });
+
+  it('an invalid-date message sorts to the start of the thread, ahead of all valid messages', () => {
+    const broken = sortEmail({
+      id: 'broken-ts',
+      bodyText: 'message with a broken timestamp',
+      receivedAt: new Date(NaN),
+    });
+    const earlier = sortEmail({ id: 'early', bodyText: 'early', receivedAt: new Date('2026-10-10T08:00:00Z') });
+    const later = sortEmail({ id: 'late', bodyText: 'late', receivedAt: new Date('2026-10-10T09:00:00Z') });
+    // Delivered in an order designed to trap NaN placement: invalid in the middle.
+    const conversation = makeConversation({ messages: [earlier, broken, later], lastMessage: later });
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} />,
+    );
+    const rows = container.querySelectorAll('[data-testid="thread-message"]');
+    expect(rows).toHaveLength(3);
+    expect(rows[0].textContent).toContain('message with a broken timestamp');
+    expect(rows[1].textContent).toContain('early');
+    expect(rows[2].textContent).toContain('late');
+  });
+
+  it('an invalid-date message stays out of the visible 50-message tail window', () => {
+    // 51 valid messages + 1 invalid: the invalid one must not sit in the
+    // visible window and must not push a real message out of it.
+    const valids: Email[] = Array.from({ length: 51 }, (_, i) =>
+      sortEmail({
+        id: `bulk-${i}`,
+        bodyText: `Valid message ${i}`,
+        receivedAt: new Date(`2026-10-10T${String(8 + Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}:00Z`),
+      }),
+    );
+    const broken = sortEmail({
+      id: 'broken-ts',
+      bodyText: 'message with a broken timestamp',
+      receivedAt: new Date(NaN),
+    });
+    // Insert the broken message in the middle of the input order to prove
+    // sort placement is deterministic regardless of input order.
+    const messages = [...valids.slice(0, 25), broken, ...valids.slice(25)];
+    const conversation = makeConversation({ messages, lastMessage: valids[50] });
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} />,
+    );
+    const rows = container.querySelectorAll('[data-testid="thread-message"]');
+    expect(rows).toHaveLength(50);
+    // The invalid message is not in the visible window…
+    expect(
+      Array.from(rows).some((r) => r.textContent?.includes('message with a broken timestamp')),
+    ).toBe(false);
+    // …and the newest real message is not clipped out of it.
+    expect(rows[49].textContent).toContain('Valid message 50');
+    const loadMore = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Load earlier messages'),
+    );
+    expect(loadMore).not.toBeUndefined();
+    expect(loadMore!.textContent).toContain('2 more');
+    // Loading earlier messages reveals the invalid-date message at the very start.
+    act(() => {
+      loadMore!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const allRows = container.querySelectorAll('[data-testid="thread-message"]');
+    expect(allRows).toHaveLength(52);
+    expect(allRows[0].textContent).toContain('message with a broken timestamp');
   });
 });
