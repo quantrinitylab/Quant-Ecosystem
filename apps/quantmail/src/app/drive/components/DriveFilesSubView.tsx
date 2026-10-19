@@ -201,7 +201,7 @@ export function DriveFilesSubView({
                 'Calculating…'
               )}
             </div>
-            <p className="text-[11px] text-[var(--app-accent)] font-medium">
+            <p className="text-[11px] text-[var(--app-accent)] font-medium mt-0.5">
               {quotaKnown && quota
                 ? `${usedPct}% used · ${formatBytes(quota.total - quota.used)} available`
                 : 'Reading storage usage…'}

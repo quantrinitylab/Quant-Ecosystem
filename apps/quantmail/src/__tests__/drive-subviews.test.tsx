@@ -174,6 +174,20 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       expect(html).not.toContain('All objects backed by FastCDC');
     });
 
+    it('quota sub-line carries mt-0.5 (spacing parity with SingleEnterpriseStorageGauge in DriveSubViews)', () => {
+      const html = renderToStaticMarkup(
+        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} />,
+      );
+
+      // The "% used · … available" sub-line must have the same top margin as
+      // its sibling gauge (DriveSubViews.tsx SingleEnterpriseStorageGauge),
+      // which renders class "... font-medium mt-0.5" on the same sub-line.
+      expect(html).toContain('14% used');
+      expect(html).toContain(
+        '<p class="text-[11px] text-[var(--app-accent)] font-medium mt-0.5">',
+      );
+    });
+
     it('renders all 4 color-coded type cards (PDF Red, DOC Blue, CODE Green, ZIP Gold)', () => {
       const html = renderToStaticMarkup(
         <DriveFilesSubView files={sampleFiles} folders={sampleFolders} />,
