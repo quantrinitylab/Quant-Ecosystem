@@ -328,10 +328,11 @@ export function CheckMarkSvg({ className = 'size-3.5' }: { className?: string })
   );
 }
 
-export function PlusSvg({ className = 'size-3.5' }: { className?: string }) {
+export function PlusSvg({ className = 'size-3.5', style }: { className?: string; style?: React.CSSProperties }) {
   return (
     <svg
       className={className}
+      style={style}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -1029,7 +1030,9 @@ export function QuantMailSuperAppHeader({
             </div>
             )}
 
-            {/* Tile 4: Executive Quick Actions */}
+            {/* Tile 4: Executive Quick Actions — each icon uses its pillar's LOCKED accent
+                from pillar-accents.ts (user-confirmed 2026-10-09): Mail #FF6B35, Calendar #4285F4,
+                Drive #34A853, QuantGit #8B5CF6. Never generic Tailwind palette colors here. */}
             <div
               className="flex items-center justify-between p-2 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)]"
               aria-label="Executive Quick Actions"
@@ -1042,7 +1045,7 @@ export function QuantMailSuperAppHeader({
                   }
                   className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-slate-300 hover:text-white text-[11px] font-medium border border-[var(--quant-surface-elevated)] transition-colors"
                 >
-                  <PlusSvg className="size-3 text-indigo-400" />
+                  <PlusSvg className="size-3" style={{ color: PILLAR_ACCENTS.mail }} />
                   <span>+ New Email</span>
                 </button>
                 <button
@@ -1052,7 +1055,7 @@ export function QuantMailSuperAppHeader({
                   }
                   className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-slate-300 hover:text-white text-[11px] font-medium border border-[var(--quant-surface-elevated)] transition-colors"
                 >
-                  <PlusSvg className="size-3 text-amber-400" />
+                  <PlusSvg className="size-3" style={{ color: PILLAR_ACCENTS.calendar }} />
                   <span>+ New Event</span>
                 </button>
                 <button
@@ -1062,7 +1065,7 @@ export function QuantMailSuperAppHeader({
                   }
                   className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-slate-300 hover:text-white text-[11px] font-medium border border-[var(--quant-surface-elevated)] transition-colors"
                 >
-                  <PlusSvg className="size-3 text-sky-400" />
+                  <PlusSvg className="size-3" style={{ color: PILLAR_ACCENTS.drive }} />
                   <span>+ Upload File</span>
                 </button>
                 <button
@@ -1072,7 +1075,7 @@ export function QuantMailSuperAppHeader({
                   }
                   className="flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-slate-300 hover:text-white text-[11px] font-medium border border-[var(--quant-surface-elevated)] transition-colors"
                 >
-                  <PlusSvg className="size-3 text-purple-400" />
+                  <PlusSvg className="size-3" style={{ color: PILLAR_ACCENTS.quantgit }} />
                   <span>+ New Repo</span>
                 </button>
               </div>
