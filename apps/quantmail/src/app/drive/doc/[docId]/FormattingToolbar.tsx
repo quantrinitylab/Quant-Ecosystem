@@ -106,8 +106,6 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
         )}
       </div>
 
-      <div className="w-px h-4 bg-[#30363D] mx-0.5" />
-
       {/* Bold button */}
       <button
         type="button"
