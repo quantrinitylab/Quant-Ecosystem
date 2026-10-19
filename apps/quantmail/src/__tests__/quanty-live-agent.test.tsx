@@ -488,7 +488,7 @@ describe('useQuantyAgent', () => {
     const agent = probe();
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
-    await expect(agent.submitCommand('   ')).rejects.toThrow('Command khaali hai');
+    await expect(agent.submitCommand('   ')).rejects.toThrow('Command cannot be empty');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

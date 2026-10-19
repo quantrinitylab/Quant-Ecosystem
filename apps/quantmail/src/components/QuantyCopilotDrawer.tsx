@@ -128,6 +128,47 @@ export function quantyDraftSendCopy(locale: 'en' | 'hi') {
         : `Scheduled — the email to ${to} will go out at the scheduled time.`,
     scheduledToast: (to: string) =>
       hi ? `ईमेल शेड्यूल हो गया — ${to}` : `Email scheduled — will send to ${to}`,
+    /** Assistant note when the send is cancelled/undone inside the recall window. */
+    sendCancelledNote: hi
+      ? 'भेजना रद्द कर दिया — कुछ नहीं भेजा गया।'
+      : 'Send cancelled — nothing was sent.',
+    /** Assistant note when the unsent draft is discarded. */
+    draftCancelledNote: hi
+      ? 'ड्राफ्ट रद्द कर दिया — कुछ नहीं भेजा गया।'
+      : 'Draft discarded — nothing was sent.',
+  };
+}
+
+/**
+ * Localized copy for the send-email confirmation CARD (qm-auto
+ * findings-queue P2): the card's aria-label, heading, field fallbacks, the
+ * invalid-recipient alert, and the Send button's idle/busy labels all follow
+ * the app locale (English default, Devanagari for 'hi') — no Roman-script
+ * Hinglish mixed with English labels. Same convention as
+ * quantyDraftSendCopy above and the BB-P1-11 drawer summary fix. Exported for
+ * tests.
+ */
+export function quantyConfirmCardCopy(locale: 'en' | 'hi') {
+  const hi = locale === 'hi';
+  return {
+    /** Screen-reader label for the confirm-before-send group. */
+    groupAriaLabel: hi ? 'ईमेल भेजने से पहले पुष्टि करें' : 'Confirm before sending the email',
+    /** Card heading above the draft fields. */
+    heading: hi ? 'भेजने से पहले देखें' : 'Review before sending',
+    /** Fallback when the draft has no recipient. */
+    unknownRecipient: hi ? '(पता नहीं)' : '(unknown)',
+    /** Fallback when the draft has no subject. */
+    noSubject: hi ? '(कोई विषय नहीं)' : '(no subject)',
+    /** Fallback when the draft has no body. */
+    emptyBody: hi ? '(खाली)' : '(empty)',
+    /** Alert shown when the recipient address is invalid. */
+    invalidRecipientAlert: hi
+      ? 'प्राप्तकर्ता का पूरा ईमेल पता साफ़ नहीं है — पहले Quanty को सही पता बताएं, फिर भेजें दबाएं।'
+      : 'The recipient email address is incomplete — tell Quanty the correct address first, then press Send.',
+    /** Send button idle label. */
+    sendIdle: hi ? 'भेजें' : 'Send',
+    /** Send button busy label while the send is in flight. */
+    sendBusy: hi ? 'भेजा जा रहा…' : 'Sending…',
   };
 }
 
@@ -644,6 +685,14 @@ export function QuantyCopilotDrawer({
       : 'Summarize the key points of this email in English.';
   const summaryLabel = locale === 'hi' ? 'Hindi Summary' : 'Summarize';
   /**
+   * qm-auto findings-queue P2: the send-confirmation card's copy (aria-label,
+   * heading, fallbacks, alert, Send button) follows the app locale — the same
+   * quantyDraftSendCopy convention as the send path above.
+   */
+  const cardCopy = quantyConfirmCardCopy(locale);
+  /** Send-flow assistant-note copy (cancel/undo notes are the same surface). */
+  const sendCopy = quantyDraftSendCopy(locale);
+  /**
    * Deliberately not cleared when the drawer closes. A failed turn leaves the
    * user's own prompt as the last thing in the transcript, so on reopening,
    * dropping the banner would show an unanswered question with no explanation
@@ -903,7 +952,7 @@ export function QuantyCopilotDrawer({
         // there is nothing to retract server-side — just say so honestly.
         // (Same for a scheduled send: the schedule was never created, so
         // nothing was delivered either.)
-        appendAssistantNote('Send cancel kar diya — kuch nahi bheja gaya.');
+        appendAssistantNote(sendCopy.sendCancelledNote);
         setDraftSending(false);
         setPendingEmailDraft(null);
       },
@@ -926,7 +975,7 @@ export function QuantyCopilotDrawer({
   /** Dismiss the draft without sending anything. */
   const cancelDraft = () => {
     setPendingEmailDraft(null);
-    appendAssistantNote('Draft cancel kar diya — kuch nahi bheja gaya.');
+    appendAssistantNote(sendCopy.draftCancelledNote);
   };
 
   /**
@@ -1459,35 +1508,35 @@ export function QuantyCopilotDrawer({
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 role="group"
-                aria-label="Email bhejne se pehle confirm karein"
+                aria-label={cardCopy.groupAriaLabel}
                 className="rounded-xl border border-amber-400/30 bg-amber-500/[0.06] px-3.5 py-3 text-xs leading-relaxed text-[var(--quant-foreground)] shadow-sm"
               >
                 <p className="text-[11px] font-bold uppercase tracking-wide text-amber-300">
-                  Bhejne se pehle dekhein
+                  {cardCopy.heading}
                 </p>
                 <dl className="mt-2 space-y-1.5">
                   <div>
                     <dt className="text-[10px] font-semibold uppercase tracking-wide text-[var(--quant-muted-foreground)]">
                       To
                     </dt>
-                    <dd className="break-all font-medium">{pendingEmailDraft.to || '(pata nahi)'}</dd>
+                    <dd className="break-all font-medium">{pendingEmailDraft.to || cardCopy.unknownRecipient}</dd>
                   </div>
                   <div>
                     <dt className="text-[10px] font-semibold uppercase tracking-wide text-[var(--quant-muted-foreground)]">
                       Subject
                     </dt>
-                    <dd className="font-medium">{pendingEmailDraft.subject || '(koi subject nahi)'}</dd>
+                    <dd className="font-medium">{pendingEmailDraft.subject || cardCopy.noSubject}</dd>
                   </div>
                   <div>
                     <dt className="text-[10px] font-semibold uppercase tracking-wide text-[var(--quant-muted-foreground)]">
                       Body
                     </dt>
-                    <dd className="whitespace-pre-wrap">{pendingEmailDraft.body || '(khaali body)'}</dd>
+                    <dd className="whitespace-pre-wrap">{pendingEmailDraft.body || cardCopy.emptyBody}</dd>
                   </div>
                 </dl>
                 {!pendingEmailDraft.toValid && (
                   <p role="alert" className="mt-2 text-[11px] text-red-300">
-                    Recipient ka poora email address saaf nahi hai — pehle Quanty ko sahi address batayein, phir Send dabayein.
+                    {cardCopy.invalidRecipientAlert}
                   </p>
                 )}
                 <div className="mt-3 flex gap-2">
@@ -1497,7 +1546,7 @@ export function QuantyCopilotDrawer({
                     disabled={!pendingEmailDraft.toValid || draftSending}
                     className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg bg-amber-500 px-3 text-xs font-bold text-black transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {draftSending ? 'Bheja ja raha…' : 'Send'}
+                    {draftSending ? cardCopy.sendBusy : cardCopy.sendIdle}
                   </button>
                   {/*
                     Schedule send — the same ScheduleSendModal the /compose
