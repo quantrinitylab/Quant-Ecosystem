@@ -18,6 +18,7 @@ import {
   resolveBookingFailureMessage,
   resolveLinkLoadFailure,
   resolveSlotsResponse,
+  resolveSlotsLoadFailure,
   bookingWallTimeToUtcMs,
   formatSlotTimeLabelInTz,
 } from '../app/calendar/booking/[slug]/booking-utils';
@@ -420,6 +421,47 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
         data: [slotPayload('2028-10-02T13:00:00.000Z')],
       });
       expect(slots![0].timeLabel).toBe('01:00 PM');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 2f. Slots-fetch failure is never answered with invented availability
+  // (fix/qm-booking-slots-fallback): the page's failure path shows the
+  // resolveSlotsLoadFailure copy + a retry action. The helper must be
+  // honest per status class and must never fabricate times/slots.
+  // --------------------------------------------------------------------------
+  describe('resolveSlotsLoadFailure (honest copy, no invented availability)', () => {
+    it('maps a network failure (status 0) to connection copy', () => {
+      const msg = resolveSlotsLoadFailure(0);
+      expect(msg).toContain('connection');
+      expect(msg).toContain('try again');
+    });
+
+    it('maps 5xx to an honest server-side copy', () => {
+      for (const status of [500, 502, 503, 504]) {
+        const msg = resolveSlotsLoadFailure(status);
+        expect(msg).toContain('try again');
+        expect(msg).toMatch(/[Ss]erver/);
+      }
+    });
+
+    it('maps 429 to a rate-limit copy', () => {
+      expect(resolveSlotsLoadFailure(429)).toContain('wait a moment');
+    });
+
+    it('maps anything else to a generic retry copy (no fake reason)', () => {
+      const msg = resolveSlotsLoadFailure(400);
+      expect(msg).toContain('try again');
+      expect(msg).toContain('could not load availability');
+    });
+
+    it('never fabricates times or slots in the error copy', () => {
+      for (const status of [0, 400, 404, 418, 429, 500, 503]) {
+        const msg = resolveSlotsLoadFailure(status);
+        expect(msg).not.toMatch(/\b\d{1,2}:\d{2}\s*(AM|PM)\b/); // no invented time labels
+        expect(msg).not.toContain('09:00');
+        expect(msg).not.toContain('available slot');
+      }
     });
   });
 

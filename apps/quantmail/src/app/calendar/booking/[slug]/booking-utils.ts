@@ -211,6 +211,28 @@ export function resolveLinkLoadFailure(
 }
 
 /**
+ * Honest user-facing copy for a failed slots fetch
+ * (fix/qm-booking-slots-fallback). When the availability endpoint fails or
+ * returns a non-authoritative payload, the booking surface must show this
+ * error with a retry action — NEVER invent bookable slots client-side
+ * (pure time-of-day generation with no host-calendar or conflict data).
+ * Pure function so the mapping is unit-testable. Status 0 = network failure
+ * (no response).
+ */
+export function resolveSlotsLoadFailure(status: number): string {
+  if (status === 0) {
+    return 'Could not reach the booking server. Check your connection and try again.';
+  }
+  if (status === 429) {
+    return 'Too many requests. Please wait a moment and try again.';
+  }
+  if (status >= 500) {
+    return 'The booking server ran into a problem. Please try again.';
+  }
+  return 'We could not load availability for this date. Please try again.';
+}
+
+/**
  * Honest user-facing copy for a failed booking POST (fix/qm-booking-fake-confirm).
  * A non-2xx booking response — or a network failure (status 0) — must NEVER
  * advance to the confirmation screen, and the booker must see the REAL reason
@@ -607,6 +629,11 @@ export function defaultSelectedGuestDay(guestTimeZone: string): GuestDayKey {
  * Pure guest-day slot generation mirroring the backend contract. Labels are
  * rendered in the guest's zone; every slot's guest-local calendar day
  * equals the requested day. Never invents slots for other days.
+ *
+ * NOT used by the booking page (fix/qm-booking-slots-fallback): availability
+ * comes from the server or the guest sees an honest error — this helper
+ * must never be re-wired as a slots-fetch fallback. Kept for its unit
+ * tests only.
  */
 export function generateGuestDaySlots(spec: GuestDaySlotSpec): BookingSlotItem[] {
   const { year, month, day, guestTimeZone, hostTimeZone, startHour, endHour, durationMin } = spec;

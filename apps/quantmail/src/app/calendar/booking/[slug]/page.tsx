@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TIMEZONES } from '../../types';
-import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolveSlotsResponse, generateGuestDaySlots, slotsWithinGuestDay, guestDayKeyToYmd, compareGuestDayKeys, todayInTimeZone, weekdayInTimeZone, isGuestDayEnabled, formatGuestDayHeader, formatGuestDayShort, defaultSelectedGuestDay, daysIn1BasedMonth } from './booking-utils';
+import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolveSlotsResponse, resolveSlotsLoadFailure, slotsWithinGuestDay, guestDayKeyToYmd, compareGuestDayKeys, todayInTimeZone, weekdayInTimeZone, isGuestDayEnabled, formatGuestDayHeader, formatGuestDayShort, defaultSelectedGuestDay, daysIn1BasedMonth } from './booking-utils';
 import type { BookingLinkDetails, BookingLinkLoadStatus, BookingSlotItem, GuestDayKey } from './booking-utils';
 import {
   IconClock,
@@ -141,6 +141,12 @@ export default function PublicBookingPage(props: PageProps) {
   const [availableSlots, setAvailableSlots] = useState<BookingSlotItem[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState<boolean>(false);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlotItem | null>(null);
+  // Honest failure state (fix/qm-booking-slots-fallback): when the slots
+  // endpoint fails, no availability is invented — this carries the copy for
+  // the error panel instead.
+  const [slotsError, setSlotsError] = useState<string | null>(null);
+  // Bumped by the slots error panel's "Try again" button to re-run the fetch.
+  const [slotsReloadNonce, setSlotsReloadNonce] = useState(0);
 
   // Form State (Step 2)
   const [bookerName, setBookerName] = useState('');
@@ -240,36 +246,12 @@ export default function PublicBookingPage(props: PageProps) {
     };
   }, [resolvedSlug, linkReloadNonce]);
 
-  // Generate or fetch available slots for the selected date.
-  // Fallback path (slots API unreachable): the same guest-day contract as
-  // the API — the requested day is the GUEST's calendar day in their
-  // selected timezone; wall-clock times are computed in the HOST's
-  // timezone and labeled in the guest's zone. Never invents slots for
-  // other guest days.
-  const generateSlotsForDate = useCallback(
-    (
-      targetKey: GuestDayKey,
-      duration: number,
-      startHour: number,
-      endHour: number,
-      anchorTimeZone: string,
-      displayTimeZone: string,
-    ): BookingSlotItem[] => {
-      // The key IS the guest's calendar day in the selected zone — it
-      // serializes to YYYY-MM-DD directly, with no Date reinterpretation.
-      return generateGuestDaySlots({
-        year: targetKey.year,
-        month: targetKey.month,
-        day: targetKey.day,
-        guestTimeZone: displayTimeZone,
-        hostTimeZone: anchorTimeZone,
-        startHour,
-        endHour,
-        durationMin: duration,
-      });
-    },
-    [],
-  );
+  // REMOVED (fix/qm-booking-slots-fallback): the client-side slot generator
+  // (generateSlotsForDate) is gone. On a slots-endpoint failure it marked
+  // every future 30-min window as "available" purely by time-of-day — with
+  // no host-calendar or conflict data — letting bookers pick slots that do
+  // not exist. The only honest responses to a failure are the error panel
+  // below or server-sourced slots. Nothing may replace this generator.
 
   // Fetch slots whenever selectedDate, meetingDetails, or the guest's timezone change
   useEffect(() => {
@@ -280,12 +262,14 @@ export default function PublicBookingPage(props: PageProps) {
     if (linkStatus !== 'ready') {
       setIsLoadingSlots(false);
       setAvailableSlots([]);
+      setSlotsError(null);
       return () => {
         isMounted = false;
       };
     }
 
     setIsLoadingSlots(true);
+    setSlotsError(null);
 
     async function loadSlots() {
       // The request names the GUEST's calendar day in the SELECTED timezone
@@ -294,22 +278,26 @@ export default function PublicBookingPage(props: PageProps) {
       // (fix/qm-booking-journey-v2).
       const dateStr = guestDayKeyToYmd(selectedDate);
       const tzParam = encodeURIComponent(selectedTimezone);
+      // Status 0 = the fetch itself threw (no HTTP response).
+      let httpStatus = 0;
       try {
         const res = await apiFetchRaw(
           `/api/calendar/booking/${resolvedSlug}/slots?date=${dateStr}&tz=${tzParam}`,
         );
+        httpStatus = res.status;
         if (res.ok) {
           const json = await res.json();
           const slots = resolveSlotsResponse(json, selectedTimezone);
           if (slots !== null && isMounted) {
             // The backend answer is authoritative — even when it is an empty
             // array (fully booked date / link inactive for this date). Render
-            // the honest "no slots" state; NEVER fall through to the
+            // the honest "no slots" state; NEVER fall through to a
             // client-side generator, which would invent bookable slots the
             // backend rejects at submit with 409 SLOT_UNAVAILABLE.
             // Re-apply the guest-day rule client-side as a stale-backend
             // guard: labels must always land on the selected guest date.
             setAvailableSlots(slotsWithinGuestDay(slots, dateStr, selectedTimezone));
+            setSlotsError(null);
             setIsLoadingSlots(false);
             return;
           }
@@ -321,26 +309,23 @@ export default function PublicBookingPage(props: PageProps) {
           setLinkStatus(status);
           setLinkErrorMessage(message);
           setAvailableSlots([]);
+          setSlotsError(null);
           setIsLoadingSlots(false);
           return;
         }
       } catch {
-        // Fallback
+        // Network failure — httpStatus stays 0 so the error copy below is
+        // the connection variant.
       }
 
-      // High-fidelity fallback slot generation: wall-times in the host's
-      // timezone, labels in the guest's selected timezone
-      // (fix/qm-booking-tz-availability-2).
+      // Failure path (fix/qm-booking-slots-fallback): the slots endpoint
+      // failed (non-ok status, non-authoritative payload, or network throw).
+      // Availability must NOT be invented — the client has no host-calendar
+      // or conflict data, so generated slots could be bookable fictions.
+      // Show the honest error panel with a retry action instead.
       if (isMounted) {
-        const generated = generateSlotsForDate(
-          selectedDate,
-          meetingDetails.duration,
-          meetingDetails.startHour,
-          meetingDetails.endHour,
-          meetingDetails.timezone || 'UTC',
-          selectedTimezone,
-        );
-        setAvailableSlots(generated);
+        setAvailableSlots([]);
+        setSlotsError(resolveSlotsLoadFailure(httpStatus));
         setIsLoadingSlots(false);
       }
     }
@@ -349,7 +334,7 @@ export default function PublicBookingPage(props: PageProps) {
     return () => {
       isMounted = false;
     };
-  }, [selectedDate, resolvedSlug, meetingDetails, linkStatus, selectedTimezone, generateSlotsForDate]);
+  }, [selectedDate, resolvedSlug, meetingDetails, linkStatus, selectedTimezone, slotsReloadNonce]);
 
   // Handle Month Navigation
   const handlePrevMonth = () => {
@@ -825,6 +810,18 @@ export default function PublicBookingPage(props: PageProps) {
                       <div className="py-12 text-center text-xs text-[var(--quant-muted-foreground)] flex items-center justify-center gap-2">
                         <span className="inline-block size-3 rounded-full border-2 border-white/30 border-t-[var(--app-accent)] animate-spin" />
                         <span>Loading slots…</span>
+                      </div>
+                    ) : slotsError ? (
+                      <div className="py-10 text-center text-xs text-[#8B949E] space-y-3">
+                        <div className="flex justify-center"><IconBan size={22} className="text-[#8B949E]" /></div>
+                        <p className="leading-relaxed">{slotsError}</p>
+                        <button
+                          type="button"
+                          onClick={() => setSlotsReloadNonce((n) => n + 1)}
+                          className="px-5 py-2.5 rounded-xl bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-[var(--quant-background)] font-bold text-xs shadow-lg shadow-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] transition-all"
+                        >
+                          Try again
+                        </button>
                       </div>
                     ) : availableSlots.filter((s) => s.available).length === 0 ? (
                       <div className="py-10 text-center text-xs text-[#8B949E] space-y-2">
