@@ -30,7 +30,6 @@ import {
   useUpdateContactGroup,
   useDeleteContactGroup,
 } from '../../hooks/useContactGroups';
-import { useInbox } from '../../hooks/useInbox';
 import { useConfirm } from '../../hooks/useConfirm';
 import { ContactsDedupeModal } from './components/ContactsDedupeModal';
 import type { DuplicateCluster } from './components/ContactsDedupeModal';
@@ -638,33 +637,13 @@ export default function ContactsPage() {
       }));
   }, [displayedContacts]);
 
-  const { data: recentMail } = useInbox();
-  // QM-SCREEN-012 R2: these counts fold the first inbox page only (useInbox
-  // with no options). The badge labels that scope honestly — it is recent-mail
-  // activity, never a lifetime total. No backend exact-count endpoint exists
-  // for per-contact threads, so the UI must not present them as exact.
-  const threadCounts = useMemo(() => {
-    const threadsByAddress = new Map<string, Set<string>>();
-    for (const mail of recentMail ?? []) {
-      const conversation = mail.threadId || mail.id;
-      const participants = [mail.from, ...(mail.to ?? []), ...(mail.cc ?? [])];
-      for (const participant of participants) {
-        const address = participant?.email?.toLowerCase();
-        if (!address) continue;
-        const seen = threadsByAddress.get(address) ?? new Set<string>();
-        seen.add(conversation);
-        threadsByAddress.set(address, seen);
-      }
-    }
-    const counts: Record<string, number> = {};
-    for (const [address, seen] of threadsByAddress) counts[address] = seen.size;
-    return counts;
-  }, [recentMail]);
-
-  const threadCountFor = useCallback(
-    (email?: string) => (email ? threadCounts[email.toLowerCase()] || 0 : 0),
-    [threadCounts],
-  );
+  // List thread-count badges removed (QM-SCREEN-012 follow-up): they were derived
+  // from the first inbox page only (useInbox with no options), so the counts
+  // systematically understated real thread totals — a fake-looking number, not
+  // an honest one. Per-contact real counts live in the detail sheet, which
+  // runs a real bidirectional search (contactThreadSearchParams in
+  // components/ContactsSubViews.tsx). The list row shows no badge rather than
+  // a wrong count.
 
   // Export ALL contacts as vCard — the backend exports the whole address book
   // server-side (unpaginated, unfiltered), not just the loaded page.
@@ -1299,7 +1278,6 @@ export default function ContactsPage() {
                           <div className="space-y-1">
                             {group.contacts.map((contact) => {
                               const isSelected = selectedContact?.id === contact.id;
-                              const threads = threadCountFor(contact.email);
 
                               return (
                                 <div
@@ -1331,16 +1309,6 @@ export default function ContactsPage() {
                                       <p className="text-[11px] text-[var(--quant-muted-foreground)] truncate">{contact.email}</p>
                                     </div>
                                   </div>
-
-                                  {threads > 0 && (
-                                    <span
-                                      className="shrink-0 text-[10px] font-mono px-1.5 py-px rounded bg-[#181E2B] text-[var(--quant-muted-foreground)] border border-[#283144]"
-                                      title={`${threads} thread${threads === 1 ? '' : 's'} in recent mail`}
-                                      aria-label={`${threads} threads in recent mail`}
-                                    >
-                                      {threads}
-                                    </span>
-                                  )}
                                 </div>
                               );
                             })}
