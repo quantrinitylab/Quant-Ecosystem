@@ -130,7 +130,7 @@ export function GroupEditorModal({ group, onClose, onSave, onDelete }: GroupEdit
             </div>
             <div className="min-w-0">
               <h2 id={`${baseId}-title`} className="text-lg font-bold text-[var(--quant-foreground)]">
-                {editing ? 'Edit group' : 'New group'}
+                {editing ? 'Edit group' : 'New Group'}
               </h2>
               <p className="text-xs text-[var(--quant-muted-foreground)]">Name, avatar color, and members</p>
             </div>
@@ -310,7 +310,7 @@ export function GroupEditorModal({ group, onClose, onSave, onDelete }: GroupEdit
                   disabled={busy}
                   className="min-h-[44px] rounded-xl bg-[var(--quant-primary)] px-5 text-xs font-bold text-[var(--quant-background)] hover:bg-[var(--quant-primary-hover)] disabled:opacity-50"
                 >
-                  {busy ? 'Saving…' : editing ? 'Save changes' : 'Create group'}
+                  {busy ? 'Saving…' : editing ? 'Save changes' : 'New Group'}
                 </button>
               </div>
             </footer>

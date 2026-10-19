@@ -3358,7 +3358,7 @@ function InboxPageContent() {
       onFabClick={() =>
         activeLens === 'groups' ? setGroupEditorTarget('new') : handleOpenCompose()
       }
-      fabLabel={activeLens === 'groups' ? 'New group' : 'Compose email'}
+      fabLabel={activeLens === 'groups' ? 'New Group' : 'Compose email'}
       aria-label="QuantMail inbox"
     >
       <div className="inbox-workspace">
@@ -3489,7 +3489,7 @@ function InboxPageContent() {
                   className="hero-compose"
                   onClick={() => setGroupEditorTarget('new')}
                 >
-                  <MailIcon name="compose" /> New group
+                  <MailIcon name="compose" /> New Group
                 </button>
               ) : (
                 <button
@@ -3635,14 +3635,14 @@ function InboxPageContent() {
                   );
                 })}
 
-                {/* + Folder Button */}
+                {/* + New Group Button */}
                 <button
                   type="button"
                   onClick={() => setIsAddFolderModalOpen(true)}
                   data-testid="add-folder-button"
                   className="px-3 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 border border-dashed border-[#3A404D] bg-[var(--quant-surface-elevated)]/60 text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] hover:border-[var(--quant-primary)]/50 hover:bg-[var(--quant-primary)]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
-                  title="Create custom folder or contact filter"
-                  aria-label="Add Folder"
+                  title="Create a new group"
+                  aria-label="New Group"
                 >
                   <svg
                     className="size-3.5"
@@ -3658,7 +3658,7 @@ function InboxPageContent() {
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
                   {/* The plus icon above is the "+"; the label is just the noun. */}
-                  <span>Folder</span>
+                  <span>New Group</span>
                 </button>
                 {/* Trailing spacer: padding-right collapses inside overflow-x-auto,
                     so the last lens chip would otherwise sit flush-cut at the edge. */}
@@ -3976,7 +3976,7 @@ function InboxPageContent() {
                     <span aria-hidden="true" className="text-base leading-none">
                       +
                     </span>
-                    New group
+                    New Group
                   </button>
                 </header>
 
@@ -4030,7 +4030,7 @@ function InboxPageContent() {
                       onClick={() => setGroupEditorTarget('new')}
                       className="mt-5 min-h-[44px] rounded-xl bg-[var(--quant-primary)] px-5 text-xs font-bold text-[var(--quant-background)] hover:bg-[var(--quant-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                     >
-                      + New group
+                      + New Group
                     </button>
                   </div>
                 ) : (
@@ -4558,7 +4558,7 @@ function InboxPageContent() {
         }}
       />
 
-      {/* Add Custom Folder / Contact Filter Modal */}
+      {/* New Group / Contact Filter Modal */}
       {isAddFolderModalOpen && (
         <AddFolderModal
           isOpen={isAddFolderModalOpen}

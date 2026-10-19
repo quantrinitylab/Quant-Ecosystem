@@ -967,7 +967,7 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
       {
         id: 'groups',
         label: 'Groups',
-        ariaLabel: 'Groups (Add Folder / Add Group)',
+        ariaLabel: 'Groups (New Group)',
         icon: CirclesNetworkIcon,
         targetPath: '/contacts',
         queryParam: { key: 'tab', value: 'groups' },
