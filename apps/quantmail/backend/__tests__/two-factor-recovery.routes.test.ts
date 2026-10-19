@@ -44,8 +44,10 @@ const mocks = vi.hoisted(() => {
     twoFactorRecoveryChallenge: {
       create: vi.fn(),
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
       deleteMany: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     twoFactorBackupCode: { deleteMany: vi.fn() },
     refreshToken: { updateMany: vi.fn() },
@@ -204,8 +206,13 @@ beforeEach(() => {
     ...args.data,
   }));
   mocks.prisma.twoFactorRecoveryChallenge.findFirst.mockResolvedValue(null);
+  mocks.prisma.twoFactorRecoveryChallenge.findUnique.mockResolvedValue(null);
   mocks.prisma.twoFactorRecoveryChallenge.deleteMany.mockResolvedValue({ count: 0 });
   mocks.prisma.twoFactorRecoveryChallenge.update.mockResolvedValue({});
+  // The success-path burn inside the transaction is a conditional write: it
+  // only burns when the row is still unused, unexpired, under the attempt
+  // cap and on the current channel — count 1 means this request won the burn.
+  mocks.prisma.twoFactorRecoveryChallenge.updateMany.mockResolvedValue({ count: 1 });
   mocks.prisma.twoFactorBackupCode.deleteMany.mockResolvedValue({ count: 8 });
   mocks.prisma.refreshToken.updateMany.mockResolvedValue({ count: 3 });
   mocks.prisma.auditLog.create.mockResolvedValue({ id: 'audit-1' });
@@ -347,6 +354,9 @@ describe('POST /auth/2fa/recover/confirm — the explicitly-confirmed reset', ()
 
   beforeEach(() => {
     mocks.prisma.twoFactorRecoveryChallenge.findFirst.mockResolvedValue(challengeRow());
+    // The transaction re-validates against a FRESH user read inside the unit
+    // of work; by default the account has not moved since the pre-checks.
+    mocks.prisma.user.findUnique.mockResolvedValue({ ...USER });
   });
 
   it('refuses an untrusted or missing Origin before touching anything', async () => {
@@ -433,14 +443,17 @@ describe('POST /auth/2fa/recover/confirm — the explicitly-confirmed reset', ()
     expect(mocks.prisma.user.update).not.toHaveBeenCalled();
   });
 
-  it('rejects a wrong code, counts the attempt, and leaves 2FA untouched', async () => {
+  it('rejects a wrong code, counts the attempt atomically, and leaves 2FA untouched', async () => {
     const reply = await confirmRecovery({ ...validConfirm(), code: '654321' });
 
     expect(reply.statusCode).toBe(400);
     expect(reply.body.error.code).toBe('INVALID_RECOVERY_CODE');
-    expect(mocks.prisma.twoFactorRecoveryChallenge.update).toHaveBeenCalledWith({
-      where: { id: 'tfr-1' },
-      data: { attempts: 1 },
+    // Bounded atomic increment: one conditional UPDATE per wrong guess —
+    // never a read-modify-write off the stale snapshot, so parallel wrong
+    // guesses each count instead of all storing attempts=1.
+    expect(mocks.prisma.twoFactorRecoveryChallenge.updateMany).toHaveBeenCalledWith({
+      where: { id: 'tfr-1', usedAt: null, attempts: { lt: 5 } },
+      data: { attempts: { increment: 1 } },
     });
     expect(mocks.prisma.user.update).not.toHaveBeenCalled();
     expect(mocks.prisma.twoFactorBackupCode.deleteMany).not.toHaveBeenCalled();
@@ -538,11 +551,22 @@ describe('POST /auth/2fa/recover/confirm — the explicitly-confirmed reset', ()
       });
     });
 
-    it('burns the challenge', async () => {
+    it('burns the challenge with a conditional single-use write', async () => {
       await confirmRecovery(validConfirm());
 
-      expect(mocks.prisma.twoFactorRecoveryChallenge.update).toHaveBeenCalledWith({
-        where: { id: 'tfr-1' },
+      // The burn only lands on a row that is still unused, unexpired, under
+      // the attempt cap, and on the current channel — a parallel confirm
+      // finds no burnable row and gets an honest conflict instead of a
+      // second 2FA clear.
+      expect(mocks.prisma.twoFactorRecoveryChallenge.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'tfr-1',
+          userId: 'user-1',
+          usedAt: null,
+          expiresAt: { gt: expect.any(Date) },
+          attempts: { lt: 5 },
+          email: 'backup@example.com',
+        },
         data: { usedAt: expect.any(Date) },
       });
     });
@@ -598,6 +622,124 @@ describe('POST /auth/2fa/recover/confirm — the explicitly-confirmed reset', ()
       expect(reply.body.data).not.toHaveProperty('refreshToken');
       expect(reply.body.data).not.toHaveProperty('sessionId');
     });
+  });
+});
+
+describe('confirm consumption is single-use and race-proof', () => {
+  const validConfirm = () => ({
+    email: 'Kundan@quantmail.in',
+    password: 'correct-password',
+    code: '123456',
+  });
+
+  beforeEach(() => {
+    mocks.prisma.twoFactorRecoveryChallenge.findFirst.mockResolvedValue(challengeRow());
+    mocks.prisma.user.findUnique.mockResolvedValue({ ...USER });
+  });
+
+  it('two concurrent confirms yield exactly one winner — the loser 409s and writes nothing', async () => {
+    // Mocked transaction concurrency: both requests read the same pending
+    // snapshot, but the conditional burn lets exactly one through. This is
+    // the in-harness model of the PostgreSQL
+    // updateMany({ where: { usedAt: null, ... } }) barrier — the row lock the
+    // database provides is what serializes the two burns; the harness pins
+    // the handler's decision logic (burn-first, loser-writes-nothing).
+    mocks.prisma.twoFactorRecoveryChallenge.updateMany
+      .mockResolvedValueOnce({ count: 1 }) // the winner burns the challenge
+      .mockResolvedValue({ count: 0 }); // every later burn finds no burnable row
+    mocks.prisma.twoFactorRecoveryChallenge.findUnique.mockResolvedValue(
+      challengeRow({ usedAt: new Date() }),
+    );
+
+    const [first, second] = await Promise.all([
+      confirmRecovery(validConfirm()),
+      confirmRecovery(validConfirm()),
+    ]);
+
+    const codes = [first.statusCode, second.statusCode].sort();
+    expect(codes).toEqual([200, 409]);
+    const loser = first.statusCode === 409 ? first : second;
+    // Honest conflict — it asks the client to re-request instead of lying
+    // about what happened.
+    expect(loser.body.error.code).toBe('RECOVERY_CONFLICT');
+    // Exactly one 2FA clear: the loser wrote nothing inside its transaction,
+    // so a parallel consume can never clear freshly re-enrolled TOTP state.
+    expect(mocks.prisma.user.update).toHaveBeenCalledTimes(1);
+    expect(mocks.prisma.twoFactorBackupCode.deleteMany).toHaveBeenCalledTimes(1);
+    expect(mocks.prisma.refreshToken.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('a stale replay after the challenge was consumed 409s and writes nothing', async () => {
+    // The pause-confirm replay: the request's snapshot predates the burn,
+    // but the conditional write inside the transaction finds no burnable
+    // row — the replay cannot reuse the old channel proof.
+    mocks.prisma.twoFactorRecoveryChallenge.updateMany.mockResolvedValue({ count: 0 });
+    mocks.prisma.twoFactorRecoveryChallenge.findUnique.mockResolvedValue(
+      challengeRow({ usedAt: new Date() }),
+    );
+
+    const reply = await confirmRecovery(validConfirm());
+
+    expect(reply.statusCode).toBe(409);
+    expect(reply.body.error.code).toBe('RECOVERY_CONFLICT');
+    expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+    expect(mocks.prisma.twoFactorBackupCode.deleteMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.refreshToken.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('a recovery-channel change between the pre-checks and the write aborts inside the transaction', async () => {
+    // The owner set a NEW recovery address behind a fresh session after the
+    // pre-checks read the account: the in-transaction re-validation sees the
+    // fresh channel and refuses — the stale channel proof is inert.
+    mocks.prisma.user.findUnique.mockResolvedValue({
+      ...USER,
+      recoveryEmail: 'new-backup@example.com',
+    });
+
+    const reply = await confirmRecovery(validConfirm());
+
+    expect(reply.statusCode).toBe(409);
+    expect(reply.body.error.code).toBe('RECOVERY_CHANNEL_CHANGED');
+    expect(mocks.prisma.twoFactorRecoveryChallenge.updateMany).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('a burn lost to expiry between pre-check and write names the expiry honestly', async () => {
+    mocks.prisma.twoFactorRecoveryChallenge.updateMany.mockResolvedValue({ count: 0 });
+    mocks.prisma.twoFactorRecoveryChallenge.findUnique.mockResolvedValue(
+      challengeRow({ expiresAt: new Date(Date.now() - 1000) }),
+    );
+
+    const reply = await confirmRecovery(validConfirm());
+
+    expect(reply.statusCode).toBe(400);
+    expect(reply.body.error.code).toBe('RECOVERY_CODE_EXPIRED');
+    expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('five parallel wrong-code attempts each increment — attempts ends at 5, not 1', async () => {
+    // An in-memory model of the atomic UPDATE ... SET attempts = attempts+1:
+    // each conditional write adds exactly one, the way PostgreSQL executes
+    // the increment. The old read-modify-write would leave this at 1.
+    let dbAttempts = 0;
+    mocks.prisma.twoFactorRecoveryChallenge.updateMany.mockImplementation(async (args: any) => {
+      dbAttempts += args?.data?.attempts?.increment ?? 0;
+      return { count: 1 };
+    });
+
+    const replies = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        confirmRecovery({ ...validConfirm(), code: '654321' }),
+      ),
+    );
+
+    for (const reply of replies) {
+      expect(reply.statusCode).toBe(400);
+      expect(reply.body.error.code).toBe('INVALID_RECOVERY_CODE');
+    }
+    expect(dbAttempts).toBe(5);
+    expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+    expect(mocks.prisma.twoFactorBackupCode.deleteMany).not.toHaveBeenCalled();
   });
 });
 

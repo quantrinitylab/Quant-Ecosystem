@@ -155,6 +155,28 @@ type RecoveryChallenge = {
   usedAt: Date | null;
 };
 
+/**
+ * What the confirm transaction decided. The pre-checks in the handler run
+ * against a point-in-time snapshot; only the transaction is authoritative:
+ *  - OK: this request burned the challenge and cleared 2FA.
+ *  - CONFLICT: another request consumed (or exhausted) the challenge between
+ *    the pre-checks and the burn — nothing was written.
+ *  - STALE: the account moved between the pre-checks and the write (2FA no
+ *    longer armed, or the recovery channel changed) — nothing was written.
+ */
+type RecoveryConsumeOutcome =
+  | { outcome: 'OK' }
+  | { outcome: 'CONFLICT' }
+  | {
+      outcome: 'STALE';
+      fresh: {
+        twoFactorEnabled?: boolean | null;
+        twoFactorSecret?: string | null;
+        recoveryEmail?: string | null;
+        recoveryEmailVerifiedAt?: Date | string | null;
+      } | null;
+    };
+
 const latestPendingChallenge = async (userId: string): Promise<RecoveryChallenge | null> => {
   const row = await prisma.twoFactorRecoveryChallenge.findFirst({
     where: { userId, usedAt: null },
@@ -404,9 +426,17 @@ export async function twoFactorRecoveryRoutes(fastify: FastifyInstance) {
         );
       }
       if (!verificationCodeMatches(code as string, challenge.codeHash)) {
-        await prisma.twoFactorRecoveryChallenge.update({
-          where: { id: challenge.id },
-          data: { attempts: challenge.attempts + 1 },
+        // Bounded, atomic failure accounting: ONE conditional UPDATE per
+        // wrong guess. Parallel wrong guesses each add exactly one — the old
+        // read-modify-write stored attempts=1 for five parallel wrong codes
+        // off the same stale snapshot, defeating the attempt cap.
+        await prisma.twoFactorRecoveryChallenge.updateMany({
+          where: {
+            id: challenge.id,
+            usedAt: null,
+            attempts: { lt: MAX_VERIFICATION_ATTEMPTS },
+          },
+          data: { attempts: { increment: 1 } },
         });
         return fail(
           reply,
@@ -423,36 +453,139 @@ export async function twoFactorRecoveryRoutes(fastify: FastifyInstance) {
           ? (request.headers['user-agent'] as string)
           : null;
 
-      // The explicitly-confirmed TOTP reset: clear the secret and its
-      // enrolment state, burn every backup code, revoke every live session,
-      // and burn the challenge — one atomic unit, so a failure cannot leave
-      // 2FA half-cleared with live backup codes still floating around.
-      // Whoever asked for this is very likely the person who tripped the
-      // lockout guessing at credentials, so the failed-login counters reset
-      // too (mirrors password-reset.ts).
-      await prisma.$transaction(async (tx: any) => {
-        await tx.user.update({
-          where: { id: user.id },
-          data: {
-            twoFactorEnabled: false,
-            twoFactorSecret: null,
-            twoFactorPendingSecret: null,
-            twoFactorConfirmedAt: null,
-            twoFactorLastUsedStep: null,
-            failedLoginAttempts: 0,
-            lockoutUntil: null,
-          },
-        });
-        await tx.twoFactorBackupCode.deleteMany({ where: { userId: user.id } });
-        await tx.refreshToken.updateMany({
-          where: { userId: user.id },
-          data: { isRevoked: true },
-        });
-        await tx.twoFactorRecoveryChallenge.update({
+      // The consumption unit: single-use and race-proof. The checks above ran
+      // against a point-in-time snapshot; between those reads and this write
+      // a parallel confirm, a channel change, or a re-enrolment can land. So
+      // the challenge is BURNED FIRST inside the transaction with
+      // conditional-write semantics — the row must still be unused,
+      // unexpired, under the attempt cap, and addressed to the account's
+      // CURRENT verified recovery channel — and only the burner proceeds to
+      // clear 2FA. A parallel confirm with the same code loses the burn and
+      // gets an honest conflict instead of clearing freshly re-enrolled TOTP
+      // state; a pause-confirm replay finds no burnable row for the same
+      // reason; a channel change mid-flight aborts instead of acting on a
+      // stale proof. One atomic unit, so a failure cannot leave 2FA
+      // half-cleared with live backup codes still floating around.
+      const consumed = await prisma.$transaction(
+        async (tx: any): Promise<RecoveryConsumeOutcome> => {
+          // Fresh, serialized re-validation: the caller passed the password,
+          // so reads here do not enumerate — they are the barrier the stale
+          // snapshot reads cannot be.
+          const fresh = (await tx.user.findUnique({ where: { id: user.id } })) as
+            | {
+                twoFactorEnabled?: boolean | null;
+                twoFactorSecret?: string | null;
+                recoveryEmail?: string | null;
+                recoveryEmailVerifiedAt?: Date | string | null;
+              }
+            | null;
+          if (!fresh || !twoFactorArmed(fresh) || !hasVerifiedRecoveryEmail(fresh)) {
+            return { outcome: 'STALE', fresh };
+          }
+          // Channel binding: the challenge was mailed to a specific address.
+          // If the owner set a new recovery address after the pre-checks read
+          // the account, the stale channel proof is inert — abort with the
+          // accurate reason instead of burning on a row the conditional write
+          // would merely reject as a generic conflict. The conditional burn
+          // below remains the last-resort barrier.
+          if (
+            normalizeEmail(challenge.email) !==
+            normalizeEmail(fresh.recoveryEmail as string)
+          ) {
+            return { outcome: 'STALE', fresh };
+          }
+          const burned = await tx.twoFactorRecoveryChallenge.updateMany({
+            where: {
+              id: challenge.id,
+              userId: user.id,
+              usedAt: null,
+              expiresAt: { gt: now },
+              attempts: { lt: MAX_VERIFICATION_ATTEMPTS },
+              email: normalizeEmail(fresh.recoveryEmail as string),
+            },
+            data: { usedAt: now },
+          });
+          if (burned.count !== 1) {
+            return { outcome: 'CONFLICT' };
+          }
+          // Whoever asked for this is very likely the person who tripped the
+          // lockout guessing at credentials, so the failed-login counters
+          // reset too (mirrors password-reset.ts).
+          await tx.user.update({
+            where: { id: user.id },
+            data: {
+              twoFactorEnabled: false,
+              twoFactorSecret: null,
+              twoFactorPendingSecret: null,
+              twoFactorConfirmedAt: null,
+              twoFactorLastUsedStep: null,
+              failedLoginAttempts: 0,
+              lockoutUntil: null,
+            },
+          });
+          await tx.twoFactorBackupCode.deleteMany({ where: { userId: user.id } });
+          await tx.refreshToken.updateMany({
+            where: { userId: user.id },
+            data: { isRevoked: true },
+          });
+          return { outcome: 'OK' };
+        },
+      );
+
+      if (consumed.outcome === 'STALE') {
+        // The account moved between the pre-checks and the write and nothing
+        // was written: either 2FA is no longer armed (a parallel confirm
+        // already reset it) or the recovery channel changed mid-flight.
+        const fresh = consumed.fresh;
+        if (fresh && twoFactorArmed(fresh)) {
+          return fail(
+            reply,
+            409,
+            'RECOVERY_CHANNEL_CHANGED',
+            'Your recovery email changed while this request was in flight. Start recovery again.',
+          );
+        }
+        return fail(
+          reply,
+          409,
+          'TWO_FACTOR_NOT_ENABLED',
+          'Two-factor authentication is not on for this account — there is nothing to recover.',
+        );
+      }
+
+      if (consumed.outcome === 'CONFLICT') {
+        // Another request consumed (or exhausted) the challenge between the
+        // pre-checks and the burn, and nothing was written here. Re-read once
+        // so the answer names the real state instead of lying; the default is
+        // an honest conflict that asks the client to re-request.
+        const freshChallenge = (await prisma.twoFactorRecoveryChallenge.findUnique({
           where: { id: challenge.id },
-          data: { usedAt: now },
-        });
-      });
+        })) as RecoveryChallenge | null;
+        if (freshChallenge && freshChallenge.usedAt == null) {
+          if (isVerificationCodeExpired(freshChallenge.expiresAt)) {
+            return fail(
+              reply,
+              400,
+              'RECOVERY_CODE_EXPIRED',
+              'That recovery code has expired. Start recovery again to get a new code.',
+            );
+          }
+          if (freshChallenge.attempts >= MAX_VERIFICATION_ATTEMPTS) {
+            return fail(
+              reply,
+              400,
+              'RECOVERY_ATTEMPTS_EXCEEDED',
+              'Too many wrong codes. Start recovery again to get a new code.',
+            );
+          }
+        }
+        return fail(
+          reply,
+          409,
+          'RECOVERY_CONFLICT',
+          'This recovery code was already used or replaced. Start recovery again if you still need to reset two-factor authentication.',
+        );
+      }
 
       // The audit row and the primary-inbox notification are best-effort
       // outside the transaction: the security action is complete either way,
