@@ -163,6 +163,19 @@ export function isFullPageComposePath(pathname: string | null | undefined): bool
 }
 
 /**
+ * Pure predicate for the Cmd/Ctrl+Enter send shortcut (exported for tests).
+ * Gmail/Superhuman convention: the send gesture is (meta OR ctrl) + Enter —
+ * plain Enter (newlines) and Tab (quick-completion accept) never qualify.
+ */
+export function isComposerSendShortcut(
+  key: string,
+  metaKey: boolean,
+  ctrlKey: boolean,
+): boolean {
+  return (metaKey || ctrlKey) && key === 'Enter';
+}
+
+/**
  * Pure core of the AI-assist rewrite (exported for tests). When the body
  * editor held a non-empty selection, only that span is replaced by the AI
  * result; otherwise the whole body is replaced.
@@ -515,6 +528,21 @@ export function EmailComposer({
     if (e.key === 'Tab' && activeCompletion) {
       e.preventDefault();
       acceptCompletion();
+    }
+  };
+
+  // Keyboard shortcut: Cmd+Enter / Ctrl+Enter sends from any composer field —
+  // Gmail/Superhuman power-user parity, mirrors DockedComposer's handleKeyDown
+  // exactly. Tab-prediction lives in handleBodyKeyDown (body textarea only)
+  // and is untouched: Tab !== Enter, the two never fight. Wiring through
+  // handleSend (not a bypass) keeps every guard on the send path — the
+  // send-block toast, the empty-body confirm, the Drive permission check and
+  // the undo-send recall window — identical to clicking Send. Meta/Ctrl keys
+  // don't exist on mobile keyboards, so this is desktop-only by nature.
+  const handleComposerKeyDown = (e: React.KeyboardEvent) => {
+    if (isComposerSendShortcut(e.key, e.metaKey, e.ctrlKey)) {
+      e.preventDefault();
+      void handleSend();
     }
   };
 
@@ -1894,6 +1922,7 @@ export function EmailComposer({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.98, y: 12 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          onKeyDown={handleComposerKeyDown}
           className={
             modal
               ? // QM-UIUX-025: on mobile this was `right-4 w-full` — width 100%
