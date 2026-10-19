@@ -370,7 +370,7 @@ describe('ThreadComposer rendering', () => {
 
     // Fired synchronously on send-start, before the async compose/send.
     expect(onSendStart).toHaveBeenCalledTimes(1);
-    expect(onSendStart).toHaveBeenCalledWith('optimistic hello', 'Re: Hi there');
+    expect(onSendStart).toHaveBeenCalledWith('optimistic hello', 'Re: Hi there', expect.any(String));
 
     await act(async () => {
       root.unmount();
@@ -447,7 +447,7 @@ describe('ThreadComposer onSendError (phantom-bubble fix)', () => {
     // …then the failure withdrew it. The host needs (text, subject) to know
     // which bubble to remove.
     expect(onSendError).toHaveBeenCalledTimes(1);
-    expect(onSendError).toHaveBeenCalledWith('doomed message', 'Re: Hi there');
+    expect(onSendError).toHaveBeenCalledWith('doomed message', 'Re: Hi there', expect.any(String));
     // The failure contract is unchanged: error toast shown, text preserved.
     expect(toastMock).toHaveBeenCalledWith({ text: 'SMTP down', type: 'error' });
     expect(textarea.value).toBe('doomed message');
@@ -470,7 +470,7 @@ describe('ThreadComposer onSendError (phantom-bubble fix)', () => {
 
     expect(onSendStart).toHaveBeenCalledTimes(1);
     expect(onSendError).toHaveBeenCalledTimes(1);
-    expect(onSendError).toHaveBeenCalledWith('never composed', 'Re: Hi there');
+    expect(onSendError).toHaveBeenCalledWith('never composed', 'Re: Hi there', expect.any(String));
     expect(textarea.value).toBe('never composed');
 
     await act(async () => {
