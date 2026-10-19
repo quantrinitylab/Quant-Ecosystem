@@ -18,6 +18,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Email } from '../types';
 
 // React 19's act(...) requires this flag in the test environment.
@@ -150,19 +151,32 @@ const oldBobEmail = () =>
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
+/**
+ * fix/qm-people-snooze: PeopleHome now calls useMailMutations() (snooze on
+ * the home rows), which needs a QueryClientProvider — the root layout
+ * provides it in production. Fresh client per render so no query cache leaks
+ * between tests.
+ */
+function withProviders(ui: React.ReactElement): React.ReactElement {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
+}
+
 function render(ui: React.ReactElement): HTMLDivElement {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
   act(() => {
-    root!.render(ui);
+    root!.render(withProviders(ui));
   });
   return host;
 }
 
 function rerender(ui: React.ReactElement): void {
   act(() => {
-    root!.render(ui);
+    root!.render(withProviders(ui));
   });
 }
 

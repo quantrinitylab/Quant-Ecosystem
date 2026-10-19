@@ -22,6 +22,7 @@ import { IconPaperclip } from './icons';
 import { Button, Skeleton } from '@quant/shared-ui';
 import { APP_THEMES } from '../lib/app-theme';
 import { personSnippet, type PersonConversation } from '../lib/peopleGrouping';
+import { EmailSnooze } from './EmailSnooze';
 
 export interface PeopleListProps {
   conversations: PersonConversation[];
@@ -42,6 +43,17 @@ export interface PeopleListProps {
   onLoadMore?: () => void;
   hasMore?: boolean;
   loadingMore?: boolean;
+  /**
+   * fix/qm-people-snooze: Gmail-parity snooze on the People home rows. When
+   * present, every row gets a clock button — hover/focus-revealed on
+   * hover-capable devices, hidden on touch (the touch path snoozes from the
+   * PersonThread header instead) — that opens the same EmailSnooze preset
+   * menu the legacy inbox rows use. Picking a time calls this with the row's
+   * conversation and the chosen date; the parent runs the real snooze
+   * mutation on the conversation's REAL message ids. Omit it and rows render
+   * exactly as before (no snooze control at all).
+   */
+  onSnooze?: (conversation: PersonConversation, snoozeUntil: Date) => void;
 }
 
 const MAIL_ACCENT = APP_THEMES.mail.accent;
@@ -117,6 +129,7 @@ export function PeopleList({
   onLoadMore,
   hasMore = false,
   loadingMore = false,
+  onSnooze,
 }: PeopleListProps) {
   const visible = useMemo(
     () => conversations.filter((c) => conversationMatchesQuery(c, searchQuery)),
@@ -179,7 +192,7 @@ export function PeopleList({
             // attachments. Real rows only — never inferred, never faked.
             const hasAttachments = c.messages.some((m) => (m.attachments ?? []).length > 0);
             return (
-              <li key={c.personKey}>
+              <li key={c.personKey} className="group/row relative">
                 <button
                   type="button"
                   onClick={() => onSelect(c)}
@@ -248,6 +261,22 @@ export function PeopleList({
                     </span>
                   </span>
                 </button>
+                {/*
+                  fix/qm-people-snooze: row-level snooze, Gmail hover-action
+                  parity. The trigger is a SIBLING of the row button (never
+                  nested inside it), and AnchoredMenu already stops click
+                  propagation, so opening the menu never fires onSelect.
+                  Hidden on touch viewports — the touch path snoozes from the
+                  PersonThread header, which is always reachable.
+                */}
+                {onSnooze && (
+                  <div className="absolute right-2 top-1/2 hidden -translate-y-1/2 transition-opacity duration-150 [@media(hover:hover)]:block [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/row:opacity-100 [@media(hover:hover)]:focus-within:opacity-100">
+                    <EmailSnooze
+                      onSnooze={(until) => onSnooze(c, until)}
+                      triggerLabel={`Snooze conversation with ${c.name || c.email}`}
+                    />
+                  </div>
+                )}
               </li>
             );
           })}
