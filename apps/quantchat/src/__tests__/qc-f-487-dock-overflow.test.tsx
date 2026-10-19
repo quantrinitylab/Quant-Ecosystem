@@ -15,6 +15,14 @@
 // the pb-10 marker inside the dock row, no relative on either dock)
 // and T6's class pins FAIL (no h-12 w-12 trigger in BackgroundBlur.tsx).
 // T6's arithmetic itself is a band table (guard) and passes both ways.
+//
+// QC-F-296 supersession (declared, 2026-10-19): the meet dock gained two
+// in-meeting toggles (Low data + Audio only, px-4 text buttons). Their
+// combined width pushes the single row past the 358px available, so the
+// meet dock now WRAPS (flex-wrap in the pinned class string) instead of
+// overflowing/clipping — T5 pins the new exact class and T6 pins the
+// wrap arithmetic. The calls dock is untouched by 296 (its toggles live
+// in their own flex-wrap row above the dock).
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -48,7 +56,7 @@ describe('QC-F-487 dock overflow — source contract (T5)', () => {
   it('meet: only the DOCK BackgroundBlur is responsive (pre-join untouched), dock is relative, responsive site sits after the Control dock marker', () => {
     expect(occurrences(meetSrc, 'presentation="responsive"')).toBe(1);
     expect(meetSrc).toContain(
-      'relative flex items-center justify-center gap-3 bg-gray-900 px-4 py-4',
+      'relative flex flex-wrap items-center justify-center gap-3 bg-gray-900 px-4 py-4',
     );
     const dockMarker = meetSrc.indexOf('Control dock');
     expect(dockMarker).toBeGreaterThanOrEqual(0);
@@ -60,13 +68,21 @@ describe('QC-F-487 dock overflow — source contract (T5)', () => {
 });
 
 describe('QC-F-487 dock overflow — arithmetic table tied to source classes (T6)', () => {
-  it('post-fix intrinsic widths fit: calls row 296 <= 390, meet row 336 <= 358', () => {
+  it('post-fix intrinsic widths fit: calls row 296 <= 390, meet row wraps past 358 (QC-F-296)', () => {
     // Calls: mic 56 + end 64 + camera 56 + compact trigger 48 + gaps 3x24.
     expect(56 + 64 + 56 + 48 + 24 * 3).toBe(296);
     expect(296).toBeLessThanOrEqual(390);
-    // Meet: mic/camera/hand 48x3 + trigger 48 + Leave ~96 + gaps 4x12.
+    // Meet (487 post-fix): mic/camera/hand 48x3 + trigger 48 + Leave ~96
+    // + gaps 4x12 = 336 <= 358 in a single row.
     expect(48 + 48 + 48 + 48 + 96 + 12 * 4).toBe(336);
     expect(336).toBeLessThanOrEqual(358);
+    // Meet (QC-F-296 ke baad): + Low data toggle >=64 + Audio only toggle
+    // >=64 (h-12 + px-4 text buttons, conservative floor) + 2 extra gaps
+    // pushes the row to >=488 > 358 — a single row can no longer fit,
+    // which is exactly why the dock class pinned in T5 carries flex-wrap:
+    // the overflow wraps to a second row instead of clipping controls.
+    expect(336 + 64 + 64 + 12 * 2).toBe(488);
+    expect(488).toBeGreaterThan(358);
   });
 
   it('the table numbers are the classes the sources actually declare', () => {
