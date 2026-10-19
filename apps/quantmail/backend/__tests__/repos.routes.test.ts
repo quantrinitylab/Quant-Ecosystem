@@ -1551,6 +1551,167 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     }
   });
 
+  describe('PR merge methods — the merge-method picker is honored (squash/rebase must be real)', () => {
+    it("POST /repos/:id/pulls/:number/merge with { method: 'squash' } creates ONE single-parent commit carrying the merged tree", async () => {
+      const gitRoot = await ensureMergeFixture();
+      const bare = join(gitRoot, 'user-1', 'Quant-Ecosystem.git');
+      try {
+        const app = await buildApp();
+        const res = await app.inject({
+          method: 'POST',
+          url: '/repos/repo-1/pulls/1/merge',
+          payload: { method: 'squash' },
+        });
+        expect(res.statusCode).toBe(200);
+        const body = res.json();
+        expect(body.success).toBe(true);
+        expect(body.data.method).toBe('squash');
+        const sha: string = body.data.mergeCommitSha;
+        expect(sha).toMatch(/^[0-9a-f]{40}$/i);
+        // Single parent — a squash is NEVER a merge commit.
+        const { stdout: catOut } = await execFileAsync('git', ['cat-file', '-p', sha], {
+          cwd: bare,
+        });
+        expect(catOut.split('\n').filter((l) => l.startsWith('parent '))).toHaveLength(1);
+        // Target branch ref genuinely moved to the squashed commit…
+        const { stdout: refOut } = await execFileAsync('git', ['rev-parse', 'refs/heads/main'], {
+          cwd: bare,
+        });
+        expect(refOut.trim()).toBe(sha);
+        // …whose tree contains BOTH sides' content (the real merged tree).
+        const { stdout: lsOut } = await execFileAsync('git', ['ls-tree', '-r', '--name-only', sha], {
+          cwd: bare,
+        });
+        expect(lsOut).toContain('file.txt');
+        expect(lsOut).toContain('file2.txt');
+        // Message carries the PR title and body — no invented content.
+        const { stdout: msgOut } = await execFileAsync('git', ['log', '-1', '--format=%B', sha], {
+          cwd: bare,
+        });
+        expect(msgOut).toContain('Test Pull Request #1');
+        expect(msgOut).toContain('Feature branch changes');
+        expect(prisma.pullRequest.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ status: 'MERGED', mergeCommitSha: sha }),
+          }),
+        );
+      } finally {
+        await destroyMergeFixture();
+      }
+    });
+
+    it("POST /repos/:id/pulls/:number/merge with { method: 'rebase' } replays each head commit linearly, messages preserved", async () => {
+      const gitRoot = await ensureMergeFixture();
+      const bare = join(gitRoot, 'user-1', 'Quant-Ecosystem.git');
+      const work = join(gitRoot, 'work');
+      const git = (args: string[], cwd?: string) => execFileAsync('git', args, { cwd });
+      try {
+        // A second commit on the feature branch so the replay is multi-step.
+        await git(['checkout', 'feat/test'], work);
+        await writeFile(join(work, 'file3.txt'), 'second change\n');
+        await git(['add', 'file3.txt'], work);
+        await git(['commit', '-m', 'second change'], work);
+        await git(['push', 'origin', 'feat/test'], work);
+        const { stdout: baseOut } = await git(['rev-parse', 'refs/heads/main'], bare);
+        const baseSha = baseOut.trim();
+        const { stdout: headOut } = await git(['rev-parse', 'refs/heads/feat/test'], bare);
+        const headSha = headOut.trim();
+
+        const app = await buildApp();
+        const res = await app.inject({
+          method: 'POST',
+          url: '/repos/repo-1/pulls/1/merge',
+          payload: { method: 'rebase' },
+        });
+        expect(res.statusCode).toBe(200);
+        const body = res.json();
+        expect(body.success).toBe(true);
+        expect(body.data.method).toBe('rebase');
+        const sha: string = body.data.mergeCommitSha;
+        expect(sha).toMatch(/^[0-9a-f]{40}$/i);
+        // Linear: exactly 2 new commits since the base, each single-parent —
+        // no merge commit anywhere in the replay.
+        const { stdout: countOut } = await git(['rev-list', '--count', `${baseSha}..${sha}`], bare);
+        expect(countOut.trim()).toBe('2');
+        const { stdout: revOut } = await git(['rev-list', '--reverse', `${baseSha}..${sha}`], bare);
+        for (const c of revOut.trim().split('\n')) {
+          const { stdout: pOut } = await git(['cat-file', '-p', c.trim()], bare);
+          expect(pOut.split('\n').filter((l) => l.startsWith('parent '))).toHaveLength(1);
+        }
+        // Final tree is IDENTICAL to the head tree — nothing lost, nothing added.
+        const { stdout: tipTree } = await git(['rev-parse', `${sha}^{tree}`], bare);
+        const { stdout: headTree } = await git(['rev-parse', `${headSha}^{tree}`], bare);
+        expect(tipTree.trim()).toBe(headTree.trim());
+        // Commit messages (and order) preserved from the branch.
+        const { stdout: msgs } = await git(['log', '--format=%s', `${baseSha}..${sha}`], bare);
+        expect(msgs.trim().split('\n')).toEqual(['second change', 'clean change']);
+        // Target ref genuinely moved to the replay tip.
+        const { stdout: refOut } = await git(['rev-parse', 'refs/heads/main'], bare);
+        expect(refOut.trim()).toBe(sha);
+      } finally {
+        await destroyMergeFixture();
+      }
+    });
+
+    it("POST /repos/:id/pulls/:number/merge with no method (backward compat) still creates a two-parent merge commit", async () => {
+      const gitRoot = await ensureMergeFixture();
+      const bare = join(gitRoot, 'user-1', 'Quant-Ecosystem.git');
+      try {
+        const app = await buildApp();
+        const res = await app.inject({
+          method: 'POST',
+          url: '/repos/repo-1/pulls/1/merge',
+          payload: {},
+        });
+        expect(res.statusCode).toBe(200);
+        const body = res.json();
+        expect(body.success).toBe(true);
+        expect(body.data.method).toBe('merge');
+        const sha: string = body.data.mergeCommitSha;
+        const { stdout: catOut } = await execFileAsync('git', ['cat-file', '-p', sha], {
+          cwd: bare,
+        });
+        expect(catOut.split('\n').filter((l) => l.startsWith('parent '))).toHaveLength(2);
+      } finally {
+        await destroyMergeFixture();
+      }
+    });
+
+    it('POST /repos/:id/pulls/:number/merge rejects an unknown method with 400 INVALID_MERGE_METHOD and leaves the PR open', async () => {
+      const gitRoot = await ensureMergeFixture();
+      const bare = join(gitRoot, 'user-1', 'Quant-Ecosystem.git');
+      try {
+        const { stdout: beforeOut } = await execFileAsync(
+          'git',
+          ['rev-parse', 'refs/heads/main'],
+          { cwd: bare },
+        );
+        const before = beforeOut.trim();
+        const app = await buildApp();
+        const res = await app.inject({
+          method: 'POST',
+          url: '/repos/repo-1/pulls/1/merge',
+          payload: { method: 'upsert' },
+        });
+        expect(res.statusCode).toBe(400);
+        const body = res.json();
+        expect(body.success).toBe(false);
+        expect(body.error.code).toBe('INVALID_MERGE_METHOD');
+        expect(body.error.message).toContain('merge, squash, rebase');
+        // Nothing persisted: PR not marked merged, branch ref untouched.
+        expect(prisma.pullRequest.update).not.toHaveBeenCalled();
+        const { stdout: afterOut } = await execFileAsync(
+          'git',
+          ['rev-parse', 'refs/heads/main'],
+          { cwd: bare },
+        );
+        expect(afterOut.trim()).toBe(before);
+      } finally {
+        await destroyMergeFixture();
+      }
+    });
+  });
+
   it('GET /repos/:id/actions returns CI runs', async () => {
     const app = await buildApp();
     const res = await app.inject({

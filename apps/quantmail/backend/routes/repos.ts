@@ -110,6 +110,164 @@ async function resolveGitRefSha(repoPath: string, branch: string): Promise<strin
   }
 }
 
+// ---------------------------------------------------------------------------
+// PR merge methods. The QuantGit merge box lets the user pick merge / squash /
+// rebase and POSTs { method }. The backend must HONOR the pick: every method
+// below performs a REAL git operation — a decorative picker that silently
+// lands a merge commit for all three is a lie (P1: squash/rebase picker).
+// Unknown method values are rejected (400) instead of silently merging.
+// ---------------------------------------------------------------------------
+const mergeMethodSchema = z.enum(['merge', 'squash', 'rebase']).optional().default('merge');
+type MergeMethod = z.infer<typeof mergeMethodSchema>;
+
+const SHA40_RE = /^[0-9a-f]{40}$/i;
+
+/** Run `git commit-tree` with the given parents and message. Never lets a
+ *  malformed/fake SHA through — a real commit-tree always yields 40 hex. */
+async function gitCommitTree(
+  repoPath: string,
+  treeSha: string,
+  parents: string[],
+  message: string,
+  extraEnv: NodeJS.ProcessEnv = {},
+): Promise<string> {
+  const args = ['commit-tree', treeSha];
+  for (const parent of parents) args.push('-p', parent);
+  args.push('-m', message);
+  const { stdout } = await execFileAsync('git', args, {
+    cwd: repoPath,
+    env: { ...GIT_CHILD_ENV, ...extraEnv },
+  });
+  const sha = stdout.trim();
+  if (!SHA40_RE.test(sha)) {
+    throw createAppError(
+      'Merge produced an invalid commit SHA. No merge was recorded and the pull request remains open.',
+      500,
+      'MERGE_INVALID_SHA',
+    );
+  }
+  return sha;
+}
+
+/**
+ * Rebase-merge: replay every head-branch commit (oldest first) onto the base,
+ * preserving each commit's message, author, and committer — real linear
+ * history, never a merge commit. Cherry-pick semantics per commit: a 3-way
+ * tree merge of (origParent → tip) with (origParent → commit) via
+ * `git merge-tree --write-tree --merge-base=<origParent>`.
+ *
+ * Conflict honesty: --write-tree exits non-zero on conflict and lists staged
+ * conflict entries; we NEVER guess at resolution — the PR stays open and a
+ * 409 MERGE_CONFLICT is returned. Non-linear head history (merge commits in
+ * the range) is rejected honestly too: replaying a merge commit as a single
+ * parent would silently drop its second-parent changes.
+ */
+async function rebaseCommitsOnto(
+  repoPath: string,
+  baseSha: string,
+  headSha: string,
+): Promise<string> {
+  const run = (args: string[]) => execFileAsync('git', args, { cwd: repoPath, env: GIT_CHILD_ENV });
+
+  const { stdout: mbOut } = await run(['merge-base', baseSha, headSha]);
+  const mergeBase = mbOut.trim();
+
+  const { stdout: revOut } = await run([
+    'rev-list',
+    '--parents',
+    '--reverse',
+    `${mergeBase}..${headSha}`,
+  ]);
+  const commits = revOut
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (commits.length === 0) {
+    // The head adds nothing on top of the base (already contained) — the
+    // target ref is already correct; nothing new to write.
+    return baseSha;
+  }
+
+  let tip = baseSha;
+  for (const line of commits) {
+    const [sha, ...parentShas] = line.split(/\s+/);
+    const shortSha = sha.slice(0, 7);
+    if (parentShas.length > 1) {
+      throw createAppError(
+        `Rebase merge cannot replay merge commit ${shortSha} — the head branch has a non-linear history. Use "Merge pull request" or "Squash and merge" instead.`,
+        409,
+        'REBASE_NONLINEAR_HISTORY',
+      );
+    }
+    const origParent = parentShas[0] ?? null;
+
+    // Preserve the original commit identity (message, author, committer).
+    const { stdout: metaOut } = await run([
+      'log',
+      '-1',
+      '--format=%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%B',
+      sha,
+    ]);
+    const [authorName, authorEmail, authorDate, committerName, committerEmail, committerDate, ...msgParts] =
+      metaOut.split('\0');
+    const message = msgParts.join(' ').replace(/\n+$/, '') || `replay of ${sha}`;
+
+    let treeSha: string;
+    if (!origParent) {
+      // Parentless (root) commit: no 3-way base exists; replay its own tree.
+      const { stdout: treeOut } = await run(['rev-parse', `${sha}^{tree}`]);
+      treeSha = treeOut.trim();
+    } else {
+      let mtStdout = '';
+      try {
+        const res = await run([
+          'merge-tree',
+          '--write-tree',
+          '--no-messages',
+          `--merge-base=${origParent}`,
+          tip,
+          sha,
+        ]);
+        mtStdout = res.stdout;
+      } catch (err: any) {
+        const out = typeof err?.stdout === 'string' ? err.stdout : '';
+        if (/ [123]\t/.test(out)) {
+          throw createAppError(
+            `Rebase merge conflict while replaying commit ${shortSha}. No commit was created and the pull request remains open.`,
+            409,
+            'MERGE_CONFLICT',
+          );
+        }
+        throw createAppError(
+          `Rebase merge failed while replaying commit ${shortSha} — the tree merge did not complete. No commit was created and the pull request remains open.`,
+          500,
+          'REBASE_REPLAY_FAILED',
+        );
+      }
+      const first = mtStdout.trim().split('\n')[0]?.trim() ?? '';
+      if (!SHA40_RE.test(first)) {
+        throw createAppError(
+          `Rebase merge failed while replaying commit ${shortSha} — no usable tree was produced. No commit was created and the pull request remains open.`,
+          500,
+          'REBASE_REPLAY_FAILED',
+        );
+      }
+      treeSha = first;
+    }
+
+    tip = await gitCommitTree(repoPath, treeSha, [tip], message, {
+      GIT_AUTHOR_NAME: authorName,
+      GIT_AUTHOR_EMAIL: authorEmail,
+      GIT_AUTHOR_DATE: authorDate,
+      GIT_COMMITTER_NAME: committerName,
+      GIT_COMMITTER_EMAIL: committerEmail,
+      GIT_COMMITTER_DATE: committerDate,
+    });
+  }
+  return tip;
+}
+
 const repoNameSchema = z
   .string()
   .min(1)
@@ -2461,7 +2619,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.post<{ Params: { id: string; number: string } }>(
+  fastify.post<{ Params: { id: string; number: string }; Body: { method?: unknown } }>(
     '/:id/pulls/:number/merge',
     async (request, reply) => {
       const repo = await loadWritableRepo(request, request.params.id);
@@ -2477,6 +2635,21 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       if (pr.status === 'MERGED') {
         throw createAppError('Pull request is already merged', 409, 'PR_ALREADY_MERGED');
       }
+
+      // Honor the merge-method picker: the QuantGit merge box POSTs
+      // { method: 'merge' | 'squash' | 'rebase' }. Unknown values are rejected
+      // honestly (400) — never silently merged as a merge commit.
+      const parsedMethod = mergeMethodSchema.safeParse(
+        (request.body as { method?: unknown } | undefined)?.method,
+      );
+      if (!parsedMethod.success) {
+        throw createAppError(
+          'Invalid merge method. Expected one of: merge, squash, rebase.',
+          400,
+          'INVALID_MERGE_METHOD',
+        );
+      }
+      const mergeMethod: MergeMethod = parsedMethod.data;
 
       // Check BranchProtection rules on target branch (Task G05)
       const protectionRule = await getBranchProtectionRule(prisma, repo.id, pr.targetBranch);
@@ -2559,7 +2732,9 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       let newCommitSha: string;
 
       {
-        // 1. git merge-tree <baseSha> <headSha>
+        // 1. git merge-tree <baseSha> <headSha> — honest conflict pre-check for
+        //    ALL methods: squash and merge produce exactly this tree, and
+        //    rebase re-checks each replayed commit below.
         let mergeTreeStdout = '';
         try {
           const res = await execFileAsync('git', ['merge-tree', baseSha, headSha], {
@@ -2576,26 +2751,25 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         }
 
         const treeSha = mergeTreeStdout.trim().split('\n')[0].trim();
-        if (!/^[0-9a-f]{40}$/i.test(treeSha)) {
+        if (!SHA40_RE.test(treeSha)) {
           throw createAppError('Merge conflict detected', 409, 'MERGE_CONFLICT');
         }
 
-        // 2. git commit-tree <treeSha> -p <baseSha> -p <headSha> -m "..."
-        const commitMsg = `Merge pull request #${pr.number} from ${pr.sourceBranch} into ${pr.targetBranch}`;
-        const { stdout: commitStdout } = await execFileAsync(
-          'git',
-          ['commit-tree', treeSha, '-p', baseSha, '-p', headSha, '-m', commitMsg],
-          { cwd: repoPath, env: GIT_CHILD_ENV },
-        );
-        newCommitSha = commitStdout.trim();
-        // Never let a malformed/fake SHA through — a real commit-tree
-        // always yields a 40-hex object id.
-        if (!/^[0-9a-f]{40}$/i.test(newCommitSha)) {
-          throw createAppError(
-            'Merge produced an invalid commit SHA. No merge was recorded and the pull request remains open.',
-            500,
-            'MERGE_INVALID_SHA',
-          );
+        // 2. Perform the merge method the user actually picked.
+        if (mergeMethod === 'squash') {
+          // Squash: ONE commit on top of the base carrying the merged tree —
+          // a single parent, never a merge commit.
+          const prBody = typeof pr.body === 'string' ? pr.body.trim() : '';
+          const squashMsg = prBody ? `${pr.title}\n\n${prBody}` : pr.title;
+          newCommitSha = await gitCommitTree(repoPath, treeSha, [baseSha], squashMsg);
+        } else if (mergeMethod === 'rebase') {
+          // Rebase: replay each head commit onto the base (linear history,
+          // messages/authors preserved). Never a merge commit.
+          newCommitSha = await rebaseCommitsOnto(repoPath, baseSha, headSha);
+        } else {
+          // 2. git commit-tree <treeSha> -p <baseSha> -p <headSha> -m "..."
+          const commitMsg = `Merge pull request #${pr.number} from ${pr.sourceBranch} into ${pr.targetBranch}`;
+          newCommitSha = await gitCommitTree(repoPath, treeSha, [baseSha, headSha], commitMsg);
         }
 
         // 3. git update-ref refs/heads/${pr.targetBranch} <newCommitSha> <baseSha>
@@ -2650,6 +2824,9 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           createdAt: merged.createdAt.toISOString(),
           mergedAt: merged.mergedAt?.toISOString() ?? mergedAt.toISOString(),
           mergeCommitSha: newCommitSha,
+          // The merge method the backend actually performed — the client
+          // must render this, not just echo its own request.
+          method: mergeMethod,
           // Diff stats are NOT measured on the merge path (merge-tree only
           // builds the tree, it never runs numstat) — report explicit
           // unknown (null) instead of invented zeros; see the #960 discipline
