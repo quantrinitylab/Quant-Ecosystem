@@ -64,6 +64,7 @@ import {
   threadKindMix,
   threadParticipants,
 } from '../lib/threading';
+import { receiptStatusOf } from '../lib/readReceipt';
 import { looksLikeMarkdown, useSafeMarkdownHtml } from '../lib/markdown';
 import { formatDetailDate } from '../lib/honest-date';
 import { invalidateMailLists } from '../lib/offline/folders';
@@ -264,42 +265,6 @@ function formatFullDate(value?: string | Date): string {
   // QM-FIX: never leak "Invalid Date" into the hover tooltip either.
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleString();
-}
-
-/**
- * Read-receipt status for a message bubble, WhatsApp-style.
- *
- * Ticks only ever appear on YOUR messages (outbound) — inbound rows never get
- * them, exactly like a messaging app. Self-sends (notes to yourself) never get
- * them either: the only reader is the sender, so the ticks would say nothing.
- *
- * Backed by the read-receipt pipeline: `deliveredAt` is stamped when the
- * message reaches the recipient's mailbox (internal delivery) or the outbound
- * transport accepts it (external), and `readAt` is stamped on your sent copy
- * when a recipient opens the thread (POST /threads/:id/read). Single grey =
- * sent, double grey = delivered, double green = read.
- */
-function receiptStatusOf(
-  message: Email,
-  isOutbound: boolean,
-  viewerEmail?: string | null,
-): { status: 'sent' | 'delivered' | 'read' | 'unknown'; readAt?: string; deliveredAt?: string } | null {
-  if (!isOutbound) return null;
-  // BB-P2-5: a note to self is outbound, but a read receipt on it says
-  // nothing — the only reader is the sender. Suppress the ticks when every
-  // recipient is the viewer.
-  if (viewerEmail) {
-    const me = viewerEmail.toLowerCase();
-    const recipients = (message.to ?? [])
-      .map((t) => String(t?.email ?? '').toLowerCase())
-      .filter(Boolean);
-    if (recipients.length > 0 && recipients.every((r) => r === me)) return null;
-  }
-  const readAt = message.readAt ? String(message.readAt) : undefined;
-  const deliveredAt = message.deliveredAt ? String(message.deliveredAt) : undefined;
-  if (readAt) return { status: 'read', readAt, deliveredAt };
-  if (deliveredAt) return { status: 'delivered', deliveredAt };
-  return { status: 'sent' };
 }
 
 /*

@@ -19,6 +19,8 @@ import { htmlToPlainText } from '../lib/htmlToPlainText';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailSafetyBanner } from './EmailSafetyBanner';
 import { AttachmentPreview } from './AttachmentPreview';
+import { EmailReadReceipt } from './EmailReadReceipt';
+import { receiptStatusOf } from '../lib/readReceipt';
 import { attachmentServiceId } from '../lib/mail-attachments';
 import { showToast } from './InboxToast';
 import { useRegisterCommands } from '../lib/keyboard/hooks';
@@ -111,6 +113,15 @@ function MessageRow({
   // P1-C: optimistic bubble still in flight — show "Sending…" instead of a
   // timestamp until the refetch confirms it.
   const isPendingSend = (message as { pendingSend?: boolean }).pendingSend === true;
+  /*
+   * fix/qm-personthread-read-ticks — WhatsApp-style read ticks on YOUR sent
+   * messages (shared receiptStatusOf with ConversationalThreadView: single
+   * grey = sent, double grey = delivered, double green = read). The default
+   * people thread never rendered them, so sent mail here carried no
+   * delivery/read state. Inbound rows and notes-to-self get none, exactly
+   * like a messaging app.
+   */
+  const receipt = receiptStatusOf(message, fromMe, currentUserEmail);
   const visibleText = expanded || !isLong ? fullText : `${fullText.slice(0, SNIPPET_LENGTH).trimEnd()}…`;
   const attachments = message.attachments ?? [];
 
@@ -210,7 +221,7 @@ function MessageRow({
               />
             </div>
           )}
-          <div className="mt-1 text-right text-[11px] text-zinc-500">
+          <div className="mt-1 flex items-center justify-end gap-1.5 text-right text-[11px] text-zinc-500">
             {isPendingSend ? (
               <span className="inline-flex items-center gap-1" aria-label="Sending">
                 <span
@@ -220,7 +231,22 @@ function MessageRow({
                 Sending…
               </span>
             ) : (
-              formatMessageTime(message.receivedAt)
+              <>
+                <span>{formatMessageTime(message.receivedAt)}</span>
+                {/*
+                  Read ticks (fix/qm-personthread-read-ticks): suppressed while
+                  the send is still in flight — a "sent" tick on an unsent
+                  message would lie about its state; the Sending… spinner is
+                  the honest in-flight indicator.
+                */}
+                {receipt && (
+                  <EmailReadReceipt
+                    status={receipt.status}
+                    readAt={receipt.readAt}
+                    deliveredAt={receipt.deliveredAt}
+                  />
+                )}
+              </>
             )}
           </div>
         </div>
