@@ -1812,7 +1812,6 @@ export interface AiMemoryItem {
 
 export interface DriveAiMemorySubViewProps {
   className?: string;
-  onRecallInChat?: (memory: AiMemoryItem) => void;
   onForgetMemory?: (memory: AiMemoryItem) => void;
   /** Canonical memory projections supplied by the memory API. No demo records are generated here. */
   memories?: AiMemoryItem[];
@@ -1820,7 +1819,6 @@ export interface DriveAiMemorySubViewProps {
 
 export function DriveAiMemorySubView({
   className = '',
-  onRecallInChat,
   onForgetMemory,
   memories = [],
 }: DriveAiMemorySubViewProps) {
@@ -2077,6 +2075,11 @@ export function DriveAiMemorySubView({
                 )}
 
                 <div className="flex items-center justify-end gap-2 pt-1">
+                  {/* Recall-in-chat is NOT wired yet: the button was removed
+                      (2026-10-19) after it fired a fake "Recalled context"
+                      success toast without opening any chat, navigation, or
+                      API call. Re-add a recall action only when it genuinely
+                      hands the memory context to QuantAI chat. */}
                   {onForgetMemory && (
                     <button
                       type="button"
@@ -2086,23 +2089,6 @@ export function DriveAiMemorySubView({
                       Forget
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => onRecallInChat?.(mem)}
-                    disabled={!onRecallInChat}
-                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)] text-xs font-semibold text-[var(--app-accent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <span>Recall Context</span>
-                    <svg
-                      className="size-3"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </button>
                 </div>
               </div>
             );
