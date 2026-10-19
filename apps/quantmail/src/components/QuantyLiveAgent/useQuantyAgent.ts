@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { browserAuthSession } from '../../services/browser-auth-session';
+import { useI18n } from '../../i18n';
 import type {
   QuantyStreamEvent,
   QuantySubmitResponse,
@@ -42,6 +43,24 @@ const RUNNING_STATUSES: ReadonlySet<QuantyTaskStatus> = new Set([
 ]);
 
 /**
+ * Localized copy for the Quanty agent client's user-surfaced errors (qm-auto
+ * findings-queue P2): error messages thrown/set by the hook follow the app
+ * locale (English default, Devanagari for 'hi') — no Roman-script Hinglish
+ * for English-UI users. Same convention as the drawer's quantyDraftSendCopy /
+ * quantyConfirmCardCopy (PR #868). Exported for tests.
+ */
+export function quantyAgentCopy(locale: 'en' | 'hi') {
+  const hi = locale === 'hi';
+  return {
+    /** Thrown by submitCommand when the command is empty. */
+    emptyCommand: hi ? 'कमांड खाली है' : 'Command cannot be empty',
+    /** Set/thrown by submitCommand when the tasks API request fails. */
+    submitFailed: (status: number) =>
+      hi ? `Quanty से बात नहीं हो पाई (HTTP ${status})` : `Could not reach Quanty (HTTP ${status})`,
+  };
+}
+
+/**
  * Client for the Quanty agentic backend.
  *
  * Contract (backend lands separately):
@@ -61,6 +80,11 @@ export function useQuantyAgent(options: UseQuantyAgentOptions = {}): UseQuantyAg
   const apiBase = options.apiBase ?? '/api/quanty/tasks';
   const [task, setTask] = useState<QuantyTask | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // qm-auto findings-queue P2: user-surfaced error copy follows the app
+  // locale (English default) — the same quantyDraftSendCopy convention as the
+  // CopilotDrawer send path.
+  const { locale } = useI18n();
+  const agentCopy = useMemo(() => quantyAgentCopy(locale), [locale]);
   const streamAbortRef = useRef<AbortController | null>(null);
   const taskIdRef = useRef<string | null>(null);
   // Mirror of the task for the stream loop: reconnect decisions must read the
@@ -191,7 +215,7 @@ export function useQuantyAgent(options: UseQuantyAgentOptions = {}): UseQuantyAg
   const submitCommand = useCallback(
     async (command: string): Promise<string> => {
       const trimmed = command.trim();
-      if (!trimmed) throw new Error('Command khaali hai');
+      if (!trimmed) throw new Error(agentCopy.emptyCommand);
       setError(null);
       // Authenticated: the backend reads request.auth?.userId and answers 401
       // without an Authorization header (this is why voice-panel commands
@@ -202,7 +226,7 @@ export function useQuantyAgent(options: UseQuantyAgentOptions = {}): UseQuantyAg
         body: JSON.stringify({ command: trimmed }),
       });
       if (!res.ok) {
-        const message = `Quanty se baat nahi ho payi (HTTP ${res.status})`;
+        const message = agentCopy.submitFailed(res.status);
         setError(message);
         throw new Error(message);
       }
@@ -220,7 +244,7 @@ export function useQuantyAgent(options: UseQuantyAgentOptions = {}): UseQuantyAg
       openStream(taskId);
       return taskId;
     },
-    [apiBase, openStream],
+    [apiBase, openStream, agentCopy],
   );
 
   const postAction = useCallback(

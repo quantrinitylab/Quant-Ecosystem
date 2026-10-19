@@ -27,6 +27,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   buildQuantyDraftSendNow,
+  quantyConfirmCardCopy,
   quantyDraftSendCopy,
   type QuantyDraftSendDeps,
 } from '../QuantyCopilotDrawer';
@@ -237,10 +238,71 @@ describe('quantyDraftSendCopy: locale-following send-state copy', () => {
     expect(copy.scheduledToast('a@b.c')).toMatch(/शेड्यूल हो गया/);
   });
 
+  it('cancel/undo assistant notes follow the locale too (same send-state surface)', () => {
+    const en = quantyDraftSendCopy('en');
+    expect(en.sendCancelledNote).toBe('Send cancelled — nothing was sent.');
+    expect(en.draftCancelledNote).toBe('Draft discarded — nothing was sent.');
+    expect(`${en.sendCancelledNote} ${en.draftCancelledNote}`).not.toMatch(
+      /kar diya|kuch nahi|bheja/i,
+    );
+    const hi = quantyDraftSendCopy('hi');
+    expect(hi.sendCancelledNote).toBe('भेजना रद्द कर दिया — कुछ नहीं भेजा गया।');
+    expect(hi.draftCancelledNote).toBe('ड्राफ्ट रद्द कर दिया — कुछ नहीं भेजा गया।');
+  });
+
   it('scheduled copy is honest: "scheduled", never "sent"/"delivered"', () => {
     const copy = quantyDraftSendCopy('en');
     expect(copy.scheduledNote('a@b.c')).toMatch(/Scheduled/);
     expect(copy.scheduledNote('a@b.c')).not.toMatch(/delivered/i);
     expect(copy.scheduledToast('a@b.c')).toMatch(/Email scheduled/);
+  });
+});
+
+describe('quantyConfirmCardCopy: locale-following confirmation-card copy', () => {
+  // qm-auto findings-queue P2: the send-confirmation card hardcoded Roman
+  // Hinglish ("Email bhejne se pehle confirm karein" aria-label, "Bhejne se
+  // pehle dekhein" heading, "Bheja ja raha…" button) mixed with the English
+  // "Send" label. Every string now flows through this copy map — English
+  // default, Devanagari for 'hi' (PR #868 convention).
+  it('English default has no Hinglish/Roman-script Hindi', () => {
+    const copy = quantyConfirmCardCopy('en');
+    const all = [
+      copy.groupAriaLabel,
+      copy.heading,
+      copy.unknownRecipient,
+      copy.noSubject,
+      copy.emptyBody,
+      copy.invalidRecipientAlert,
+      copy.sendIdle,
+      copy.sendBusy,
+    ].join(' ');
+    expect(all).not.toMatch(/bhej|khaali|pata|karein|dobara|nahi|dekhein/i);
+    expect(copy.groupAriaLabel).toBe('Confirm before sending the email');
+    expect(copy.sendIdle).toBe('Send');
+    expect(copy.sendBusy).toBe('Sending…');
+  });
+
+  it('Hindi locale uses Devanagari (no Roman Hinglish)', () => {
+    const copy = quantyConfirmCardCopy('hi');
+    expect(copy.groupAriaLabel).toBe('ईमेल भेजने से पहले पुष्टि करें');
+    expect(copy.heading).toBe('भेजने से पहले देखें');
+    expect(copy.sendIdle).toBe('भेजें');
+    expect(copy.sendBusy).toBe('भेजा जा रहा…');
+    expect(copy.invalidRecipientAlert).toMatch(/Quanty/);
+  });
+
+  it('the card JSX wires cardCopy — no hardcoded aria-label or button strings', () => {
+    const drawerSource = readFileSync(
+      join(import.meta.dirname, '../QuantyCopilotDrawer.tsx'),
+      'utf8',
+    );
+    expect(drawerSource).not.toContain('Email bhejne se pehle confirm karein');
+    expect(drawerSource).not.toContain('Bhejne se pehle dekhein');
+    expect(drawerSource).not.toContain("'Bheja ja raha…'");
+    expect(drawerSource).not.toContain('(pata nahi)');
+    expect(drawerSource).not.toContain('(koi subject nahi)');
+    expect(drawerSource).not.toContain('(khaali body)');
+    expect(drawerSource).toContain('aria-label={cardCopy.groupAriaLabel}');
+    expect(drawerSource).toContain('{draftSending ? cardCopy.sendBusy : cardCopy.sendIdle}');
   });
 });
