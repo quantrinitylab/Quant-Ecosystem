@@ -316,6 +316,36 @@ const LOAD_MORE_STEP = 50;
 /** Within this many px of the bottom, new messages auto-scroll (P1-A). */
 const NEAR_BOTTOM_PX = 120;
 
+/**
+ * NaN-guard for the chronological sort — sister to the formatMessageTime /
+ * dayKey / formatDayDivider guards from fix/qm-invalid-date-guard (#874).
+ * An unparseable receivedAt maps to -Infinity so it sorts deterministically
+ * to the START of the thread: never into the visible 50-message tail
+ * window (which renders the newest end), and always behind the
+ * "Load earlier messages" reveal. Valid timestamps are unaffected.
+ */
+export function messageSortTime(receivedAt: Date | string): number {
+  const date = receivedAt instanceof Date ? receivedAt : new Date(receivedAt);
+  const t = date.getTime();
+  return Number.isNaN(t) ? Number.NEGATIVE_INFINITY : t;
+}
+
+/**
+ * Total-order chronological comparator with a stable id tie-break.
+ * Uses three-way comparison — never subtraction — so the comparator
+ * always returns a real number and the sort contract (antisymmetry,
+ * transitivity) holds for every input pair, including when both
+ * timestamps are invalid. (Note: -Infinity - -Infinity is NaN, which
+ * is exactly the contract violation this fix removes.)
+ */
+export function compareMessagesChronologically(a: Email, b: Email): number {
+  const ta = messageSortTime(a.receivedAt);
+  const tb = messageSortTime(b.receivedAt);
+  if (ta < tb) return -1;
+  if (ta > tb) return 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
 export function PersonThread({
   conversation,
   currentUserEmail,
@@ -327,9 +357,10 @@ export function PersonThread({
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_MESSAGES);
   const prevLengthRef = useRef<number | null>(null);
 
-  const messages = [...(conversation.messages ?? [])].sort(
-    (a, b) => new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime(),
-  );
+  // NaN-guard comparator (messageSortTime/compareMessagesChronologically):
+  // an unparseable receivedAt sorts to the start of the thread so the
+  // visible 50-message tail window never clips real messages around it.
+  const messages = [...(conversation.messages ?? [])].sort(compareMessagesChronologically);
 
   /*
    * fix/qm-calendar-nlp-quickadd — one-key event-from-email. Same draft
