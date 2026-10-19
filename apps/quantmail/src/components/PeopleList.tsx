@@ -42,6 +42,15 @@ export interface PeopleListProps {
   onLoadMore?: () => void;
   hasMore?: boolean;
   loadingMore?: boolean;
+  /**
+   * The `j`/`k` cursor from `usePeopleKeyboard`: the personKey of the
+   * focused row, or null. Focused rows get the `is-focused` ring and
+   * `aria-current`; rows stay non-tab-stops because the keys (not Tab) are
+   * the navigation here.
+   */
+  focusedPersonKey?: string | null;
+  /** Keep the keyboard cursor in sync with the pointer (hover = focus). */
+  onRowFocus?: (personKey: string) => void;
 }
 
 const MAIL_ACCENT = APP_THEMES.mail.accent;
@@ -82,8 +91,12 @@ export function formatRelativeTime(at: Date): string {
  * Case-insensitive filter over name, email, and every message's subject and
  * snippet. Tokens are ANDed — each word narrows the list — matching the
  * behaviour of `threadMatchesQuery` in `lib/threading`.
+ *
+ * Exported because PeopleHome applies it when computing the keyboard rows:
+ * the `j`/`k` hook must see exactly the rows rendered, not the unfiltered
+ * world list, or cursor and action address different conversations.
  */
-function conversationMatchesQuery(c: PersonConversation, query: string): boolean {
+export function conversationMatchesQuery(c: PersonConversation, query: string): boolean {
   const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return true;
   const haystack = [c.name, c.email, ...c.messages.flatMap((m) => [m.subject || '', m.snippet || ''])]
@@ -117,6 +130,8 @@ export function PeopleList({
   onLoadMore,
   hasMore = false,
   loadingMore = false,
+  focusedPersonKey = null,
+  onRowFocus,
 }: PeopleListProps) {
   const visible = useMemo(
     () => conversations.filter((c) => conversationMatchesQuery(c, searchQuery)),
@@ -175,16 +190,25 @@ export function PeopleList({
           <ul className="pb-4">
           {visible.map((c) => {
             const unread = c.unreadCount > 0;
+            const isFocused = focusedPersonKey !== null && focusedPersonKey === c.personKey;
             // Paperclip signal: any message in this conversation carrying
             // attachments. Real rows only — never inferred, never faked.
             const hasAttachments = c.messages.some((m) => (m.attachments ?? []).length > 0);
             return (
-              <li key={c.personKey}>
+              <li
+                key={c.personKey}
+                data-person-key={c.personKey}
+                // The `j`/`k` cursor: `aria-current` is what says "this is
+                // the one" to a screen reader; the `is-focused` class beside
+                // it only says that to an eye.
+                aria-current={isFocused ? 'true' : undefined}
+              >
                 <button
                   type="button"
                   onClick={() => onSelect(c)}
+                  onMouseEnter={() => onRowFocus?.(c.personKey)}
                   aria-label={unread ? `${c.name}, ${c.unreadCount} unread` : c.name}
-                  className="people-row flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.04] active:bg-white/[0.07]"
+                  className={`people-row flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.04] active:bg-white/[0.07]${isFocused ? ' is-focused' : ''}`}
                 >
                   <IdentityAvatar name={c.name || c.email} size="md" className="people-row-avatar" />
                   <span className="min-w-0 flex-1">

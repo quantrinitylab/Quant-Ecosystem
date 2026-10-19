@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from './AppShell';
 import { AppSidebar } from './AppSidebar';
 import { useInbox } from '../hooks/useInbox';
+import { useMailMutations } from '../hooks/useMailMutations';
+import { usePeopleKeyboard } from '../hooks/usePeopleKeyboard';
 import { useAuth } from '../providers/auth-provider';
 import {
   groupEmailsByPerson,
@@ -12,7 +14,7 @@ import {
   type PersonConversation,
 } from '../lib/peopleGrouping';
 import { PeopleWorldTabs } from './PeopleWorldTabs';
-import { PeopleList } from './PeopleList';
+import { PeopleList, conversationMatchesQuery } from './PeopleList';
 import { PeopleDueReminders } from './PeopleDueReminders';
 import { MailboxViewToggle } from './MailboxViewToggle';
 
@@ -57,6 +59,7 @@ export function PeopleHome() {
     hasMore,
     isLoadingMore,
   } = useInbox(isSpamLens ? { folderType: 'SPAM' } : undefined);
+  const mutations = useMailMutations();
   const [searchQuery, setSearchQuery] = useState('');
 
   const conversations = useMemo<PersonConversation[]>(
@@ -85,6 +88,72 @@ export function PeopleHome() {
     router.push(isSpamLens ? `${path}?lens=spam` : path);
   };
 
+  /**
+   * The rows the keyboard acts on: world-filtered AND search-filtered, in the
+   * order rendered. Handing the hook the same array the list renders (rather
+   * than the unfiltered `visible`) is what keeps `j` and `e` addressing the
+   * same row — the mismatch the old inbox hook was rebuilt to kill.
+   */
+  const keyboardRows = useMemo(
+    () => visible.filter((conversation) => conversationMatchesQuery(conversation, searchQuery)),
+    [visible, searchQuery],
+  );
+
+  // Scroll the list container so the `j`/`k` cursor never leaves the
+  // viewport. Rows carry `data-person-key`; the personKey is escaped for the
+  // attribute selector rather than trusting it to be selector-safe.
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const keyboardRowsRef = useRef(keyboardRows);
+  useEffect(() => {
+    keyboardRowsRef.current = keyboardRows;
+  });
+  const scrollToIndex = useCallback((index: number) => {
+    const row = keyboardRowsRef.current[index];
+    const container = listScrollRef.current;
+    if (!row || !container) return;
+    const escaped = row.personKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const el = container.querySelector(`[data-person-key="${escaped}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, []);
+
+  /**
+   * Superhuman-style keyboard triage on the People home (j/k move, Enter
+   * open, e done, s star, u read/unread, # trash, r reply, f forward,
+   * c compose, z undo, / search). Previously these keys were bound only on
+   * the legacy `?view=inbox` surface; the default People home had nothing.
+   */
+  const { focusedId, focusRow } = usePeopleKeyboard({
+    rows: keyboardRows,
+    onOpen: handleSelect,
+    mutations,
+    scrollToIndex,
+    onCompose: () => router.push('/compose'),
+  });
+
+  /**
+   * The `j`/`k` cursor, said out loud. Rows are not tab stops (navigation
+   * here is the keys, not Tab), so DOM focus never moves and a screen reader
+   * would otherwise hear nothing when the cursor advances. `aria-current` on
+   * the focused row (see PeopleList) makes it identifiable; this announces
+   * the move. Keyed on personKey, silent on mount.
+   */
+  const [cursorAnnouncement, setCursorAnnouncement] = useState('');
+  const announcedCursorRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (focusedId === announcedCursorRef.current) return;
+    announcedCursorRef.current = focusedId;
+    if (focusedId === null) {
+      setCursorAnnouncement('');
+      return;
+    }
+    const index = keyboardRows.findIndex((c) => c.personKey === focusedId);
+    if (index === -1) return;
+    const conversation = keyboardRows[index];
+    const tail = [`${index + 1} of ${keyboardRows.length}`];
+    if (conversation.unreadCount > 0) tail.unshift(`${conversation.unreadCount} unread`);
+    setCursorAnnouncement(`${conversation.name}. ${tail.join(', ')}`);
+  }, [focusedId, keyboardRows]);
+
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell" aria-label="QuantMail people">
       <div className="flex h-full flex-col bg-black">
@@ -112,7 +181,10 @@ export function PeopleHome() {
           <PeopleWorldTabs world={world} onChange={setWorld} counts={counts} />
         </div>
 
-        <div className="mt-2 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
+        <div ref={listScrollRef} className="mt-2 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
+          <p className="sr-only" role="status" aria-live="polite">
+            {cursorAnnouncement}
+          </p>
           {isError ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
               <p className="text-sm font-semibold text-white">Couldn&apos;t load your conversations</p>
@@ -150,7 +222,7 @@ export function PeopleHome() {
                 <PeopleDueReminders conversations={conversations} onSelect={handleSelect} />
               )}
               <PeopleList
-                conversations={visible}
+                conversations={keyboardRows}
                 onSelect={handleSelect}
                 searchQuery={searchQuery}
                 onSearchQuery={setSearchQuery}
@@ -158,6 +230,8 @@ export function PeopleHome() {
                 onLoadMore={() => void loadMore()}
                 hasMore={hasMore}
                 loadingMore={isLoadingMore}
+                focusedPersonKey={focusedId}
+                onRowFocus={focusRow}
               />
             </>
           )}

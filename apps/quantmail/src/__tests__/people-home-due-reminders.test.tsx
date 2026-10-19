@@ -46,6 +46,25 @@ vi.mock('../providers/auth-provider', () => ({
 const useInboxMock = vi.hoisted(() => vi.fn());
 vi.mock('../hooks/useInbox', () => ({ useInbox: useInboxMock }));
 
+// fix/qm-people-keyboard-triage: PeopleHome wires Superhuman-style keyboard
+// triage through useMailMutations, which needs a react-query
+// QueryClientProvider in production (provided by the root layout). These
+// tests render without providers, so the sibling-owned hook is mocked
+// against its contract — the same pattern ThreadComposer.test.tsx uses for
+// the /people home suites. The keys are never pressed here, so the fns are
+// never invoked; they only need to exist.
+const mutationsMock = vi.hoisted(() => ({
+  archive: vi.fn(),
+  unarchive: vi.fn(),
+  trash: vi.fn(),
+  toggleStar: vi.fn(),
+  markRead: vi.fn(),
+  markUnread: vi.fn(),
+}));
+vi.mock('../hooks/useMailMutations', () => ({
+  useMailMutations: () => mutationsMock,
+}));
+
 vi.mock('../components/AppShell', () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
