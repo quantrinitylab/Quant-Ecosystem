@@ -260,6 +260,80 @@ describe('belongsInFolder — SNOOZED (snoozed-offline-seed P1)', () => {
   });
 });
 
+describe('belongsInFolder — INBOX (inbox-predicate-mirror P2)', () => {
+  // The server's default-inbox filter (`GET /emails` with no folderType,
+  // backend/routes/emails.ts) sets `isDraft = false, isSpam = false,
+  // isTrash = false` plus the inbox's own exclusions (archived, snoozed,
+  // pending scheduled send). Before the fix the client predicate admitted
+  // drafts and spam, so an optimistic draft-save or report-spam patch
+  // ({isDraft:true}/{isSpam:true}) lingered in the cached inbox list until
+  // the next refetch — the same bug class as the SNOOZED/SPAM cases above.
+  it('admits an ordinary received message into INBOX', () => {
+    expect(belongsInFolder(email(), 'INBOX')).toBe(true);
+  });
+
+  it('keeps a draft out of INBOX — the server filters isDraft = false', () => {
+    // A row the user just saved as a draft ({isDraft:true} optimistic
+    // patch) must not linger in the cached inbox; it belongs in DRAFTS.
+    expect(belongsInFolder(email({ isDraft: true }), 'INBOX')).toBe(false);
+  });
+
+  it('keeps a spam row out of INBOX — the server filters isSpam = false', () => {
+    // A row the user just reported as spam ({isSpam:true} optimistic patch)
+    // must not linger in the cached inbox; it belongs in SPAM.
+    expect(belongsInFolder(email({ isSpam: true }), 'INBOX')).toBe(false);
+  });
+
+  it('keeps trashed mail out of INBOX even when otherwise active', () => {
+    expect(belongsInFolder(email({ trashedAt: new Date() }), 'INBOX')).toBe(false);
+  });
+
+  it('keeps archived mail out of INBOX (regression pin)', () => {
+    expect(belongsInFolder(email({ isArchived: true }), 'INBOX')).toBe(false);
+  });
+
+  it('keeps a pending scheduled send out of INBOX (regression pin)', () => {
+    // A scheduled send joins the conversation when it fires, not when it
+    // is scheduled — the server's inbox filter excludes it the same way.
+    const pending = {
+      ...email(),
+      isSent: true,
+      deliveryStatus: 'queued',
+      scheduledAt: new Date(Date.now() + 60 * 60 * 1000),
+    } as unknown as Email;
+    expect(belongsInFolder(pending, 'INBOX')).toBe(false);
+  });
+
+  it('reconcileList drops a row from the cached INBOX list once it is patched to a draft', () => {
+    // Pins the finding's expected behaviour end to end: the optimistic
+    // draft-save patch must shed the row from the warm INBOX cache.
+    const cached: Email[] = [email({ id: 'm1' })];
+    const patched = new Map<string, Email>([['m1', email({ id: 'm1', isDraft: true })]]);
+    const next = reconcileList(cached, patched, 'INBOX');
+    expect(next).toEqual([]);
+  });
+
+  it('reconcileList drops a row from the cached INBOX list once it is reported as spam', () => {
+    // Pins the finding's expected behaviour end to end: the optimistic
+    // report-spam patch must shed the row from the warm INBOX cache.
+    const cached: Email[] = [email({ id: 'm1' })];
+    const patched = new Map<string, Email>([['m1', email({ id: 'm1', isSpam: true })]]);
+    const next = reconcileList(cached, patched, 'INBOX');
+    expect(next).toEqual([]);
+  });
+
+  it('reconcileList does NOT admit a patched draft/spam row into the cached INBOX list', () => {
+    // The applyOptimistic fan-out must not append a draft/spam row to the
+    // warm INBOX cache.
+    const cached: Email[] = [];
+    const patched = new Map<string, Email>([
+      ['d1', email({ id: 'd1', isDraft: true })],
+      ['s1', email({ id: 's1', isSpam: true })],
+    ]);
+    expect(reconcileList(cached, patched, 'INBOX')).toEqual([]);
+  });
+});
+
 describe('belongsInFolder — DRAFTS (drafts-offline-seed P1)', () => {
   // The backend's `GET /emails?folderType=DRAFTS` filters
   // `isDraft = true, isTrash = false` (backend/routes/emails.ts), and
