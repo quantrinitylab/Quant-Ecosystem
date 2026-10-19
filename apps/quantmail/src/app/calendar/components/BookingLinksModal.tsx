@@ -557,7 +557,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
         className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-[var(--quant-surface-subtle)] border border-[var(--quant-surface-elevated)] shadow-2xl overflow-hidden z-10 text-[var(--quant-foreground)] animate-in fade-in zoom-in-95 duration-150"
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--quant-surface-elevated)]/80 bg-black">
+        <div className="flex items-center justify-between px-6 py-4 bg-black">
           <div className="flex items-center gap-3">
             <div className="size-9 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] flex items-center justify-center text-[var(--app-accent)] text-lg font-bold">
               <IconLink size={18} />
@@ -590,8 +590,8 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
         </div>
 
         {/* Tab Toggle Toolbar */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--quant-surface-elevated)]/60 bg-[var(--quant-surface-elevated)]/50">
-          <div className="flex items-center rounded-lg border border-[var(--quant-surface-elevated)] bg-[#0c0c0f] p-0.5">
+        <div className="flex items-center justify-between px-6 py-3 bg-[var(--quant-surface-elevated)]/50">
+          <div className="flex items-center rounded-lg border border-[var(--quant-surface-elevated)] bg-black p-0.5">
             <button
               type="button"
               onClick={() => setActiveTab('list')}
@@ -789,7 +789,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                     onChange={handleTitleChange}
                     placeholder="e.g. 30 Min Strategy Session"
                     required
-                    className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white placeholder-[#8E939E] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] text-xs transition-colors"
+                    className="w-full px-3 py-2 rounded-xl bg-black border border-[var(--quant-surface-elevated)] text-white placeholder-[#8E939E] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] text-xs transition-colors"
                   />
                 </div>
 
@@ -797,7 +797,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                   <label className="block text-[var(--quant-muted-foreground)] font-semibold mb-1">
                     URL Slug <span className="text-[var(--app-accent)]">*</span>
                   </label>
-                  <div className="flex items-center rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] focus-within:border-[var(--app-accent)] focus-within:ring-1 focus-within:ring-[var(--app-accent)] overflow-hidden text-xs">
+                  <div className="flex items-center rounded-xl bg-black border border-[var(--quant-surface-elevated)] focus-within:border-[var(--app-accent)] focus-within:ring-1 focus-within:ring-[var(--app-accent)] overflow-hidden text-xs">
                     <span className="pl-3 text-[#5E6472] select-none text-[11px]">/booking/</span>
                     <input
                       type="text"
@@ -821,7 +821,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                   onChange={(e) => setFormDescription(e.target.value)}
                   placeholder="Share a brief overview of what this meeting is about, what attendees should prepare, etc."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white placeholder-[#8E939E] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] text-xs transition-colors"
+                  className="w-full px-3 py-2 rounded-xl bg-black border border-[var(--quant-surface-elevated)] text-white placeholder-[#8E939E] focus:outline-none focus:border-[var(--app-accent)] focus:ring-1 focus:ring-[var(--app-accent)] text-xs transition-colors"
                 />
               </div>
 
@@ -855,7 +855,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                   <select
                     id="booking-start-hour" value={formStartHour}
                     onChange={(e) => setFormStartHour(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white focus:outline-none focus:border-[var(--app-accent)] text-xs cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl bg-black border border-[var(--quant-surface-elevated)] text-white focus:outline-none focus:border-[var(--app-accent)] text-xs cursor-pointer"
                   >
                     {Array.from({ length: 24 }).map((_, i) => (
                       <option key={i} value={i}>
@@ -870,7 +870,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                   <select
                     id="booking-end-hour" value={formEndHour}
                     onChange={(e) => setFormEndHour(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white focus:outline-none focus:border-[var(--app-accent)] text-xs cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl bg-black border border-[var(--quant-surface-elevated)] text-white focus:outline-none focus:border-[var(--app-accent)] text-xs cursor-pointer"
                   >
                     {Array.from({ length: 24 }).map((_, i) => (
                       <option key={i + 1} value={i + 1}>
@@ -889,7 +889,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                 <select
                   id="booking-timezone" value={formTimezone}
                   onChange={(e) => setFormTimezone(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#0c0c0f] border border-[var(--quant-surface-elevated)] text-white focus:outline-none focus:border-[var(--app-accent)] text-xs cursor-pointer"
+                  className="w-full px-3 py-2 rounded-xl bg-black border border-[var(--quant-surface-elevated)] text-white focus:outline-none focus:border-[var(--app-accent)] text-xs cursor-pointer"
                 >
                   {hostTimezoneOptions().map((tz) => (
                     <option key={tz.value} value={tz.value}>
@@ -929,7 +929,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
               </div>
 
               {/* Form Action Buttons */}
-              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[var(--quant-surface-elevated)]/80">
+              <div className="flex items-center justify-end gap-2.5 pt-4">
                 <button
                   type="button"
                   onClick={() => setActiveTab('list')}
@@ -951,7 +951,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-3 border-t border-[var(--quant-surface-elevated)]/80 bg-black flex items-center justify-between text-xs text-[var(--quant-muted-foreground)]">
+        <div className="px-6 py-3 bg-black flex items-center justify-between text-xs text-[var(--quant-muted-foreground)]">
           <span className="flex items-center gap-1.5">
             Host:{' '}
             <span className="font-semibold text-white">

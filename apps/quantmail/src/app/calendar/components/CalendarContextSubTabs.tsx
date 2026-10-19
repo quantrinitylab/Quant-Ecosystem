@@ -306,7 +306,7 @@ export function CalendarContextSubTabs({
 }: CalendarContextSubTabsProps) {
   return (
     <nav
-      className={`border-b border-[#232938] bg-[#0c0c10] px-4 py-1.5 hidden md:flex items-center justify-between gap-2 overflow-x-auto no-scrollbar select-none ${className}`}
+      className={`bg-black px-4 py-1.5 hidden md:flex items-center justify-between gap-2 overflow-x-auto no-scrollbar select-none ${className}`}
       aria-label="Calendar views"
       role="tablist"
     >
