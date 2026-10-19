@@ -2116,7 +2116,7 @@ function DrivePageContent() {
               /* QM-M39-009: quarantine blocks preview honestly — an
                  instruction, not a generic error and not a broken viewer. */
               <div
-                className="flex flex-col items-center justify-center rounded-xl bg-[#1A0E10] p-8 border border-[var(--quant-destructive)]/40"
+                className="flex flex-col items-center justify-center rounded-xl bg-black p-8 border border-[var(--quant-destructive)]/40"
                 role="alert"
               >
                 <span className="mb-3 text-[var(--quant-destructive)]">
