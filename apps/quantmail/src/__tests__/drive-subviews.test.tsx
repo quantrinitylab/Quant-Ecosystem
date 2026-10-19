@@ -451,6 +451,16 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       expect(html).not.toContain('Roadmap.pdf');
     });
 
+    it('renders skeleton shimmer bars on app token surfaces (not off-black hexes)', () => {
+      const html = renderToStaticMarkup(<DriveSharedByMeSubView items={[]} loading />);
+
+      // Sibling subviews (Recent) skeleton on bg-[var(--quant-surface-elevated)];
+      // Shared-by-me must match the token convention, never hardcode off-black grays.
+      expect(html).toContain('bg-[var(--quant-surface-elevated)]');
+      expect(html).not.toContain('bg-[#1E2433]');
+      expect(html).not.toContain('bg-[#1A1E2A]');
+    });
+
     it('contains strictly ZERO raw Unicode emojis in shared-by-me subview', () => {
       const html = renderToStaticMarkup(<DriveSharedByMeSubView items={sampleItems} />);
       assertZeroRawEmojis(html);

@@ -122,8 +122,8 @@ export function DriveSharedByMeSubView({
               key={i}
               className="p-4 rounded-xl border border-[#232938] bg-[var(--quant-surface)] animate-pulse"
             >
-              <div className="h-3.5 w-48 rounded bg-[#1E2433]" />
-              <div className="mt-2 h-3 w-32 rounded bg-[#1A1E2A]" />
+              <div className="h-3.5 w-48 rounded bg-[var(--quant-surface-elevated)]" />
+              <div className="mt-2 h-3 w-32 rounded bg-[var(--quant-surface-elevated)]" />
             </div>
           ))}
         </div>
