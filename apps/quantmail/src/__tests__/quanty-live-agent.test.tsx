@@ -448,7 +448,10 @@ describe('QuantyActivityFeed step linking', () => {
       }),
     );
     expect(html).toContain('<button');
-    expect(html).toContain('tap karke dekhein kahan kaam hua');
+    // SR tap hint follows the app locale (English default) — the old
+    // hardcoded Hinglish 'tap karke dekhein kahan kaam hua' was the bug.
+    expect(html).toContain('tap to see where the action happened');
+    expect(html).not.toContain('tap karke dekhein kahan kaam hua');
   });
 
   it('renders plain rows when steps have no targetSelector', () => {

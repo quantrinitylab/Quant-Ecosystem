@@ -202,3 +202,69 @@ export const TASK_STATUS_LABEL_HI: Record<QuantyTaskStatus, string> = {
   done: 'हो गया!',
   failed: 'कुछ गड़बड़ हुई',
 };
+
+/**
+ * Screen-reader status captions for activity-feed steps — follow the app
+ * locale (English default, Devanagari for 'hi'), the same convention as the
+ * avatar status fix. These were previously hardcoded Roman-script Hinglish
+ * ('baki hai', 'chal raha hai', …), leaking into an otherwise English UI.
+ */
+export const STEP_SR_LABEL: Record<QuantyStepStatus, string> = {
+  pending: 'Pending',
+  running: 'Running',
+  done: 'Done',
+  error: 'Failed',
+  'waiting-confirm': 'Needs your confirmation',
+  skipped: 'Skipped',
+};
+
+/** Devanagari SR status captions for activity-feed steps, used when the app locale is 'hi'. */
+export const STEP_SR_LABEL_HI: Record<QuantyStepStatus, string> = {
+  pending: 'बाकी है',
+  running: 'चल रहा है',
+  done: 'हो गया',
+  error: 'असफल हुआ',
+  'waiting-confirm': 'आपकी अनुमति चाहिए',
+  skipped: 'छोड़ दिया गया',
+};
+
+/** Hint appended to a tappable step's aria-label — follows the app locale. */
+export const STEP_TAP_HINT = ' — tap to see where the action happened';
+
+/** Devanagari tap hint for tappable steps, used when the app locale is 'hi'. */
+export const STEP_TAP_HINT_HI = ' — कार्रवाई कहाँ हुई, यह देखने के लिए टैप करें';
+
+/**
+ * Collapse-toggle copy. Visible text and aria-label share the same string so
+ * they can never drift into different languages again (the toggle previously
+ * showed English 'Expand'/'Collapse' while its aria-label was hardcoded
+ * Hinglish 'Saare steps dekhein'/'Sirf latest step dekhein').
+ */
+export const COLLAPSE_TOGGLE_LABEL: Record<'expand' | 'collapse', string> = {
+  expand: 'Expand',
+  collapse: 'Collapse',
+};
+
+/** Devanagari collapse-toggle copy, used when the app locale is 'hi'. */
+export const COLLAPSE_TOGGLE_LABEL_HI: Record<'expand' | 'collapse', string> = {
+  expand: 'विस्तार करें',
+  collapse: 'समेटें',
+};
+
+/**
+ * Browser-tab task status captions — follow the app locale (English default,
+ * Devanagari for 'hi'). Previously hardcoded Roman-script Hinglish
+ * ('chal raha hai', 'poora hua', 'fail hua').
+ */
+export const BROWSER_TASK_STATUS_LABEL: Record<QuantyBrowserTask['status'], string> = {
+  running: 'Running',
+  done: 'Done',
+  failed: 'Failed',
+};
+
+/** Devanagari browser-task status captions, used when the app locale is 'hi'. */
+export const BROWSER_TASK_STATUS_LABEL_HI: Record<QuantyBrowserTask['status'], string> = {
+  running: 'चल रहा है',
+  done: 'पूरा हुआ',
+  failed: 'असफल हुआ',
+};

@@ -2,7 +2,12 @@
 
 import { MonitorIcon } from '../QuantyPopupIcons';
 import { formatRelativeTime } from '../quantyTime';
+import { useI18n } from '../../../i18n';
 import type { QuantyBrowserTask } from '../types';
+import {
+  BROWSER_TASK_STATUS_LABEL,
+  BROWSER_TASK_STATUS_LABEL_HI,
+} from '../types';
 
 export interface QuantyBrowserTabProps {
   tasks?: QuantyBrowserTask[];
@@ -14,12 +19,6 @@ const STATUS_DOT: Record<QuantyBrowserTask['status'], string> = {
   running: 'bg-sky-400 animate-pulse',
   done: 'bg-emerald-400',
   failed: 'bg-red-500',
-};
-
-const STATUS_LABEL: Record<QuantyBrowserTask['status'], string> = {
-  running: 'chal raha hai',
-  done: 'poora hua',
-  failed: 'fail hua',
 };
 
 function Skeleton() {
@@ -43,6 +42,11 @@ function Skeleton() {
  */
 export function QuantyBrowserTab({ tasks = [], loading = false, className = '' }: QuantyBrowserTabProps) {
   if (loading) return <Skeleton />;
+  // Locale-consistency: task status captions previously hardcoded
+  // Roman-script Hinglish while the UI was English. Copy now follows the
+  // app locale (English default, Devanagari for 'hi').
+  const { locale } = useI18n();
+  const statusLabel = locale === 'hi' ? BROWSER_TASK_STATUS_LABEL_HI : BROWSER_TASK_STATUS_LABEL;
 
   return (
     <div className={className}>
@@ -67,7 +71,7 @@ export function QuantyBrowserTab({ tasks = [], loading = false, className = '' }
               <li key={task.id}>
                 <div
                   className="flex items-center gap-3 px-5 py-3"
-                  aria-label={`${task.title} — ${STATUS_LABEL[task.status]}`}
+                  aria-label={`${task.title} — ${statusLabel[task.status]}`}
                 >
                   {task.thumbnailUrl ? (
                     <img

@@ -2,7 +2,16 @@
 
 import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { useI18n } from '../../i18n';
 import type { QuantyStep, QuantyStepStatus } from './types';
+import {
+  COLLAPSE_TOGGLE_LABEL,
+  COLLAPSE_TOGGLE_LABEL_HI,
+  STEP_SR_LABEL,
+  STEP_SR_LABEL_HI,
+  STEP_TAP_HINT,
+  STEP_TAP_HINT_HI,
+} from './types';
 
 export interface QuantyActivityFeedProps {
   steps: QuantyStep[];
@@ -62,15 +71,6 @@ const STEP_ICON: Record<QuantyStepStatus, React.ReactNode> = {
   ),
 };
 
-const STEP_SR: Record<QuantyStepStatus, string> = {
-  pending: 'baki hai',
-  running: 'chal raha hai',
-  done: 'ho gaya',
-  error: 'fail hua',
-  'waiting-confirm': 'permission chahiye',
-  skipped: 'chhod diya',
-};
-
 function formatTime(iso: string): string {
   try {
     const date = new Date(iso);
@@ -104,6 +104,14 @@ export function QuantyActivityFeed({
   const reduceMotion = useReducedMotion();
   const scrollRef = useRef<HTMLDivElement>(null);
   const visibleSteps = collapsed ? steps.slice(-1) : steps;
+  // Locale-consistency: SR status captions and the collapse-toggle copy
+  // previously hardcoded Roman-script Hinglish while the UI was English.
+  // Copy now follows the app locale (English default, Devanagari for 'hi'),
+  // same convention as the QuantyAvatar status fix.
+  const { locale } = useI18n();
+  const stepSr = locale === 'hi' ? STEP_SR_LABEL_HI : STEP_SR_LABEL;
+  const stepTapHint = locale === 'hi' ? STEP_TAP_HINT_HI : STEP_TAP_HINT;
+  const toggleCopy = locale === 'hi' ? COLLAPSE_TOGGLE_LABEL_HI : COLLAPSE_TOGGLE_LABEL;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -137,10 +145,10 @@ export function QuantyActivityFeed({
               type="button"
               onClick={onToggleCollapse}
               aria-expanded={!collapsed}
-              aria-label={collapsed ? 'Saare steps dekhein' : 'Sirf latest step dekhein'}
+              aria-label={toggleCopy[collapsed ? 'expand' : 'collapse']}
               className="flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs text-zinc-400 transition hover:bg-white/5 hover:text-zinc-200"
             >
-              {collapsed ? 'Expand' : 'Collapse'}
+              {toggleCopy[collapsed ? 'expand' : 'collapse']}
             </button>
           )}
           {running && onInterrupt && (
@@ -164,7 +172,7 @@ export function QuantyActivityFeed({
         <AnimatePresence initial={false}>
           {visibleSteps.map((step) => {
             const tappable = !!onStepTap && !!step.targetSelector;
-            const ariaLabel = `${step.label} — ${STEP_SR[step.status]}${tappable ? ' — tap karke dekhein kahan kaam hua' : ''}`;
+            const ariaLabel = `${step.label} — ${stepSr[step.status]}${tappable ? stepTapHint : ''}`;
             const anim = {
               initial: reduceMotion ? undefined : { opacity: 0, y: 8 },
               animate: { opacity: 1, y: 0 },
