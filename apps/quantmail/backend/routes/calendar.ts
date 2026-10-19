@@ -1987,6 +1987,99 @@ export default async function calendarRoutes(
     }
   };
 
+  // ========================================================================
+  // Host booking notifications (fix/qm-booking-host-email).
+  //
+  // Confirming a booking through a public link created the event + the ICS
+  // invite and stopped there — the host had to open their calendar to
+  // discover the new booking. This helper is the honest mail path: after the
+  // booking write succeeds, the host gets a real notification email through
+  // SES (Gmail parity: new-booking emails), with the real .ics attached.
+  //
+  // It never throws: the booking write already succeeded before this runs,
+  // so a mail outage must not fail the booking. Failure is reported in the
+  // returned status ({ notified: false, reason }) and logged.
+  // ========================================================================
+  type BookingNotificationStatus = {
+    notified: boolean;
+    count: number;
+    reason?: 'sent' | 'no-host-email' | 'mail-not-configured' | 'send-failed';
+  };
+
+  const notifyHostOfBooking = async (
+    confirmation: {
+      event: unknown;
+      icsContent: string;
+      hostName: string | null;
+      hostEmail: string | null;
+    },
+    booker: { name: string; email: string; notes?: string },
+    request: unknown,
+  ): Promise<BookingNotificationStatus> => {
+    const log = (request as { log?: { warn: (...args: unknown[]) => void } })?.log;
+    // The host email is the link owner's real address (BookingLinkService
+    // resolveHost); null when the owner cannot be resolved — never fabricate.
+    const hostEmail = String(confirmation.hostEmail ?? '').trim();
+    if (!hostEmail || !isEmailShaped(hostEmail)) {
+      return { notified: false, count: 0, reason: 'no-host-email' };
+    }
+    if (!isSesConfigured()) {
+      return { notified: false, count: 0, reason: 'mail-not-configured' };
+    }
+    const event = confirmation.event as EventRow;
+    const eventTitle = String(event?.title ?? '').trim() || 'a new booking';
+    const hostName = String(confirmation.hostName ?? '').trim() || hostEmail;
+    const bookerName =
+      String(booker.name ?? '').trim() ||
+      String(booker.email ?? '').trim() ||
+      'A guest';
+    const bookerEmail = String(booker.email ?? '').trim();
+    const notes = String(booker.notes ?? '').trim();
+    const when = formatEventWhen(new Date(event.startTime), new Date(event.endTime));
+    const subject = `New booking: ${bookerName} booked ${eventTitle}`;
+    const bodyText =
+      `Hi ${hostName},\n\n` +
+      `${bookerName}${isEmailShaped(bookerEmail) ? ` (${bookerEmail})` : ''} just booked "${eventTitle}" through your booking link.\n\n` +
+      `When: ${when}\n` +
+      (notes ? `Notes: ${notes}\n` : '') +
+      `\nThe calendar invite (.ics) is attached.\n\nYou're receiving this because you're the host of this booking link.`;
+    const bodyHtml =
+      `<p>Hi ${escapeHtml(hostName)},</p>` +
+      `<p><strong>${escapeHtml(bookerName)}</strong>` +
+      `${isEmailShaped(bookerEmail) ? ` (${escapeHtml(bookerEmail)})` : ''} ` +
+      `just booked <strong>${escapeHtml(eventTitle)}</strong> through your booking link.</p>` +
+      `<p>When: ${escapeHtml(when)}</p>` +
+      (notes ? `<p>Notes: ${escapeHtml(notes)}</p>` : '') +
+      `<p>The calendar invite (.ics) is attached.</p>` +
+      `<p>You're receiving this because you're the host of this booking link.</p>`;
+    try {
+      // Sent from the product identity (never impersonate the booker — their
+      // address is not a verified SES identity); replyTo routes the host's
+      // reply straight to the booker.
+      await sendViaSes({
+        from:
+          process.env['CALENDAR_BOOKING_NOTIFY_FROM'] ??
+          'QuantMail Calendar <no-reply@quantmail.in>',
+        to: [hostEmail],
+        ...(isEmailShaped(bookerEmail) ? { replyTo: bookerEmail } : {}),
+        subject,
+        bodyText,
+        bodyHtml,
+        attachments: [
+          {
+            filename: 'booking.ics',
+            contentType: 'text/calendar',
+            content: Buffer.from(confirmation.icsContent, 'utf-8'),
+          },
+        ],
+      });
+      return { notified: true, count: 1, reason: 'sent' };
+    } catch (err) {
+      log?.warn({ err }, 'Host booking notification email failed to send');
+      return { notified: false, count: 0, reason: 'send-failed' };
+    }
+  };
+
   fastify.get<{ Params: { id: string } }>('/events/:id/ics', async (request, reply) => {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
@@ -3068,7 +3161,17 @@ export default async function calendarRoutes(
       { name: parsed.data.name, email: parsed.data.email, notes: parsed.data.notes },
       parsed.data.lockId,
     );
-    return reply.status(201).send({ success: true, data });
+    // Gmail parity (fix/qm-booking-host-email): the booking landed — now
+    // tell the host by real email. Runs after the write and never throws: a
+    // mail outage must not fail the booking; the honest outcome rides in the
+    // response as hostNotification. The booker's 201 shape is unchanged
+    // (event + icsContent + host identity, now plus hostNotification).
+    const hostNotification = await notifyHostOfBooking(
+      data,
+      { name: parsed.data.name, email: parsed.data.email, notes: parsed.data.notes },
+      request,
+    );
+    return reply.status(201).send({ success: true, data: { ...data, hostNotification } });
   };
 
   // Host authenticated routes (mounted before /:slug)
