@@ -40,6 +40,7 @@ import {
   sendViaSes,
   buildRawMimeMessage,
   buildMultipartBody,
+  buildAlternativeBody,
   sanitizeMimeFilename,
   SES_RAW_MESSAGE_LIMIT_BYTES,
 } from '../lib/ses-sender';
@@ -224,6 +225,56 @@ describe('buildRawMimeMessage encoding edge cases', () => {
     expect(mime.contentTypeHeader).toMatch(/^multipart\/mixed; boundary="/);
     expect(mime.body).toContain('filename="report.pdf"');
     expect(mime.body).toContain(Buffer.from('hello', 'utf8').toString('base64'));
+  });
+});
+
+describe('buildAlternativeBody (QM-SMTP-MULTIPART: SES parity for the direct-SMTP fallback)', () => {
+  const TEXT = 'plain version — with UTF-8 ✓';
+  const HTML = '<p>html <b>version</b></p>';
+
+  it('emits multipart/alternative with text/plain first and text/html last (RFC 2046 richest-last)', () => {
+    const alt = buildAlternativeBody({ bodyText: TEXT, bodyHtml: HTML });
+    expect(alt.contentTypeHeader).toMatch(
+      /^multipart\/alternative; boundary="----=_QuantMail_[0-9a-f]{24}"$/,
+    );
+    const textIdx = alt.body.indexOf('Content-Type: text/plain; charset=UTF-8');
+    const htmlIdx = alt.body.indexOf('Content-Type: text/html; charset=UTF-8');
+    expect(textIdx).toBeGreaterThanOrEqual(0);
+    expect(htmlIdx).toBeGreaterThan(textIdx);
+    expect(alt.body).toContain('Content-Transfer-Encoding: base64');
+    // base64 round-trips the originals (folding only inserts CRLF line breaks)
+    const unfolded = alt.body.replace(/\r\n/g, '');
+    expect(unfolded).toContain(Buffer.from(TEXT, 'utf8').toString('base64'));
+    expect(unfolded).toContain(Buffer.from(HTML, 'utf8').toString('base64'));
+  });
+
+  it('emits a single text/html part when only HTML is present', () => {
+    const alt = buildAlternativeBody({ bodyHtml: HTML });
+    expect(alt.body).not.toContain('text/plain');
+    expect(alt.body).toContain('Content-Type: text/html; charset=UTF-8');
+  });
+
+  it('emits a single text/plain part when only text is present', () => {
+    const alt = buildAlternativeBody({ bodyText: TEXT });
+    expect(alt.body).not.toContain('text/html');
+    expect(alt.body).toContain('Content-Type: text/plain; charset=UTF-8');
+  });
+
+  it('keeps an empty plain-text part when neither variant is present', () => {
+    const alt = buildAlternativeBody({});
+    expect(alt.contentTypeHeader).toMatch(/^multipart\/alternative; boundary="/);
+    expect(alt.body).toContain('Content-Type: text/plain; charset=UTF-8');
+  });
+
+  it('buildMultipartBody nests the alternative identically (refactor preserves the shape)', () => {
+    const mixed = buildMultipartBody({ bodyText: TEXT, bodyHtml: HTML, attachments: [] });
+    expect(mixed.contentTypeHeader).toMatch(/^multipart\/mixed; boundary="/);
+    const innerHeaderIdx = mixed.body.indexOf('Content-Type: multipart/alternative; boundary="');
+    const textIdx = mixed.body.indexOf('Content-Type: text/plain; charset=UTF-8');
+    const htmlIdx = mixed.body.indexOf('Content-Type: text/html; charset=UTF-8');
+    expect(innerHeaderIdx).toBeGreaterThanOrEqual(0);
+    expect(textIdx).toBeGreaterThan(innerHeaderIdx);
+    expect(htmlIdx).toBeGreaterThan(textIdx);
   });
 });
 
