@@ -27,6 +27,7 @@ import {
   createTask,
   getSchedule,
   getTool,
+  InMemoryTaskStore,
   listTools,
   materializeSteps,
   persistAuditEvent,
@@ -54,6 +55,25 @@ let booted = false;
 let store: QuantyTaskStore;
 let executor: QuantyExecutor;
 
+/**
+ * Honest degradation: the durable Prisma store when the prisma client carries
+ * the Quanty delegates, otherwise the in-memory store (e.g. a prisma mock in
+ * tests, or a DB that has not been migrated yet). The Prisma store's
+ * constructor throws a clear error when the delegates are absent — that throw
+ * is the fallback signal, never a fatal boot failure.
+ */
+function durableTaskStore(prisma: unknown): QuantyTaskStore {
+  try {
+    return new PrismaQuantyTaskStore(prisma);
+  } catch (err) {
+    console.warn(
+      '[quanty-agent] durable task store unavailable, using in-memory store:',
+      err instanceof Error ? err.message : err,
+    );
+    return new InMemoryTaskStore();
+  }
+}
+
 /** taskId → live SSE listeners. */
 const subscribers = new Map<string, Set<(event: QuantyProgressEvent) => void>>();
 
@@ -76,7 +96,7 @@ function boot(fastify: FastifyInstance): void {
     summarizeService: null,
     aiEngine: new AIEngine(),
   });
-  store = new PrismaQuantyTaskStore(prisma);
+  store = durableTaskStore(prisma);
   executor = new QuantyExecutor({ store });
   // Boot sweep: tasks left non-terminal by a previous process are honestly
   // marked interrupted (never faked as done), with plan/steps/receipts kept.
