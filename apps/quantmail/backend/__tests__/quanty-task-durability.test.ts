@@ -99,6 +99,7 @@ function makeTask(overrides: Partial<QuantyTask> = {}): QuantyTask {
       { id: 's1', toolName: 'mail.search', label: 'search', args: { q: 'x' }, status: 'done' },
     ],
     needsConfirmation: false,
+    background: false,
     createdAt: new Date('2026-10-20T00:00:00Z').toISOString(),
     updatedAt: new Date('2026-10-20T00:00:00Z').toISOString(),
     ...overrides,
@@ -173,8 +174,9 @@ describe('Quanty task durability (WR-G)', () => {
     const mk = (kind: QuantyAuditEntry['kind'], seq: number): QuantyAuditEntry => ({
       kind,
       taskId: 'task-1',
+      userId: 'user-1',
+      timestamp: new Date('2026-10-20T00:00:00Z').toISOString(),
       detail: `detail-${seq}`,
-      at: new Date('2026-10-20T00:00:00Z').toISOString(),
     });
     await persistAuditEvent(prisma, mk('task.created', 1));
     await persistAuditEvent(prisma, mk('step.done', 2));
