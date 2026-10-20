@@ -12,7 +12,7 @@ import {
 } from '@quant/queue';
 import { OUTBOUND_DELIVERY_QUEUE } from './outbound-delivery.service';
 import type { DeliverabilityAuthService, DkimSigner } from './deliverability-auth.service';
-import { sendViaSes, isSesConfigured, buildMultipartBody } from '../lib/ses-sender';
+import { sendViaSes, isSesConfigured, buildMultipartBody, buildAlternativeBody } from '../lib/ses-sender';
 import { resolveOutboundAttachments, type OutboundAttachmentDb } from '../lib/outbound-attachments';
 import { QUANT_INTERNAL_DOMAINS } from '../lib/domains';
 import { EmailService } from './email.service';
@@ -577,7 +577,15 @@ export class DeliveryWorker {
       if (extCc.length > 0) {
         headers.cc = extCc.join(', ');
       }
-      const body = trackedBodyHtml ?? email.bodyPlain ?? data.body ?? '';
+      // QM-SMTP-MULTIPART: SES-parity for the direct path. The SES Simple
+      // path transmits Body {Html, Text} as multipart/alternative; the
+      // DKIM-signed fallback used to send a single body variant
+      // (trackedBodyHtml ?? bodyPlain), so plain-text-only clients got raw
+      // HTML. Normalized once here so the multipart, alternative-only, and
+      // single-part branches below all agree.
+      const bodyText =
+        email.bodyPlain && email.bodyPlain.trim().length > 0 ? email.bodyPlain : undefined;
+      const body = trackedBodyHtml ?? bodyText ?? data.body ?? '';
 
       let rawMessage: string | undefined;
       try {
@@ -592,15 +600,29 @@ export class DeliveryWorker {
         );
         if (attachments.length > 0) {
           const mime = buildMultipartBody({
-            bodyText:
-              email.bodyPlain && email.bodyPlain.trim().length > 0 ? email.bodyPlain : undefined,
+            bodyText,
             bodyHtml: trackedBodyHtml,
             attachments,
           });
           headers['mime-version'] = '1.0';
           headers['content-type'] = mime.contentTypeHeader;
           rawMessage = signer.signMessage(headers, mime.body);
+        } else if (bodyText !== undefined && trackedBodyHtml !== undefined) {
+          // QM-SMTP-MULTIPART: both variants present — carry them as
+          // multipart/alternative, SES-parity. The DKIM signer signs the
+          // supplied headers + body exactly the way the attachments branch
+          // above does; no signing behavior changes (DKIM-signing the
+          // restructured body was judged out of scope for this fix).
+          const alt = buildAlternativeBody({ bodyText, bodyHtml: trackedBodyHtml });
+          headers['mime-version'] = '1.0';
+          headers['content-type'] = alt.contentTypeHeader;
+          rawMessage = signer.signMessage(headers, alt.body);
         } else {
+          // Single-variant body: keep the single part but declare its type —
+          // the old code transmitted it with no Content-Type at all.
+          headers['mime-version'] = '1.0';
+          headers['content-type'] =
+            trackedBodyHtml !== undefined ? 'text/html; charset=UTF-8' : 'text/plain; charset=UTF-8';
           rawMessage = signer.signMessage(headers, body);
         }
       } catch (err) {

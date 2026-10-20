@@ -159,23 +159,32 @@ export interface MimeBodyInput {
 }
 
 export interface BuiltMimeBody {
-  /** Value for the `Content-Type` header of the message (`multipart/mixed`). */
+  /** Value for the `Content-Type` header of the message. */
   contentTypeHeader: string;
   /** The multipart body (CRLF-joined), ready to follow a header block. */
   body: string;
 }
 
-/**
- * Build a `multipart/mixed` body: a `multipart/alternative` wrapper for the
- * text/html bodies plus one base64 part per attachment. Bodies are base64
- * encoded so arbitrary UTF-8 survives transport without quoted-printable.
- */
-export function buildMultipartBody(input: MimeBodyInput): BuiltMimeBody {
-  const outer = randomBoundary();
-  const inner = randomBoundary();
-  const lines: string[] = [];
+export interface AlternativeBodyInput {
+  bodyText?: string;
+  bodyHtml?: string;
+}
 
+/**
+ * Build a standalone `multipart/alternative` body: a text/plain part followed
+ * by the text/html part (RFC 2046 §5.1.4 — the last alternative is the
+ * "richest"). Bodies are base64 encoded so arbitrary UTF-8 survives transport
+ * without quoted-printable.
+ *
+ * Used by the DKIM-signed direct-SMTP fallback so the SMTP path carries the
+ * same text+html pair the SES Simple `Body {Html, Text}` shape carries;
+ * `buildMultipartBody` nests this as its inner part when attachments are
+ * present (identical bytes to the previous inline construction).
+ */
+export function buildAlternativeBody(input: AlternativeBodyInput): BuiltMimeBody {
+  const inner = randomBoundary();
   const altParts: string[] = [];
+
   if (input.bodyText && input.bodyText.length > 0) {
     altParts.push(
       [
@@ -212,12 +221,29 @@ export function buildMultipartBody(input: MimeBodyInput): BuiltMimeBody {
     );
   }
 
+  return {
+    /** Value for the `Content-Type` header of the message (`multipart/alternative`). */
+    contentTypeHeader: `multipart/alternative; boundary="${inner}"`,
+    /** The multipart body (CRLF-joined), ready to follow a header block. */
+    body: [...altParts, `--${inner}--`].join('\r\n'),
+  };
+}
+
+/**
+ * Build a `multipart/mixed` body: a `multipart/alternative` wrapper for the
+ * text/html bodies plus one base64 part per attachment. Bodies are base64
+ * encoded so arbitrary UTF-8 survives transport without quoted-printable.
+ */
+export function buildMultipartBody(input: MimeBodyInput): BuiltMimeBody {
+  const outer = randomBoundary();
+  const alt = buildAlternativeBody({ bodyText: input.bodyText, bodyHtml: input.bodyHtml });
+  const lines: string[] = [];
+
   lines.push(
     `--${outer}`,
-    `Content-Type: multipart/alternative; boundary="${inner}"`,
+    `Content-Type: ${alt.contentTypeHeader}`,
     '',
-    altParts.join('\r\n'),
-    `--${inner}--`,
+    alt.body,
   );
 
   for (const att of input.attachments) {
