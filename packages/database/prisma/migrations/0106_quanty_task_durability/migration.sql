@@ -31,8 +31,8 @@ CREATE TABLE "quanty_tasks" (
   "pendingToolName" TEXT,
   "outcome" TEXT,
   "background" BOOLEAN NOT NULL DEFAULT false,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
-  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "quanty_tasks_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -47,7 +47,8 @@ CREATE TABLE "quanty_task_events" (
   "toolName" TEXT,
   "stepId" TEXT,
   "detail" TEXT,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "quanty_task_events_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE INDEX "quanty_task_events_taskId_createdAt_idx" ON "quanty_task_events"("taskId", "createdAt");
@@ -60,7 +61,7 @@ CREATE TABLE "quanty_approval_records" (
   "label" TEXT NOT NULL,
   "toolName" TEXT NOT NULL,
   "scope" TEXT NOT NULL,
-  "grantedAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "grantedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "quanty_approval_records_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 

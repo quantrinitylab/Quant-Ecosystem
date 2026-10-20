@@ -35,6 +35,8 @@ import {
   QuantyExecutor,
   quantyAgentState,
   recoverInterruptedTasks,
+  recordApproval,
+  listApprovals as listDurableApprovals,
   registerRealTools,
   undoTaskSteps,
   type QuantyActivityFeed,
@@ -98,7 +100,31 @@ function boot(fastify: FastifyInstance): void {
     aiEngine: new AIEngine(),
   });
   store = durableTaskStore(prisma);
-  executor = new QuantyExecutor({ store });
+  executor = new QuantyExecutor({
+    store,
+    // Durable approval sink: persist each grant with the task's owner so
+    // /api/quanty/approvals can serve it per-user (never the process-global
+    // list). The in-memory mirror is kept for the live popup. A persistence
+    // failure must not break confirm() — it already resolved the waiter.
+    approvalSink: async (input) => {
+      quantyAgentState.logApproval(input);
+      try {
+        const task = input.taskId ? await store.get(input.taskId) : null;
+        const userId = task?.userId;
+        if (userId) {
+          await recordApproval(prisma, {
+            userId,
+            taskId: input.taskId,
+            toolName: input.toolName ?? 'unknown-tool',
+            label: input.description,
+            scope: input.scope,
+          });
+        }
+      } catch {
+        // Best-effort only.
+      }
+    },
+  });
   // Boot sweep: tasks left non-terminal by a previous process are honestly
   // marked interrupted (never faked as done), with plan/steps/receipts kept.
   void recoverInterruptedTasks(prisma).catch(() => {
@@ -296,6 +322,27 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: { confirmed: ok, approved: body.data.approved } });
   });
 
+  // POST /api/quanty/tasks/:id/background — the user's explicit intent to keep
+  // this task running when the UI closes. Sets background=true durably and
+  // emits task.backgrounded on the audit trail. 409 when the task is already
+  // terminal — backgrounding a finished task is meaningless.
+  fastify.post<{ Params: { id: string } }>('/api/quanty/tasks/:id/background', async (request, reply) => {
+    const userId = reqUserId(request);
+    const task = await loadTaskOwnedBy(request.params.id, userId);
+    if (['done', 'failed', 'interrupted'].includes(task.status)) {
+      throw createAppError('Task is already terminal', 409, 'TASK_TERMINAL');
+    }
+    task.background = true;
+    await store.save(task);
+    await persistAuditEvent(prisma, {
+      taskId: task.id,
+      userId,
+      timestamp: new Date().toISOString(),
+      kind: 'task.backgrounded',
+    });
+    return reply.send({ success: true, data: { background: true } });
+  });
+
   // POST /api/quanty/tasks/:id/undo — reverse a finished task's reversible steps.
   // Only steps the tools themselves marked reversible (with an undoToken) are
   // reversed, newest first. 409 when there is nothing reversible — an honest
@@ -337,10 +384,12 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: getSchedule() });
   });
 
-  // GET /api/quanty/approvals — approval history.
+  // GET /api/quanty/approvals — approval history, scoped to the caller.
+  // Served from the durable per-user grant log (never the process-global
+  // in-memory list, which mixes users on shared deployments).
   fastify.get('/api/quanty/approvals', async (request, reply) => {
-    reqUserId(request);
-    return reply.send({ success: true, data: quantyAgentState.listApprovals(50) });
+    const userId = reqUserId(request);
+    return reply.send({ success: true, data: await listDurableApprovals(prisma, userId, 50) });
   });
 
   // GET /api/quanty/browser-tasks — browser task history.

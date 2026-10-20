@@ -58,7 +58,7 @@ function makeEventDelegate(rows: Map<string, any>) {
         if (where?.taskId && row.taskId !== where.taskId) continue;
         out.push(row);
       }
-      return out.sort((a, b) => a.seq - b.seq);
+      return out.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     }),
   };
 }
@@ -164,9 +164,14 @@ describe('Quanty task durability (WR-G)', () => {
   it('stepReceiptKey is stable and namespaced per task+step', () => {
     expect(stepReceiptKey('t1', 's1')).toBe('quanty:step:t1:s1');
     expect(stepReceiptKey('t1', 's1')).not.toBe(stepReceiptKey('t1', 's2'));
-    expect(stepFingerprint('t1', { id: 's1', toolName: 'x', args: { a: 1 } })).toBe(
-      stepFingerprint('t1', { id: 's1', toolName: 'x', args: { a: 1 } }),
-    );
+  });
+
+  it('stepFingerprint is stable across key order and sensitive to real changes', () => {
+    const a = stepFingerprint('t1', { id: 's1', toolName: 'x', args: { a: 1, b: 2 } });
+    const reordered = stepFingerprint('t1', { id: 's1', toolName: 'x', args: { b: 2, a: 1 } });
+    expect(reordered).toBe(a);
+    expect(stepFingerprint('t1', { id: 's1', toolName: 'x', args: { a: 1, b: 3 } })).not.toBe(a);
+    expect(stepFingerprint('t1', { id: 's1', toolName: 'y', args: { a: 1, b: 2 } })).not.toBe(a);
   });
 
   it('audit events persist and list back in order (replayable progress)', async () => {
@@ -191,6 +196,6 @@ describe('Quanty task durability (WR-G)', () => {
     await expect(loadStepReceipt({}, 't', { id: 's', toolName: 'x', args: {} })).resolves.toBeNull();
     await expect(
       storeStepReceipt({}, 't', { id: 's', toolName: 'x', args: {} }, { summary: 's' }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
   });
 });

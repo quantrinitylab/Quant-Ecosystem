@@ -226,14 +226,18 @@ export class QuantyExecutor {
           runState.currentStepLabel = undefined;
           // Receipt FIRST-class: the idempotent-effect record is stored before
           // the task row is persisted, so a crash between them replays rather
-          // than duplicates.
-          step.receiptId = stepReceiptKey(task.id, step.id);
-          await storeStepReceipt(prisma, task.id, step, {
-            summary: result.summary,
-            data: result.data,
-            reversible: result.reversible === true,
-            undoToken: result.undoToken,
-          });
+          // than duplicates. receiptId is set ONLY when the write actually
+          // succeeded — a client verifying against the id must find the row.
+          if (
+            await storeStepReceipt(prisma, task.id, step, {
+              summary: result.summary,
+              data: result.data,
+              reversible: result.reversible === true,
+              undoToken: result.undoToken,
+            })
+          ) {
+            step.receiptId = stepReceiptKey(task.id, step.id);
+          }
           await persist();
           audit({ kind: 'step.done', toolName: tool.name, stepId: step.id, detail: result.summary });
           emit({ type: 'step.done', taskId: task.id, step: structuredClone(step), summary: result.summary });
@@ -294,22 +298,28 @@ export class QuantyExecutor {
     if (!run) return false;
     const waiter = run.confirmWaiters.shift();
     if (!waiter) return false;
-    if (approved) {
-      const sink =
-        this.opts.approvalSink ??
-        ((input: QuantyApprovalSinkInput) => {
-          quantyAgentState.logApproval(input);
+    try {
+      if (approved) {
+        const sink =
+          this.opts.approvalSink ??
+          ((input: QuantyApprovalSinkInput) => {
+            quantyAgentState.logApproval(input);
+          });
+        await sink({
+          icon: '⚠️',
+          title: `Approved: ${waiter.toolName}`,
+          description: waiter.label,
+          scope: 'This task only',
+          taskId,
+          toolName: waiter.toolName,
         });
-      await sink({
-        icon: '⚠️',
-        title: `Approved: ${waiter.toolName}`,
-        description: waiter.label,
-        scope: 'This task only',
-        taskId,
-        toolName: waiter.toolName,
-      });
+      }
+    } finally {
+      // Always release the waiter — a rejecting sink must not leave the task
+      // stuck in waiting-confirm forever (interrupt() already shifted it off
+      // the queue, so nothing else can release it).
+      waiter.resolve(approved);
     }
-    waiter.resolve(approved);
     return true;
   }
 

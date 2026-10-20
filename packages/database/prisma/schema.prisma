@@ -99,6 +99,7 @@ model User {
   aiSessions         AISession[]
   quantyArtifacts    QuantyArtifact[]
   quantyTasks        QuantyTask[]
+  quantyTaskEvents   QuantyTaskEvent[]
   quantyApprovalRecords QuantyApprovalRecord[]
   campaigns          Campaign[]
   datingProfile      DatingProfile?
@@ -1699,6 +1700,7 @@ model QuantyTaskEvent {
   id        String   @id @default(cuid())
   taskId    String
   userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   kind      String
   toolName  String?
   stepId    String?

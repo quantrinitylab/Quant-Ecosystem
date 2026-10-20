@@ -447,34 +447,42 @@ const RESTART_OUTCOME =
 /**
  * Mark every task left in a non-terminal state by a previous process as
  * interrupted, with an honest outcome (never faked as done/failed), plus one
- * audit entry per task so the replay log explains the gap. Returns the
- * number of tasks recovered. No-op (0) when the durable DB is absent.
+ * audit entry per task so the replay log explains the gap. Pages through ALL
+ * matching rows (not just the first 1000) so a large backlog is fully
+ * recovered. Returns the number of tasks recovered. No-op (0) when the
+ * durable DB is absent.
  */
 export async function recoverInterruptedTasks(prisma: unknown): Promise<number> {
   const db = resolveDurableDb(prisma);
   if (!db) return 0;
-  const stale = await db.tasks.findMany({
-    where: { status: { in: STALE_STATUSES } },
-    orderBy: { updatedAt: 'asc' },
-    take: 1000,
-  });
-  if (stale.length === 0) return 0;
-  const now = new Date();
-  const ids = stale.map((r) => r.id);
-  await db.tasks.updateMany({
-    where: { id: { in: ids } },
-    data: { status: 'interrupted', outcome: RESTART_OUTCOME, updatedAt: now },
-  });
-  for (const row of stale) {
-    await persistAuditEvent(prisma, {
-      taskId: row.id,
-      userId: row.userId,
-      timestamp: now.toISOString(),
-      kind: 'task.interrupted',
-      detail: RESTART_OUTCOME,
+  let recovered = 0;
+  for (;;) {
+    const stale = await db.tasks.findMany({
+      where: { status: { in: STALE_STATUSES } },
+      orderBy: { updatedAt: 'asc' },
+      take: 1000,
     });
+    if (stale.length === 0) break;
+    const now = new Date();
+    const ids = stale.map((r) => r.id);
+    await db.tasks.updateMany({
+      where: { id: { in: ids } },
+      data: { status: 'interrupted', outcome: RESTART_OUTCOME, updatedAt: now },
+    });
+    for (const row of stale) {
+      await persistAuditEvent(prisma, {
+        taskId: row.id,
+        userId: row.userId,
+        timestamp: now.toISOString(),
+        kind: 'task.interrupted',
+        detail: RESTART_OUTCOME,
+      });
+    }
+    recovered += stale.length;
+    // A full page means there may be more — repeat until a short page.
+    if (stale.length < 1000) break;
   }
-  return stale.length;
+  return recovered;
 }
 
 // ---------------------------------------------------------------------------
@@ -558,9 +566,9 @@ export async function storeStepReceipt(
   taskId: string,
   step: Pick<QuantyStep, 'id' | 'toolName' | 'args'>,
   receipt: StoredStepReceipt,
-): Promise<void> {
+): Promise<boolean> {
   const db = resolveDurableDb(prisma);
-  if (!db) return;
+  if (!db) return false;
   const key = stepReceiptKey(taskId, step.id);
   const data = {
     operationId: key,
@@ -571,9 +579,11 @@ export async function storeStepReceipt(
   };
   try {
     await db.receipts.upsert({ where: { operationId: key }, create: data, update: data });
+    return true;
   } catch (err) {
     // eslint-disable-next-line no-console
     console.warn('[quanty-agent] step receipt persist failed (non-fatal):', err instanceof Error ? err.message : err);
+    return false;
   }
 }
 
