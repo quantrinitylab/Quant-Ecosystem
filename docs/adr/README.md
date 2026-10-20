@@ -6,7 +6,7 @@ status: active
 owner: platform-architecture
 last_verified: 2026-09-19
 verified_at_commit: bce4acaac043c1b91e7566d3c4c2f26a90a9ac31
-review_by: 2026-10-19
+review_by: 2026-11-30
 supersedes: []
 superseded_by: []
 canonical_scope: architecture-decisions
