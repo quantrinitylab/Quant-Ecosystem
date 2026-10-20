@@ -4937,3 +4937,7 @@ Base: R26 @ e2f3bc0f5 -> origin/main 598e5f4ac (fresh fetch, 6 first-parent wind
 - VERDICT-LIVE: HEALTHY — origin live (Oracle). Proxy 127.0.0.1:8888 healthy (no restart). GET /quantgit -> 200; /api/repos -> 401 honest; POST /api/repos/import -> 405 (EXPECTED pre-deploy: #1243 deploy hold ACTIVE — cat-verified this round, not a new finding). Desktop 1440x900 + mobile 390x844 (iPhone 14, wait_s=14 hydrated) /quantgit shots REVIEWED: honest 'No repositories yet' empty state ('Your real repositories will appear here.'), purple CTAs, clay switcher icons with eyes (mail-orange/calendar-blue/drive-green/contacts-amber/git-purple), pure black, zero old-logo flash; 'Astra Swarm' pill = carryover; mobile 'Create User ID' FAB = R25's honest disabled 'Coming soon' modal (QuantGitUserIdModal, not re-filed). Shots reviewed + deleted; my chrome dirs cleaned (/tmp at 25M). Signed-in QuantGit (repos/commits/PRs/CI/import) = needs-auth (protocol), not faked. Window merges on main only — live verification of any main-side changes waits on hold lifting.
 Rotation -> QM-SCREEN-014 (Quanty workspace) ROUND 27 regression, queued.
 Audit started: 2026-10-20 ~13:35 IST (lane-1 deep audit loop, ROUND 27)
+
+## QM-SCREEN-014 R27 — Quanty workspace regression (ROUND 27)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-014r27, started 2026-10-20 ~14:35 IST; R26-014 base 9413bca8f -> origin/main aed6c62cb, fresh fetch, 5 first-parent merges)
+Audit started: 2026-10-20 ~14:35 IST (lane-1 deep audit loop, ROUND 27)
