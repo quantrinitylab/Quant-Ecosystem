@@ -4922,3 +4922,7 @@ Base: R26 @ 3c6e0637b -> origin/main 25f27e408 (fresh fetch, 6 first-parent wind
 - Rotation -> QM-SCREEN-013 (QuantGit) ROUND 27 regression, queued.
 - LESSON: for merge commits the audit diff is ^1 -> merge-result, NEVER ^1^2 (^1^2 compares branch tip to main parent — a stale branch's deletions/reverts there are pure noise; I nearly filed a false 'revert' finding on #1424 from it). Resolve ambiguity with tip-state checks (ls-tree/show).
 Audit started: 2026-10-20 ~12:35 IST (lane-1 deep audit loop, ROUND 27)
+
+
+## QM-SCREEN-013 R27 — QuantGit regression (ROUND 27)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-013r27, started 2026-10-20 ~13:35 IST; R26 base e2f3bc0f5 -> origin/main 598e5f4ac, fresh fetch, 6 first-parent window merges)
