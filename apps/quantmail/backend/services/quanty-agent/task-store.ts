@@ -350,6 +350,7 @@ export async function persistAuditEvent(prisma: unknown, entry: QuantyAuditEntry
       },
     });
   } catch (err) {
+    // eslint-disable-next-line no-console
     console.warn('[quanty-agent] audit persist failed (non-fatal):', err instanceof Error ? err.message : err);
   }
 }
@@ -571,6 +572,7 @@ export async function storeStepReceipt(
   try {
     await db.receipts.upsert({ where: { operationId: key }, create: data, update: data });
   } catch (err) {
+    // eslint-disable-next-line no-console
     console.warn('[quanty-agent] step receipt persist failed (non-fatal):', err instanceof Error ? err.message : err);
   }
 }

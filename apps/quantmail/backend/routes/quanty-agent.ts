@@ -66,6 +66,7 @@ function durableTaskStore(prisma: unknown): QuantyTaskStore {
   try {
     return new PrismaQuantyTaskStore(prisma);
   } catch (err) {
+    // eslint-disable-next-line no-console
     console.warn(
       '[quanty-agent] durable task store unavailable, using in-memory store:',
       err instanceof Error ? err.message : err,
