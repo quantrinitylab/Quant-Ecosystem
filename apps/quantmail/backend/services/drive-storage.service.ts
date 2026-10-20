@@ -32,17 +32,72 @@ function readMasterKey(): Buffer | null {
   return buf.length === 32 ? buf : null;
 }
 
+const R2_HOST_PATTERN = /\.r2\.cloudflarestorage\.com$/i;
+
+function deriveR2Endpoint(): string | undefined {
+  // Mirrors @quant/storage's resolveStorageConfigFromEnv: the Cloudflare
+  // account id alone derives the canonical R2 endpoint.
+  const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID ?? process.env.R2_ACCOUNT_ID;
+  return accountId ? `https://${accountId}.r2.cloudflarestorage.com` : undefined;
+}
+
+function isR2Host(endpoint: string): boolean {
+  try {
+    return R2_HOST_PATTERN.test(new URL(endpoint).host);
+  } catch {
+    return false;
+  }
+}
+
 function readS3Config(): S3Config | null {
-  const bucket = process.env.DRIVE_S3_BUCKET ?? process.env.S3_BUCKET;
-  const accessKeyId = process.env.DRIVE_S3_ACCESS_KEY_ID ?? process.env.S3_ACCESS_KEY_ID;
+  // Config gap closed (WR-C): the shared @quant/storage resolver (used by
+  // mail attachments and chunked uploads) accepts R2 vars, but this function
+  // silently ignored them — an operator who configured only R2_* got
+  // "Drive object storage is not configured" here. Drive-scoped overrides
+  // stay first; the R2/S3 name chains below are exactly the ones the shared
+  // resolver accepts (verified in packages/storage/src/storage-config.ts),
+  // then the legacy DRIVE_S3_*/S3_* names for back-compat.
+  const bucket =
+    process.env.DRIVE_S3_BUCKET ??
+    process.env.DRIVE_R2_BUCKET ??
+    process.env.R2_BUCKET ??
+    process.env.S3_BUCKET;
+  const accessKeyId =
+    process.env.DRIVE_S3_ACCESS_KEY_ID ??
+    process.env.DRIVE_R2_ACCESS_KEY_ID ??
+    process.env.R2_ACCESS_KEY_ID ??
+    process.env.S3_ACCESS_KEY ??
+    process.env.S3_ACCESS_KEY_ID ??
+    process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey =
-    process.env.DRIVE_S3_SECRET_ACCESS_KEY ?? process.env.S3_SECRET_ACCESS_KEY;
+    process.env.DRIVE_S3_SECRET_ACCESS_KEY ??
+    process.env.DRIVE_R2_SECRET_ACCESS_KEY ??
+    process.env.R2_SECRET_ACCESS_KEY ??
+    process.env.S3_SECRET_KEY ??
+    process.env.S3_SECRET_ACCESS_KEY ??
+    process.env.AWS_SECRET_ACCESS_KEY;
   if (!bucket || !accessKeyId || !secretAccessKey) return null;
-  const region = process.env.DRIVE_S3_REGION ?? process.env.S3_REGION ?? 'us-east-1';
-  // Fully endpoint-driven: any S3-compatible store (e.g. OCI Object Storage's
-  // S3-compatible API at https://<ns>.compat.objectstorage.<region>.oraclecloud.com)
-  // works by setting the endpoint + credentials; unset → default AWS S3.
-  const customEndpoint = process.env.DRIVE_S3_ENDPOINT ?? process.env.S3_ENDPOINT;
+  // Endpoint precedence mirrors the shared resolver (explicit R2 endpoint,
+  // then account-id-derived R2 endpoint, then S3), with drive-scoped
+  // aliases on top.
+  const r2Endpoint =
+    process.env.DRIVE_R2_ENDPOINT ??
+    process.env.CLOUDFLARE_R2_ENDPOINT ??
+    process.env.R2_ENDPOINT ??
+    deriveR2Endpoint();
+  const customEndpoint =
+    process.env.DRIVE_S3_ENDPOINT ?? r2Endpoint ?? process.env.S3_ENDPOINT;
+  // CODEX-REVIEW 6291113873 corrective: resolve provider/region FROM THE
+  // SELECTED ENDPOINT. Deriving "is R2" from the mere presence of R2 env
+  // vars broke mixed configs — an explicit DRIVE_S3_ENDPOINT (AWS) with a
+  // shared R2_ENDPOINT also set signed "/auto/" against the S3 host.
+  // R2 is single-region: SigV4 must sign with the literal region "auto",
+  // exactly like the shared resolver forces. Any other endpoint keeps the
+  // region chain below; the AWS default is unchanged.
+  const region =
+    customEndpoint !== undefined && isR2Host(customEndpoint)
+      ? 'auto'
+      : (process.env.DRIVE_S3_REGION ?? process.env.S3_REGION ?? 'us-east-1');
   const endpoint = (customEndpoint ?? `https://s3.${region}.amazonaws.com`).replace(/\/+$/, '');
   // OCI's S3-compatible API (and most S3-compatible stores) require path-style
   // addressing — virtual-hosted style (bucket.host) does not resolve there.
@@ -59,7 +114,8 @@ export function driveStorageReady(): boolean {
   return readS3Config() !== null && readMasterKey() !== null;
 }
 export function driveStorageUnavailableReason(): string {
-  if (!readS3Config()) return 'Drive object storage is not configured (DRIVE_S3_* / S3_* missing)';
+  if (!readS3Config())
+    return 'Drive object storage is not configured (DRIVE_S3_* / R2_* / S3_* missing)';
   if (!readMasterKey()) return 'Drive encryption key is not configured (DRIVE_MASTER_KEY missing)';
   return '';
 }
