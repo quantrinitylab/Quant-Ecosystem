@@ -664,9 +664,27 @@ export function CalendarWeekView({
                     key={k}
                     role="button"
                     tabIndex={0}
-                    aria-label={`${weekdayNames[di]} time slots. Activate to create an event.`}
+                    aria-label={`${weekdayNames[di]} time slots. Press Enter or C to create an event; left and right arrows move between days.`}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') openDedicatedSheet('event', day);
+                      if (e.key === 'Enter' || e.key === 'c' || e.key === 'C') {
+                        // The calendar scope also binds `c` (new event) at the
+                        // document level — stop it so the sheet opens exactly
+                        // once, on the focused day rather than the selected date.
+                        e.stopPropagation();
+                        openDedicatedSheet('event', day);
+                        return;
+                      }
+                      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                        // Roving focus across the day columns (grid-style
+                        // keyboard triage); nothing else binds these keys here.
+                        e.preventDefault();
+                        const grid = e.currentTarget.closest('[data-testid="week-grid-body"]');
+                        const cols = grid
+                          ? Array.from(grid.querySelectorAll<HTMLElement>('[data-week-day-index]'))
+                          : [];
+                        const next = cols[di + (e.key === 'ArrowRight' ? 1 : -1)];
+                        next?.focus();
+                      }
                     }}
                     onPointerDown={handleColumnPointerDown(di)}
                     onPointerMove={handleColumnPointerMove}

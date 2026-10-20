@@ -199,6 +199,12 @@ describe('useCalendarKeyboard (real engine)', () => {
     expect(calls.stepDay.length).toBe(3);
   });
 
+  it('steps days on `n` and `p` too (Google Calendar parity — fix/qm-calendar-keyboard-triage)', () => {
+    press('n');
+    press('p');
+    expect(calls.stepDay).toEqual([[1], [-1]]);
+  });
+
   it('switches views on d/w/m/a and their numeric aliases', () => {
     press('d');
     press('w');
@@ -246,7 +252,7 @@ describe('useCalendarKeyboard (real engine)', () => {
     input.focus();
     try {
       // Every single-key calendar binding: none may fire from a text field.
-      for (const key of ['t', 'j', 'k', 'd', 'w', 'm', 'a', 'c', '/', 'e', 's', 'z']) {
+      for (const key of ['t', 'j', 'k', 'n', 'p', 'd', 'w', 'm', 'a', 'c', '/', 'e', 's', 'z']) {
         press(key, {}, input);
       }
       press('Delete', {}, input);
@@ -408,7 +414,11 @@ describe('CalendarHeader go-to-date picker', () => {
         onJumpToDate={() => {}}
       />,
     );
-    expect(html).toContain('Go to today (T)');
-    expect(html).toContain('New event (C)');
+    // Lowercase truth: the engine binds `t` and `c`, not capitals
+    // (fix/qm-calendar-keyboard-triage).
+    expect(html).toContain('Go to today (t)');
+    expect(html).toContain('New event (c)');
+    expect(html).not.toContain('Go to today (T)');
+    expect(html).not.toContain('New event (C)');
   });
 });
