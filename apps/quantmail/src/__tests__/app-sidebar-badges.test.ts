@@ -36,6 +36,12 @@ vi.mock('../hooks/useMail', () => ({
   useInbox: (options?: { folderType?: string }) => mockUseInbox(options),
 }));
 
+// SidebarNavGroups reads useNotifications() for the Notifications row badge;
+// default to zero unread so badge-semantics tests are unaffected.
+vi.mock('../hooks/useNotifications', () => ({
+  useNotifications: () => ({ data: { notifications: [], unreadCount: 0 } }),
+}));
+
 // Mock useAuth from ../providers/auth-provider (AppSidebar uses the same
 // defensive try/catch as AppShell: standalone renders fall back to '').
 const mockUseAuth = vi.fn();
