@@ -36,7 +36,7 @@ import {
  * Superhuman/Gmail-class floating bottom-right docked composer widget.
  *
  * Invariants:
- * - Fixed: bottom-4 right-6 z-40 w-[540px] max-w-[calc(100vw-32px)] rounded-2xl border border-[#232938] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-xl shadow-2xl overflow-hidden
+ * - Fixed: bottom-4 right-6 z-40 w-[540px] max-w-[calc(100vw-32px)] rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-xl shadow-2xl overflow-hidden
  * - Header bar: title ('New Message'), minimize/collapse button, expand-to-fullscreen button, close button.
  * - Inputs: To, Cc/Bcc toggle, Subject, rich body editor.
  * - Bottom toolbar: Molten amber Send (⌘↵) button, formatting tools, attachment button (with 25MB guard), writing-assistant (local templates) trigger, saved email templates (backend /email-templates CRUD) entry point.
@@ -1212,7 +1212,7 @@ export function DockedComposer({
       <div
         data-testid="docked-composer-minimized"
         onClick={() => setIsMinimized(false)}
-        className="fixed bottom-4 right-6 z-40 w-[300px] h-11 rounded-2xl border border-[#232938] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-xl shadow-2xl flex items-center justify-between px-3.5 cursor-pointer hover:border-[var(--quant-primary)]/50 transition-all select-none"
+        className="fixed bottom-4 right-6 z-40 w-[300px] h-11 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-xl shadow-2xl flex items-center justify-between px-3.5 cursor-pointer hover:border-[var(--quant-primary)]/50 transition-all select-none"
       >
         <div className="flex items-center gap-2 min-w-0">
           <span className="size-2 rounded-full bg-[var(--quant-primary)] shrink-0 animate-pulse" />
@@ -1255,8 +1255,8 @@ export function DockedComposer({
   // DOCKED & EXPANDED CONTAINER
   // --------------------------------------------------------------------------
   const containerClasses = isExpanded
-    ? 'fixed inset-4 sm:inset-10 z-50 rounded-2xl border border-[#232938] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-2xl shadow-2xl overflow-hidden flex flex-col'
-    : 'fixed bottom-4 right-6 z-40 w-[540px] max-w-[calc(100vw-32px)] rounded-2xl border border-[#232938] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col max-h-[82vh]';
+    ? 'fixed inset-4 sm:inset-10 z-50 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-2xl shadow-2xl overflow-hidden flex flex-col'
+    : 'fixed bottom-4 right-6 z-40 w-[540px] max-w-[calc(100vw-32px)] rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-subtle)]/98 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col max-h-[82vh]';
 
   return (
     <div
@@ -1301,7 +1301,7 @@ export function DockedComposer({
       <div
         onPointerDown={handleHeaderDragStart}
         title="Drag down to minimize"
-        className="relative flex items-center justify-between px-4 py-2.5 bg-[var(--quant-surface-elevated)] border-b border-[#232938] select-none shrink-0 touch-none cursor-grab active:cursor-grabbing"
+        className="relative flex items-center justify-between px-4 py-2.5 bg-[var(--quant-surface-elevated)] select-none shrink-0 touch-none cursor-grab active:cursor-grabbing"
       >
         <div className="flex items-center gap-2 min-w-0">
           <div className="flex size-6 items-center justify-center rounded-lg bg-[var(--quant-primary)]/20 text-[var(--quant-primary)]">
@@ -1379,8 +1379,8 @@ export function DockedComposer({
         </div>
       </div>
 
-      {/* INPUTS BODY */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto divide-y divide-[#1A202E]">
+      {/* INPUTS BODY — sections separated by spacing (px/py), never divider lines (user lock: pure black, no dividers) */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
         {/* Recipient To: chip-based — typing `John Doe <john@x.com>` parses as
             ONE recipient (no whitespace splitting), and the autocomplete
             dropdown appends a chip instead of replacing the whole field. */}
@@ -1455,7 +1455,7 @@ export function DockedComposer({
             ::after halos. Halos bled into neighbours (hit areas overlapped), so
             targets are now honest boxes in flow. */}
         {showFormatting && (
-          <div className="flex items-center gap-1 px-4 py-1.5 bg-[#10141E] text-xs border-b border-[#1E2536]">
+          <div className="flex items-center gap-1 px-4 py-1.5 text-xs">
             <button
               type="button"
               onClick={() => applyFormatting('b')}
@@ -1480,7 +1480,7 @@ export function DockedComposer({
             >
               <IconUnderline />
             </button>
-            <div className="w-px h-4 bg-[var(--quant-surface-elevated)] mx-1" />
+            {/* Formatting groups separated by spacing (gap), not a divider line (user lock) */}
             <button
               type="button"
               onClick={() => applyFormatting('list')}
@@ -1518,7 +1518,7 @@ export function DockedComposer({
 
           {/* Attached Files Strip */}
           {attachments.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-[#1E2536] flex flex-wrap gap-1.5">
+            <div className="mt-2 pt-2 flex flex-wrap gap-1.5">
               {attachments.map((att) => (
                 <div
                   key={att.id}
@@ -1544,7 +1544,7 @@ export function DockedComposer({
 
       {/* BOTTOM TOOLBAR — horizontally scrollable on narrow screens so the
           Send + action buttons never clip on 360px viewports. Scrollbar hidden. */}
-      <div className="px-4 py-3 bg-[var(--quant-surface-subtle)] border-t border-[#232938] flex items-center justify-between gap-3 shrink-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="px-4 py-3 bg-[var(--quant-surface-subtle)] flex items-center justify-between gap-3 shrink-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex items-center gap-2 min-w-max">
           {/* Molten Amber Send Button */}
           <button

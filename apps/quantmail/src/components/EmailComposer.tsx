@@ -1957,7 +1957,7 @@ export function EmailComposer({
           }
         >
           {/* Top Header Bar (Hidden during Print) */}
-          <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-3 border-b border-[var(--quant-surface-elevated)]/80 bg-[var(--quant-surface-elevated)] shrink-0 w-full max-w-full box-border">
+          <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-3 bg-[var(--quant-surface-elevated)] shrink-0 w-full max-w-full box-border">
             <div className="flex items-center gap-2 sm:gap-3">
               <button
                 type="button"
@@ -2136,7 +2136,7 @@ export function EmailComposer({
                         <span>Print draft</span>
                       </button>
 
-                      <div className="my-1 border-t border-[var(--quant-surface-elevated)]" />
+                      <div className="my-1.5" aria-hidden="true" />
 
                       <button
                         type="button"
@@ -2180,7 +2180,7 @@ export function EmailComposer({
               renders as an empty black void above the pinned Send toolbar. */}
           <div className="print:hidden flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border flex flex-col">
             {/* Recipient Rows (To, Cc, Bcc) */}
-            <div className="border-b border-[var(--quant-surface-elevated)]/80 pb-2 space-y-2 w-full max-w-full">
+            <div className="pb-2 space-y-2 w-full max-w-full">
               {/* To: Row */}
               <ComposerRecipientField
                 id="composer-to"
@@ -2216,7 +2216,7 @@ export function EmailComposer({
 
               {/* Cc: Row */}
               {showCc && (
-                <div className="pt-1 border-t border-[var(--quant-surface)] w-full max-w-full">
+                <div className="pt-1 w-full max-w-full">
                   <ComposerRecipientField
                     id="composer-cc"
                     label="Cc"
@@ -2244,7 +2244,7 @@ export function EmailComposer({
 
               {/* Bcc: Row */}
               {showBcc && (
-                <div className="pt-1 border-t border-[var(--quant-surface)] w-full max-w-full">
+                <div className="pt-1 w-full max-w-full">
                   <ComposerRecipientField
                     id="composer-bcc"
                     label="Bcc"
@@ -2272,7 +2272,7 @@ export function EmailComposer({
             </div>
 
             {/* Subject Row */}
-            <div className="flex items-center gap-2 sm:gap-3 border-b border-[var(--quant-surface-elevated)]/80 pb-2 w-full max-w-full">
+            <div className="flex items-center gap-2 sm:gap-3 pb-2 w-full max-w-full">
               <label
                 htmlFor="composer-subject"
                 className="text-xs font-semibold text-[var(--quant-muted-foreground)] w-16 sm:w-16 shrink-0"
@@ -2324,7 +2324,7 @@ export function EmailComposer({
               also vanishes the moment anyone types.
             */}
                 {/* Greeting Row */}
-                <div className="flex items-center gap-2 sm:gap-3 border-b border-[var(--quant-surface-elevated)] pb-2 w-full max-w-full">
+                <div className="flex items-center gap-2 sm:gap-3 pb-2 w-full max-w-full">
                   <label
                     htmlFor="composer-greeting"
                     className="text-xs font-medium text-[var(--quant-muted-foreground)] w-14 sm:w-16 shrink-0"
@@ -2342,7 +2342,7 @@ export function EmailComposer({
                 </div>
 
                 {/* Opening / Purpose Row */}
-                <div className="flex items-center gap-2 sm:gap-3 border-b border-[var(--quant-surface-elevated)] pb-2 w-full max-w-full">
+                <div className="flex items-center gap-2 sm:gap-3 pb-2 w-full max-w-full">
                   <label
                     htmlFor="composer-opening"
                     className="text-xs font-medium text-[var(--quant-muted-foreground)] w-14 sm:w-16 shrink-0"
@@ -2486,7 +2486,7 @@ export function EmailComposer({
                 </div>
 
                 {includeSignature && !signatureSuppressedByTemplate && (
-                  <div className="border-t border-[var(--quant-surface-elevated)]/80 px-3.5 py-3">
+                  <div className="px-3.5 py-3">
                     {safeSignatureHtml ? (
                       <div
                         className="email-html-content prose prose-invert max-w-none break-words text-xs leading-6 text-[var(--quant-muted-foreground)]"
@@ -2509,7 +2509,7 @@ export function EmailComposer({
             {isTemplateMode && (
               <div className="space-y-3 p-3.5 rounded-2xl bg-[var(--quant-surface)]/40 border border-[var(--quant-surface-elevated)]/80">
                 {/* Closing Row */}
-                <div className="flex items-center gap-2 sm:gap-3 border-b border-[var(--quant-surface-elevated)] pb-2 w-full max-w-full">
+                <div className="flex items-center gap-2 sm:gap-3 pb-2 w-full max-w-full">
                   <label
                     htmlFor="composer-closing"
                     className="text-xs font-medium text-[var(--quant-muted-foreground)] w-14 sm:w-16 shrink-0"
@@ -2555,7 +2555,7 @@ export function EmailComposer({
                         value={signoff}
                         onChange={(e) => setSignoff(e.target.value)}
                         placeholder="Best regards,"
-                        className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none border-b border-[var(--quant-surface-elevated)] pb-0.5 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none pb-0.5 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       />
                       <input
                         id="composer-sender-name"
@@ -2564,7 +2564,7 @@ export function EmailComposer({
                         value={senderName}
                         onChange={(e) => setSenderName(e.target.value)}
                         placeholder="Your Name"
-                        className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none border-b border-[var(--quant-surface-elevated)] pb-0.5 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none pb-0.5 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       />
                     </div>
                   </div>
@@ -2582,7 +2582,7 @@ export function EmailComposer({
                         value={detail}
                         onChange={(e) => handleUpdateDetail(idx, e.target.value)}
                         placeholder="Designation / Company / Contact..."
-                        className="flex-1 min-w-0 bg-transparent text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none border-b border-[var(--quant-surface-elevated)]/80 pb-0.5 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                        className="flex-1 min-w-0 bg-transparent text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none pb-0.5 focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                       />
                       <button
                         type="button"
@@ -2731,7 +2731,7 @@ export function EmailComposer({
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="print:hidden border-t border-[var(--quant-surface-elevated)]/80 bg-[#141824] px-3 sm:px-5 py-2 flex flex-wrap items-center gap-1.5 text-xs select-none w-full max-w-full box-border shrink-0"
+                className="print:hidden px-3 sm:px-5 py-2 flex flex-wrap items-center gap-1.5 text-xs select-none w-full max-w-full box-border shrink-0"
               >
                 {/* Font Family Dropdown */}
                 <div className="relative">
@@ -2831,7 +2831,7 @@ export function EmailComposer({
                   )}
                 </div>
 
-                <div className="h-4 w-px bg-[var(--quant-surface-elevated)] mx-1" />
+                {/* formatting groups separated by spacing (gap), not a divider line (user lock) */}
 
                 {/*
               The four character toggles. Two things were missing and they
@@ -2962,7 +2962,7 @@ export function EmailComposer({
                   )}
                 </div>
 
-                <div className="h-4 w-px bg-[var(--quant-surface-elevated)] mx-1" />
+                {/* formatting groups separated by spacing (gap), not a divider line (user lock) */}
 
                 {/* Alignments */}
                 <div
@@ -3012,7 +3012,7 @@ export function EmailComposer({
                 {/* BB-P1-8: Lists + Emoji. List mode is whole-message (each non-empty
                     line becomes one item in the sent HTML); bullet and numbered
                     are mutually exclusive toggles, matching the B/I/U/S style. */}
-                <div className="h-4 w-px bg-[var(--quant-surface-elevated)] mx-1" />
+                {/* formatting groups separated by spacing (gap), not a divider line (user lock) */}
 
                 {/* Bulleted List */}
                 <button
@@ -3143,7 +3143,7 @@ export function EmailComposer({
               Horizontally scrollable on narrow screens: Send + 5x44px touch
               targets exceed 360px viewports, so the bar scrolls instead of
               clipping trailing buttons. Scrollbar hidden for a clean look. */}
-          <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-2.5 border-t border-[var(--quant-surface-elevated)]/80 bg-[var(--quant-surface-elevated)] shrink-0 w-full max-w-full box-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-2.5 bg-[var(--quant-surface-elevated)] shrink-0 w-full max-w-full box-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {/* Left Toolbar Group: Send + Dropup, Formatting, Attach, Link, Drive, Templates, Discard, Desktop Quanty */}
             <div className="flex items-center gap-1 sm:gap-2 min-w-max [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {/* Primary Send Button with Dropup Menu for Save draft & Schedule send */}
