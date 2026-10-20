@@ -16,11 +16,17 @@ import { FakeStorage, makeDb } from './helpers/attachment-doubles';
 import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
 import * as sesSender from '../lib/ses-sender';
 
-// Mock SES sender module
-vi.mock('../lib/ses-sender', () => ({
-  sendViaSes: vi.fn().mockResolvedValue('ses-msg-123'),
-  isSesConfigured: vi.fn().mockReturnValue(true),
-}));
+// Mock SES sender module: stub only the network-facing send/config calls.
+// Keep the real MIME builders (buildMultipartBody/buildAlternativeBody) so
+// the DKIM direct-SMTP path under test builds the same bytes production does.
+vi.mock('../lib/ses-sender', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/ses-sender')>();
+  return {
+    ...actual,
+    sendViaSes: vi.fn().mockResolvedValue('ses-msg-123'),
+    isSesConfigured: vi.fn().mockReturnValue(true),
+  };
+});
 
 // Mock OutboundDeliveryPipeline to avoid Redis connection during unit tests
 vi.mock('../services/outbound-delivery.service', async (importOriginal) => {
