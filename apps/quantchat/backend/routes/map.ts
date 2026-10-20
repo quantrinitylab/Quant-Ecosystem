@@ -5,8 +5,10 @@
 //                          (opt-in sharing). Zod-validated lat/long.
 //   DELETE /map/location   stop sharing — removes the caller's location row
 //                          (idempotent).
-//   GET    /map/friends    the caller's CLOSE FRIENDS who are currently
-//                          sharing, shaped for the map view.
+//   GET    /map/friends    the owners who authorized the caller (QC-F-533:
+//                          their close-friend list names the caller, or a
+//                          shared active DIRECT) and are currently sharing,
+//                          shaped for the map view.
 //
 // All routes require authentication (the global auth hook from createApp()
 // binds `request.auth.userId`). The feature wires the previously-unused Prisma
@@ -98,7 +100,7 @@ export default async function mapRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: result });
   });
 
-  // GET /map/friends — close friends currently sharing, shaped for the map.
+  // GET /map/friends — caller-authorized owners currently sharing, map-shaped.
   fastify.get('/friends', async (request, reply) => {
     const userId = requireUserId(request);
     const service = getLocationService(fastify);
