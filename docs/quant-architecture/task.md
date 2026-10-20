@@ -5057,3 +5057,8 @@ Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-010-011r29, started 
 - VERDICT-LIVE: HEALTHY. Proxy 127.0.0.1:8888 healthy (google 200 0.43s). GET /drive -> 307 -> /login?returnTo=%2Fdrive; GET /api/drive/{files,quota,trash} -> 401 x3 (honest). Desktop 1440x900 + mobile 390x844 sign-in gate shots REVIEWED: clay M-mark current both viewports, honest sign-in copy + tri-cards, ONE IDENTITY footer, (c) 2026, pure black, mail-orange, zero old-logo flash; 'Quant Mail' wordmark spacing P3 re-seen on desktop (not re-filed). Signed-in drive flows = needs-auth (protocol), not faked. #1439 on main only (#1243 deploy hold ACTIVE — live verification of window merges waits on deploy). Shots reviewed + deleted; chrome orphans cleaned (/tmp 15M).
 - Rotation -> QM-SCREEN-012 (contacts) ROUND 29 regression, queued.
 Status: [x] DONE (R29 regression audit complete 2026-10-20 ~21:55 IST; 1 in-scope drive merge reviewed SOUND, prior pins byte-verified intact, 0 new findings, live healthy; fixes tracked via their PRs)
+
+
+## QM-SCREEN-013 R29 — QuantGit regression (ROUND 29)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-013r29, started 2026-10-20 ~23:35 IST; R27 base 598e5f4ac -> origin/main a6c72cae2 (fresh fetch, 10 first-parent window merges). Code read from origin/main tree only; ledger worktree HEAD == remote arch tip ae253a571 before claim, merge-only, no rebase.)
+Audit started: 2026-10-20 ~23:35 IST (lane-1 deep audit loop, ROUND 29)
