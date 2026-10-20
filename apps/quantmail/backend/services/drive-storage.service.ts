@@ -87,13 +87,17 @@ function readS3Config(): S3Config | null {
     deriveR2Endpoint();
   const customEndpoint =
     process.env.DRIVE_S3_ENDPOINT ?? r2Endpoint ?? process.env.S3_ENDPOINT;
+  // CODEX-REVIEW 6291113873 corrective: resolve provider/region FROM THE
+  // SELECTED ENDPOINT. Deriving "is R2" from the mere presence of R2 env
+  // vars broke mixed configs — an explicit DRIVE_S3_ENDPOINT (AWS) with a
+  // shared R2_ENDPOINT also set signed "/auto/" against the S3 host.
   // R2 is single-region: SigV4 must sign with the literal region "auto",
   // exactly like the shared resolver forces. Any other endpoint keeps the
   // region chain below; the AWS default is unchanged.
-  const isR2 = r2Endpoint !== undefined || (customEndpoint !== undefined && isR2Host(customEndpoint));
-  const region = isR2
-    ? 'auto'
-    : (process.env.DRIVE_S3_REGION ?? process.env.S3_REGION ?? 'us-east-1');
+  const region =
+    customEndpoint !== undefined && isR2Host(customEndpoint)
+      ? 'auto'
+      : (process.env.DRIVE_S3_REGION ?? process.env.S3_REGION ?? 'us-east-1');
   const endpoint = (customEndpoint ?? `https://s3.${region}.amazonaws.com`).replace(/\/+$/, '');
   // OCI's S3-compatible API (and most S3-compatible stores) require path-style
   // addressing — virtual-hosted style (bucket.host) does not resolve there.

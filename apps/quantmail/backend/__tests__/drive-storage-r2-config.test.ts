@@ -186,6 +186,46 @@ describe('drive storage — R2 config reconciliation (WR-C)', () => {
     expect(authHeader()).toContain('Credential=drive-key/');
   });
 
+  it('CODEX-REVIEW 6291113873: mixed R2+S3 config signs with the SELECTED endpoint\'s region', async () => {
+    // Shared R2_ENDPOINT set, but an explicit DRIVE_S3_ENDPOINT overrides to
+    // AWS S3. Provider/region must come from the selected endpoint — the S3
+    // host must NOT be signed with R2's literal "auto" region.
+    setEnv({
+      R2_ENDPOINT: 'https://myacct.r2.cloudflarestorage.com',
+      R2_ACCESS_KEY_ID: 'r2-key',
+      R2_SECRET_ACCESS_KEY: 'r2-secret',
+      R2_BUCKET: 'r2-bucket',
+      DRIVE_S3_ENDPOINT: 'https://s3.eu-west-1.amazonaws.com',
+      DRIVE_S3_BUCKET: 'drive-bucket',
+      DRIVE_S3_ACCESS_KEY_ID: 's3-key',
+      DRIVE_S3_SECRET_ACCESS_KEY: 's3-secret',
+      DRIVE_S3_REGION: 'eu-west-1',
+      DRIVE_MASTER_KEY: MASTER_KEY,
+    });
+    expect(driveStorageReady()).toBe(true);
+    await putDriveObject('drive/u1/f1', Buffer.from('hello'));
+    expect(requestUrl()).toBe('https://s3.eu-west-1.amazonaws.com/drive-bucket/drive/u1/f1');
+    expect(authHeader()).toMatch(/Credential=s3-key\/\d{8}\/eu-west-1\/s3\/aws4_request/);
+  });
+
+  it('CODEX-REVIEW 6291113873: R2 selected via account-id derivation still signs /auto/', async () => {
+    // Reverse-mixed: shared R2 account id derives the R2 endpoint while a
+    // drive-scoped S3 region is set — the selected R2 endpoint must still
+    // sign with "auto", not the region chain.
+    setEnv({
+      CLOUDFLARE_R2_ACCOUNT_ID: 'mixedacct',
+      R2_ACCESS_KEY_ID: 'r2-key',
+      R2_SECRET_ACCESS_KEY: 'r2-secret',
+      R2_BUCKET: 'drive-bucket',
+      DRIVE_S3_REGION: 'eu-west-1',
+      DRIVE_MASTER_KEY: MASTER_KEY,
+    });
+    expect(driveStorageReady()).toBe(true);
+    await putDriveObject('drive/u1/f1', Buffer.from('hello'));
+    expect(requestUrl()).toBe('https://mixedacct.r2.cloudflarestorage.com/drive-bucket/drive/u1/f1');
+    expect(authHeader()).toMatch(/Credential=r2-key\/\d{8}\/auto\/s3\/aws4_request/);
+  });
+
   it('DRIVE_R2_* aliases work as drive-scoped R2 overrides', async () => {
     setEnv({
       DRIVE_R2_ENDPOINT: 'https://drv.r2.cloudflarestorage.com',
