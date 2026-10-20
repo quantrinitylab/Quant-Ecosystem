@@ -12,6 +12,12 @@
  * range out of the ORIGINAL-cased text, so "Lunch with Sam" keeps its
  * capitals in the created event title.
  *
+ * fix/qm-calendar-nlp-quickadd-invite — the parser also extracts attendee
+ * NAMES ("with Alex", "w/ Sam, Priya"). Names are returned for the caller to
+ * resolve against the user's contacts (name → email); the "with Alex" phrase
+ * is deliberately LEFT in the title (Google Calendar quick-add keeps it too)
+ * so no existing title assertion changes.
+ *
  * All dates resolve in the LOCAL timezone of the machine running the parse —
  * the calendar sheet and the event API both accept ISO strings, so callers
  * convert with toISOString() exactly like the manual editor does.
@@ -30,6 +36,13 @@ export interface QuickAddParse {
    * instead of pretending the email said it.
    */
   timeWasSuggested: boolean;
+  /**
+   * Attendee names extracted from "with X" / "w/ X" phrases ("Alex").
+   * Display-cased from the original text ("sam" → "Sam"). The caller
+   * resolves these against contacts to real emails — a name that matches no
+   * contact must NOT be invited; say so honestly instead.
+   */
+  attendees: string[];
 }
 
 const WEEKDAYS = [
@@ -297,6 +310,16 @@ function matchDuration(work: Work): { minutes: number | null; work: Work } {
     const minutes = /hour|hr/.test(forMatch[2]) ? n * 60 : n;
     return { minutes, work: stripFirst(work, forRe).work };
   }
+  // Hyphenated "30-minute lunch", "1-hour meeting" (the finding's headline
+  // example). Checked before the bare h/min forms so "30-minute" never
+  // leaks into the title.
+  const hyphenRe = /\b(\d+)\s*[-–]\s*(hours?|hrs?|minutes?|mins?)\b/;
+  const hyphenMatch = work.lower.match(hyphenRe);
+  if (hyphenMatch) {
+    const n = parseInt(hyphenMatch[1], 10);
+    const minutes = /hour|hr/.test(hyphenMatch[2]) ? n * 60 : n;
+    return { minutes, work: stripFirst(work, hyphenRe).work };
+  }
   const hRe = /\b(\d+)\s*h\b/;
   if (hRe.test(work.lower)) {
     const n = parseInt(work.lower.match(hRe)![1], 10);
@@ -310,6 +333,58 @@ function matchDuration(work: Work): { minutes: number | null; work: Work } {
   return { minutes: null, work };
 }
 
+/**
+ * Words that can never be a person: pronouns, determiners, and the
+ * date/time tokens this parser understands. "Meeting with the team" must
+ * not mint an attendee named "the team".
+ */
+const ATTENDEE_STOPWORDS = new Set([
+  'the', 'a', 'an', 'my', 'our', 'your', 'his', 'her', 'their', 'its',
+  'me', 'us', 'him', 'them', 'everyone', 'everybody', 'anyone', 'someone',
+  ...WEEKDAYS,
+  ...MONTHS,
+  'jan', 'feb', 'mar', 'apr', 'jun', 'jul', 'aug', 'sep', 'sept', 'oct', 'nov', 'dec',
+  'today', 'tomorrow', 'tonight', 'tmrw', 'morning', 'afternoon', 'evening', 'noon', 'midnight',
+]);
+
+function titleCaseName(s: string): string {
+  return s
+    .split(/(\s+)/)
+    .map((tok) => (/^\s*$/.test(tok) ? tok : tok.charAt(0).toUpperCase() + tok.slice(1)))
+    .join('');
+}
+
+/**
+ * Extract attendee NAMES from "with Alex", "w/ Sam, Priya", "Dinner with
+ * Alex and Sam". Non-destructive: the "with Alex" phrase stays in the title
+ * (Google Calendar quick-add keeps it too); the caller resolves each name
+ * against the user's contacts and only invites real emails.
+ */
+function matchAttendees(work: Work): string[] {
+  const re = /\b(?:with|w\/)\s*([a-z][a-z.'-]*(?:\s*(?:,|\band\b)\s*[a-z][a-z.'-]*)*)/;
+  const m = work.lower.match(re);
+  if (!m || m.index === undefined) return [];
+  // Slice the ORIGINAL-cased text at the same offsets so "sam" typed
+  // lowercase still displays as "Sam".
+  const raw = work.text.slice(m.index, m.index + m[0].length);
+  const phrase = raw.replace(/^(?:with|w\/)\s*/i, '');
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const part of phrase.split(/,|\band\b/i)) {
+    let candidate = part.trim().replace(/^['".-]+|['".-]+$/g, '');
+    // Drop leading determiners: "with the team" is not a person.
+    candidate = candidate.replace(/^(the|a|an|my|our|your|his|her|their|its)\s+/i, '').trim();
+    if (!candidate || names.length >= 5) continue;
+    const key = candidate.toLowerCase();
+    if (seen.has(key)) continue;
+    // Every word a stopword/date-token → not a name ("sam tomorrow").
+    if (key.split(/\s+/).every((w) => ATTENDEE_STOPWORDS.has(w))) continue;
+    seen.add(key);
+    names.push(titleCaseName(candidate));
+  }
+  return names;
+}
+
 const FILLER_LEAD = /^(please\s+|kindly\s+|add\s+(an?\s+)?|schedule\s+(an?\s+)?|create\s+(an?\s+)?|set\s+up\s+(an?\s+)?)+/i;
 const FILLER_TRAIL = /(\s+(please|thanks|thank\s+you))*$/i;
 
@@ -317,11 +392,16 @@ function cleanTitle(text: string): string {
   let title = text.replace(/\s+/g, ' ').trim();
   title = title.replace(FILLER_LEAD, '').replace(FILLER_TRAIL, '').trim();
   // Strip leftover connector words at the edges ("with" is kept mid-title:
-  // "Lunch with Sam" must survive).
-  title = title
-    .replace(/^(with|at|on)\s+/i, '')
-    .replace(/\s+(with|at|on)$/i, '')
-    .trim();
+  // "Lunch with Sam" must survive). Loop until stable: "on Tuesday at noon"
+  // strips leave "lunch with Alex on at", and one pass only removes "at".
+  let prev = '';
+  while (prev !== title) {
+    prev = title;
+    title = title
+      .replace(/^(with|at|on)\s+/i, '')
+      .replace(/\s+(with|at|on)$/i, '')
+      .trim();
+  }
   if (title.length > 200) title = title.slice(0, 200).trim();
   return title;
 }
@@ -346,7 +426,7 @@ export function parseQuickAdd(input: string, now: Date = new Date()): QuickAddPa
     if (!title) return null;
     const start = new Date(now.getTime() + minutes * 60_000);
     const end = new Date(start.getTime() + (dur.minutes ?? 60) * 60_000);
-    return { title, start, end, allDay: false, timeWasSuggested: false };
+    return { title, start, end, allDay: false, timeWasSuggested: false, attendees: matchAttendees(w) };
   }
 
   const dateRes = matchDate(w, now);
@@ -355,6 +435,7 @@ export function parseQuickAdd(input: string, now: Date = new Date()): QuickAddPa
   w = timeRes.work;
   const dur = matchDuration(w);
   w = dur.work;
+  const attendees = matchAttendees(w);
 
   const title = cleanTitle(w.text);
   if (!title) return null;
@@ -369,7 +450,7 @@ export function parseQuickAdd(input: string, now: Date = new Date()): QuickAddPa
     const start = atMidnight(day);
     const end = new Date(start);
     end.setHours(23, 59, 59, 0);
-    return { title, start, end, allDay: true, timeWasSuggested: false };
+    return { title, start, end, allDay: true, timeWasSuggested: false, attendees };
   }
 
   let { hour, minute } = timeRes.time;
@@ -394,5 +475,5 @@ export function parseQuickAdd(input: string, now: Date = new Date()): QuickAddPa
     start.setDate(start.getDate() + 1);
   }
   const end = new Date(start.getTime() + (dur.minutes ?? 60) * 60_000);
-  return { title, start, end, allDay: false, timeWasSuggested: false };
+  return { title, start, end, allDay: false, timeWasSuggested: false, attendees };
 }

@@ -40,6 +40,12 @@ export function useCreateEvent() {
       endTime: string;
       description?: string;
       calendarId?: string;
+      // fix/qm-calendar-nlp-quickadd-invite — the NLP quick-add resolves
+      // "with Alex" against contacts and passes real emails here; the
+      // backend validates attendees (string or {email}) and ICS-invites
+      // every email-shaped guest on creation.
+      attendees?: Array<string | { email: string; name?: string }>;
+      allDay?: boolean;
     }) => {
       const response = await apiClient.createEvent(
         data as Parameters<typeof apiClient.createEvent>[0],
