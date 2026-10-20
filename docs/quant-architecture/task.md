@@ -4873,3 +4873,6 @@ Base: R26 @ e925c0f12 -> origin/main 25f27e408 (fresh fetch, 15 first-parent win
 - VERDICT-LIVE: HEALTHY. Proxy 127.0.0.1:8888 healthy (google 204s; no restart). GET /search?q=test -> 307 -> /login?returnTo=%2Fsearch%3Fq%3Dtest; GET / -> 307 -> /login; GET /api/emails/search?q=test -> honest 401; GET /api/search/emails?q=from:test -> honest 401 (auth gate before operator logic — correct). Desktop 1440x900 + mobile 390x844 (iPhone 14, wait_s=14 hydrated) /search sign-in shots REVIEWED: clay M-mark current both viewports, honest sign-in copy + tri-cards, ONE IDENTITY footer, (c) 2026, pure black, mail-orange, zero old-logo flash; white ghost on 'AI triage' card = standing known issue (not re-filed); known P3 'Quant Mail' wordmark spacing re-seen (login wordmark), not re-filed. Shots reviewed + deleted; /tmp chrome-mobile-* orphans cleaned. Signed-in search + command palette = needs-auth (protocol), not faked. All 15 window merges on main only (#1243 deploy hold ACTIVE — cat-verified this round; search fixes #1383 still await deploy for live verification).
 Rotation -> QM-SCREEN-008/009 (calendar) ROUND 27 regression, queued.
 Audit started: 2026-10-20 ~09:40 IST (lane-1 deep audit loop, ROUND 27)
+
+## QM-SCREEN-008/009 R27 — Calendar regression (ROUND 27)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-008r27, started 2026-10-20 ~10:35 IST)
