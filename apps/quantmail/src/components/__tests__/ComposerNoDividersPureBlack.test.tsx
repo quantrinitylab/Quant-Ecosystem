@@ -74,34 +74,55 @@ const COMPONENTS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (name: string) => readFileSync(join(COMPONENTS_DIR, name), 'utf8');
 
 /**
- * Divider class tokens: `border-b` / `border-t` as standalone utilities.
- * The negative lookahead excludes `border-b-2` (print-block, exempt anyway)
- * and `border-t-[...]` (the spinner's animated segment, exempt).
+ * Divider class tokens, with token boundaries so `border-transparent` and
+ * friends never match:
+ * - `border-b` standalone AND `border-b-<n>` (a real divider such as
+ *   `border-b-2` must trip the lock — the print block, the one place that
+ *   legitimately uses it, is excluded from the scan by withoutPrintBlock).
+ * - `border-t` standalone, but NOT `border-t-[...]` (the spinner's animated
+ *   segment, exempt by design).
+ * - `divide-x` / `divide-y` standalone (not `divide-x-reverse`).
  */
-const DIVIDER_RE = /border-[bt](?![-\[])|divide-[xy]/;
+const DIVIDER_RE =
+  /(?<![\w-])border-b(?![\w\[])|(?<![\w-])border-t(?![\w\[-])|(?<![\w-])divide-[xy](?![\w-])/;
 /** Hard-coded GitHub-dark grays that must not appear in compose surfaces. */
 const HARD_GRAY_RE = /#1E2536|#232938|#10141E|#141824/i;
+
+/**
+ * Remove exactly the print-block subtree (and nothing else): find the
+ * `hidden print:block` marker, walk back to its opening <div, then count
+ * nested <div>...</div> pairs to the matching close. The sections after the
+ * print block (schedule modal, drive picker, permission dialog, insert-link
+ * modal) stay in the scan — the old slice(0, idx) silently exempted them.
+ */
+function withoutPrintBlock(html: string): string {
+  const marker = 'hidden print:block';
+  const idx = html.indexOf(marker);
+  expect(idx, 'print-block marker moved — update the exemption').toBeGreaterThan(0);
+  const open = html.lastIndexOf('<div', idx);
+  expect(open, 'print-block wrapper <div not found').toBeGreaterThanOrEqual(0);
+  let depth = 0;
+  const re = /<\/?div\b/g;
+  re.lastIndex = open;
+  let m: RegExpExecArray | null;
+  let end = -1;
+  while ((m = re.exec(html)) !== null) {
+    depth += m[0] === '<div' ? 1 : -1;
+    if (depth === 0) {
+      end = m.index + m[0].length;
+      break;
+    }
+  }
+  expect(end, 'print-block closing </div> not found — update the exemption').toBeGreaterThan(0);
+  return html.slice(0, open) + html.slice(end);
+}
 
 function composerSource(name: 'DockedComposer.tsx' | 'EmailComposer.tsx'): string {
   const src = read(name);
   if (name === 'EmailComposer.tsx') {
-    // The print-block subtree is exempt by design; it starts at the
-    // `hidden print:block` wrapper. Cut it before scanning.
-    const marker = 'hidden print:block';
-    const idx = src.indexOf(marker);
-    expect(idx, 'print-block marker moved — update the exemption').toBeGreaterThan(0);
-    return src.slice(0, idx);
+    return withoutPrintBlock(src);
   }
   return src;
-}
-
-function stripPrintBlock(html: string): string {
-  const marker = 'hidden print:block';
-  const idx = html.indexOf(marker);
-  if (idx === -1) return html;
-  // The print block is the last major section; drop from its wrapper on.
-  const open = html.lastIndexOf('<div', idx);
-  return html.slice(0, open === -1 ? idx : open);
 }
 
 describe('compose no-divider-lines lock: source pins', () => {
@@ -128,20 +149,20 @@ describe('compose no-divider-lines lock: rendered markup', () => {
     expect(html.length).toBeGreaterThan(0);
     const m = html.match(DIVIDER_RE);
     expect(m, `DockedComposer rendered a divider token "${m?.[0]}"`).toBeNull();
-    // No pixel separator divs either.
-    expect(/w-px h-4|h-4 w-px/.test(html)).toBe(false);
+    // No pixel separator divs either — any 1px-wide/tall utility is a line.
+    expect(/(?<![\w-])[wh]-px(?![\w-])/.test(html)).toBe(false);
     // Spacing (not lines) separates the header from the body.
     expect(html).toContain('py-2.5');
   });
 
   it('EmailComposer renders without divider lines', () => {
-    const html = stripPrintBlock(
+    const html = withoutPrintBlock(
       renderToStaticMarkup(<EmailComposer onClose={() => {}} />),
     );
     expect(html.length).toBeGreaterThan(0);
     const m = html.match(DIVIDER_RE);
     expect(m, `EmailComposer rendered a divider token "${m?.[0]}"`).toBeNull();
-    expect(/w-px h-4|h-4 w-px/.test(html)).toBe(false);
+    expect(/(?<![\w-])[wh]-px(?![\w-])/.test(html)).toBe(false);
     // Spacing (not lines) separates the header from the body.
     expect(html).toContain('py-3');
   });
