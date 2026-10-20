@@ -99,8 +99,34 @@ describe('QC-F-042 location: owner whoCanSeeLocation gate', () => {
   function locationService(ownerPreferences: unknown) {
     const fake = {
       closeFriend: {
+        // QC-F-533 harness direction: the edge is OWNER -> STRANGER (the
+        // owner listed the viewer as a close friend — the only direction
+        // that authorizes the viewer), answered WHERE-AWARE from the
+        // actual query so the old caller-side query shape
+        // ({ where: { userId: viewer } }) finds no authorizing edge.
+        async findMany(args: unknown) {
+          const edges = [
+            { id: 'edge-1', userId: OWNER.userId, friendId: STRANGER.userId, createdAt: new Date() },
+          ];
+          const where =
+            (args as { where?: { userId?: string; friendId?: string } }).where ?? {};
+          return edges.filter(
+            (e) =>
+              (where.userId === undefined || e.userId === where.userId) &&
+              (where.friendId === undefined || e.friendId === where.friendId),
+          );
+        },
+      },
+      // QC-F-533: empty DIRECT delegates — no conversation relationships
+      // in this harness, so the DIRECT half proves nobody (fail-closed).
+      conversationMember: {
         async findMany() {
-          return [{ id: 'edge-1', userId: STRANGER.userId, friendId: OWNER.userId, createdAt: new Date() }];
+          return [];
+        },
+      },
+      conversation: {
+        async findMany() {
+          return [];
         },
       },
       friendLocation: {

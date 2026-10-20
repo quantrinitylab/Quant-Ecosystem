@@ -52,13 +52,34 @@ function makeLocation(overrides: Partial<FriendLocationRecord> = {}): FriendLoca
   };
 }
 
-function makeEdge(friendId: string): CloseFriendRecord {
+// QC-F-533 harness direction: makeEdge(ownerId) is an OWNER -> caller edge
+// (the owner listed the caller as a close friend) — the only edge direction
+// that authorizes the caller to see the owner's location.
+function makeEdge(ownerId: string): CloseFriendRecord {
   return {
-    id: `edge-${friendId}`,
-    userId: CALLER,
-    friendId,
+    id: `edge-${ownerId}`,
+    userId: ownerId,
+    friendId: CALLER,
     createdAt: minutesAgo(60),
   };
+}
+
+// QC-F-533: WHERE-AWARE fake (the privacy.service.test.ts pattern) — the
+// old caller-side query shape ({ where: { userId: caller } }) finds no
+// authorizing edges in these fixtures instead of silently passing.
+function installEdges(
+  prisma: ReturnType<typeof createMockPrisma>,
+  edges: CloseFriendRecord[],
+) {
+  prisma.closeFriend.findMany.mockImplementation(async (args: unknown) => {
+    const where =
+      (args as { where?: { userId?: string; friendId?: string } }).where ?? {};
+    return edges.filter(
+      (e) =>
+        (where.userId === undefined || e.userId === where.userId) &&
+        (where.friendId === undefined || e.friendId === where.friendId),
+    );
+  });
 }
 
 function prefs(whoCanSeeLocation: string) {
@@ -86,6 +107,14 @@ function createMockPrisma() {
     closeFriend: {
       findMany: vi.fn(),
     },
+    // QC-F-533: empty DIRECT delegates — no conversation relationships in
+    // these fixtures, so the DIRECT half proves nobody (fail-closed).
+    conversationMember: {
+      findMany: vi.fn(async () => []),
+    },
+    conversation: {
+      findMany: vi.fn(async () => []),
+    },
     user: {
       findMany: vi.fn(),
     },
@@ -102,7 +131,7 @@ describe('QC-F-437 LocationService.getFriendsOnMap staleness window', () => {
   });
 
   it('T1: a stale-only close friend (8h + 5min old) is not returned at all', async () => {
-    prisma.closeFriend.findMany.mockResolvedValue([makeEdge(FRIEND_STALE)]);
+    installEdges(prisma, [makeEdge(FRIEND_STALE)]);
     prisma.friendLocation.findMany.mockResolvedValue([
       makeLocation({ id: 'loc-stale', userId: FRIEND_STALE, updatedAt: new Date(Date.now() - (8 * 60 + 5) * 60 * 1000) }),
     ]);
@@ -116,7 +145,7 @@ describe('QC-F-437 LocationService.getFriendsOnMap staleness window', () => {
   });
 
   it('T2: mixed fresh + stale friends — only the fresh friend is returned', async () => {
-    prisma.closeFriend.findMany.mockResolvedValue([makeEdge(FRIEND_FRESH), makeEdge(FRIEND_STALE)]);
+    installEdges(prisma, [makeEdge(FRIEND_FRESH), makeEdge(FRIEND_STALE)]);
     prisma.friendLocation.findMany.mockResolvedValue([
       makeLocation({ id: 'loc-fresh', userId: FRIEND_FRESH, latitude: 10, longitude: 20, updatedAt: minutesAgo(5) }),
       makeLocation({ id: 'loc-stale', userId: FRIEND_STALE, latitude: 1, longitude: 2, updatedAt: hoursAgo(24 * 30) }),
@@ -136,7 +165,7 @@ describe('QC-F-437 LocationService.getFriendsOnMap staleness window', () => {
   });
 
   it('T3: a stale row triggers no profile fetch at all', async () => {
-    prisma.closeFriend.findMany.mockResolvedValue([makeEdge(FRIEND_STALE)]);
+    installEdges(prisma, [makeEdge(FRIEND_STALE)]);
     prisma.friendLocation.findMany.mockResolvedValue([
       makeLocation({ id: 'loc-stale', userId: FRIEND_STALE, updatedAt: hoursAgo(9) }),
     ]);
@@ -150,7 +179,7 @@ describe('QC-F-437 LocationService.getFriendsOnMap staleness window', () => {
 
   it('T4 (control): a fresh friend is returned with the exact unchanged shape', async () => {
     const freshAt = minutesAgo(5);
-    prisma.closeFriend.findMany.mockResolvedValue([makeEdge(FRIEND_FRESH)]);
+    installEdges(prisma, [makeEdge(FRIEND_FRESH)]);
     prisma.friendLocation.findMany.mockResolvedValue([
       makeLocation({ id: 'loc-fresh', userId: FRIEND_FRESH, updatedAt: freshAt }),
     ]);
@@ -172,7 +201,7 @@ describe('QC-F-437 LocationService.getFriendsOnMap staleness window', () => {
   });
 
   it('T5 (control): no close friends → [] and locations are never queried', async () => {
-    prisma.closeFriend.findMany.mockResolvedValue([]);
+    installEdges(prisma, []);
 
     const result = await service.getFriendsOnMap(CALLER);
 
@@ -182,7 +211,7 @@ describe('QC-F-437 LocationService.getFriendsOnMap staleness window', () => {
 
   it('T6 (control): QC-F-042 gate composition is unchanged (nobody/ghost hide, incl. stale)', async () => {
     // (i) fresh row + pref 'nobody' → []
-    prisma.closeFriend.findMany.mockResolvedValue([makeEdge(FRIEND_FRESH)]);
+    installEdges(prisma, [makeEdge(FRIEND_FRESH)]);
     prisma.friendLocation.findMany.mockResolvedValue([
       makeLocation({ updatedAt: minutesAgo(5) }),
     ]);
@@ -208,7 +237,7 @@ describe('QC-F-437 LocationService.getFriendsOnMap staleness window', () => {
   });
 
   it('T7: window boundary — 8h − 2min is shown, 8h + 2min is hidden', async () => {
-    prisma.closeFriend.findMany.mockResolvedValue([makeEdge(FRIEND_FRESH), makeEdge(FRIEND_STALE)]);
+    installEdges(prisma, [makeEdge(FRIEND_FRESH), makeEdge(FRIEND_STALE)]);
     prisma.friendLocation.findMany.mockResolvedValue([
       makeLocation({
         id: 'loc-just-fresh',
@@ -232,7 +261,7 @@ describe('QC-F-437 LocationService.getFriendsOnMap staleness window', () => {
   });
 
   it('T8 (control): the friendLocation query shape is unchanged (filter is service-side)', async () => {
-    prisma.closeFriend.findMany.mockResolvedValue([makeEdge(FRIEND_FRESH), makeEdge(FRIEND_STALE)]);
+    installEdges(prisma, [makeEdge(FRIEND_FRESH), makeEdge(FRIEND_STALE)]);
     prisma.friendLocation.findMany.mockResolvedValue([]);
 
     await service.getFriendsOnMap(CALLER);
@@ -245,7 +274,7 @@ describe('QC-F-437 LocationService.getFriendsOnMap staleness window', () => {
 
   it('T9 (control): ordering of fresh rows follows the findMany order (no re-ranking)', async () => {
     const secondFresh = 'friend-fresh-2';
-    prisma.closeFriend.findMany.mockResolvedValue([makeEdge(FRIEND_FRESH), makeEdge(secondFresh)]);
+    installEdges(prisma, [makeEdge(FRIEND_FRESH), makeEdge(secondFresh)]);
     prisma.friendLocation.findMany.mockResolvedValue([
       makeLocation({ id: 'loc-a', userId: FRIEND_FRESH, updatedAt: minutesAgo(10) }),
       makeLocation({ id: 'loc-b', userId: secondFresh, updatedAt: minutesAgo(30) }),

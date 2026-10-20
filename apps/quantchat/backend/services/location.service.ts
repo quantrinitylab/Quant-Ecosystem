@@ -8,11 +8,18 @@
 //   - getFriendsOnMap()   the locations of the caller's CLOSE FRIENDS who are
 //                         currently sharing, shaped for the map view
 //
-// PRIVACY CONTRACT: getFriendsOnMap only ever returns rows for users the caller
-// has added as a CLOSE FRIEND (`CloseFriend` where userId = caller), and only
-// those friends who currently have a `FriendLocation` row (actively sharing).
-// Users who are not the caller's close friends are never exposed, and a close
-// friend who has stopped sharing (no row) is silently omitted. QC-F-042 adds
+// PRIVACY CONTRACT: getFriendsOnMap only ever returns rows for owners who
+// authorized THIS caller (QC-F-533): the owner listed the caller as a CLOSE
+// FRIEND (`CloseFriend` where userId = owner, friendId = caller), or owner
+// and caller share an active DIRECT conversation — the codebase's single v1
+// "friend" definition, enumerated owner-side by
+// `PrivacyService.friendOwnerIdsFor`. The caller's OWN close-friend list is
+// never an authorization: a one-sided edge the caller created (the
+// CloseFriend table is ecosystem-shared, and another app's writer can mint
+// one without the owner's consent) exposes nothing. Only owners in that
+// authorized set who currently have a `FriendLocation` row (actively
+// sharing) are returned; an authorized owner who has stopped sharing (no
+// row) is silently omitted. QC-F-042 adds
 // the owner-side half: an owner whose `whoCanSeeLocation` pref is 'nobody'
 // or 'ghost' is omitted even for their close friends. QC-F-437 adds the
 // time half: a row only counts as "currently sharing" while it is fresh —
@@ -29,7 +36,11 @@
 // regardless of whether `prisma generate` has been run for these delegates.
 // ============================================================================
 import { createAppError } from '@quant/server-core';
-import { extractBlockedUserIds, extractPrivacyPrefs } from './privacy.service';
+import {
+  extractBlockedUserIds,
+  extractPrivacyPrefs,
+  getPrivacyService,
+} from './privacy.service';
 
 /** Latitude/longitude bounds for WGS84 coordinates. */
 export const LATITUDE_MIN = -90;
@@ -111,6 +122,20 @@ export interface LocationPrismaClient {
   closeFriend: {
     findMany(args: unknown): Promise<CloseFriendRecord[]>;
   };
+  /**
+   * QC-F-533: the DIRECT half of `PrivacyService.friendOwnerIdsFor` reads
+   * these through the shared PrivacyService instance. Optional so minimal
+   * harnesses keep working — a missing delegate resolves that half to
+   * empty (fail-closed), never a crash. The real Prisma client has both.
+   */
+  conversationMember?: {
+    findMany(
+      args: unknown,
+    ): Promise<Array<{ conversationId: string; userId?: string }>>;
+  };
+  conversation?: {
+    findMany(args: unknown): Promise<Array<{ id: string }>>;
+  };
   user: {
     findMany(args: unknown): Promise<MapUserRecord[]>;
   };
@@ -177,28 +202,36 @@ export class LocationService {
    * Return the locations of the caller's CLOSE FRIENDS who are currently
    * sharing (updated within the last 8 hours — see
    * `FRIEND_LOCATION_MAX_AGE_MS`), shaped for the map. Privacy invariants:
-   *   - only `CloseFriend` edges where `userId` = caller are considered;
-   *   - only friends with a live `FriendLocation` row are included;
+   *   - only owners who authorized this caller are considered — the owner
+   *     listed the caller as a close friend, or the two share an active
+   *     DIRECT conversation (QC-F-533, `PrivacyService.friendOwnerIdsFor`);
+   *     the caller's own close-friend list never authorizes anything;
+   *   - only authorized owners with a live `FriendLocation` row are included;
    *   - only rows fresh within the staleness window are included (QC-F-437);
    *   - owners in a blocked pair with the caller (either direction, or
    *     unproven) are omitted (QC-F-447);
-   *   - non-close-friends are never returned.
+   *   - owners who never authorized the caller are never returned.
    * Results are ordered most-recently-updated first.
    */
   async getFriendsOnMap(userId: string): Promise<FriendOnMap[]> {
-    // 1. The caller's close-friend edges → the set of friend ids.
-    const edges = await this.prisma.closeFriend.findMany({
-      where: { userId },
-      select: { friendId: true },
-    });
-    const friendIds = edges.map((e) => e.friendId);
-    if (friendIds.length === 0) {
+    // 1. Owner-side enumeration (QC-F-533) → the set of owners who
+    // authorized THIS caller. The enumeration IS the authorization: an id
+    // enters this set only carrying the owner's own consent (their
+    // close-friend edge naming the caller, or a shared active DIRECT), and
+    // every gate below can only narrow it further. (The old step 1 read
+    // the CALLER's own close-friend list, so a one-sided edge the caller
+    // created exposed the owner's precise location without the owner ever
+    // agreeing — the gate's direction was reversed.)
+    const ownerIds = [
+      ...(await getPrivacyService(this.prisma).friendOwnerIdsFor(userId)),
+    ];
+    if (ownerIds.length === 0) {
       return [];
     }
 
-    // 2. Of those friends, the ones actively sharing a location.
+    // 2. Of those owners, the ones actively sharing a location.
     const locations = await this.prisma.friendLocation.findMany({
-      where: { userId: { in: friendIds } },
+      where: { userId: { in: ownerIds } },
       orderBy: { updatedAt: 'desc' },
     });
     // QC-F-437: staleness window — a row counts as "currently sharing" only
@@ -265,9 +298,10 @@ export class LocationService {
       if (ownerBlockedIds.includes(userId)) continue;
       if (callerBlockedIds.includes(loc.userId)) continue;
       // QC-F-042: the OWNER's own whoCanSeeLocation pref is the second gate.
-      // The viewer-side close-friend rule above decides whose locations the
-      // caller may ask for; this decides whether the owner agreed to be
-      // seen at all. 'nobody' and 'ghost' both hide the owner (the row
+      // The owner-side enumeration above (QC-F-533) decides which owners
+      // authorized this caller at all; this pref is the owner's category
+      // decision on top of that per-viewer consent — whether they agreed
+      // to be seen by their friends at all. 'nobody' and 'ghost' both hide the owner (the row
       // stays — publishing and being seen are different acts); 'friends'
       // (the default) keeps the existing close-friend behaviour. Malformed
       // prefs resolve most-restrictive ('nobody') via extractPrivacyPrefs,

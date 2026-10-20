@@ -534,6 +534,83 @@ export class PrivacyService {
   }
 
   /**
+   * Batched reverse form of isFriendOf (QC-F-533): the set of OWNERS for
+   * whom `isFriendOf(owner, viewerId)` would be true — owners who listed
+   * the viewer as a close friend (CloseFriend edge userId=owner,
+   * friendId=viewer), plus owners who share an active DIRECT conversation
+   * with the viewer. This is the SAME v1 "friend" definition kept in
+   * exactly one place (see the file header); it only enumerates it from
+   * the viewer's side in a constant number of queries (at most 4: one
+   * edge read, two membership reads, one conversation read), because a
+   * per-owner isFriendOf loop is an N+1 on list/leak surfaces — the same
+   * reason blockedExclusionsFor exists. The viewer is never in the
+   * returned set (isFriendOf's self-true is a message-gate rule; a
+   * surface enumerating OTHER owners must not pin the viewer themself).
+   *
+   * Fail-closed per half, never throws: a failed edge read proves no
+   * edge-owners and a failed DIRECT-chain read proves no DIRECT-owners;
+   * each half only ever adds owners it actually proved. A missing
+   * delegate (`?.` undefined) behaves as an empty half.
+   */
+  async friendOwnerIdsFor(viewerId: string): Promise<Set<string>> {
+    const owners = new Set<string>();
+
+    // Edge half: owners who listed the viewer as a close friend.
+    try {
+      const edges = (await this.prisma.closeFriend?.findMany({
+        where: { friendId: viewerId },
+        select: { userId: true },
+      })) ?? [];
+      for (const edge of edges) {
+        if (edge.userId && edge.userId !== viewerId) owners.add(edge.userId);
+      }
+    } catch {
+      // Fail-closed: a failed edge read proves no owners.
+    }
+
+    // DIRECT half: co-members of the viewer's active DIRECT conversations
+    // (the batched shape stories' loadFriendContext already uses).
+    try {
+      const viewerMemberships = (await this.prisma.conversationMember?.findMany({
+        where: { userId: viewerId, leftAt: null },
+        select: { conversationId: true },
+      })) ?? [];
+      const conversationIds = [
+        ...new Set(viewerMemberships.map((m) => m.conversationId)),
+      ];
+      if (conversationIds.length > 0) {
+        const coMemberships = (await this.prisma.conversationMember?.findMany({
+          where: {
+            conversationId: { in: conversationIds },
+            leftAt: null,
+          },
+          select: { conversationId: true, userId: true },
+        })) ?? [];
+        if (coMemberships.length > 0) {
+          const direct = (await this.prisma.conversation?.findMany({
+            where: {
+              id: { in: [...new Set(coMemberships.map((m) => m.conversationId))] },
+              type: 'DIRECT',
+            },
+            select: { id: true },
+          })) ?? [];
+          const directIds = new Set(direct.map((c) => c.id));
+          for (const m of coMemberships) {
+            if (m.userId && m.userId !== viewerId && directIds.has(m.conversationId)) {
+              owners.add(m.userId);
+            }
+          }
+        }
+      }
+    } catch {
+      // Fail-closed: a failed DIRECT read proves no owners from this half.
+    }
+
+    owners.delete(viewerId);
+    return owners;
+  }
+
+  /**
    * whoCanMessage verdict for starting a NEW direct conversation with
    * `targetId`. Existing conversations are never gated by this (the toggle
    * guards initiation only — membership remains the authority inside a
