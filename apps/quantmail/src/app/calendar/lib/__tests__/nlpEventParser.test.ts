@@ -111,3 +111,73 @@ describe('parseQuickAdd', () => {
     expect(isoLocal(hit!.start)).toBe('2026-10-15T09:00');
   });
 });
+
+// ============================================================================
+// fix/qm-calendar-nlp-quickadd-invite — attendee names + hyphenated durations
+// ============================================================================
+
+describe('parseQuickAdd attendees', () => {
+  it('parses the finding\'s full example incl. invite, duration and noon', () => {
+    const hit = parseQuickAdd('Schedule a 30-minute lunch with Alex on Tuesday at noon', NOW);
+    expect(hit).not.toBeNull();
+    // Tuesday after Wed 2026-10-14 is 2026-10-20; "30-minute" sets the length.
+    expect(isoLocal(hit!.start)).toBe('2026-10-20T12:00');
+    expect(isoLocal(hit!.end)).toBe('2026-10-20T12:30');
+    expect(hit!.title).toBe('lunch with Alex');
+    expect(hit!.attendees).toEqual(['Alex']);
+    expect(hit!.allDay).toBe(false);
+  });
+
+  it('extracts a "with Sam" name without changing the existing title', () => {
+    const hit = parseQuickAdd('Lunch with Sam 1pm', NOW);
+    expect(hit!.title).toBe('Lunch with Sam');
+    expect(hit!.attendees).toEqual(['Sam']);
+  });
+
+  it('extracts multiple names joined by "and"', () => {
+    const hit = parseQuickAdd('Dinner with Alex and Sam tomorrow 7pm', NOW);
+    expect(hit!.attendees).toEqual(['Alex', 'Sam']);
+    expect(hit!.title).toBe('Dinner with Alex and Sam');
+    expect(isoLocal(hit!.start)).toBe('2026-10-15T19:00');
+  });
+
+  it('extracts comma-separated names and the "w/" shorthand', () => {
+    expect(parseQuickAdd('Sync with Priya, Rahul 3pm', NOW)!.attendees).toEqual(['Priya', 'Rahul']);
+    expect(parseQuickAdd('Call w/ Jordan 4pm', NOW)!.attendees).toEqual(['Jordan']);
+  });
+
+  it('title-cases lowercase names from the original text', () => {
+    const hit = parseQuickAdd('lunch with sam 1pm', NOW);
+    expect(hit!.attendees).toEqual(['Sam']);
+    expect(hit!.title).toBe('lunch with sam');
+  });
+
+  it('never mints an attendee from "with the team"', () => {
+    const hit = parseQuickAdd('Meeting with the team Friday 2pm', NOW);
+    expect(hit).not.toBeNull();
+    expect(hit!.attendees).toEqual([]);
+    expect(hit!.title).toBe('Meeting with the team');
+    expect(isoLocal(hit!.start)).toBe('2026-10-16T14:00');
+  });
+
+  it('extracts attendees on all-day events and the relative branch', () => {
+    const allDay = parseQuickAdd('Offsite with Mia Friday', NOW);
+    expect(allDay!.allDay).toBe(true);
+    expect(allDay!.attendees).toEqual(['Mia']);
+    const rel = parseQuickAdd('Coffee with Lee in 2 hours', NOW);
+    expect(rel!.attendees).toEqual(['Lee']);
+    expect(isoLocal(rel!.start)).toBe('2026-10-14T11:00');
+  });
+
+  it('dedupes repeated names and caps the list', () => {
+    const hit = parseQuickAdd('Lunch with Sam and Sam 1pm', NOW);
+    expect(hit!.attendees).toEqual(['Sam']);
+  });
+
+  it('parses hyphenated durations ("1-hour")', () => {
+    const hit = parseQuickAdd('1-hour planning Thursday 10am', NOW);
+    expect(hit!.title).toBe('planning');
+    expect(isoLocal(hit!.start)).toBe('2026-10-15T10:00');
+    expect(isoLocal(hit!.end)).toBe('2026-10-15T11:00');
+  });
+});
