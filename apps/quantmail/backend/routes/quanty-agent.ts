@@ -434,6 +434,7 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
   // in-memory list, which mixes users on shared deployments).
   fastify.get('/api/quanty/approvals', async (request, reply) => {
     const userId = reqUserId(request);
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     return reply.send({ success: true, data: await listDurableApprovals(prisma, userId, 50) });
   });
 

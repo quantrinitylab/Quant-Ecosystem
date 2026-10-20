@@ -76,6 +76,7 @@ interface QuantyTaskCreateData {
   pendingToolName?: string | null;
   outcome?: string | null;
   background: boolean;
+  ownerId?: string | null;
 }
 
 interface QuantyTaskUpdateData {
@@ -86,6 +87,7 @@ interface QuantyTaskUpdateData {
   pendingToolName?: string | null;
   outcome?: string | null;
   background?: boolean;
+  ownerId?: string | null;
   updatedAt?: Date;
 }
 
@@ -93,12 +95,12 @@ export interface QuantyTaskTable {
   upsert(args: { where: { id: string }; create: QuantyTaskCreateData; update: QuantyTaskUpdateData }): Promise<unknown>;
   findUnique(args: { where: { id: string } }): Promise<QuantyTaskRow | null>;
   findMany(args: {
-    where: { userId?: string; status?: { in: string[] } };
+    where: { userId?: string; status?: { in: string[] }; updatedAt?: { lt: Date }; ownerId?: { not: string } };
     orderBy: { updatedAt: 'desc' | 'asc' };
     take?: number;
   }): Promise<QuantyTaskRow[]>;
   updateMany(args: {
-    where: { id: { in: string[] } };
+    where: { id?: string | { in: string[] }; status?: { in: string[] } };
     data: { status: string; outcome: string; updatedAt: Date };
   }): Promise<{ count: number }>;
 }
@@ -164,6 +166,13 @@ export interface StepReceiptRow {
 
 export interface StepReceiptTable {
   findUnique(args: { where: { operationId: string } }): Promise<StepReceiptRow | null>;
+  create(args: {
+    data: { operationId: string; fingerprint: string; status: string; responseBody: string; expiresAt: Date };
+  }): Promise<unknown>;
+  update(args: {
+    where: { operationId: string };
+    data: { fingerprint?: string; status?: string; responseBody?: string; expiresAt?: Date };
+  }): Promise<unknown>;
   upsert(args: {
     where: { operationId: string };
     create: { operationId: string; fingerprint: string; status: string; responseBody: string; expiresAt: Date };
