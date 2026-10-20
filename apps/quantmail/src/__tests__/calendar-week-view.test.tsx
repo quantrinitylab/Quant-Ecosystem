@@ -8,6 +8,10 @@ import {
   minutesToTop,
   minutesToTimeLabel,
   layoutDayEvents,
+  snapMinutes,
+  minutesFromClientY,
+  eventDurationMinutes,
+  rescheduledRange,
   WEEK_HOUR_HEIGHT,
 } from '../app/calendar/components/CalendarWeekView';
 import type { CalendarEventLike } from '../app/calendar/types';
@@ -218,5 +222,105 @@ describe('CalendarWeekView', () => {
     const html = renderToStaticMarkup(<CalendarWeekView {...baseProps} weekStartsOn={0} />);
     // Sunday 2026-10-04 .. Saturday 2026-10-10
     expect(html).toContain('Oct 4 – 10, 2026');
+  });
+
+  describe('drag-to-reschedule markup (fix/qm-calendar-drag-reschedule)', () => {
+    it('marks day columns and event chips for drag hit-testing', () => {
+      const html = renderToStaticMarkup(
+        <CalendarWeekView {...baseProps} events={[makeEvent()]} />,
+      );
+      expect(html).toContain('data-week-day-index="0"');
+      expect(html).toContain('data-week-event-id="ev-test"');
+    });
+
+    it('gates the reschedule affordance on the handler prop', () => {
+      const noopReschedule = () => {};
+      const plain = renderToStaticMarkup(
+        <CalendarWeekView {...baseProps} events={[makeEvent()]} />,
+      );
+      const wired = renderToStaticMarkup(
+        <CalendarWeekView
+          {...baseProps}
+          events={[makeEvent()]}
+          onRescheduleEvent={noopReschedule}
+        />,
+      );
+      // The only markup differences are the reschedule affordance hints.
+      expect(plain).not.toBe(wired);
+      expect(wired).toContain('drag to reschedule');
+      expect(plain).not.toContain('drag to reschedule');
+    });
+  });
+});
+
+describe('drag-to-reschedule helpers (fix/qm-calendar-drag-reschedule)', () => {
+  it('snaps minutes to the 15-minute grid', () => {
+    expect(snapMinutes(7)).toBe(0);
+    expect(snapMinutes(8)).toBe(15);
+    expect(snapMinutes(60)).toBe(60);
+    expect(snapMinutes(67)).toBe(60);
+    expect(snapMinutes(68)).toBe(75);
+  });
+
+  it('converts a pointer Y to snapped minutes within the time grid', () => {
+    const rectTop = 100;
+    expect(minutesFromClientY(rectTop, rectTop)).toBe(0);
+    expect(minutesFromClientY(rectTop + WEEK_HOUR_HEIGHT, rectTop)).toBe(60);
+    // 90 minutes down the grid snaps to 90.
+    expect(minutesFromClientY(rectTop + WEEK_HOUR_HEIGHT * 1.5, rectTop)).toBe(90);
+    // Near the top of the second hour snaps to 75, not 90.
+    expect(minutesFromClientY(rectTop + WEEK_HOUR_HEIGHT * 1.25 + 2, rectTop)).toBe(75);
+  });
+
+  it('clamps the pointer minutes to the day', () => {
+    expect(minutesFromClientY(-500, 100)).toBe(0);
+    expect(minutesFromClientY(100000, 100)).toBe(1440);
+  });
+
+  it('measures the preserved duration from start/end', () => {
+    const ev = makeEvent({
+      startTime: new Date(2026, 9, 7, 10, 0).toISOString(),
+      endTime: new Date(2026, 9, 7, 11, 30).toISOString(),
+    });
+    expect(eventDurationMinutes(ev)).toBe(90);
+  });
+
+  it('falls back to one grid step when the event has no usable times', () => {
+    expect(eventDurationMinutes(makeEvent({ startTime: undefined, endTime: undefined }))).toBe(
+      15,
+    );
+  });
+
+  it('reschedules onto a new day preserving duration and local time', () => {
+    const ev = makeEvent(); // 10:00–11:00 on 2026-10-07
+    const targetDay = new Date(2026, 9, 9); // Friday
+    const { start, end } = rescheduledRange(ev, targetDay, 14 * 60 + 30);
+    expect(start.getFullYear()).toBe(2026);
+    expect(start.getMonth()).toBe(9);
+    expect(start.getDate()).toBe(9);
+    expect(start.getHours()).toBe(14);
+    expect(start.getMinutes()).toBe(30);
+    expect(end.getTime() - start.getTime()).toBe(60 * 60 * 1000);
+  });
+
+  it('clamps the drop so a long event never spills past midnight', () => {
+    const ev = makeEvent({
+      startTime: new Date(2026, 9, 7, 10, 0).toISOString(),
+      endTime: new Date(2026, 9, 7, 12, 0).toISOString(), // 2h duration
+    });
+    const { start, end } = rescheduledRange(ev, new Date(2026, 9, 9), 23 * 60 + 30);
+    // 23:30 + 2h would spill: start clamps to 22:00 so the event ends exactly
+    // at midnight (24:00 is a valid end-of-day representation) with the full
+    // 2h duration preserved.
+    expect(start.getHours()).toBe(22);
+    expect(start.getMinutes()).toBe(0);
+    expect(end.getTime() - start.getTime()).toBe(2 * 60 * 60 * 1000);
+    expect(end.getTime()).toBe(new Date(2026, 9, 10, 0, 0).getTime());
+  });
+
+  it('snaps an unsnapped drop target to the grid', () => {
+    const ev = makeEvent();
+    const { start } = rescheduledRange(ev, new Date(2026, 9, 9), 14 * 60 + 38);
+    expect(start.getMinutes()).toBe(45);
   });
 });

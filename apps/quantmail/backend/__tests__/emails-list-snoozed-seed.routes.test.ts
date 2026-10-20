@@ -29,9 +29,15 @@ type Row = Record<string, any>;
 const FOLDERS: Row[] = [{ id: 'folder-inbox', userId: 'u1', name: 'Inbox', type: 'INBOX' }];
 
 // snoozedUntil lives ONLY on EmailThread — there is no such column on Email.
+// Times are relative to the run so this contract never time-bombs: the
+// "snoozed" thread always wakes in the future, the "expired" one always in
+// the past (a hardcoded 2026-10-20T10:00Z wake time red-d the gate on every
+// CI run after that instant, 3 consecutive orchestrator runs).
+const SNOOZED_UNTIL = new Date(Date.now() + 2 * 60 * 60 * 1000);
+const EXPIRED_UNTIL = new Date(Date.now() - 2 * 60 * 60 * 1000);
 const THREADS: Row[] = [
-  { id: 't-snoozed', userId: 'u1', snoozedUntil: new Date('2026-10-20T10:00:00Z') },
-  { id: 't-expired', userId: 'u1', snoozedUntil: new Date('2026-10-01T10:00:00Z') },
+  { id: 't-snoozed', userId: 'u1', snoozedUntil: SNOOZED_UNTIL },
+  { id: 't-expired', userId: 'u1', snoozedUntil: EXPIRED_UNTIL },
   { id: 't-plain', userId: 'u1', snoozedUntil: null },
 ];
 
@@ -244,7 +250,7 @@ describe('GET /emails snoozed wire truth (offline-seed contract)', () => {
       // time, not an invented value.
       expect(typeof emailRow.snoozedUntil).toBe('string');
       expect(new Date(emailRow.snoozedUntil).getTime()).toBe(
-        new Date('2026-10-20T10:00:00Z').getTime(),
+        SNOOZED_UNTIL.getTime(),
       );
       expect(belongsInFolder(emailRow as any, 'SNOOZED')).toBe(true);
     }

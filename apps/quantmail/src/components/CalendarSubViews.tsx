@@ -1082,6 +1082,8 @@ export interface CalendarWeekSubViewProps {
   onSelectDate: (date: Date) => void;
   openDedicatedSheet: (type: EntryType, date?: Date, opts?: WeekViewSheetOpts) => void;
   onSelectEvent: (event: CalendarEventLike) => void;
+  /** Drag-to-reschedule: persisted by the page via the update-event mutation. */
+  onRescheduleEvent?: (event: CalendarEventLike, newStart: Date, newEnd: Date) => void;
   className?: string;
 }
 
@@ -1092,6 +1094,7 @@ export function CalendarWeekSubView({
   onSelectDate,
   openDedicatedSheet,
   onSelectEvent,
+  onRescheduleEvent,
   className = '',
 }: CalendarWeekSubViewProps) {
   return (
@@ -1108,6 +1111,7 @@ export function CalendarWeekSubView({
         onSelectDate={onSelectDate}
         openDedicatedSheet={openDedicatedSheet}
         onSelectEvent={onSelectEvent}
+        onRescheduleEvent={onRescheduleEvent}
       />
     </div>
   );

@@ -1275,6 +1275,39 @@ function CalendarPageContent() {
     }
   }, [createEvent, refetch]);
 
+  // fix/qm-calendar-drag-reschedule: persist a week-view drag-to-reschedule
+  // drop via the same update-entry mutation the edit sheet uses. Honest
+  // errors only — a failed move toasts and the chip snaps back on refetch.
+  const handleRescheduleEvent = useCallback(
+    async (event: CalendarEventLike, newStart: Date, newEnd: Date) => {
+      const hh = (d: Date) => {
+        const h24 = d.getHours();
+        const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+        return `${h12}:${`${d.getMinutes()}`.padStart(2, '0')} ${h24 >= 12 ? 'PM' : 'AM'}`;
+      };
+      try {
+        await updateEvent.mutateAsync({
+          id: event.id,
+          data: {
+            startTime: newStart.toISOString(),
+            endTime: newEnd.toISOString(),
+          } as never,
+        });
+        showToast({
+          text: `Moved “${event.title}” to ${MONTHS_SHORT[newStart.getMonth()]} ${newStart.getDate()} · ${hh(newStart)}`,
+          type: 'success',
+        });
+        void refetch();
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[calendar] drag-reschedule failed:', err);
+        showToast({ text: 'Could not move the event — please try again', type: 'error' });
+        void refetch();
+      }
+    },
+    [updateEvent, refetch],
+  );
+
   const addNotificationReminder = useCallback((timeText: string) => {
     setFormState((prev) => {
       if (!prev.notifications.includes(timeText)) {
@@ -1524,6 +1557,7 @@ function CalendarPageContent() {
             onSelectDate={selectDate}
             openDedicatedSheet={openDedicatedSheet}
             onSelectEvent={handleSelectEvent}
+            onRescheduleEvent={handleRescheduleEvent}
           />
         ) : (
           (activeContextTab === 'feed' || activeContextTab === 'agenda') && (
