@@ -186,7 +186,7 @@ describe('DeliveryWorker direct-SMTP fallback body shape (QM-SMTP-MULTIPART)', (
     expect(signedCalls).toHaveLength(1);
     const { headers, body } = signedCalls[0]!;
     expect(headers['content-type']).toBe('text/html; charset=UTF-8');
-    expect(headers['mime-version']).toBeUndefined();
+    expect(headers['mime-version']).toBe('1.0');
     expect(body).toBe('<p>hi</p>');
   });
 
@@ -200,6 +200,39 @@ describe('DeliveryWorker direct-SMTP fallback body shape (QM-SMTP-MULTIPART)', (
     expect(signedCalls).toHaveLength(1);
     const { headers, body } = signedCalls[0]!;
     expect(headers['content-type']).toBe('text/plain; charset=UTF-8');
+    expect(headers['mime-version']).toBe('1.0');
     expect(body).toBe('hi');
+  });
+
+  it('sends multipart/mixed with the attachment payload when attachments resolve', async () => {
+    const payload = Buffer.from('attachment-bytes-123', 'utf8').toString('base64');
+    const worker = makeWorker(
+      makePrisma(
+        makeEmail({
+          attachments: [
+            {
+              id: 'att-1',
+              name: 'notes.txt',
+              filename: 'notes.txt',
+              size: 21,
+              mimeType: 'text/plain',
+              url: `data:text/plain;base64,${payload}`,
+            },
+          ],
+        }),
+      ),
+    );
+    const receipt = await worker.processDelivery({
+      data: { emailId: 'email-1', userId: 'user-1' },
+    } as never);
+
+    expect(receipt.deliveryStatus).toBe('sent');
+    expect(signedCalls).toHaveLength(1);
+    const { headers, body } = signedCalls[0]!;
+    expect(headers['mime-version']).toBe('1.0');
+    expect(headers['content-type']).toMatch(/^multipart\/mixed; boundary="/);
+    const unfolded = body.replace(/\r\n/g, '');
+    expect(unfolded).toContain(payload);
+    expect(unfolded).toContain('notes.txt');
   });
 });

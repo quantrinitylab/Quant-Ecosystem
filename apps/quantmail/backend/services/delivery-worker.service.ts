@@ -620,6 +620,7 @@ export class DeliveryWorker {
         } else {
           // Single-variant body: keep the single part but declare its type —
           // the old code transmitted it with no Content-Type at all.
+          headers['mime-version'] = '1.0';
           headers['content-type'] =
             trackedBodyHtml !== undefined ? 'text/html; charset=UTF-8' : 'text/plain; charset=UTF-8';
           rawMessage = signer.signMessage(headers, body);
