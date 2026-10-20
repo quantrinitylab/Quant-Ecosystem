@@ -4804,6 +4804,9 @@ Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-010r26, started 2026
 - Rotation -> QM-SCREEN-012 (contacts) ROUND 26 regression, queued.
 Status: [x] DONE (R26 regression audit complete 2026-10-20 ~02:05 IST; 7 in-scope merges reviewed sound, prior fixes byte-verified intact, 0 new findings, live healthy; fixes tracked via their PRs)
 
+## QM-SCREEN-010/011 R27 — Drive regression (ROUND 27)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-010r27, started 2026-10-20 ~11:40 IST; R26 base f28fef5f8 -> origin/main 25f27e408, fresh fetch, 8 first-parent merges; code read from origin/main tree only)
+
 ## QM-SCREEN-012 R26 — Contacts regression (ROUND 26)
 Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-012r26, started 2026-10-20 ~02:35 IST; R25 base 68da5453cc99 -> origin/main 3c6e0637b, fresh fetch, 33 first-parent merges)
 Status: [x] DONE (R26 regression audit complete 2026-10-20 ~02:55 IST; 3 contacts/people merges reviewed SOUND, prior fixes byte-verified intact, 0 new findings, origin healthy with full logged-out live verification; fixes tracked via their PRs)
