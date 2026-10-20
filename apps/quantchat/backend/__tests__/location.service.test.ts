@@ -24,13 +24,35 @@ function makeLocation(overrides: Partial<FriendLocationRecord> = {}): FriendLoca
   };
 }
 
-function makeEdge(friendId: string): CloseFriendRecord {
+// QC-F-533 harness direction: makeEdge(ownerId) is an OWNER -> caller edge
+// (the owner listed the caller as a close friend) — the only edge direction
+// that authorizes the caller to see the owner's location.
+function makeEdge(ownerId: string): CloseFriendRecord {
   return {
-    id: `edge-${friendId}`,
-    userId: 'caller-1',
-    friendId,
+    id: `edge-${ownerId}`,
+    userId: ownerId,
+    friendId: 'caller-1',
     createdAt: new Date('2024-01-01T00:00:00.000Z'),
   };
+}
+
+// QC-F-533: the fake is WHERE-AWARE — it answers from the actual `where`
+// (the privacy.service.test.ts pattern), so the old caller-side query
+// shape ({ where: { userId: caller } }) finds no authorizing edges in
+// these fixtures instead of silently passing.
+function installEdges(
+  prisma: ReturnType<typeof createMockPrisma>,
+  edges: CloseFriendRecord[],
+) {
+  prisma.closeFriend.findMany.mockImplementation(async (args: unknown) => {
+    const where =
+      (args as { where?: { userId?: string; friendId?: string } }).where ?? {};
+    return edges.filter(
+      (e) =>
+        (where.userId === undefined || e.userId === where.userId) &&
+        (where.friendId === undefined || e.friendId === where.friendId),
+    );
+  });
 }
 
 function makeUser(overrides: Partial<MapUserRecord> = {}): MapUserRecord {
@@ -52,6 +74,16 @@ function createMockPrisma() {
     },
     closeFriend: {
       findMany: vi.fn(),
+    },
+    // QC-F-533: empty DIRECT delegates — these fixtures carry no
+    // conversation relationships, so the DIRECT half of the owner-side
+    // enumeration proves nobody (fail-closed), exactly as a missing
+    // delegate would.
+    conversationMember: {
+      findMany: vi.fn(async () => []),
+    },
+    conversation: {
+      findMany: vi.fn(async () => []),
     },
     user: {
       findMany: vi.fn(),
@@ -165,8 +197,8 @@ describe('LocationService.getFriendsOnMap (privacy)', () => {
     service = new LocationService(prisma);
   });
 
-  it('returns [] without querying locations when the caller has no close friends', async () => {
-    prisma.closeFriend.findMany.mockResolvedValue([]);
+  it('returns [] without querying locations when no owner authorized the caller', async () => {
+    installEdges(prisma, []);
 
     const result = await service.getFriendsOnMap('caller-1');
 
@@ -174,15 +206,15 @@ describe('LocationService.getFriendsOnMap (privacy)', () => {
     expect(prisma.friendLocation.findMany).not.toHaveBeenCalled();
   });
 
-  it('only queries locations for the caller close-friend ids', async () => {
-    prisma.closeFriend.findMany.mockResolvedValue([makeEdge('friend-1'), makeEdge('friend-2')]);
+  it('only queries locations for the owner-authorized ids (QC-F-533)', async () => {
+    installEdges(prisma, [makeEdge('friend-1'), makeEdge('friend-2')]);
     prisma.friendLocation.findMany.mockResolvedValue([]);
 
     await service.getFriendsOnMap('caller-1');
 
     expect(prisma.closeFriend.findMany).toHaveBeenCalledWith({
-      where: { userId: 'caller-1' },
-      select: { friendId: true },
+      where: { friendId: 'caller-1' },
+      select: { userId: true },
     });
     expect(prisma.friendLocation.findMany).toHaveBeenCalledWith({
       where: { userId: { in: ['friend-1', 'friend-2'] } },
@@ -190,8 +222,8 @@ describe('LocationService.getFriendsOnMap (privacy)', () => {
     });
   });
 
-  it('returns [] when no close friend is currently sharing', async () => {
-    prisma.closeFriend.findMany.mockResolvedValue([makeEdge('friend-1')]);
+  it('returns [] when no authorized owner is currently sharing', async () => {
+    installEdges(prisma, [makeEdge('friend-1')]);
     prisma.friendLocation.findMany.mockResolvedValue([]);
 
     const result = await service.getFriendsOnMap('caller-1');
@@ -200,10 +232,11 @@ describe('LocationService.getFriendsOnMap (privacy)', () => {
     expect(prisma.user.findMany).not.toHaveBeenCalled();
   });
 
-  it('shapes only close friends who are sharing, excluding non-close-friends', async () => {
-    // Caller has two close friends; only friend-1 is sharing. (friend-2 has no
-    // location row, and stranger-9 is never a close friend so never queried.)
-    prisma.closeFriend.findMany.mockResolvedValue([makeEdge('friend-1'), makeEdge('friend-2')]);
+  it('shapes only authorized owners who are sharing, excluding non-authorized users', async () => {
+    // Two owners authorized the caller; only friend-1 is sharing. (friend-2
+    // has no location row, and stranger-9 never authorized the caller so is
+    // never queried.)
+    installEdges(prisma, [makeEdge('friend-1'), makeEdge('friend-2')]);
     prisma.friendLocation.findMany.mockResolvedValue([
       makeLocation({ id: 'loc-1', userId: 'friend-1', latitude: 10, longitude: 20 }),
     ]);
@@ -240,7 +273,7 @@ describe('LocationService.getFriendsOnMap (privacy)', () => {
   });
 
   it('skips a sharing friend whose user record is missing (no placeholder identity)', async () => {
-    prisma.closeFriend.findMany.mockResolvedValue([makeEdge('friend-1'), makeEdge('friend-2')]);
+    installEdges(prisma, [makeEdge('friend-1'), makeEdge('friend-2')]);
     prisma.friendLocation.findMany.mockResolvedValue([
       makeLocation({ id: 'loc-1', userId: 'friend-1' }),
       makeLocation({ id: 'loc-2', userId: 'friend-2' }),
