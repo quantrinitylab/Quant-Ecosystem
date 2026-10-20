@@ -574,7 +574,7 @@ export default function CalendarEventDetailPage() {
                   {attendees.length === 0 ? (
                     <p className="text-sm text-[var(--quant-muted-foreground)]">No attendees — just you.</p>
                   ) : (
-                    <ul className="divide-y divide-[var(--quant-border)]">
+                    <ul className="space-y-1">
                       {attendees.map((a) => (
                         <li key={a.email} className="flex items-center gap-3 py-2.5">
                           <span
@@ -600,7 +600,7 @@ export default function CalendarEventDetailPage() {
                       Otherwise the button 403s ("not an attendee"), so the
                       affordance itself is wrong. */}
                   {event.viewerIsAttendee && (
-                    <div className="mt-4 border-t border-[var(--quant-border)] pt-4">
+                    <div className="mt-4 pt-4">
                       <p className="mb-2 text-xs font-medium text-[var(--quant-muted-foreground)]">Your response</p>
                       <div className="flex flex-wrap gap-2">
                         {(['accepted', 'tentative', 'declined'] as RsvpStatus[]).map((status) => (

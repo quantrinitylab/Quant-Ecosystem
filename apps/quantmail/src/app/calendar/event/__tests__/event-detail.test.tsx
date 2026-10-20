@@ -289,3 +289,50 @@ describe('edit form timezone', () => {
     );
   });
 });
+
+describe('attendee list dividers', () => {
+  // User-locked rule: pure-black, no divider lines. The attendee list must be
+  // spacing-only rows — a `divide-y` regressing here shows a visible divider
+  // line between every attendee row.
+  it('renders attendee rows with spacing only, no divide-* divider classes', () => {
+    mockEvent = baseEvent({
+      viewerIsAttendee: false,
+      attendees: [
+        { email: 'a@quantmail.in', name: 'Alice', status: 'accepted' },
+        { email: 'b@quantmail.in', name: 'Bob', status: 'tentative' },
+        { email: 'c@quantmail.in', status: 'declined' },
+      ],
+    });
+    const el = renderPage();
+    const section = Array.from(el.querySelectorAll('section')).find((s) =>
+      s.querySelector('h2')?.textContent?.includes('Attendees'),
+    )!;
+    const ul = section.querySelector('ul')!;
+    const classes = ul.className.split(/\s+/);
+    expect(classes.some((c) => c.startsWith('divide-'))).toBe(false);
+    expect(classes).toContain('space-y-1');
+    // All three attendees still render as rows.
+    expect(ul.querySelectorAll('li').length).toBe(3);
+    expect(ul.textContent).toContain('Alice');
+    expect(ul.textContent).toContain('b@quantmail.in');
+    // The "Your response" RSVP block below the list must be separated by
+    // spacing only — its border-t section separator is also a divider line.
+    // (Rendered separately below with viewerIsAttendee: true.)
+  });
+
+  it('rsvp "Your response" block has no border-t section separator', () => {
+    mockEvent = baseEvent({
+      viewerIsAttendee: true,
+      attendees: [{ email: 'a@quantmail.in', name: 'Alice', status: 'accepted' }],
+    });
+    const el = renderPage();
+    const section = Array.from(el.querySelectorAll('section')).find((s) =>
+      s.querySelector('h2')?.textContent?.includes('Attendees'),
+    )!;
+    const rsvp = Array.from(section.querySelectorAll('div')).find((d) =>
+      d.querySelector('p')?.textContent?.includes('Your response'),
+    );
+    expect(rsvp, 'Your response block should render for an attendee').toBeTruthy();
+    expect(rsvp!.className.split(/\s+/).some((c) => c === 'border-t')).toBe(false);
+  });
+});
