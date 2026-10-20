@@ -224,8 +224,8 @@ export type CalendarCommandId =
  */
 export const CALENDAR_COMMAND_REFERENCE: Array<CommandReference & { id: CalendarCommandId }> = [
   { id: 'calendar.goToday', label: 'Go to today', group: 'Calendar', keys: 't', description: 'Jump back to the current date' },
-  { id: 'calendar.nextDay', label: 'Next day', group: 'Calendar', keys: 'j', description: 'Move the selected date forward one day' },
-  { id: 'calendar.previousDay', label: 'Previous day', group: 'Calendar', keys: 'k', description: 'Move the selected date back one day' },
+  { id: 'calendar.nextDay', label: 'Next day', group: 'Calendar', keys: ['j', 'n'], description: 'Move the selected date forward one day' },
+  { id: 'calendar.previousDay', label: 'Previous day', group: 'Calendar', keys: ['k', 'p'], description: 'Move the selected date back one day' },
   {
     id: 'calendar.goToDate',
     label: 'Go to a date…',

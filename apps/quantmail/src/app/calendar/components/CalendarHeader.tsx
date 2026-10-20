@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import type { EntryType } from '../types';
 import { toDateInput } from '../lib/calendar-geometry';
 import { IconCalendar, IconTarget, IconCake } from '../../../components/icons';
+import { useKeyboardSurfaces } from '../../../components/KeyboardProvider';
 import { useMinuteClock } from '../lib/use-minute-clock';
 
 export interface CalendarHeaderProps {
@@ -125,6 +126,34 @@ function ChevronDownIcon({ className }: { className?: string }) {
       aria-hidden="true"
     >
       <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+/* Keyboard glyph for the shortcuts-sheet affordance (fix/qm-calendar-keyboard-triage).
+ * Lucide-style outline, same stroke treatment as the other header icons. */
+function HeaderKeyboardIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M6 9h.01" />
+      <path d="M10 9h.01" />
+      <path d="M14 9h.01" />
+      <path d="M18 9h.01" />
+      <path d="M6 13h.01" />
+      <path d="M10 13h.01" />
+      <path d="M14 13h.01" />
+      <path d="M18 13h.01" />
+      <path d="M7 16.5h10" />
     </svg>
   );
 }
@@ -272,6 +301,13 @@ export function CalendarHeader({
   // the header 60x a minute for nothing.
   const now = useMinuteClock();
 
+  // fix/qm-calendar-keyboard-triage: visible affordance for the `?` shortcuts
+  // sheet. The engine binds a Google-class shortcut set on this surface, but
+  // the sheet was key-only — nothing in the calendar UI said the list
+  // existed. Safe outside the provider (inert no-ops), so isolated renders
+  // keep working.
+  const { openHelp } = useKeyboardSurfaces();
+
   const istTime = useMemo(() => {
     try {
       return new Intl.DateTimeFormat('en-US', {
@@ -349,7 +385,7 @@ export function CalendarHeader({
           <button
             type="button"
             onClick={goToday}
-            title="Go to today (T)"
+            title="Go to today (t)"
             className="inline-flex min-h-[44px] items-center px-3 py-1 text-xs font-medium rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
           >
             Today
@@ -411,12 +447,27 @@ export function CalendarHeader({
             </button>
           )}
 
+          {/* fix/qm-calendar-keyboard-triage: the `?` shortcuts sheet was bound but
+              undiscoverable — no surface showed a hint it existed. One quiet
+              icon button in the header's action cluster opens it. Desktop only
+              (this row is `hidden md:flex`); the mobile 2-row header is already
+              space-constrained at 390px. */}
+          <button
+            type="button"
+            onClick={openHelp}
+            aria-label="Keyboard shortcuts"
+            title="Keyboard shortcuts (?)"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:bg-[#20232B] hover:text-[var(--quant-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+          >
+            <HeaderKeyboardIcon className="size-4" />
+          </button>
+
           {/* Split primary action: New Event in one tap; chevron opens the
               Event / Task / Birthday rows the floating FAB used to carry. */}
           <NewEntrySplitButton
             openDedicatedSheet={openDedicatedSheet}
             mainLabel="New Event"
-            mainTitle="New event (C)"
+            mainTitle="New event (c)"
           />
         </div>
       </div>
