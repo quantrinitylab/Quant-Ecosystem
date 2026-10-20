@@ -23,6 +23,22 @@ vi.mock('@prisma/client', () => ({
   PrismaClient: class {
     constructor(..._args: unknown[]) {}
   },
+  // QC-F-423: memory.service now reaches lib/media-url, which value-imports
+  // MessageType through message.service (extractStorageKey) — the enum must
+  // exist on the mock or that transitive import fails at load.
+  MessageType: {
+    TEXT: 'TEXT',
+    IMAGE: 'IMAGE',
+    VIDEO: 'VIDEO',
+    AUDIO: 'AUDIO',
+    FILE: 'FILE',
+    STICKER: 'STICKER',
+    GIF: 'GIF',
+    LOCATION: 'LOCATION',
+    CONTACT: 'CONTACT',
+    POLL: 'POLL',
+    SYSTEM: 'SYSTEM',
+  },
 }));
 
 import memoriesRoutes from '../routes/memories';
@@ -519,7 +535,10 @@ describe('QC-F-450 memories vault routes', () => {
 
   it('create as private: 409 before a passcode exists, 401 without an unlock, 201 with one — and it stays hidden publicly', async () => {
     const payload = {
-      mediaUrl: 'https://cdn/quantchat/new-secret.jpg',
+      // QC-F-423 fixture migration (declared in build-QC-F-423.md): the old
+      // 'https://cdn/quantchat/new-secret.jpg' is not an own-storage URL and
+      // the create() gate now rejects it; same filename on USER's own key.
+      mediaUrl: 'https://quantchat-media.s3.amazonaws.com/user_vault/media_fixture/new-secret.jpg',
       mediaType: 'PHOTO',
       isPrivate: true,
     };
