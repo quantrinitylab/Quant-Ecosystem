@@ -6,6 +6,13 @@
  *   approves via confirm() or cancels via interrupt().
  * - interrupt() cancels mid-run; the in-flight step is marked skipped.
  * - Every action is audit-logged. Max-steps and per-step timeouts bound a run.
+ * - Durability (fix/qm-quanty-task-durability): the task store is DB-backed
+ *   (see task-store.ts), audit entries persist to quanty_task_events, and
+ *   every completed step stores an idempotent-effect receipt
+ *   ("quanty:step:<taskId>:<stepId>" in the repo-wide IdempotencyOperation
+ *   table). A re-run with the same step invocation replays the receipt
+ *   instead of re-invoking the tool — retries and restarts cannot duplicate
+ *   an effect, and each step's receiptId lets the client verify what ran.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -22,6 +29,7 @@ import type {
 } from './types';
 import { getTool } from './tool-registry';
 import { quantyAgentState } from './agent-state';
+import { loadStepReceipt, storeStepReceipt, stepReceiptKey } from './task-store';
 
 // Re-exported so popup-data.ts (and other consumers) can import the store
 // contract from the executor module.
@@ -34,6 +42,22 @@ export interface ExecutorOptions {
   store: QuantyTaskStore;
   /** Per-step timeout; defaults to STEP_TIMEOUT_MS. */
   stepTimeoutMs?: number;
+  /**
+   * Where approved destructive-step grants go. Defaults to the in-memory
+   * agent-state log (existing behavior); the route wires a sink that also
+   * persists the grant to the durable approval table.
+   */
+  approvalSink?: (input: QuantyApprovalSinkInput) => void | Promise<void>;
+}
+
+/** Input to the approval sink: the grant plus which task/tool it covers. */
+export interface QuantyApprovalSinkInput {
+  icon: string;
+  title: string;
+  description: string;
+  scope: string;
+  taskId?: string;
+  toolName?: string;
 }
 
 /** In-memory task store — the default; swap for a DB-backed store later. */
@@ -149,6 +173,26 @@ export class QuantyExecutor {
           await setStatus('running');
         }
 
+        // Idempotent effects: a completed receipt for this exact step
+        // invocation (same task/step/tool/args) replays the stored result
+        // instead of re-invoking the tool — a retry or a restart after a
+        // crash can never duplicate the effect.
+        const replayed = await loadStepReceipt(prisma, task.id, step);
+        if (replayed) {
+          step.status = 'done';
+          step.result = replayed.data;
+          step.reversible = replayed.reversible === true;
+          if (replayed.undoToken !== undefined) step.undoToken = replayed.undoToken;
+          step.receiptId = stepReceiptKey(task.id, step.id);
+          step.endedAt = now();
+          runState.currentStepLabel = undefined;
+          await persist();
+          const replaySummary = `${replayed.summary} (replayed from receipt ${step.receiptId} — effect not re-executed)`;
+          audit({ kind: 'step.done', toolName: tool.name, stepId: step.id, detail: replaySummary });
+          emit({ type: 'step.done', taskId: task.id, step: structuredClone(step), summary: replaySummary });
+          continue;
+        }
+
         // Execute the step with a timeout.
         step.status = 'running';
         step.startedAt = now();
@@ -180,6 +224,16 @@ export class QuantyExecutor {
           if (result.undoToken !== undefined) step.undoToken = result.undoToken;
           step.endedAt = now();
           runState.currentStepLabel = undefined;
+          // Receipt FIRST-class: the idempotent-effect record is stored before
+          // the task row is persisted, so a crash between them replays rather
+          // than duplicates.
+          step.receiptId = stepReceiptKey(task.id, step.id);
+          await storeStepReceipt(prisma, task.id, step, {
+            summary: result.summary,
+            data: result.data,
+            reversible: result.reversible === true,
+            undoToken: result.undoToken,
+          });
           await persist();
           audit({ kind: 'step.done', toolName: tool.name, stepId: step.id, detail: result.summary });
           emit({ type: 'step.done', taskId: task.id, step: structuredClone(step), summary: result.summary });
@@ -241,11 +295,18 @@ export class QuantyExecutor {
     const waiter = run.confirmWaiters.shift();
     if (!waiter) return false;
     if (approved) {
-      quantyAgentState.logApproval({
+      const sink =
+        this.opts.approvalSink ??
+        ((input: QuantyApprovalSinkInput) => {
+          quantyAgentState.logApproval(input);
+        });
+      await sink({
         icon: '⚠️',
         title: `Approved: ${waiter.toolName}`,
         description: waiter.label,
         scope: 'This task only',
+        taskId,
+        toolName: waiter.toolName,
       });
     }
     waiter.resolve(approved);
@@ -302,6 +363,7 @@ export function createTask(userId: string, command: string, summary: string, ste
     planSummary: summary,
     steps,
     needsConfirmation: false,
+    background: false,
     createdAt: now,
     updatedAt: now,
   };

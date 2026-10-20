@@ -27,11 +27,13 @@ import {
   createTask,
   getSchedule,
   getTool,
-  InMemoryTaskStore,
   listTools,
   materializeSteps,
+  persistAuditEvent,
+  PrismaQuantyTaskStore,
   QuantyExecutor,
   quantyAgentState,
+  recoverInterruptedTasks,
   registerRealTools,
   undoTaskSteps,
   type QuantyActivityFeed,
@@ -74,8 +76,13 @@ function boot(fastify: FastifyInstance): void {
     summarizeService: null,
     aiEngine: new AIEngine(),
   });
-  store = new InMemoryTaskStore();
+  store = new PrismaQuantyTaskStore(prisma);
   executor = new QuantyExecutor({ store });
+  // Boot sweep: tasks left non-terminal by a previous process are honestly
+  // marked interrupted (never faked as done), with plan/steps/receipts kept.
+  void recoverInterruptedTasks(prisma).catch(() => {
+    // Durability sweep is best-effort at boot; the store still works if it fails.
+  });
   booted = true;
 }
 
@@ -92,12 +99,14 @@ function broadcast(event: QuantyProgressEvent): void {
   }
 }
 
-function callbacks(): QuantyExecutorCallbacks {
+function callbacks(prisma: unknown): QuantyExecutorCallbacks {
   return {
     onEvent: (event) => broadcast(event),
-    onAudit: () => {
-      // Audit entries are emitted; persistence of the audit trail lands
-      // with the DB-backed task store in the next phase.
+    onAudit: (entry) => {
+      // Durable audit trail: append-only quanty_task_events; the SSE stream
+      // replays it for late joiners. Fire-and-forget — a persistence failure
+      // must never break the task itself.
+      void persistAuditEvent(prisma, entry).catch(() => {});
     },
   };
 }
@@ -158,7 +167,7 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
     }
 
     // Run in the background; progress flows through SSE + polling.
-    void executor.run(task, prisma, callbacks()).catch(() => {
+    void executor.run(task, prisma, callbacks(prisma)).catch(() => {
       // run() never rejects (it captures failures into the task), this is belt-and-braces.
     });
 

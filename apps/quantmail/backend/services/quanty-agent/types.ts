@@ -41,6 +41,14 @@ export interface QuantyStep {
   reversible?: boolean;
   /** Opaque token the undo flow needs (e.g. archived thread ids). */
   undoToken?: unknown;
+  /**
+   * Durable receipt id for the step's effect — the idempotency operation id
+   * ("quanty:step:<taskId>:<stepId>") stored in the repo-wide
+   * IdempotencyOperation table. Re-running the step replays the stored
+   * receipt instead of duplicating the effect; the receipt is what the
+   * client verifies against, not the step's word for it.
+   */
+  receiptId?: string;
 }
 
 /** A full agentic task: command → plan → executed steps. */
@@ -56,6 +64,13 @@ export interface QuantyTask {
   needsConfirmation: boolean;
   /** Name of the destructive tool currently awaiting confirmation. */
   pendingToolName?: string;
+  /**
+   * Explicit background transition (set via POST /tasks/:id/background or at
+   * submit time). A backgrounded task keeps running when the UI closes; a
+   * non-background task whose stream disconnects keeps running too — the flag
+   * is the user's explicit intent, persisted so it survives restarts.
+   */
+  background: boolean;
   /** Final human-readable outcome, set when status is done/failed/interrupted. */
   outcome?: string;
   createdAt: string;
@@ -115,7 +130,7 @@ export interface QuantyAuditEntry {
   taskId: string;
   userId: string;
   timestamp: string;
-  kind: 'task.created' | 'task.planned' | 'step.start' | 'step.done' | 'step.failed' | 'confirm.requested' | 'confirm.granted' | 'task.interrupted' | 'task.done' | 'task.failed';
+  kind: 'task.created' | 'task.planned' | 'step.start' | 'step.done' | 'step.failed' | 'confirm.requested' | 'confirm.granted' | 'task.interrupted' | 'task.done' | 'task.failed' | 'task.backgrounded';
   toolName?: string;
   stepId?: string;
   detail?: string;
