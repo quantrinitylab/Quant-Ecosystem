@@ -49,6 +49,14 @@ export function MemoryViewer({
 
   const handleDownload = useCallback(() => {
     if (!memory) return;
+    // QC-F-423 — rows stored before the create-side validator gate (or
+    // seeded outside it) can still carry an arbitrary URL, and an anchor
+    // click navigates to dangerous schemes (`javascript:`, `data:text/html`)
+    // in page context. Download only ever follows the shapes the vault's
+    // own writer accepts: https: URLs and inline image/video data URLs.
+    // Anything else is a no-op — no anchor is created or clicked.
+    const url = memory.mediaUrl;
+    if (!url.startsWith('https://') && !/^data:(image|video)\//.test(url)) return;
     const link = document.createElement('a');
     link.href = memory.mediaUrl;
     link.download = `quantchat-memory-${memory.id}`;
