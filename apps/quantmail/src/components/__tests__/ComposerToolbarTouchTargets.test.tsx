@@ -102,18 +102,26 @@ export function assertLayoutTouchTarget(classAttr: string, where: string): void 
   const staticPart = classAttr.split('${')[0];
   const tokens = staticPart.split(/\s+/).filter(Boolean);
 
+  // Reject ::after hit-area halos in any variant form: arbitrary-value
+  // (after:-inset-[6px]) AND scale-value (after:-inset-2), with or without a
+  // responsive/state variant prefix (sm:, hover:, ...).
   expect(
-    tokens.some((t) => /(^|:)after:-inset(-\w+)?-\[/.test(t)),
+    tokens.some((t) => /(^|[\w-]+:)after:-inset(-\w+)?(-\[[^\]]+\]|-\d+(\.\d+)?)?$/.test(t)),
     `${where}: ::after hit-area halo found — targets must be layout-sized (min-h/min-w 44px), not halos: ${staticPart.slice(0, 140)}`,
   ).toBe(false);
 
+  // Reject ANY breakpoint-prefixed min-h/min-w override: the 44px floor must
+  // hold at every breakpoint, so md:min-h-0 or md:min-h-[24px] fail even
+  // though the unprefixed min-h-[44px] check below would pass them.
   expect(
-    tokens.some((t) => t === 'sm:min-h-0' || t === 'sm:min-w-0'),
-    `${where}: sm: shrinker kills the 44px floor on desktop — targets must hold at every breakpoint: ${staticPart.slice(0, 140)}`,
+    tokens.some((t) => /^[\w-]+:min-[hw]-/.test(t)),
+    `${where}: breakpoint-prefixed min-h/min-w override kills the 44px floor at that breakpoint — targets must hold at every breakpoint: ${staticPart.slice(0, 140)}`,
   ).toBe(false);
 
+  // Negative margins let layout boxes overlap — forbidden on touch targets.
+  // Variant-prefixed forms (sm:-mt-2) count too.
   expect(
-    tokens.some((t) => /^-m[trblxy]?-/.test(t)),
+    tokens.some((t) => /^([\w-]+:)?-m[trblxy]?-/.test(t)),
     `${where}: negative margin lets layout boxes overlap — forbidden on touch targets: ${staticPart.slice(0, 140)}`,
   ).toBe(false);
 
