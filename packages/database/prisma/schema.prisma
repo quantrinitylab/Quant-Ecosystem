@@ -98,6 +98,9 @@ model User {
   notifications      Notification[]
   aiSessions         AISession[]
   quantyArtifacts    QuantyArtifact[]
+  quantyTasks        QuantyTask[]
+  quantyTaskEvents   QuantyTaskEvent[]
+  quantyApprovalRecords QuantyApprovalRecord[]
   campaigns          Campaign[]
   datingProfile      DatingProfile?
   shortVideos        ShortVideo[]
@@ -1649,6 +1652,80 @@ model QuantyArtifact {
   @@index([userId, kind])
   @@index([userId, updatedAt])
   @@map("quanty_artifacts")
+}
+
+// ==================== QUANTY AGENTIC TASKS (WR-G durability) =============
+// Durable backing for the Quanty agentic engine (fix/qm-quanty-task-durability).
+// The engine used to keep everything in process memory (InMemoryTaskStore,
+// process-local SSE subscribers, no-op audit persist): a backend restart or a
+// second replica lost all task state, and closing the UI was never an
+// explicit "run in background" transition. These tables make tasks,
+// approvals and the event log survive restarts and work across replicas:
+//
+//   QuantyTask          — the task row; steps ride along as JSON (they are
+//                         always read/written together with the task).
+//   QuantyTaskEvent     — the append-only audit/event log; the SSE stream
+//                         replays it so late joiners and reconnects see the
+//                         full progress history, not just live frames.
+//   QuantyApprovalRecord— durable permission grants (the in-memory approval
+//                         log leaked across users and died with the process).
+//
+// Per-step idempotent effects + receipts reuse the repo-wide
+// IdempotencyOperation table (operationId "quanty:step:<taskId>:<stepId>");
+// see services/quanty-agent/task-store.ts.
+model QuantyTask {
+  id                String   @id
+  userId            String
+  command           String   @db.Text
+  status            String
+  planSummary       String   @db.Text
+  steps             String   @db.Text
+  needsConfirmation Boolean  @default(false)
+  pendingToolName   String?
+  outcome           String?  @db.Text
+  /// Explicit background transition: the user sent this task to the
+  /// background; closing the UI does not change its lifecycle.
+  background        Boolean  @default(false)
+  ownerId           String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@index([status, updatedAt])
+  @@map("quanty_tasks")
+}
+
+model QuantyTaskEvent {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  toolName  String?
+  stepId    String?
+  detail    String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([userId, createdAt])
+  @@map("quanty_task_events")
+}
+
+model QuantyApprovalRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  taskId    String?
+  toolName  String
+  label     String   @db.Text
+  scope     String
+  grantedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, grantedAt])
+  @@map("quanty_approval_records")
 }
 
 enum AIMessageRole {

@@ -15,6 +15,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { PrismaClient } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { AIEngine } from '@quant/ai';
@@ -30,8 +31,13 @@ import {
   InMemoryTaskStore,
   listTools,
   materializeSteps,
+  persistAuditEvent,
+  PrismaQuantyTaskStore,
   QuantyExecutor,
   quantyAgentState,
+  recoverInterruptedTasks,
+  recordApproval,
+  listApprovals as listDurableApprovals,
   registerRealTools,
   undoTaskSteps,
   type QuantyActivityFeed,
@@ -52,6 +58,26 @@ let booted = false;
 let store: QuantyTaskStore;
 let executor: QuantyExecutor;
 
+/**
+ * Honest degradation: the durable Prisma store when the prisma client carries
+ * the Quanty delegates, otherwise the in-memory store (e.g. a prisma mock in
+ * tests, or a DB that has not been migrated yet). The Prisma store's
+ * constructor throws a clear error when the delegates are absent — that throw
+ * is the fallback signal, never a fatal boot failure.
+ */
+function durableTaskStore(prisma: unknown): QuantyTaskStore {
+  try {
+    return new PrismaQuantyTaskStore(prisma);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[quanty-agent] durable task store unavailable, using in-memory store:',
+      err instanceof Error ? err.message : err,
+    );
+    return new InMemoryTaskStore();
+  }
+}
+
 /** taskId → live SSE listeners. */
 const subscribers = new Map<string, Set<(event: QuantyProgressEvent) => void>>();
 
@@ -62,6 +88,10 @@ function toolAppOf(toolName: string): QuantyToolApp | undefined {
 function boot(fastify: FastifyInstance): void {
   if (booted) return;
   const prisma = (fastify as unknown as { prisma: PrismaClient }).prisma;
+  // Stable worker identity for this boot. Stamped onto every task this
+  // process runs; the boot sweep uses it to tell a live replica's tasks
+  // apart from a dead worker's orphans.
+  const workerId = randomUUID();
   // REAL tools: mail + git handlers backed by the scoped backend services,
   // drive handlers backed by the real Drive AI services (QM-M39-011),
   // calendar handlers backed by CalendarService + prisma.event rows.
@@ -74,8 +104,40 @@ function boot(fastify: FastifyInstance): void {
     summarizeService: null,
     aiEngine: new AIEngine(),
   });
-  store = new InMemoryTaskStore();
-  executor = new QuantyExecutor({ store });
+  store = durableTaskStore(prisma);
+  executor = new QuantyExecutor({
+    store,
+    workerId,
+    // Durable approval sink: persist each grant with the task's owner so
+    // /api/quanty/approvals can serve it per-user (never the process-global
+    // list). The in-memory mirror is kept for the live popup. A persistence
+    // failure must not break confirm() — it already resolved the waiter.
+    approvalSink: async (input) => {
+      quantyAgentState.logApproval(input);
+      try {
+        const task = input.taskId ? await store.get(input.taskId) : null;
+        const userId = task?.userId;
+        if (userId) {
+          await recordApproval(prisma, {
+            userId,
+            taskId: input.taskId,
+            toolName: input.toolName ?? 'unknown-tool',
+            label: input.description,
+            scope: input.scope,
+          });
+        }
+      } catch {
+        // Best-effort only.
+      }
+    },
+  });
+  // Boot sweep: tasks orphaned by a dead worker are honestly marked
+  // interrupted (never faked as done), with plan/steps/receipts kept.
+  // Only rows untouched for 15+ min and not owned by this worker qualify —
+  // a live replica's tasks are never touched.
+  void recoverInterruptedTasks(prisma, workerId).catch(() => {
+    // Durability sweep is best-effort at boot; the store still works if it fails.
+  });
   booted = true;
 }
 
@@ -92,12 +154,14 @@ function broadcast(event: QuantyProgressEvent): void {
   }
 }
 
-function callbacks(): QuantyExecutorCallbacks {
+function callbacks(prisma: unknown): QuantyExecutorCallbacks {
   return {
     onEvent: (event) => broadcast(event),
-    onAudit: () => {
-      // Audit entries are emitted; persistence of the audit trail lands
-      // with the DB-backed task store in the next phase.
+    onAudit: (entry) => {
+      // Durable audit trail: append-only quanty_task_events; the SSE stream
+      // replays it for late joiners. Fire-and-forget — a persistence failure
+      // must never break the task itself.
+      void persistAuditEvent(prisma, entry).catch(() => {});
     },
   };
 }
@@ -158,7 +222,7 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
     }
 
     // Run in the background; progress flows through SSE + polling.
-    void executor.run(task, prisma, callbacks()).catch(() => {
+    void executor.run(task, prisma, callbacks(prisma)).catch(() => {
       // run() never rejects (it captures failures into the task), this is belt-and-braces.
     });
 
@@ -266,6 +330,64 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: { confirmed: ok, approved: body.data.approved } });
   });
 
+  // POST /api/quanty/tasks/:id/background — the user's explicit intent to keep
+  // this task running when the UI closes. Sets background=true durably and
+  // emits task.backgrounded on the audit trail. 409 when the task is already
+  // terminal — backgrounding a finished task is meaningless.
+  fastify.post<{ Params: { id: string } }>('/api/quanty/tasks/:id/background', async (request, reply) => {
+    const userId = reqUserId(request);
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const task = await loadTaskOwnedBy(request.params.id, userId);
+    if (['done', 'failed', 'interrupted'].includes(task.status)) {
+      throw createAppError('Task is already terminal', 409, 'TASK_TERMINAL');
+    }
+    task.background = true;
+    await store.save(task);
+    await persistAuditEvent(prisma, {
+      taskId: task.id,
+      userId,
+      timestamp: new Date().toISOString(),
+      kind: 'task.backgrounded',
+    });
+    return reply.send({ success: true, data: { background: true } });
+  });
+
+  // POST /api/quanty/tasks/:id/resume — real resume for an interrupted task.
+  // Re-runs the SAME task (same ids), so completed steps replay from their
+  // receipts instead of re-invoking tools — this is what "resume from the last
+  // completed step" actually means. Only interrupted tasks can resume; steps
+  // left 'running' by the crash go through the atomic claim path (replay if
+  // a receipt exists, take over a stale claim, or execute once).
+  fastify.post<{ Params: { id: string } }>('/api/quanty/tasks/:id/resume', async (request, reply) => {
+    const userId = reqUserId(request);
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const task = await loadTaskOwnedBy(request.params.id, userId);
+    if (task.status !== 'interrupted') {
+      throw createAppError('Only interrupted tasks can be resumed', 409, 'TASK_NOT_INTERRUPTED');
+    }
+    for (const step of task.steps) {
+      if (step.status === 'running' || step.status === 'pending') {
+        step.status = 'pending';
+        step.startedAt = undefined;
+      }
+    }
+    task.status = 'running';
+    task.outcome = undefined;
+    task.pendingToolName = undefined;
+    await store.save(task);
+    await persistAuditEvent(prisma, {
+      taskId: task.id,
+      userId,
+      timestamp: new Date().toISOString(),
+      kind: 'task.resumed',
+      detail: 'Resumed by user — completed steps replay from receipts.',
+    });
+    void executor.run(task, prisma, callbacks(prisma)).catch(() => {
+      // run() records its own terminal state; the stream just ends here.
+    });
+    return reply.send({ success: true, data: { resumed: true, taskId: task.id } });
+  });
+
   // POST /api/quanty/tasks/:id/undo — reverse a finished task's reversible steps.
   // Only steps the tools themselves marked reversible (with an undoToken) are
   // reversed, newest first. 409 when there is nothing reversible — an honest
@@ -307,10 +429,13 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: getSchedule() });
   });
 
-  // GET /api/quanty/approvals — approval history.
+  // GET /api/quanty/approvals — approval history, scoped to the caller.
+  // Served from the durable per-user grant log (never the process-global
+  // in-memory list, which mixes users on shared deployments).
   fastify.get('/api/quanty/approvals', async (request, reply) => {
-    reqUserId(request);
-    return reply.send({ success: true, data: quantyAgentState.listApprovals(50) });
+    const userId = reqUserId(request);
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    return reply.send({ success: true, data: await listDurableApprovals(prisma, userId, 50) });
   });
 
   // GET /api/quanty/browser-tasks — browser task history.

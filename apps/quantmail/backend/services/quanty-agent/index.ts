@@ -5,6 +5,7 @@ export * from './types';
 export * from './tool-registry';
 export * from './planner';
 export * from './executor';
+export * from './task-store';
 export * from './schedule-registry';
 export * from './agent-state';
 export * from './undo';
