@@ -4933,6 +4933,10 @@ Base: R26 @ 3c6e0637b -> origin/main 25f27e408 (fresh fetch, 6 first-parent wind
 Audit started: 2026-10-20 ~12:35 IST (lane-1 deep audit loop, ROUND 27)
 
 
+## QM-SCREEN-012 R29 — Contacts regression (ROUND 29)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-012r29, started 2026-10-20 ~22:40 IST; R27 base 25f27e408 -> origin/main a6c72cae2, fresh fetch, 11 first-parent merges; code read from origin/main tree only)
+
+
 ## QM-SCREEN-013 R27 — QuantGit regression (ROUND 27)
 Status: [x] DONE (R27 regression audit complete 2026-10-20 ~14:05 IST; 0 in-scope window merges — pure re-verification pass, all prior pins byte-verified intact, carryovers confirmed open, 0 new findings, origin healthy with full logged-out live verification; fixes tracked via their PRs)
 Owner: LANE-1
