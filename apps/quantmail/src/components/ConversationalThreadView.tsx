@@ -3473,7 +3473,7 @@ export function ConversationalThreadView({
               type="button"
               onClick={() => setQuotedMessage(null)}
               aria-label="Cancel quoted reply"
-              className="relative flex size-8 shrink-0 items-center justify-center rounded-full after:absolute after:-inset-[6px] after:content-[''] text-[var(--quant-muted-foreground)] transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="relative flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full text-[var(--quant-muted-foreground)] transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
             >
               <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
                 <path d="M18 6 6 18M6 6l12 12" />
@@ -3509,7 +3509,7 @@ export function ConversationalThreadView({
                   type="button"
                   onClick={() => setComposeMode(mode)}
                   aria-pressed={isActive}
-                  className={`relative inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors min-h-[44px] sm:min-h-0 after:absolute after:-inset-[8px] after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
+                  className={`relative inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors min-h-[44px] min-w-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                     isActive
                       ? 'bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] shadow-[inset_0_0_0_1px_rgba(255,140,66,0.30)]'
                       : 'text-[var(--quant-muted-foreground)] hover:bg-white/[0.04] hover:text-[#EDEDED]'
@@ -3530,9 +3530,10 @@ export function ConversationalThreadView({
 
 
         {/* Main Floating Input Bar.
-            SIA-P2-4: quick-reply bar buttons are compact at every breakpoint; each carries
-            an invisible ::after halo (after:-inset-[Npx]) sized so the hit target is >=44px.
-            Visuals unchanged. */}
+            SIA-P2-4 (WR-E follow-up): quick-reply bar buttons are REAL >=44px
+            layout-sized touch targets (min-h/min-w 44px) at every breakpoint —
+            no invisible ::after halos. Halos bled into neighbours, so targets
+            are now honest boxes in flow. */}
         <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] shadow-2xl">
           {/*
             Attachment. The complaint was that there was no way to send a photo, and
@@ -3551,7 +3552,7 @@ export function ConversationalThreadView({
           <button
             type="button"
             disabled
-            className="relative flex min-h-[44px] min-w-[44px] shrink-0 cursor-not-allowed items-center justify-center rounded-xl p-1.5 after:absolute after:-inset-[7px] after:content-[''] text-[var(--quant-muted-foreground)] opacity-40 sm:min-h-0 sm:min-w-0 sm:p-2"
+            className="relative flex min-h-[44px] min-w-[44px] shrink-0 cursor-not-allowed items-center justify-center rounded-xl p-1.5 text-[var(--quant-muted-foreground)] opacity-40 sm:p-2"
             title="Attachments aren't supported in quick reply yet"
             aria-label="Attachments aren't supported in quick reply yet"
             aria-disabled="true"
@@ -3571,7 +3572,7 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={() => setIsQuantyOpen(true)}
-            className="relative flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-1 after:absolute after:-inset-[8px] after:content-[''] text-[var(--quant-primary)] transition-all hover:bg-[var(--quant-primary)]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] sm:min-h-0 sm:min-w-0 sm:p-1.5"
+            className="relative flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-1 text-[var(--quant-primary)] transition-all hover:bg-[var(--quant-primary)]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] sm:p-1.5"
             title="Ask Quanty AI to write response"
             aria-label="Ask Quanty AI to write a response"
           >
@@ -3613,8 +3614,8 @@ export function ConversationalThreadView({
           {/* Schedule send — the same ScheduleSendModal the composers use
               (one schedule mechanism across compose surfaces). Chat mode
               only: in mail mode Send opens the full composer, which owns
-              scheduling there. Mail orange accent; invisible ::after halo so
-              the hit target stays ≥44px. */}
+              scheduling there. Mail orange accent; the button is a real >=44px
+              layout-sized target (no halo). */}
           {composeMode === 'chat' && (
             <button
               type="button"
@@ -3622,7 +3623,7 @@ export function ConversationalThreadView({
               disabled={!quickReplyText.trim() || isSendingQuickReply}
               data-testid="quick-reply-schedule-button"
               aria-label="Schedule send"
-              className="relative flex items-center justify-center p-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all disabled:opacity-30 disabled:pointer-events-none shrink-0 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              className="relative flex items-center justify-center p-2 rounded-xl border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all disabled:opacity-30 disabled:pointer-events-none shrink-0 min-h-[44px] min-w-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
               title="Schedule send — pick a future date & time"
             >
               <IconClock className="size-4" />
@@ -3637,7 +3638,7 @@ export function ConversationalThreadView({
               composeMode === 'chat' &&
               (!quickReplyText.trim() || isSendingQuickReply)
             }
-            className="relative px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] active:bg-[var(--brand-primary-pressed)] text-[#111111] text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:pointer-events-none shrink-0 flex items-center gap-1.5 min-h-[44px] sm:min-h-0 after:absolute after:-inset-[8px] after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)]"
+            className="relative px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[var(--quant-primary)] hover:bg-[var(--quant-primary-hover)] active:bg-[var(--brand-primary-pressed)] text-[#111111] text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:pointer-events-none shrink-0 flex items-center gap-1.5 min-h-[44px] min-w-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)]"
           >
             <span>{composeMode === 'mail' ? 'Compose' : isSendingQuickReply ? '…' : 'Send'}</span>
             {composeMode === 'mail' ? (

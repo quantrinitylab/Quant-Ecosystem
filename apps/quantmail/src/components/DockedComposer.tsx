@@ -1229,7 +1229,7 @@ export function DockedComposer({
               setIsMinimized(false);
             }}
             aria-label="Restore composer"
-            className="relative p-1 after:absolute after:-inset-[11px] after:content-[''] text-[var(--quant-muted-foreground)] hover:text-white rounded-lg transition-colors"
+            className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1 text-[var(--quant-muted-foreground)] hover:text-white rounded-lg transition-colors"
           >
             <IconMaximize className="size-3.5" />
           </button>
@@ -1240,7 +1240,7 @@ export function DockedComposer({
               void requestCloseComposer();
             }}
             aria-label="Close composer"
-            className="relative p-1 after:absolute after:-inset-[11px] after:content-[''] text-[var(--quant-muted-foreground)] hover:text-red-400 rounded-lg transition-colors"
+            className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1 text-[var(--quant-muted-foreground)] hover:text-red-400 rounded-lg transition-colors"
           >
             <IconClose className="size-3.5" />
           </button>
@@ -1345,7 +1345,7 @@ export function DockedComposer({
             type="button"
             onClick={() => setIsMinimized(true)}
             aria-label="Minimize composer"
-            className="relative p-1.5 after:absolute after:-inset-[9px] after:content-[''] text-[var(--quant-muted-foreground)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+            className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1.5 text-[var(--quant-muted-foreground)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
             title="Minimize"
           >
             <IconMinus className="size-3.5" />
@@ -1356,7 +1356,7 @@ export function DockedComposer({
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
             aria-label={isExpanded ? 'Restore window' : 'Expand to fullscreen'}
-            className="relative p-1.5 after:absolute after:-inset-[9px] after:content-[''] text-[var(--quant-muted-foreground)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+            className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1.5 text-[var(--quant-muted-foreground)] hover:text-white rounded-lg hover:bg-white/5 transition-colors"
             title={isExpanded ? 'Restore size' : 'Full screen'}
           >
             {isExpanded ? (
@@ -1371,7 +1371,7 @@ export function DockedComposer({
             type="button"
             onClick={requestCloseComposer}
             aria-label="Close composer"
-            className="relative p-1.5 after:absolute after:-inset-[9px] after:content-[''] text-[var(--quant-muted-foreground)] hover:text-red-400 rounded-lg hover:bg-white/5 transition-colors"
+            className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1.5 text-[var(--quant-muted-foreground)] hover:text-red-400 rounded-lg hover:bg-white/5 transition-colors"
             title="Close"
           >
             <IconClose className="size-3.5" />
@@ -1399,7 +1399,7 @@ export function DockedComposer({
                 <button
                   type="button"
                   onClick={() => setShowCcBcc(true)}
-                  className="relative text-[11px] after:absolute after:-inset-[12px] after:content-[''] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] font-semibold transition-colors px-1.5 py-0.5 rounded"
+                  className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-[11px] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] font-semibold transition-colors px-1.5 py-0.5 rounded"
                 >
                   Cc / Bcc
                 </button>
@@ -1450,16 +1450,16 @@ export function DockedComposer({
         </div>
 
         {/* Formatting Toolbar (Toggleable).
-            SIA-P2-4: these buttons are compact at every breakpoint, so each carries an
-            invisible ::after halo (after:-inset-[Npx]) sized so the hit target is >=44px.
-            Visuals unchanged. Exception: the attachment remove X gets real padding instead
-            of a halo — a halo would overlap the filename on a no-undo destructive action. */}
+            SIA-P2-4 (WR-E follow-up): every button is a REAL >=44px layout-sized
+            touch target (min-h/min-w 44px) at every breakpoint — no invisible
+            ::after halos. Halos bled into neighbours (hit areas overlapped), so
+            targets are now honest boxes in flow. */}
         {showFormatting && (
           <div className="flex items-center gap-1 px-4 py-1.5 bg-[#10141E] text-xs border-b border-[#1E2536]">
             <button
               type="button"
               onClick={() => applyFormatting('b')}
-              className="relative p-1.5 rounded after:absolute after:-inset-[9px] after:content-[''] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
+              className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1.5 rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
               title="Bold"
             >
               <IconBold />
@@ -1467,7 +1467,7 @@ export function DockedComposer({
             <button
               type="button"
               onClick={() => applyFormatting('i')}
-              className="relative p-1.5 rounded after:absolute after:-inset-[9px] after:content-[''] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
+              className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1.5 rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
               title="Italic"
             >
               <IconItalic />
@@ -1475,7 +1475,7 @@ export function DockedComposer({
             <button
               type="button"
               onClick={() => applyFormatting('u')}
-              className="relative p-1.5 rounded after:absolute after:-inset-[9px] after:content-[''] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
+              className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1.5 rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
               title="Underline"
             >
               <IconUnderline />
@@ -1484,7 +1484,7 @@ export function DockedComposer({
             <button
               type="button"
               onClick={() => applyFormatting('list')}
-              className="relative p-1.5 rounded after:absolute after:-inset-[9px] after:content-[''] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
+              className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1.5 rounded text-[var(--quant-muted-foreground)] hover:text-white hover:bg-white/10 transition-colors"
               title="Bulleted list"
             >
               <IconList />
@@ -1530,7 +1530,7 @@ export function DockedComposer({
                   <button
                     type="button"
                     onClick={() => handleRemoveAttachment(att.id)}
-                    className="relative ml-1 p-1.5 -m-1.5 text-[var(--quant-muted-foreground)] hover:text-red-400 after:absolute after:-inset-[16px] after:content-['']"
+                    className="relative ml-1 inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1.5 text-[var(--quant-muted-foreground)] hover:text-red-400"
                     title="Remove attachment"
                   >
                     <IconClose className="size-3" />
@@ -1552,7 +1552,7 @@ export function DockedComposer({
             onClick={() => void handleSend()}
             disabled={isSending || invalidRecipientReason !== null}
             data-testid="docked-composer-send-button"
-            className="group relative flex items-center gap-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] bg-gradient-to-r from-[var(--quant-primary)] to-[#F97316] px-4 py-2 text-xs font-bold text-black shadow-lg shadow-[var(--quant-primary)]/20 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+            className="group relative flex items-center gap-2 rounded-xl min-h-[44px] min-w-[44px] bg-gradient-to-r from-[var(--quant-primary)] to-[#F97316] px-4 py-2 text-xs font-bold text-black shadow-lg shadow-[var(--quant-primary)]/20 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
             title={invalidRecipientReason ?? 'Send email (⌘↵ or Ctrl+Enter)'}
           >
             <IconSend className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -1560,15 +1560,15 @@ export function DockedComposer({
           </button>
 
           {/* Schedule send — the same ScheduleSendModal the /compose page
-              uses. Mail orange accent; invisible ::after halo so the hit
-              target stays ≥44px. */}
+              uses. Mail orange accent; the button is a real >=44px layout-sized
+              target (no halo). */}
           <button
             type="button"
             onClick={() => setShowScheduleModal(true)}
             disabled={isSending || invalidRecipientReason !== null}
             data-testid="docked-composer-schedule-button"
             aria-label="Schedule send"
-            className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all text-xs font-semibold disabled:opacity-50 cursor-pointer"
+            className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl min-h-[44px] min-w-[44px] border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all text-xs font-semibold disabled:opacity-50 cursor-pointer"
             title="Schedule send — pick a future date & time"
           >
             <IconScheduleClock className="size-3.5" />
@@ -1579,7 +1579,7 @@ export function DockedComposer({
           <button
             type="button"
             onClick={() => setShowFormatting(!showFormatting)}
-            className={`relative p-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] border transition-colors ${
+            className={`relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl border transition-colors ${
               showFormatting
                 ? 'border-[var(--quant-primary)]/50 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)]'
                 : 'border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white'
@@ -1600,7 +1600,7 @@ export function DockedComposer({
             aria-pressed={trackOpens}
             aria-label={trackOpens ? 'Open tracking on — tap to turn off' : 'Open tracking off — tap to turn on'}
             data-testid="docked-composer-track-opens-toggle"
-            className={`relative p-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] border transition-colors ${
+            className={`relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl border transition-colors ${
               trackOpens
                 ? 'border-[var(--quant-primary)]/50 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)]'
                 : 'border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white'
@@ -1616,7 +1616,7 @@ export function DockedComposer({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] hover:border-[var(--quant-primary)]/40 transition-colors relative after:absolute after:-inset-[6px] after:content-['']"
+            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] hover:border-[var(--quant-primary)]/40 transition-colors relative"
             title="Attach files (25MB limit)"
           >
             <IconPaperclip className="size-4" />
@@ -1628,7 +1628,7 @@ export function DockedComposer({
               type="button"
               onClick={() => setShowAssistMenu(!showAssistMenu)}
               disabled={isInsertingTemplate}
-              className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] border border-[#8B5CF6]/40 bg-[#3B0764]/20 text-[#8B5CF6] hover:bg-[#3B0764]/40 hover:border-[#8B5CF6] transition-all text-xs font-semibold"
+              className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl min-h-[44px] min-w-[44px] border border-[#8B5CF6]/40 bg-[#3B0764]/20 text-[#8B5CF6] hover:bg-[#3B0764]/40 hover:border-[#8B5CF6] transition-all text-xs font-semibold"
               title="Writing assistant — local templates, no AI"
             >
               <IconSparkle className="size-3.5 animate-pulse" />
@@ -1641,7 +1641,7 @@ export function DockedComposer({
                 <button
                   type="button"
                   onClick={() => handleWritingAssist('draft')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl min-h-[44px] hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
                 >
                   <IconSparkle className="size-3.5 text-[#8B5CF6]" />
                   <span>Draft Full Email</span>
@@ -1649,7 +1649,7 @@ export function DockedComposer({
                 <button
                   type="button"
                   onClick={() => handleWritingAssist('formal')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl min-h-[44px] hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
                 >
                   <IconFormat className="size-3.5 text-[#8B5CF6]" />
                   <span>Make More Formal</span>
@@ -1657,7 +1657,7 @@ export function DockedComposer({
                 <button
                   type="button"
                   onClick={() => handleWritingAssist('concise')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl min-h-[44px] hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
                 >
                   <IconMinus className="size-3.5 text-[#8B5CF6]" />
                   <span>Make Concise &amp; Punchy</span>
@@ -1665,7 +1665,7 @@ export function DockedComposer({
                 <button
                   type="button"
                   onClick={() => handleWritingAssist('followup')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl min-h-[44px] hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
                 >
                   <IconSend className="size-3.5 text-[#8B5CF6]" />
                   <span>Polite Follow-Up</span>
@@ -1695,7 +1695,7 @@ export function DockedComposer({
               }}
               aria-expanded={showTemplates}
               aria-label="Insert a saved email template"
-              className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all text-xs font-semibold"
+              className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl min-h-[44px] min-w-[44px] border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all text-xs font-semibold"
               title="Insert a saved email template"
             >
               <IconTemplate className="size-3.5" />
@@ -1718,7 +1718,7 @@ export function DockedComposer({
         <button
           type="button"
           onClick={requestCloseComposer}
-          className="relative p-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] text-[#6B7280] hover:text-red-400 hover:bg-white/5 transition-colors flex-shrink-0"
+          className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[#6B7280] hover:text-red-400 hover:bg-white/5 transition-colors flex-shrink-0"
           title="Discard draft"
         >
           <IconTrash className="size-4" />

@@ -136,7 +136,7 @@ export function AvailabilityInserter({
 
   const buttonClass =
     variant === 'labeled'
-      ? "relative flex items-center gap-1.5 px-3 py-2 rounded-xl after:absolute after:-inset-[6px] after:content-[''] border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+      ? "relative flex items-center gap-1.5 px-3 py-2 rounded-xl min-h-[44px] min-w-[44px] border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
       : 'inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]';
 
   return (

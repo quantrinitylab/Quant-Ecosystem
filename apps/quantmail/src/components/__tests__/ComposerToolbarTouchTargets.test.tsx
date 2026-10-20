@@ -1,15 +1,23 @@
 /**
- * SIA-P2-4 — composer toolbar buttons must offer >=44px touch targets.
+ * SIA-P2-4 (WR-E follow-up) — composer toolbar buttons must offer REAL >=44px
+ * touch targets, sized in LAYOUT — never via invisible ::after halos.
  *
- * The composer toolbars are visually compact on desktop (and the DockedComposer
- * everywhere), so each undersized button carries an invisible ::after halo
- * (`after:-inset-[Npx]`, sm-gated where mobile already renders 44px) sized so the
- * HIT TARGET — not the paint box — reaches 44px. Visuals are unchanged.
- *
- * These tests pin that invariant two ways:
- *  (a) rendered: every <button> the composers render by default declares a target;
- *  (b) source: every known toolbar button (including toggle-hidden formatting
- *      toolbars) has a halo or a real 44px min-size near its marker.
+ * History: #906 shipped halos (`after:-inset-[Npx]`) to fake 44px hit areas on
+ * compact desktop buttons. Two defects:
+ *   (a) adjacent halos OVERLAPPED (up to ~14px of shared hit area), so taps in
+ *       the overlap zone landed on the wrong button (later-DOM ::after wins);
+ *   (b) the test accepted ANY `after:-inset-[` class without checking the halo
+ *       was actually big enough for the button it sat on.
+ * This file pins the replacement invariant instead:
+ *   - every composer <button> carries min-h AND min-w >= 44px (or w-full, whose
+ *     width is the container's) at EVERY breakpoint — no sm: shrinkers;
+ *   - NO ::after hit-area halo anywhere on a composer button;
+ *   - NO negative margins on composer buttons (the other way boxes overlap).
+ * Because targets are honest layout boxes in normal flow, they cannot overlap
+ * by construction. Real geometry (getBoundingClientRect + elementFromPoint hit
+ * testing + Tab order) is verified in a real browser on mobile and desktop —
+ * see the WR-E verification notes; this suite pins the declared CSS contract
+ * that the browser check measures.
  */
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
@@ -67,25 +75,79 @@ vi.mock('@quant/api-client', () => ({ apiFetchRaw: vi.fn() }));
 const COMPONENTS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (name: string) => readFileSync(join(COMPONENTS_DIR, name), 'utf8');
 
-/** A button declares a >=44px touch target when it has a real 44px min-size at
- *  every breakpoint, or an ::after hit-area halo (sm-gated or not). */
-function hasTouchTarget(classAttr: string): boolean {
-  const staticPart = classAttr.split('${')[0];
-  const real44 =
-    staticPart.includes('min-h-[44px]') && !staticPart.includes('sm:min-h-0');
-  const halo = /(^|\s)(sm:)?after:-inset-\[/.test(staticPart);
-  return real44 || halo;
+/** Parse a Tailwind min-h/min-w token to px. Supports arbitrary values
+ *  (min-h-[44px]), the spacing scale (min-h-11 -> 44), and the repo's
+ *  min-h-touch / min-w-touch 44px utilities. Returns null when absent. */
+function parseMinSize(tokens: string[], prefix: 'min-h' | 'min-w'): number | null {
+  for (const t of tokens) {
+    let m = t.match(new RegExp(`^${prefix}-\\[(\\d+)px\\]$`));
+    if (m) return parseInt(m[1], 10);
+    m = t.match(new RegExp(`^${prefix}-(\\d+)$`));
+    if (m && m[1] !== '0') return parseInt(m[1], 10) * 4;
+    if (t === `${prefix}-touch`) return 44;
+  }
+  return null;
 }
 
-function renderedButtons(html: string): Array<{ cls: string; label: string }> {
-  const out: Array<{ cls: string; label: string }> = [];
+/**
+ * Assert the WR-E invariant on one button's class attribute: a REAL >=44px
+ * layout target. Throws a descriptive assertion failure otherwise.
+ *
+ * This is the anti-#906 check: a bare `after:-inset-[Npx]` class is REJECTED
+ * outright (it used to pass), and the 44px floor is measured from the actual
+ * min-h/min-w utilities instead of trusted from a halo's presence.
+ */
+export function assertLayoutTouchTarget(classAttr: string, where: string): void {
+  // Strip template-literal interpolations: only the static class list counts.
+  const staticPart = classAttr.split('${')[0];
+  const tokens = staticPart.split(/\s+/).filter(Boolean);
+
+  // Reject ::after hit-area halos in any variant form: arbitrary-value
+  // (after:-inset-[6px]) AND scale-value (after:-inset-2), with or without a
+  // responsive/state variant prefix (sm:, hover:, ...).
+  expect(
+    tokens.some((t) => /(^|[\w-]+:)after:-inset(-\w+)?(-\[[^\]]+\]|-\d+(\.\d+)?)?$/.test(t)),
+    `${where}: ::after hit-area halo found — targets must be layout-sized (min-h/min-w 44px), not halos: ${staticPart.slice(0, 140)}`,
+  ).toBe(false);
+
+  // Reject ANY breakpoint-prefixed min-h/min-w override: the 44px floor must
+  // hold at every breakpoint, so md:min-h-0 or md:min-h-[24px] fail even
+  // though the unprefixed min-h-[44px] check below would pass them.
+  expect(
+    tokens.some((t) => /^[\w-]+:min-[hw]-/.test(t)),
+    `${where}: breakpoint-prefixed min-h/min-w override kills the 44px floor at that breakpoint — targets must hold at every breakpoint: ${staticPart.slice(0, 140)}`,
+  ).toBe(false);
+
+  // Negative margins let layout boxes overlap — forbidden on touch targets.
+  // Variant-prefixed forms (sm:-mt-2) count too.
+  expect(
+    tokens.some((t) => /^([\w-]+:)?-m[trblxy]?-/.test(t)),
+    `${where}: negative margin lets layout boxes overlap — forbidden on touch targets: ${staticPart.slice(0, 140)}`,
+  ).toBe(false);
+
+  const minH = parseMinSize(tokens, 'min-h');
+  expect(
+    minH !== null && minH >= 44,
+    `${where}: no min-h >= 44px — measured min-h is ${minH === null ? 'absent' : `${minH}px`}: ${staticPart.slice(0, 140)}`,
+  ).toBe(true);
+
+  const minW = parseMinSize(tokens, 'min-w');
+  const fullWidth = tokens.includes('w-full');
+  expect(
+    (minW !== null && minW >= 44) || fullWidth,
+    `${where}: no min-w >= 44px (and not w-full) — measured min-w is ${minW === null ? 'absent' : `${minW}px`}: ${staticPart.slice(0, 140)}`,
+  ).toBe(true);
+}
+
+function renderedButtons(html: string): Array<{ cls: string; label: string; tag: string }> {
+  const out: Array<{ cls: string; label: string; tag: string }> = [];
   const re = /<button\b([^>]*)>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html)) !== null) {
     const attrs = m[1];
     const c = attrs.match(/class="([^"]*)"/);
     const l = attrs.match(/(?:title|aria-label)="([^"]*)"/);
-    out.push({ cls: c ? c[1] : '', label: l ? l[1] : '(no label)' });
+    out.push({ cls: c ? c[1] : '', label: l ? l[1] : '(no label)', tag: m[0] });
   }
   return out;
 }
@@ -94,10 +156,9 @@ function extractClass(source: string, at: number): string | null {
   const rest = source.slice(at);
   const quoted = rest.match(/^className="([^"]*)"/);
   if (quoted) return quoted[1];
-  // JSX expression forms: className={`...`} or className={"..."}.
-  // The template-literal static prefix (before any ${...}) is what
-  // hasTouchTarget inspects.
-  const expr = rest.match(/^className=\{(`[^`]*`|"[^"]*")/);
+  // JSX expression forms: className={`...`} (possibly multiline — the static
+  // prefix before any ${...} is what assertLayoutTouchTarget inspects).
+  const expr = rest.match(/^className=\{(`(?:[^`\\]|\\.)*`|"[^"]*")/);
   if (expr) return expr[1];
   return null;
 }
@@ -169,7 +230,7 @@ function classesNear(source: string, marker: string): string[] {
   });
 }
 
-describe('SIA-P2-4 rendered: every default-rendered composer button has a >=44px target', () => {
+describe('SIA-P2-4 rendered: every default-rendered composer button is a real >=44px layout target', () => {
   it('DockedComposer (header + bottom action bar)', () => {
     const html = renderToStaticMarkup(
       <DockedComposer isOpen={true} onClose={() => {}} />,
@@ -177,10 +238,12 @@ describe('SIA-P2-4 rendered: every default-rendered composer button has a >=44px
     const buttons = renderedButtons(html);
     expect(buttons.length).toBeGreaterThan(0);
     for (const b of buttons) {
+      assertLayoutTouchTarget(b.cls, `DockedComposer button "${b.label}"`);
+      // Keyboard: a native <button> is Tab-focusable unless explicitly removed.
       expect(
-        hasTouchTarget(b.cls),
-        `DockedComposer button "${b.label}" lacks a >=44px touch target: ${b.cls.slice(0, 120)}`,
-      ).toBe(true);
+        /\stabindex="-1"/.test(b.tag),
+        `DockedComposer button "${b.label}" is removed from the Tab order`,
+      ).toBe(false);
     }
   });
 
@@ -189,16 +252,17 @@ describe('SIA-P2-4 rendered: every default-rendered composer button has a >=44px
     const buttons = renderedButtons(html);
     expect(buttons.length).toBeGreaterThan(0);
     for (const b of buttons) {
+      assertLayoutTouchTarget(b.cls, `EmailComposer button "${b.label}"`);
       expect(
-        hasTouchTarget(b.cls),
-        `EmailComposer button "${b.label}" lacks a >=44px touch target: ${b.cls.slice(0, 120)}`,
-      ).toBe(true);
+        /\stabindex="-1"/.test(b.tag),
+        `EmailComposer button "${b.label}" is removed from the Tab order`,
+      ).toBe(false);
     }
   });
 });
 
-describe('SIA-P2-4 source pins: every toolbar button keeps its halo', () => {
-  it('EmailComposer toolbar buttons (sm-gated halos; mobile already 44px)', () => {
+describe('SIA-P2-4 source pins: every toolbar button keeps its layout-sized target', () => {
+  it('EmailComposer toolbar buttons (44px at every breakpoint, no halos)', () => {
     const src = read('EmailComposer.tsx');
     const markers = [
       'title="Back (1 page)"',
@@ -221,24 +285,18 @@ describe('SIA-P2-4 source pins: every toolbar button keeps its halo', () => {
       'title="Clear formatting"',
       'aria-disabled={busy || sendBlockReason !== null}',
       'Send options (Save draft / Schedule send)',
+      'aria-label="Discard draft"',
+      'aria-label="Open Quanty AI Copilot"',
+      'aria-label={`Remove attachment ${file.name}`}',
     ];
     for (const marker of markers) {
       for (const cls of classesNear(src, marker)) {
-        expect(
-          /(^|\s)sm:after:-inset-\[/.test(cls),
-          `EmailComposer "${marker}" lost its sm-gated halo`,
-        ).toBe(true);
+        assertLayoutTouchTarget(cls, `EmailComposer "${marker}"`);
       }
-    }
-    // The desktop Quanty copilot trigger (hidden on mobile) carries an ungated
-    // halo. The mobile Quanty trigger is sm:hidden with real 44px min-size, so
-    // it needs no halo; it is covered by the rendered test above.
-    for (const cls of classesNear(src, 'aria-label="Open Quanty AI Copilot"')) {
-      expect(/(^|\s)after:-inset-\[/.test(cls)).toBe(true);
     }
   });
 
-  it('DockedComposer toolbar buttons (ungated halos; compact at every breakpoint)', () => {
+  it('DockedComposer toolbar buttons (44px at every breakpoint, no halos)', () => {
     const src = read('DockedComposer.tsx');
     const markers = [
       'aria-label="Restore composer"',
@@ -254,27 +312,17 @@ describe('SIA-P2-4 source pins: every toolbar button keeps its halo', () => {
       'title="Attach files (25MB limit)"',
       'Writing assistant — local templates',
       'title="Discard draft"',
+      'title="Remove attachment"',
+      'aria-label="Schedule send"',
     ];
     for (const marker of markers) {
       for (const cls of classesNear(src, marker)) {
-        expect(
-          hasTouchTarget(cls),
-          `DockedComposer "${marker}" lost its >=44px touch target`,
-        ).toBe(true);
+        assertLayoutTouchTarget(cls, `DockedComposer "${marker}"`);
       }
-    }
-    // The attachment remove X is destructive with no undo, so its hit area is a
-    // halo (not real padding): the chip must not grow. 12px icon + 16px halo
-    // each side = 44px hit target, same pattern as EmailComposer's remove.
-    for (const cls of classesNear(src, 'title="Remove attachment"')) {
-      expect(
-        hasTouchTarget(cls),
-        `DockedComposer "Remove attachment" lost its >=44px touch target`,
-      ).toBe(true);
     }
   });
 
-  it('ConversationalThreadView quick-reply bar (ungated halos)', () => {
+  it('ConversationalThreadView quick-reply bar (44px at every breakpoint, no halos)', () => {
     const src = read('ConversationalThreadView.tsx');
     const markers = [
       'aria-label="Cancel quoted reply"',
@@ -283,13 +331,11 @@ describe('SIA-P2-4 source pins: every toolbar button keeps its halo', () => {
       'aria-label="Attachments aren\'t supported in quick reply yet"',
       'aria-label="Ask Quanty AI to write a response"',
       'onClick={handleBarSend}',
+      'data-testid="quick-reply-schedule-button"',
     ];
     for (const marker of markers) {
       for (const cls of classesNear(src, marker)) {
-        expect(
-          hasTouchTarget(cls),
-          `quick-reply "${marker}" lost its >=44px touch target`,
-        ).toBe(true);
+        assertLayoutTouchTarget(cls, `quick-reply "${marker}"`);
       }
     }
   });
