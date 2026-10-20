@@ -4,9 +4,9 @@ doc_type: decision-index
 authority: canonical
 status: active
 owner: platform-architecture
-last_verified: 2026-09-19
-verified_at_commit: bce4acaac043c1b91e7566d3c4c2f26a90a9ac31
-review_by: 2026-10-19
+last_verified: 2026-10-20
+verified_at_commit: 25f27e408bf483b42597f71d5c97d66707f3f6a9
+review_by: 2026-11-19
 supersedes: []
 superseded_by: []
 canonical_scope: architecture-decisions
