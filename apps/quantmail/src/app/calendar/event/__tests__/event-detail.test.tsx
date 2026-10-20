@@ -315,5 +315,24 @@ describe('attendee list dividers', () => {
     expect(ul.querySelectorAll('li').length).toBe(3);
     expect(ul.textContent).toContain('Alice');
     expect(ul.textContent).toContain('b@quantmail.in');
+    // The "Your response" RSVP block below the list must be separated by
+    // spacing only — its border-t section separator is also a divider line.
+    // (Rendered separately below with viewerIsAttendee: true.)
+  });
+
+  it('rsvp "Your response" block has no border-t section separator', () => {
+    mockEvent = baseEvent({
+      viewerIsAttendee: true,
+      attendees: [{ email: 'a@quantmail.in', name: 'Alice', status: 'accepted' }],
+    });
+    const el = renderPage();
+    const section = Array.from(el.querySelectorAll('section')).find((s) =>
+      s.querySelector('h2')?.textContent?.includes('Attendees'),
+    )!;
+    const rsvp = Array.from(section.querySelectorAll('div')).find((d) =>
+      d.querySelector('p')?.textContent?.includes('Your response'),
+    );
+    expect(rsvp, 'Your response block should render for an attendee').toBeTruthy();
+    expect(rsvp!.className.split(/\s+/).some((c) => c === 'border-t')).toBe(false);
   });
 });

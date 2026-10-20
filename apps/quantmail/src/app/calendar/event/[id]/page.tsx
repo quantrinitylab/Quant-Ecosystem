@@ -600,7 +600,7 @@ export default function CalendarEventDetailPage() {
                       Otherwise the button 403s ("not an attendee"), so the
                       affordance itself is wrong. */}
                   {event.viewerIsAttendee && (
-                    <div className="mt-4 border-t border-[var(--quant-border)] pt-4">
+                    <div className="mt-4 pt-4">
                       <p className="mb-2 text-xs font-medium text-[var(--quant-muted-foreground)]">Your response</p>
                       <div className="flex flex-wrap gap-2">
                         {(['accepted', 'tentative', 'declined'] as RsvpStatus[]).map((status) => (
