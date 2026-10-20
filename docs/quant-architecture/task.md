@@ -4858,3 +4858,10 @@ Status: [x] DONE (R26 regression audit complete 2026-10-20 ~08:50 IST; zero in-s
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents spawned (P0/P1-only protocol; subagent.list 0 active at run start). findings.md untouched (clean pass).
 - VERDICT-LIVE: HEALTHY. Proxy 127.0.0.1:8888 healthy (google 204 0.68s, no restart). GET /help /privacy /terms /sso -> 200 4/4; /api/oauth/userinfo -> 401 honest; /.well-known/openid-configuration -> 200; /invite/badtoken123 -> 200 (honest invalid render). Desktop 1440x900 + mobile 390x844 (iPhone 14, settled hydration) /help shots REVIEWED: clay M-mark current both viewports, 'How can we help?'/honest 'Help center', 3 honest topic cards (Signing in incl. recovery-not-available honesty + support@quantrinity.in, Resetting your password, Creating an address), mail-orange links, ONE IDENTITY footer, (c) 2026, pure black, zero old-logo flash; white ghost on 'AI triage' card = standing known issue (not re-filed). Shots reviewed + deleted; chrome orphans cleaned. Signed-in help/sso flows = needs-auth (protocol), not faked. Window merges on main only (#1243 deploy hold ACTIVE — cat-verified 2026-10-16 line).
 - Rotation -> ROUND 27: QM-SCREEN-007 (search) regression, queued (018 completes the ROUND 26 cycle).
+
+
+## QM-SCREEN-007 R27 — Search regression (ROUND 27)
+Status: [~] (audit in progress, 2026-10-20 ~09:40 IST, lane-1 deep audit loop, ROUND 27)
+Owner: LANE-1
+Branch: lane1-audit-007r27
+Base: R26 @ e925c0f12 -> origin/main 25f27e408 (fresh fetch, 15 first-parent window merges). Code read from origin/main tree only.
