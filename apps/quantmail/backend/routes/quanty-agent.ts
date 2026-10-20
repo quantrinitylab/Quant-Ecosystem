@@ -15,6 +15,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { PrismaClient } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { AIEngine } from '@quant/ai';
@@ -87,6 +88,10 @@ function toolAppOf(toolName: string): QuantyToolApp | undefined {
 function boot(fastify: FastifyInstance): void {
   if (booted) return;
   const prisma = (fastify as unknown as { prisma: PrismaClient }).prisma;
+  // Stable worker identity for this boot. Stamped onto every task this
+  // process runs; the boot sweep uses it to tell a live replica's tasks
+  // apart from a dead worker's orphans.
+  const workerId = randomUUID();
   // REAL tools: mail + git handlers backed by the scoped backend services,
   // drive handlers backed by the real Drive AI services (QM-M39-011),
   // calendar handlers backed by CalendarService + prisma.event rows.
@@ -102,6 +107,7 @@ function boot(fastify: FastifyInstance): void {
   store = durableTaskStore(prisma);
   executor = new QuantyExecutor({
     store,
+    workerId,
     // Durable approval sink: persist each grant with the task's owner so
     // /api/quanty/approvals can serve it per-user (never the process-global
     // list). The in-memory mirror is kept for the live popup. A persistence
@@ -125,9 +131,11 @@ function boot(fastify: FastifyInstance): void {
       }
     },
   });
-  // Boot sweep: tasks left non-terminal by a previous process are honestly
-  // marked interrupted (never faked as done), with plan/steps/receipts kept.
-  void recoverInterruptedTasks(prisma).catch(() => {
+  // Boot sweep: tasks orphaned by a dead worker are honestly marked
+  // interrupted (never faked as done), with plan/steps/receipts kept.
+  // Only rows untouched for 15+ min and not owned by this worker qualify —
+  // a live replica's tasks are never touched.
+  void recoverInterruptedTasks(prisma, workerId).catch(() => {
     // Durability sweep is best-effort at boot; the store still works if it fails.
   });
   booted = true;
@@ -341,6 +349,41 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
       kind: 'task.backgrounded',
     });
     return reply.send({ success: true, data: { background: true } });
+  });
+
+  // POST /api/quanty/tasks/:id/resume — real resume for an interrupted task.
+  // Re-runs the SAME task (same ids), so completed steps replay from their
+  // receipts instead of re-invoking tools — this is what "resume from the last
+  // completed step" actually means. Only interrupted tasks can resume; steps
+  // left 'running' by the crash go through the atomic claim path (replay if
+  // a receipt exists, take over a stale claim, or execute once).
+  fastify.post<{ Params: { id: string } }>('/api/quanty/tasks/:id/resume', async (request, reply) => {
+    const userId = reqUserId(request);
+    const task = await loadTaskOwnedBy(request.params.id, userId);
+    if (task.status !== 'interrupted') {
+      throw createAppError('Only interrupted tasks can be resumed', 409, 'TASK_NOT_INTERRUPTED');
+    }
+    for (const step of task.steps) {
+      if (step.status === 'running' || step.status === 'pending') {
+        step.status = 'pending';
+        step.startedAt = undefined;
+      }
+    }
+    task.status = 'running';
+    task.outcome = undefined;
+    task.pendingToolName = undefined;
+    await store.save(task);
+    await persistAuditEvent(prisma, {
+      taskId: task.id,
+      userId,
+      timestamp: new Date().toISOString(),
+      kind: 'task.resumed',
+      detail: 'Resumed by user — completed steps replay from receipts.',
+    });
+    void executor.run(task, prisma, callbacks(prisma)).catch(() => {
+      // run() records its own terminal state; the stream just ends here.
+    });
+    return reply.send({ success: true, data: { resumed: true, taskId: task.id } });
   });
 
   // POST /api/quanty/tasks/:id/undo — reverse a finished task's reversible steps.

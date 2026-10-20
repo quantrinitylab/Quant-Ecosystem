@@ -60,6 +60,7 @@ export interface QuantyTaskRow {
   pendingToolName: string | null;
   outcome: string | null;
   background: boolean;
+  ownerId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -241,6 +242,7 @@ function rowToTask(row: QuantyTaskRow): QuantyTask {
     needsConfirmation: row.needsConfirmation,
     pendingToolName: row.pendingToolName ?? undefined,
     background: row.background,
+    ownerId: row.ownerId ?? undefined,
     outcome: row.outcome ?? undefined,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -259,6 +261,7 @@ function taskToCreateData(task: QuantyTask): QuantyTaskCreateData {
     pendingToolName: task.pendingToolName ?? null,
     outcome: task.outcome ?? null,
     background: task.background,
+    ownerId: task.ownerId ?? null,
   };
 }
 
@@ -271,6 +274,7 @@ function taskToUpdateData(task: QuantyTask): QuantyTaskUpdateData {
     pendingToolName: task.pendingToolName ?? null,
     outcome: task.outcome ?? null,
     background: task.background,
+    ownerId: task.ownerId ?? null,
     updatedAt: new Date(task.updatedAt),
   };
 }
@@ -440,36 +444,56 @@ export async function listApprovals(prisma: unknown, userId: string, limit = 50)
 
 const STALE_STATUSES = ['planning', 'running', 'waiting-confirm'];
 
+/**
+ * A task is only treated as orphaned when its owner hasn't touched it for
+ * this long. A live replica keeps persisting its tasks after every step, so
+ * their updatedAt stays fresh and the sweep never touches them — even across
+ * replicas sharing one database.
+ */
+const ORPHAN_THRESHOLD_MS = 15 * 60 * 1000;
+
 const RESTART_OUTCOME =
   'Quanty backend restarted while this task was in flight — it did not finish. ' +
-  'Its plan, completed steps and receipts are preserved above; re-submit the command to resume from the last completed step.';
+  'Its plan, completed steps and receipts are preserved above; resume it from ' +
+  'POST /api/quanty/tasks/:id/resume to continue from the last completed step.';
 
 /**
- * Mark every task left in a non-terminal state by a previous process as
- * interrupted, with an honest outcome (never faked as done/failed), plus one
- * audit entry per task so the replay log explains the gap. Pages through ALL
- * matching rows (not just the first 1000) so a large backlog is fully
- * recovered. Returns the number of tasks recovered. No-op (0) when the
- * durable DB is absent.
+ * Mark tasks orphaned by a dead worker as interrupted, with an honest outcome
+ * (never faked as done/failed), plus one audit entry per task so the replay
+ * log explains the gap. Only touches rows that are BOTH non-terminal AND
+ * untouched for ORPHAN_THRESHOLD_MS AND not owned by the current worker —
+ * a live replica's tasks are never recovered. The final update is conditional
+ * on the row still being non-terminal, so a task that finished between the
+ * read and the write is never overwritten. Pages through ALL matching rows.
+ * Returns the number of tasks recovered. No-op (0) when the durable DB is
+ * absent.
  */
-export async function recoverInterruptedTasks(prisma: unknown): Promise<number> {
+export async function recoverInterruptedTasks(prisma: unknown, workerId?: string): Promise<number> {
   const db = resolveDurableDb(prisma);
   if (!db) return 0;
+  const orphanBefore = new Date(Date.now() - ORPHAN_THRESHOLD_MS);
   let recovered = 0;
   for (;;) {
     const stale = await db.tasks.findMany({
-      where: { status: { in: STALE_STATUSES } },
+      where: {
+        status: { in: STALE_STATUSES },
+        updatedAt: { lt: orphanBefore },
+        ...(workerId ? { ownerId: { not: workerId } } : {}),
+      },
       orderBy: { updatedAt: 'asc' },
       take: 1000,
     });
     if (stale.length === 0) break;
     const now = new Date();
-    const ids = stale.map((r) => r.id);
-    await db.tasks.updateMany({
-      where: { id: { in: ids } },
-      data: { status: 'interrupted', outcome: RESTART_OUTCOME, updatedAt: now },
-    });
     for (const row of stale) {
+      // Conditional per row: only a row STILL non-terminal gets marked. A
+      // task that finished between our read and this write keeps its real
+      // outcome and gets no audit entry.
+      const res = (await db.tasks.updateMany({
+        where: { id: row.id, status: { in: STALE_STATUSES } },
+        data: { status: 'interrupted', outcome: RESTART_OUTCOME, updatedAt: now },
+      })) as { count?: number };
+      if (res?.count !== 1) continue;
       await persistAuditEvent(prisma, {
         taskId: row.id,
         userId: row.userId,
@@ -477,9 +501,8 @@ export async function recoverInterruptedTasks(prisma: unknown): Promise<number> 
         kind: 'task.interrupted',
         detail: RESTART_OUTCOME,
       });
+      recovered += 1;
     }
-    recovered += stale.length;
-    // A full page means there may be more — repeat until a short page.
     if (stale.length < 1000) break;
   }
   return recovered;
@@ -491,6 +514,69 @@ export async function recoverInterruptedTasks(prisma: unknown): Promise<number> 
 
 /** How long a step receipt stays replayable. */
 export const STEP_RECEIPT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** How long a step claim stays valid before a crashed owner is presumed dead. */
+export const STEP_CLAIM_TTL_MS = 10 * 60 * 1000;
+
+/** Outcome of attempting to claim a step's effect before executing it. */
+export type StepClaim =
+  | { outcome: 'claimed' }
+  | { outcome: 'replay'; receipt: StoredStepReceipt }
+  | { outcome: 'contended' };
+
+/**
+ * Atomically claim a step's effect BEFORE running the tool. The unique
+ * operationId makes the claim atomic: exactly one attempt wins.
+ * - 'claimed' — we own the execution; run the tool, then complete the receipt.
+ * - 'replay' — a completed receipt already exists; re-invoke nothing.
+ * - 'contended' — another attempt holds a fresh claim; wait for it rather
+ *   than duplicating the effect. A claim older than STEP_CLAIM_TTL_MS is
+ *   presumed crashed and taken over.
+ * No-op (claimed) when the durable DB is absent — single-process in-memory
+ * runs can't contend.
+ */
+export async function claimStepReceipt(
+  prisma: unknown,
+  taskId: string,
+  step: Pick<QuantyStep, 'id' | 'toolName' | 'args'>,
+): Promise<StepClaim> {
+  const db = resolveDurableDb(prisma);
+  if (!db) return { outcome: 'claimed' };
+  const key = stepReceiptKey(taskId, step.id);
+  const now = Date.now();
+  try {
+    await db.receipts.create({
+      data: {
+        operationId: key,
+        fingerprint: stepFingerprint(taskId, step),
+        status: 'claimed',
+        responseBody: '',
+        expiresAt: new Date(now + STEP_CLAIM_TTL_MS),
+      },
+    });
+    return { outcome: 'claimed' };
+  } catch {
+    // Unique violation (or any create failure) — someone got here first.
+  }
+  const existing = await loadStepReceipt(prisma, taskId, step);
+  if (existing) return { outcome: 'replay', receipt: existing };
+  // A claim row exists but isn't completed. Fresh => another attempt is live;
+  // stale => its owner crashed, take it over.
+  try {
+    const row = await db.receipts.findUnique({ where: { operationId: key } });
+    const expiresAt = row?.expiresAt ? new Date(row.expiresAt).getTime() : 0;
+    if (row && row.status === 'claimed' && expiresAt < now) {
+      await db.receipts.update({
+        where: { operationId: key },
+        data: { expiresAt: new Date(now + STEP_CLAIM_TTL_MS) },
+      });
+      return { outcome: 'claimed' };
+    }
+  } catch {
+    // Fall through to contended — safer than duplicating.
+  }
+  return { outcome: 'contended' };
+}
 
 /** The idempotency operation id for a step's effect. Also stored as step.receiptId. */
 export function stepReceiptKey(taskId: string, stepId: string): string {

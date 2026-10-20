@@ -29,7 +29,8 @@ import type {
 } from './types';
 import { getTool } from './tool-registry';
 import { quantyAgentState } from './agent-state';
-import { loadStepReceipt, storeStepReceipt, stepReceiptKey } from './task-store';
+import { claimStepReceipt, loadStepReceipt, storeStepReceipt, stepReceiptKey } from './task-store';
+import type { StoredStepReceipt } from './task-store';
 
 // Re-exported so popup-data.ts (and other consumers) can import the store
 // contract from the executor module.
@@ -42,6 +43,12 @@ export interface ExecutorOptions {
   store: QuantyTaskStore;
   /** Per-step timeout; defaults to STEP_TIMEOUT_MS. */
   stepTimeoutMs?: number;
+  /**
+   * Stable id for this worker instance (randomUUID per boot). Stamped onto
+   * every task this worker runs so the boot sweep can tell a live replica's
+   * tasks apart from a dead worker's orphans.
+   */
+  workerId?: string;
   /**
    * Where approved destructive-step grants go. Defaults to the in-memory
    * agent-state log (existing behavior); the route wires a sink that also
@@ -91,6 +98,53 @@ interface RunState {
   currentStepLabel?: string;
 }
 
+/** Context the replay helper needs from the run loop. */
+interface ReplayCtx {
+  now: () => string;
+  persist: () => Promise<void>;
+  audit: (entry: Omit<QuantyAuditEntry, 'taskId' | 'userId' | 'timestamp'>) => void;
+  emit: (event: QuantyProgressEvent) => void;
+  runState: RunState;
+}
+
+/** Apply a completed receipt to a step without re-invoking the tool. */
+async function applyReplayedReceipt(
+  task: QuantyTask,
+  step: QuantyStep,
+  replayed: StoredStepReceipt,
+  ctx: ReplayCtx,
+): Promise<void> {
+  step.status = 'done';
+  step.result = replayed.data;
+  step.reversible = replayed.reversible === true;
+  if (replayed.undoToken !== undefined) step.undoToken = replayed.undoToken;
+  step.receiptId = stepReceiptKey(task.id, step.id);
+  step.endedAt = ctx.now();
+  ctx.runState.currentStepLabel = undefined;
+  await ctx.persist();
+  const replaySummary = `${replayed.summary} (replayed from receipt ${step.receiptId} — effect not re-executed)`;
+  ctx.audit({ kind: 'step.done', toolName: step.toolName, stepId: step.id, detail: replaySummary });
+  ctx.emit({ type: 'step.done', taskId: task.id, step: structuredClone(step), summary: replaySummary });
+}
+
+/**
+ * Wait for another attempt's fresh claim to complete, then return its
+ * receipt. Polls for up to ~30s; returns null on timeout so the caller can
+ * fail honestly instead of duplicating the effect.
+ */
+async function waitForClaim(
+  prisma: unknown,
+  taskId: string,
+  step: Pick<QuantyStep, 'id' | 'toolName' | 'args'>,
+): Promise<StoredStepReceipt | null> {
+  for (let i = 0; i < 15; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const receipt = await loadStepReceipt(prisma, taskId, step);
+    if (receipt) return receipt;
+  }
+  return null;
+}
+
 export class QuantyExecutor {
   private runs = new Map<string, RunState>();
   private opts: ExecutorOptions;
@@ -102,6 +156,10 @@ export class QuantyExecutor {
   /** Start executing a task's steps. Resolves when the task reaches a terminal state. */
   async run(task: QuantyTask, prisma: unknown, cb: QuantyExecutorCallbacks): Promise<QuantyTask> {
     const now = () => new Date().toISOString();
+    // Claim ownership: this worker instance owns the task from here on. The
+    // boot sweep only recovers tasks whose owner is gone (or which were never
+    // claimed), so a live replica's tasks are never touched.
+    if (this.opts.workerId) task.ownerId = this.opts.workerId;
     const runState: RunState = {
       task,
       interrupted: false,
@@ -142,6 +200,14 @@ export class QuantyExecutor {
       for (const step of task.steps) {
         if (runState.interrupted) break;
 
+        // Resume path: steps already in a terminal state keep their outcome.
+        // Their receipts stay replayable, but there is nothing left to do —
+        // and re-prompting confirmation for an already-approved destructive
+        // step would be wrong.
+        if (step.status === 'done' || step.status === 'failed' || step.status === 'skipped') {
+          continue;
+        }
+
         const tool = getTool(step.toolName);
         if (!tool) {
           step.status = 'failed';
@@ -173,23 +239,26 @@ export class QuantyExecutor {
           await setStatus('running');
         }
 
-        // Idempotent effects: a completed receipt for this exact step
-        // invocation (same task/step/tool/args) replays the stored result
-        // instead of re-invoking the tool — a retry or a restart after a
-        // crash can never duplicate the effect.
-        const replayed = await loadStepReceipt(prisma, task.id, step);
-        if (replayed) {
-          step.status = 'done';
-          step.result = replayed.data;
-          step.reversible = replayed.reversible === true;
-          if (replayed.undoToken !== undefined) step.undoToken = replayed.undoToken;
-          step.receiptId = stepReceiptKey(task.id, step.id);
-          step.endedAt = now();
-          runState.currentStepLabel = undefined;
-          await persist();
-          const replaySummary = `${replayed.summary} (replayed from receipt ${step.receiptId} — effect not re-executed)`;
-          audit({ kind: 'step.done', toolName: tool.name, stepId: step.id, detail: replaySummary });
-          emit({ type: 'step.done', taskId: task.id, step: structuredClone(step), summary: replaySummary });
+        // Idempotent effects, claimed BEFORE execution: the unique operationId
+        // makes the claim atomic, so two attempts can never both run the
+        // tool. A completed receipt replays the stored result instead of
+        // re-invoking the tool — a retry or a restart after a crash can never
+        // duplicate the effect.
+        const claim = await claimStepReceipt(prisma, task.id, step);
+        if (claim.outcome === 'contended') {
+          // Another attempt holds a fresh claim — wait for it to finish rather
+          // than duplicating the effect. Poll briefly, then give up honestly.
+          const waited = await waitForClaim(prisma, task.id, step);
+          if (waited) {
+            await applyReplayedReceipt(task, step, waited, { now, persist, audit, emit, runState });
+            continue;
+          }
+          throw new Error(
+            `Step ${step.id} is claimed by another live attempt — refusing to duplicate its effect`,
+          );
+        }
+        if (claim.outcome === 'replay') {
+          await applyReplayedReceipt(task, step, claim.receipt, { now, persist, audit, emit, runState });
           continue;
         }
 

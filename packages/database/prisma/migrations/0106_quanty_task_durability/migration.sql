@@ -66,3 +66,6 @@ CREATE TABLE "quanty_approval_records" (
 );
 
 CREATE INDEX "quanty_approval_records_userId_grantedAt_idx" ON "quanty_approval_records"("userId", "grantedAt");
+
+ALTER TABLE "quanty_tasks" ADD COLUMN "ownerId" TEXT;
+CREATE INDEX "quanty_tasks_ownerId_updatedAt_idx" ON "quanty_tasks"("ownerId", "updatedAt");

@@ -71,6 +71,12 @@ export interface QuantyTask {
    * is the user's explicit intent, persisted so it survives restarts.
    */
   background: boolean;
+  /**
+   * Worker instance that owns this task's execution (randomUUID per boot).
+   * The boot sweep only recovers tasks whose owner is gone — a live replica's
+   * tasks are never touched.
+   */
+  ownerId?: string;
   /** Final human-readable outcome, set when status is done/failed/interrupted. */
   outcome?: string;
   createdAt: string;
@@ -130,7 +136,7 @@ export interface QuantyAuditEntry {
   taskId: string;
   userId: string;
   timestamp: string;
-  kind: 'task.created' | 'task.planned' | 'step.start' | 'step.done' | 'step.failed' | 'confirm.requested' | 'confirm.granted' | 'task.interrupted' | 'task.done' | 'task.failed' | 'task.backgrounded';
+  kind: 'task.created' | 'task.planned' | 'step.start' | 'step.done' | 'step.failed' | 'confirm.requested' | 'confirm.granted' | 'task.interrupted' | 'task.resumed' | 'task.done' | 'task.failed' | 'task.backgrounded';
   toolName?: string;
   stepId?: string;
   detail?: string;

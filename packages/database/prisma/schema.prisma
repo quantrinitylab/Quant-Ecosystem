@@ -489,7 +489,6 @@ model OAuthClient {
   allowedScopes    String[]
   isConfidential   Boolean  @default(true)
   isFirstParty     Boolean  @default(false)
-  ownerId          String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -1686,6 +1685,7 @@ model QuantyTask {
   /// Explicit background transition: the user sent this task to the
   /// background; closing the UI does not change its lifecycle.
   background        Boolean  @default(false)
+  ownerId           String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

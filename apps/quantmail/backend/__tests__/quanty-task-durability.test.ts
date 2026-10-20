@@ -8,7 +8,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   PrismaQuantyTaskStore,
+  claimStepReceipt,
   loadStepReceipt,
+  recoverInterruptedTasks,
   storeStepReceipt,
   stepReceiptKey,
   stepFingerprint,
@@ -68,6 +70,22 @@ function makeReceiptDelegate(rows: Map<string, any>) {
     upsert: vi.fn().mockImplementation(async ({ where, create, update }: any) => {
       const cur = rows.get(where.operationId);
       const next = cur ? { ...cur, ...update } : { ...create };
+      rows.set(where.operationId, next);
+      return next;
+    }),
+    create: vi.fn().mockImplementation(async ({ data }: any) => {
+      if (rows.has(data.operationId)) {
+        const err = new Error('Unique constraint failed on operationId');
+        (err as any).code = 'P2002';
+        throw err;
+      }
+      rows.set(data.operationId, { ...data });
+      return data;
+    }),
+    update: vi.fn().mockImplementation(async ({ where, data }: any) => {
+      const cur = rows.get(where.operationId);
+      if (!cur) throw new Error('not found');
+      const next = { ...cur, ...data };
       rows.set(where.operationId, next);
       return next;
     }),
@@ -197,5 +215,86 @@ describe('Quanty task durability (WR-G)', () => {
     await expect(
       storeStepReceipt({}, 't', { id: 's', toolName: 'x', args: {} }, { summary: 's' }),
     ).resolves.toBe(false);
+  });
+
+  it('claimStepReceipt: first claim wins, completed replays, fresh claim contends', async () => {
+    const prisma = makePrisma();
+    const step = { id: 's1', toolName: 'x', args: { a: 1 } };
+    // First attempt claims.
+    const first = await claimStepReceipt(prisma, 't1', step);
+    expect(first.outcome).toBe('claimed');
+    // Second attempt sees a fresh claim -> contended (must not duplicate).
+    const second = await claimStepReceipt(prisma, 't1', step);
+    expect(second.outcome).toBe('contended');
+    // Once completed, a later attempt replays instead of re-executing.
+    await storeStepReceipt(prisma, 't1', step, { summary: 'did it', data: 42 });
+    const third = await claimStepReceipt(prisma, 't1', step);
+    expect(third.outcome).toBe('replay');
+    if (third.outcome === 'replay') {
+      expect(third.receipt.summary).toBe('did it');
+      expect(third.receipt.data).toBe(42);
+    }
+  });
+
+  it('claimStepReceipt: a stale claim is taken over (crashed owner)', async () => {
+    const prisma = makePrisma();
+    const step = { id: 's2', toolName: 'x', args: {} };
+    await claimStepReceipt(prisma, 't1', step);
+    // Age the claim past the TTL.
+    const rows = (prisma.idempotencyOperation as any);
+    const key = stepReceiptKey('t1', 's2');
+    const row = await rows.findUnique({ where: { operationId: key } });
+    row.expiresAt = new Date(Date.now() - 1000);
+    const retake = await claimStepReceipt(prisma, 't1', step);
+    expect(retake.outcome).toBe('claimed');
+  });
+
+  it('recoverInterruptedTasks: only old orphans, never fresh or live-owned tasks', async () => {
+    const taskRows = new Map<string, any>();
+    const old = new Date(Date.now() - 60 * 60 * 1000); // 1h ago
+    const fresh = new Date(Date.now() - 60 * 1000); // 1m ago
+    const mk = (id: string, updatedAt: Date, ownerId: string | null) => ({
+      id, userId: 'u1', command: 'c', status: 'running', planSummary: 'p',
+      steps: '[]', needsConfirmation: false, pendingToolName: null,
+      outcome: null, background: false, ownerId,
+      createdAt: old, updatedAt,
+    });
+    taskRows.set('orphan', mk('orphan', old, 'dead-worker'));
+    taskRows.set('fresh', mk('fresh', fresh, 'dead-worker'));
+    taskRows.set('live', mk('live', fresh, 'live-worker'));
+    const prisma = {
+      quantyTask: {
+        findMany: vi.fn().mockImplementation(async ({ where }: any) => {
+          const out: any[] = [];
+          for (const row of taskRows.values()) {
+            if (where?.status?.in && !where.status.in.includes(row.status)) continue;
+            if (where?.updatedAt?.lt && !(row.updatedAt < where.updatedAt.lt)) continue;
+            if (where?.ownerId?.not && row.ownerId === where.ownerId.not) continue;
+            out.push(row);
+          }
+          return out.sort((a: any, b: any) => a.updatedAt - b.updatedAt).slice(0, 1000);
+        }),
+        updateMany: vi.fn().mockImplementation(async ({ where }: any) => {
+          let count = 0;
+          for (const row of taskRows.values()) {
+            const idMatch = !where?.id || (where.id.in ? where.id.in.includes(row.id) : row.id === where.id);
+            const statusMatch = !where?.status?.in || where.status.in.includes(row.status);
+            if (idMatch && statusMatch) {
+              row.status = 'interrupted';
+              count += 1;
+            }
+          }
+          return { count };
+        }),
+      },
+      quantyTaskEvent: makeEventDelegate(new Map()),
+      quantyApprovalRecord: makeApprovalsDelegate(),
+      idempotencyOperation: makeReceiptDelegate(new Map()),
+    };
+    const n = await recoverInterruptedTasks(prisma, 'live-worker');
+    expect(n).toBe(1);
+    expect(taskRows.get('orphan').status).toBe('interrupted');
+    expect(taskRows.get('fresh').status).toBe('running');
+    expect(taskRows.get('live').status).toBe('running');
   });
 });
