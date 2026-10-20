@@ -18,6 +18,11 @@ export interface CalendarWeekViewProps {
   onSelectDate: (date: Date) => void;
   openDedicatedSheet: (type: EntryType, date?: Date, opts?: WeekViewSheetOpts) => void;
   onSelectEvent: (event: CalendarEventLike) => void;
+  /**
+   * Drag-to-reschedule: fired when the user drops a timed event chip onto a
+   * new day/time slot. Absent = the gesture stays disabled (chips tap-to-open only).
+   */
+  onRescheduleEvent?: (event: CalendarEventLike, newStart: Date, newEnd: Date) => void;
   /** 0 = Sunday first, 1 = Monday first (default, matches month grid) */
   weekStartsOn?: 0 | 1;
   className?: string;
@@ -44,6 +49,58 @@ export function minutesToTimeLabel(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return toTimeInput(new Date(2000, 0, 1, h, m));
+}
+
+/** Snap a minute count to the grid step (pure, unit-testable). */
+export function snapMinutes(minutes: number, snap: number = SNAP_MINUTES): number {
+  return Math.round(minutes / snap) * snap;
+}
+
+/**
+ * Minutes-from-midnight for a pointer Y inside the time grid, snapped to the
+ * grid and clamped to the day. Pure and unit-testable — backs both
+ * drag-to-create and drag-to-reschedule.
+ */
+export function minutesFromClientY(clientY: number, rectTop: number): number {
+  const raw = Math.round(((clientY - rectTop) / WEEK_HOUR_HEIGHT) * 60);
+  return Math.max(0, Math.min(DAY_MINUTES, snapMinutes(raw)));
+}
+
+/** Preserved event duration in minutes (never below one grid step). */
+export function eventDurationMinutes(event: CalendarEventLike): number {
+  const s = startOf(event).getTime();
+  const e = endOf(event).getTime();
+  if (Number.isNaN(s) || Number.isNaN(e)) return SNAP_MINUTES;
+  return Math.max(SNAP_MINUTES, Math.round((e - s) / 60000));
+}
+
+export interface RescheduledRange {
+  start: Date;
+  end: Date;
+}
+
+/**
+ * New [start, end) for a drag-reschedule onto `targetDay` at `startMin`:
+ * duration is preserved and the start is clamped so the event never spills
+ * past midnight. Pure and unit-testable.
+ */
+export function rescheduledRange(
+  event: CalendarEventLike,
+  targetDay: Date,
+  startMin: number,
+): RescheduledRange {
+  const duration = eventDurationMinutes(event);
+  const clampedStart = Math.max(0, Math.min(DAY_MINUTES - duration, snapMinutes(startMin)));
+  const start = new Date(
+    targetDay.getFullYear(),
+    targetDay.getMonth(),
+    targetDay.getDate(),
+    Math.floor(clampedStart / 60),
+    clampedStart % 60,
+    0,
+    0,
+  );
+  return { start, end: new Date(start.getTime() + duration * 60000) };
 }
 
 export interface DayEventInput {
@@ -152,6 +209,7 @@ export function CalendarWeekView({
   onSelectDate,
   openDedicatedSheet,
   onSelectEvent,
+  onRescheduleEvent,
   weekStartsOn = 1,
   className = '',
 }: CalendarWeekViewProps) {
@@ -262,10 +320,7 @@ export function CalendarWeekView({
 
   const minutesFromPointer = (e: React.PointerEvent, el: HTMLElement): number => {
     const rect = el.getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    const raw = Math.round((y / WEEK_HOUR_HEIGHT) * 60);
-    const snapped = Math.round(raw / SNAP_MINUTES) * SNAP_MINUTES;
-    return Math.max(0, Math.min(DAY_MINUTES, snapped));
+    return minutesFromClientY(e.clientY, rect.top);
   };
 
   const handleColumnPointerDown = (dayIndex: number) => (e: React.PointerEvent<HTMLDivElement>) => {
@@ -306,6 +361,166 @@ export function CalendarWeekView({
 
   const dragLo = drag ? Math.min(drag.startMin, drag.curMin) : 0;
   const dragHi = drag ? Math.max(drag.startMin, drag.curMin) : 0;
+
+  // ---- drag-to-reschedule: move a timed event to a new day/time slot -----
+  // Google-Calendar pattern: mouse drags lift after a few px of travel;
+  // touch/pen uses tap-and-hold (450ms) so scrolling the grid keeps working.
+  interface MoveDragState {
+    event: CalendarEventLike;
+    originDayIndex: number;
+    originStartMin: number;
+    durationMin: number;
+    pointerId: number;
+    pointerKind: string;
+    startX: number;
+    startY: number;
+    lifted: boolean;
+    curDayIndex: number;
+    curStartMin: number;
+  }
+  const [moveDrag, setMoveDrag] = useState<MoveDragState | null>(null);
+  const moveDragRef = useRef<MoveDragState | null>(null);
+  const liftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressChipClickRef = useRef(false);
+
+  const setMoveDragBoth = (s: MoveDragState | null) => {
+    moveDragRef.current = s;
+    setMoveDrag(s);
+  };
+  const clearLiftTimer = () => {
+    if (liftTimerRef.current !== null) {
+      clearTimeout(liftTimerRef.current);
+      liftTimerRef.current = null;
+    }
+  };
+
+  // Escape cancels an in-flight move.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && moveDragRef.current) {
+        clearLiftTimer();
+        setMoveDragBoth(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const dayIndexFromPoint = (clientX: number, clientY: number): number | null => {
+    const el = document
+      .elementFromPoint(clientX, clientY)
+      ?.closest?.('[data-week-day-index]');
+    if (!el) return null;
+    const i = Number(el.getAttribute('data-week-day-index'));
+    return Number.isInteger(i) && i >= 0 && i < days.length ? i : null;
+  };
+
+  const minutesInColumnAtPoint = (dayIndex: number, clientY: number): number | null => {
+    const col = document.querySelector(`[data-testid="week-day-column-${dayIndex}"]`);
+    if (!col) return null;
+    return minutesFromClientY(clientY, col.getBoundingClientRect().top);
+  };
+
+  const liftMoveDrag = (chipEl: HTMLElement) => {
+    const d = moveDragRef.current;
+    if (!d || d.lifted) return;
+    try {
+      chipEl.setPointerCapture(d.pointerId);
+    } catch {
+      // Non-primary pointers or detached nodes: the move simply won't track.
+    }
+    setMoveDragBoth({ ...d, lifted: true });
+  };
+
+  const handleChipPointerDown =
+    (p: PositionedEvent, originDayIndex: number) =>
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      // Keep the column's drag-to-create from firing under the chip.
+      e.stopPropagation();
+      if (!onRescheduleEvent || p.event.recurrence) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (e.isPrimary === false) return;
+      const state: MoveDragState = {
+        event: p.event,
+        originDayIndex,
+        originStartMin: p.startMin,
+        durationMin: eventDurationMinutes(p.event),
+        pointerId: e.pointerId,
+        pointerKind: e.pointerType,
+        startX: e.clientX,
+        startY: e.clientY,
+        lifted: false,
+        curDayIndex: originDayIndex,
+        curStartMin: p.startMin,
+      };
+      setMoveDragBoth(state);
+      if (e.pointerType === 'mouse') {
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+          // Pointer already released: the move simply won't track.
+        }
+      } else {
+        // Touch/pen: tap-and-hold to lift; scrolling before the hold fires
+        // is left to the browser (no capture, no preventDefault).
+        // NOTE: capture e.currentTarget NOW — the synthetic event's
+        // currentTarget is null once dispatch ends (no pooling in React 17+,
+        // but currentTarget is still only valid during dispatch).
+        const chipEl = e.currentTarget;
+        liftTimerRef.current = setTimeout(() => {
+          liftTimerRef.current = null;
+          liftMoveDrag(chipEl);
+        }, 450);
+      }
+    };
+
+  const handleChipPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = moveDragRef.current;
+    if (!d) return;
+    if (!d.lifted) {
+      const moved = Math.hypot(e.clientX - d.startX, e.clientY - d.startY);
+      if (d.pointerKind === 'mouse') {
+        if (moved > 10) liftMoveDrag(e.currentTarget);
+      } else if (moved > 10) {
+        // Touch drifted before the hold fired: it's a scroll or tap — bail.
+        clearLiftTimer();
+        setMoveDragBoth(null);
+      }
+      return;
+    }
+    const di = dayIndexFromPoint(e.clientX, e.clientY);
+    if (di === null) return;
+    const mins = minutesInColumnAtPoint(di, e.clientY);
+    if (mins === null) return;
+    if (di !== d.curDayIndex || mins !== d.curStartMin) {
+      setMoveDragBoth({ ...d, curDayIndex: di, curStartMin: mins });
+    }
+    e.preventDefault();
+  };
+
+  const handleChipPointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = moveDragRef.current;
+    clearLiftTimer();
+    if (!d) return;
+    setMoveDragBoth(null);
+    suppressChipClickRef.current = false;
+    if (d.lifted && onRescheduleEvent) {
+      const changed =
+        d.curDayIndex !== d.originDayIndex || d.curStartMin !== d.originStartMin;
+      // A lifted pointer always consumed the gesture: never fall through to
+      // the chip's click-to-open handler after a drag.
+      suppressChipClickRef.current = true;
+      if (changed) {
+        const { start, end } = rescheduledRange(d.event, days[d.curDayIndex], d.curStartMin);
+        onRescheduleEvent(d.event, start, end);
+      }
+    }
+  };
+
+  const handleChipPointerCancel = () => {
+    clearLiftTimer();
+    setMoveDragBoth(null);
+  };
 
   const hours = useMemo(() => Array.from({ length: 24 }, (_, h) => h), []);
 
@@ -458,6 +673,7 @@ export function CalendarWeekView({
                     onPointerUp={() => finishDrag(di)}
                     onPointerCancel={() => setDrag(null)}
                     data-testid={`week-day-column-${di}`}
+                    data-week-day-index={di}
                     className="flex-1 min-w-0 relative border-l border-[#232938]/40 cursor-crosshair focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--app-accent)]"
                     style={{ touchAction: 'pan-y' }}
                   >
@@ -495,23 +711,54 @@ export function CalendarWeekView({
                       />
                     )}
 
+                    {/* Move ghost: where the lifted event will land on drop */}
+                    {moveDrag?.lifted && moveDrag.curDayIndex === di && (
+                      <div
+                        className="absolute left-1 right-1 z-[7] rounded-md border-2 border-dashed border-[#F59E0B] bg-[#F59E0B]/15 pointer-events-none"
+                        style={{
+                          top: minutesToTop(moveDrag.curStartMin) + 1,
+                          height: Math.max(22, (moveDrag.durationMin / 60) * WEEK_HOUR_HEIGHT - 2),
+                        }}
+                        data-testid="week-move-ghost"
+                        aria-hidden="true"
+                      />
+                    )}
+
                     {/* Events */}
                     {timedByDay[di].map((p) => {
                       const color = eventColor(p.event);
                       const widthPct = 100 / p.colCount;
+                      const isDragging = moveDrag?.lifted && moveDrag.event.id === p.event.id;
+                      const canReschedule = !!onRescheduleEvent && !p.event.recurrence;
                       return (
                         <button
                           key={p.event.id}
                           type="button"
                           data-week-event
+                          data-week-event-id={p.event.id}
                           onClick={(e) => {
+                            if (suppressChipClickRef.current) {
+                              suppressChipClickRef.current = false;
+                              e.stopPropagation();
+                              return;
+                            }
                             e.stopPropagation();
                             onSelectEvent(p.event);
                           }}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          title={`${p.event.title} · ${hhmm(startOf(p.event))} – ${hhmm(endOf(p.event))}`}
+                          onPointerDown={handleChipPointerDown(p, di)}
+                          onPointerMove={handleChipPointerMove}
+                          onPointerUp={handleChipPointerUp}
+                          onPointerCancel={handleChipPointerCancel}
+                          title={
+                            canReschedule
+                              ? `${p.event.title} · ${hhmm(startOf(p.event))} – ${hhmm(endOf(p.event))} · drag to reschedule`
+                              : `${p.event.title} · ${hhmm(startOf(p.event))} – ${hhmm(endOf(p.event))}`
+                          }
+                          aria-roledescription={canReschedule ? 'Draggable event' : undefined}
                           data-testid={`week-event-${p.event.id}`}
-                          className="absolute z-[4] text-left rounded-md border-l-[3px] px-1.5 py-0.5 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white hover:brightness-125 transition"
+                          className={`absolute z-[4] text-left rounded-md border-l-[3px] px-1.5 py-0.5 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white hover:brightness-125 transition ${
+                            isDragging ? 'opacity-40' : ''
+                          } ${canReschedule ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
                           style={{
                             top: p.top + 1,
                             height: Math.max(22, p.height - 2),
@@ -519,6 +766,7 @@ export function CalendarWeekView({
                             width: `calc(${widthPct.toFixed(2)}% - 4px)`,
                             borderLeftColor: color,
                             backgroundColor: `${color}2e`,
+                            touchAction: isDragging ? 'none' : undefined,
                           }}
                         >
                           <div className="truncate text-[11px] font-semibold leading-tight text-white">
