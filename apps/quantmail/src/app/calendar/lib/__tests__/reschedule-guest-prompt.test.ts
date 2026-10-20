@@ -95,4 +95,31 @@ describe('buildReschedulePayload', () => {
     );
     expect(confirm.mock.calls[0]![0]!.message).toContain('“Untitled event” has 1 guest.');
   });
+
+  it('legacy non-email attendee values do not trigger the prompt or count as guests', async () => {
+    const confirm = confirmStub(true);
+    const payload = await buildReschedulePayload(
+      makeEvent({ attendees: ['Room 5', '', 'not-an-email', { email: 42 } as unknown as string] }),
+      START,
+      END,
+      confirm,
+    );
+    // The backend never emails these, so the prompt must not appear at all.
+    expect(confirm).not.toHaveBeenCalled();
+    expect('sendUpdate' in payload).toBe(false);
+  });
+
+  it('guest count excludes non-email entries when real guests exist', async () => {
+    const confirm = confirmStub(true);
+    await buildReschedulePayload(
+      makeEvent({ attendees: ['a@example.com', 'Room 5', ''] }),
+      START,
+      END,
+      confirm,
+    );
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(confirm.mock.calls[0]![0]!.message).toBe(
+      '“Team sync” has 1 guest. Send them an updated invitation by email?',
+    );
+  });
 });

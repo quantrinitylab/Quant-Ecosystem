@@ -14,6 +14,7 @@
 //   user chose to move without emailing guests).
 import type { ConfirmOptions } from '../../../hooks/useConfirm';
 import type { CalendarEventLike } from '../types';
+import { toAttendeeEmail } from './attendee-validation';
 
 export async function buildReschedulePayload(
   event: CalendarEventLike,
@@ -25,7 +26,12 @@ export async function buildReschedulePayload(
     startTime: newStart.toISOString(),
     endTime: newEnd.toISOString(),
   };
-  const attendeeCount = event.attendees?.length ?? 0;
+  // Count only notifiable guests: legacy non-email attendee values are never
+  // emailed by the backend, so they must not trigger the prompt or inflate
+  // the guest count (matches the edit-sheet loader + notification validation).
+  const attendeeCount = (event.attendees ?? []).filter(
+    (a) => toAttendeeEmail(a) !== null,
+  ).length;
   if (attendeeCount === 0) return base;
   // Reuse the edit sheet's exact copy so the two save paths ask the same
   // question the same way.
