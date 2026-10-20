@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TIMEZONES } from '../../types';
-import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolveSlotsResponse, resolveSlotsLoadFailure, slotsWithinGuestDay, guestDayKeyToYmd, compareGuestDayKeys, todayInTimeZone, weekdayInTimeZone, isGuestDayEnabled, formatGuestDayHeader, formatGuestDayShort, defaultSelectedGuestDay, daysIn1BasedMonth } from './booking-utils';
+import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolvePostSubmitDeadLink, resolveSlotsResponse, resolveSlotsLoadFailure, slotsWithinGuestDay, guestDayKeyToYmd, compareGuestDayKeys, todayInTimeZone, weekdayInTimeZone, isGuestDayEnabled, formatGuestDayHeader, formatGuestDayShort, defaultSelectedGuestDay, daysIn1BasedMonth } from './booking-utils';
 import type { BookingLinkDetails, BookingLinkLoadStatus, BookingSlotItem, GuestDayKey } from './booking-utils';
 import {
   IconClock,
@@ -462,7 +462,8 @@ export default function PublicBookingPage(props: PageProps) {
       if (!res.ok) {
         // Honest failure: 409 slot-taken, 410 inactive link, 404 unknown slug,
         // 400 invalid payload, 429 rate-limited, 5xx server problem.
-        // Stay on step 2 with the real reason — never render "Booking Confirmed!".
+        // Never render "Booking Confirmed!" on a failure — stay on step 2
+        // with the real reason.
         let serverMessage: string | undefined;
         try {
           const errJson = await res.json();
@@ -473,6 +474,19 @@ export default function PublicBookingPage(props: PageProps) {
             (typeof errJson?.message === 'string' ? errJson.message : undefined);
         } catch {
           // Error body unreadable — fall through to the status-mapped copy.
+        }
+        // fix/qm-booking-postsubmit-deadlink: the link died between the
+        // initial link load and the booking POST (deleted/paused mid-step-2).
+        // This is the SAME surface as a dead link found pre-selection —
+        // flip to the honest dead-link panel (not-found / inactive) instead
+        // of keeping the booking form on screen with an inline error. Every
+        // other failure keeps the inline form error via failBooking.
+        const postSubmitDeadLink = resolvePostSubmitDeadLink(res.status, serverMessage);
+        if (postSubmitDeadLink) {
+          setLinkStatus(postSubmitDeadLink.status);
+          setLinkErrorMessage(postSubmitDeadLink.message);
+          setIsSubmitting(false);
+          return;
         }
         failBooking(resolveBookingFailureMessage(res.status, serverMessage));
         return;
