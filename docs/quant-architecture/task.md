@@ -4977,6 +4977,10 @@ Branch: lane1-audit-014r27
 - VERDICT-LIVE: HEALTHY. Proxy 127.0.0.1:8888 DIED silently mid-run (between the successful curl API checks and the Chrome runs — first mobile/desktop shots hit ERR_PROXY_CONNECTION_FAILED); restarted via nohup recipe, verified healthy (google 200 0.93s via proxy) before re-shooting. GET /quanty -> 404; /api/quanty/popup -> 401 honest; /api/quanty/chat -> 404 API_ROUTE_NOT_FOUND; GET /api/quanty/tasks -> 405 (all match R22/R26 baseline exactly). Desktop 1440x900 + mobile 390x844 (iPhone 14, wait_s=14 hydrated) /quanty shots REVIEWED: branded 'This page doesn't exist' + 'Here is where everything actually lives' nav cards, pure black, mail-orange error glyph, zero old-logo flash. Shots reviewed + deleted; my 4 chrome dirs cleaned; /tmp has zero chrome orphans. Signed-in Quanty (drawer/copilot/live agent) = needs-auth (protocol), not faked. #1243 deploy hold ACTIVE (cat-verified this round — hidden_files/orchestrator/deploy-hold.txt, user decision pending since 2026-10-16) — window merges on main only, live verification of them waits on the user.
 - Rotation -> QM-SCREEN-015 (notifications) ROUND 27 regression, queued.
 
+## QM-SCREEN-014 R29 — Quanty workspace regression (ROUND 29)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-014r29, started 2026-10-21 ~00:35 IST; R27-014 base aed6c62cb -> origin/main 497127159, fresh fetch, 9 first-parent merges)
+Audit started: 2026-10-21 ~00:35 IST (lane-1 deep audit loop, ROUND 29)
+
 ## QM-SCREEN-015 R27 — Notifications regression (ROUND 27)
 Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-015r27, started 2026-10-20 ~15:35 IST; R26 base 25f27e408 -> origin/main aed6c62c, fresh fetch)
 Status: [x] DONE (R27 regression audit complete 2026-10-20 ~15:52 IST; empty notification window, prior pins byte-verified intact, 0 new findings, origin healthy with full logged-out live verification; fixes tracked via their PRs)
