@@ -281,6 +281,29 @@ export function resolveBookingFailureMessage(
   }
 }
 
+/**
+ * Post-submit dead-link rule (fix/qm-booking-postsubmit-deadlink).
+ *
+ * The link died between the initial link load and the booking POST
+ * (deleted/paused mid-step-2). This is the SAME surface as a dead link
+ * found pre-selection — the page must flip to the honest dead-link panel
+ * (not-found / inactive) instead of keeping the booking form on screen
+ * with an inline error. The copy is deliberately the link-load copy
+ * (resolveLinkLoadFailure), not the inline-form copy, so the post-submit
+ * surface is identical to the pre-selection one.
+ *
+ * Returns the dead-link { status, message } for 404/410, or null for every
+ * other status so the caller keeps the inline-form-error path
+ * (failBooking). Pure function so the mapping is unit-testable.
+ */
+export function resolvePostSubmitDeadLink(
+  status: number,
+  serverMessage?: string,
+): { status: BookingLinkLoadStatus; message: string } | null {
+  if (status !== 404 && status !== 410) return null;
+  return resolveLinkLoadFailure(status, serverMessage);
+}
+
 export interface BookingSlotItem {
   start: Date;
   end: Date;

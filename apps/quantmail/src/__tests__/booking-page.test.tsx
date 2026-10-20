@@ -17,6 +17,7 @@ import {
   generateGoogleCalendarUrl,
   resolveBookingFailureMessage,
   resolveLinkLoadFailure,
+  resolvePostSubmitDeadLink,
   resolveSlotsResponse,
   resolveSlotsLoadFailure,
   bookingWallTimeToUtcMs,
@@ -289,6 +290,52 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
         expect(msg).not.toContain('confirmed');
         expect(msg).not.toContain('success');
         expect(msg).not.toContain('scheduled for you');
+      }
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 2b-2. Post-submit dead-link rule (fix/qm-booking-postsubmit-deadlink):
+  // a 404/410 on the booking POST means the link died between load and
+  // submit — the page must flip to the SAME dead-link panel shown
+  // pre-selection (link-load copy), never the inline form error.
+  // --------------------------------------------------------------------------
+  describe('resolvePostSubmitDeadLink (post-submit 404/410 flips to dead-link panel)', () => {
+    it('404 on the booking POST resolves to the not-found dead-link state', () => {
+      const result = resolvePostSubmitDeadLink(404);
+      expect(result).not.toBeNull();
+      expect(result!.status).toBe('not-found');
+      expect(result!.message).toContain('no longer exists');
+    });
+
+    it('410 on the booking POST resolves to the inactive dead-link state', () => {
+      const result = resolvePostSubmitDeadLink(410);
+      expect(result).not.toBeNull();
+      expect(result!.status).toBe('inactive');
+      expect(result!.message).toContain('no longer active');
+    });
+
+    it('prefers the real backend message when the server supplies one', () => {
+      expect(resolvePostSubmitDeadLink(404, 'Booking link not found')!.message).toBe(
+        'Booking link not found',
+      );
+      expect(resolvePostSubmitDeadLink(410, 'Booking link is inactive')!.message).toBe(
+        'Booking link is inactive',
+      );
+    });
+
+    it('matches the pre-selection link-load surface for the same status (consistency)', () => {
+      for (const status of [404, 410]) {
+        const postSubmit = resolvePostSubmitDeadLink(status)!;
+        const preSelection = resolveLinkLoadFailure(status);
+        expect(postSubmit.status).toBe(preSelection.status);
+        expect(postSubmit.message).toBe(preSelection.message);
+      }
+    });
+
+    it('returns null for every other failure status so the inline form error stays', () => {
+      for (const status of [0, 400, 409, 429, 500, 503, 418]) {
+        expect(resolvePostSubmitDeadLink(status), `status ${status} must not flip the page`).toBeNull();
       }
     });
   });
