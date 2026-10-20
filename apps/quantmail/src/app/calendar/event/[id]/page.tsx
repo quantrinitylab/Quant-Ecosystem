@@ -574,7 +574,7 @@ export default function CalendarEventDetailPage() {
                   {attendees.length === 0 ? (
                     <p className="text-sm text-[var(--quant-muted-foreground)]">No attendees — just you.</p>
                   ) : (
-                    <ul className="divide-y divide-[var(--quant-border)]">
+                    <ul className="space-y-1">
                       {attendees.map((a) => (
                         <li key={a.email} className="flex items-center gap-3 py-2.5">
                           <span

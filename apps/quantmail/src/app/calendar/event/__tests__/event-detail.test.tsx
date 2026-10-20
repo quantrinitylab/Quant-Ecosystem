@@ -289,3 +289,31 @@ describe('edit form timezone', () => {
     );
   });
 });
+
+describe('attendee list dividers', () => {
+  // User-locked rule: pure-black, no divider lines. The attendee list must be
+  // spacing-only rows — a `divide-y` regressing here shows a visible divider
+  // line between every attendee row.
+  it('renders attendee rows with spacing only, no divide-* divider classes', () => {
+    mockEvent = baseEvent({
+      viewerIsAttendee: false,
+      attendees: [
+        { email: 'a@quantmail.in', name: 'Alice', status: 'accepted' },
+        { email: 'b@quantmail.in', name: 'Bob', status: 'tentative' },
+        { email: 'c@quantmail.in', status: 'declined' },
+      ],
+    });
+    const el = renderPage();
+    const section = Array.from(el.querySelectorAll('section')).find((s) =>
+      s.querySelector('h2')?.textContent?.includes('Attendees'),
+    )!;
+    const ul = section.querySelector('ul')!;
+    const classes = ul.className.split(/\s+/);
+    expect(classes.some((c) => c.startsWith('divide-'))).toBe(false);
+    expect(classes).toContain('space-y-1');
+    // All three attendees still render as rows.
+    expect(ul.querySelectorAll('li').length).toBe(3);
+    expect(ul.textContent).toContain('Alice');
+    expect(ul.textContent).toContain('b@quantmail.in');
+  });
+});
