@@ -480,10 +480,34 @@ function makeLocationWorld(opts: {
   ];
   const prisma = {
     closeFriend: {
-      findMany: vi.fn(async () => [
-        { id: 'e1', userId: VIEWER, friendId: OWNER, createdAt: fresh },
-        { id: 'e2', userId: VIEWER, friendId: FRIEND2, createdAt: fresh },
-      ]),
+      // QC-F-533 harness direction: OWNER -> VIEWER and FRIEND2 -> VIEWER
+      // edges (each owner listed the viewer as a close friend — the only
+      // direction that authorizes the viewer), answered WHERE-AWARE from
+      // the actual query (the privacy.service.test.ts pattern) so the old
+      // caller-side query shape finds no authorizing edges here.
+      findMany: vi.fn(
+        async (args: { where?: { userId?: string; friendId?: string } }) => {
+          const edges = [
+            { id: 'e1', userId: OWNER, friendId: VIEWER, createdAt: fresh },
+            { id: 'e2', userId: FRIEND2, friendId: VIEWER, createdAt: fresh },
+          ];
+          const where = args?.where ?? {};
+          return edges.filter(
+            (e) =>
+              (where.userId === undefined || e.userId === where.userId) &&
+              (where.friendId === undefined || e.friendId === where.friendId),
+          );
+        },
+      ),
+    },
+    // QC-F-533: empty DIRECT delegates — the L fixtures carry no
+    // conversation memberships, so the DIRECT half of the owner-side
+    // enumeration proves nobody here (fail-closed).
+    conversationMember: {
+      findMany: vi.fn(async () => []),
+    },
+    conversation: {
+      findMany: vi.fn(async () => []),
     },
     friendLocation: {
       findMany: vi.fn(async () => locations),
