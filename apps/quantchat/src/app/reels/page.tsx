@@ -37,6 +37,9 @@ export default function ReelsPage() {
     hasMore,
     isLoading,
     isFetchingNextPage,
+    isError,
+    nextPageError,
+    refetch,
     likeReel,
     unlikeReel,
     shareReel,
@@ -68,12 +71,14 @@ export default function ReelsPage() {
     });
   }, [currentIndex, reels]);
 
-  // Task 3.5: Infinite scroll - fetch when within 3 items of end
+  // Task 3.5: Infinite scroll - fetch when within 3 items of end.
+  // QC-F-372: once a next-page fetch has failed, the auto-fetch stops —
+  // retrying is the user's explicit Retry tap only, never a silent loop.
   useEffect(() => {
-    if (shouldFetchNext(currentIndex, reels.length, hasMore) && !isFetchingNextPage) {
+    if (shouldFetchNext(currentIndex, reels.length, hasMore) && !isFetchingNextPage && !nextPageError) {
       fetchNextPage();
     }
-  }, [currentIndex, reels.length, hasMore, isFetchingNextPage, fetchNextPage]);
+  }, [currentIndex, reels.length, hasMore, isFetchingNextPage, fetchNextPage, nextPageError]);
 
   // Navigate to next reel
   const goToNext = useCallback(() => {
@@ -147,6 +152,31 @@ export default function ReelsPage() {
     );
   }
 
+  // QC-F-372: a failed first page is NOT an empty feed. Honest error state
+  // with a Retry; "No reels available" below is reachable only after a
+  // successful-but-empty load. No cause is invented — the copy stays plain.
+  if (isError && reels.length === 0) {
+    return (
+      <div className="flex h-dvh w-full flex-col items-center justify-center gap-4 bg-black">
+        <p role="alert" className="text-gray-400">Couldn&apos;t load reels.</p>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="rounded-lg bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/20 active:scale-95"
+        >
+          Retry
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push('/')}
+          className="rounded-lg bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/20 active:scale-95"
+        >
+          Back to chats
+        </button>
+      </div>
+    );
+  }
+
   if (!currentReel) {
     return (
       <div className="flex h-dvh w-full flex-col items-center justify-center gap-4 bg-black">
@@ -214,6 +244,25 @@ export default function ReelsPage() {
       {isFetchingNextPage && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+        </div>
+      )}
+
+      {/* QC-F-372: a failed next page keeps the loaded reels on screen and
+          says so honestly, with an explicit Retry (the auto-fetch effect
+          stays gated off until the user retries — see above). */}
+      {nextPageError && !isFetchingNextPage && (
+        <div
+          role="alert"
+          className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-black/70 px-4 py-2 backdrop-blur"
+        >
+          <span className="text-sm text-white">Couldn&apos;t load more reels.</span>
+          <button
+            type="button"
+            onClick={() => fetchNextPage()}
+            className="text-sm font-medium text-white underline underline-offset-2 transition active:scale-95"
+          >
+            Retry
+          </button>
         </div>
       )}
 
