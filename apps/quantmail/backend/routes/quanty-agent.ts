@@ -336,6 +336,7 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
   // terminal — backgrounding a finished task is meaningless.
   fastify.post<{ Params: { id: string } }>('/api/quanty/tasks/:id/background', async (request, reply) => {
     const userId = reqUserId(request);
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const task = await loadTaskOwnedBy(request.params.id, userId);
     if (['done', 'failed', 'interrupted'].includes(task.status)) {
       throw createAppError('Task is already terminal', 409, 'TASK_TERMINAL');
@@ -359,6 +360,7 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
   // a receipt exists, take over a stale claim, or execute once).
   fastify.post<{ Params: { id: string } }>('/api/quanty/tasks/:id/resume', async (request, reply) => {
     const userId = reqUserId(request);
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const task = await loadTaskOwnedBy(request.params.id, userId);
     if (task.status !== 'interrupted') {
       throw createAppError('Only interrupted tasks can be resumed', 409, 'TASK_NOT_INTERRUPTED');
