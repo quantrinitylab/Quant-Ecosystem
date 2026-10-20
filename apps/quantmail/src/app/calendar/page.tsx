@@ -39,6 +39,10 @@ import {
 import { initPeriodHealthFields, buildSheetSavePayload } from './lib/period-log-form';
 import { isEmailShaped, toAttendeeEmail } from './lib/attendee-validation';
 import { guestNotificationToastText } from './lib/guest-notify';
+// fix/qm-calendar-drag-reschedule-guest-notify: drag-to-reschedule asks
+// "Send update to guests?" (edit-sheet copy) before persisting a moved event
+// with guests — the backend only emails when sendUpdate is true.
+import { buildReschedulePayload } from './lib/reschedule-guest-prompt';
 import type { GuestNotificationStatus } from '../../types';
 import { CalendarHeader } from './components/CalendarHeader';
 import { CalendarEventForm } from './components/CalendarEventForm';
@@ -1278,6 +1282,10 @@ function CalendarPageContent() {
   // fix/qm-calendar-drag-reschedule: persist a week-view drag-to-reschedule
   // drop via the same update-entry mutation the edit sheet uses. Honest
   // errors only — a failed move toasts and the chip snaps back on refetch.
+  // fix/qm-calendar-drag-reschedule-guest-notify: the payload builder asks
+  // "Send update to guests?" first when the moved event has guests (Gmail
+  // parity with the edit sheet) — otherwise every guest's invite goes stale
+  // at the old time with no warning.
   const handleRescheduleEvent = useCallback(
     async (event: CalendarEventLike, newStart: Date, newEnd: Date) => {
       const hh = (d: Date) => {
@@ -1286,12 +1294,10 @@ function CalendarPageContent() {
         return `${h12}:${`${d.getMinutes()}`.padStart(2, '0')} ${h24 >= 12 ? 'PM' : 'AM'}`;
       };
       try {
+        const data = await buildReschedulePayload(event, newStart, newEnd, confirm);
         await updateEvent.mutateAsync({
           id: event.id,
-          data: {
-            startTime: newStart.toISOString(),
-            endTime: newEnd.toISOString(),
-          } as never,
+          data: data as never,
         });
         showToast({
           text: `Moved “${event.title}” to ${MONTHS_SHORT[newStart.getMonth()]} ${newStart.getDate()} · ${hh(newStart)}`,
@@ -1305,7 +1311,7 @@ function CalendarPageContent() {
         void refetch();
       }
     },
-    [updateEvent, refetch],
+    [updateEvent, refetch, confirm],
   );
 
   const addNotificationReminder = useCallback((timeText: string) => {
