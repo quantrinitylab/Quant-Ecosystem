@@ -259,4 +259,86 @@ describe('quanty popup data', () => {
     expect(data.activity.today).toHaveLength(1);
     expect(data.activity.today[0].description).toBe('Archived 2 threads.');
   });
+
+  it('buildPopupData serves approvals from the durable per-user log when the durable DB is present', async () => {
+    const store = new InMemoryTaskStore();
+    const executor = new QuantyExecutor({ store });
+    const grantedAt = new Date('2026-10-20T10:00:00.000Z');
+    const prisma = {
+      quantyTask: {},
+      quantyTaskEvent: {},
+      quantyApprovalRecord: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'appr-1',
+            userId: USER_ID,
+            taskId: 'task-9',
+            toolName: 'mail.send',
+            label: 'Send email to boss',
+            scope: 'mail.send',
+            grantedAt,
+          },
+        ]),
+      },
+      idempotencyOperation: {},
+    };
+    const data = await buildPopupData({
+      userId: USER_ID,
+      store,
+      executor,
+      toolAppOf: () => undefined,
+      prisma,
+    });
+    // Served per-user from the durable log, never the process-global list.
+    expect(prisma.quantyApprovalRecord.findMany).toHaveBeenCalledWith({
+      where: { userId: USER_ID },
+      orderBy: { grantedAt: 'desc' },
+      take: 50,
+    });
+    expect(data.approvals).toEqual([
+      {
+        id: 'appr-1',
+        icon: '⚠️',
+        title: 'Approved: mail.send',
+        description: 'Send email to boss',
+        grantedAt: grantedAt.toISOString(),
+        scope: 'mail.send',
+      },
+    ]);
+  });
+
+  it('buildPopupData falls back to the in-memory approval list when the durable DB is absent', async () => {
+    const store = new InMemoryTaskStore();
+    const executor = new QuantyExecutor({ store });
+    // Prisma mock without the durability delegates (route tests register with
+    // an empty prisma mock) → honest degradation to the in-memory mirror.
+    const data = await buildPopupData({
+      userId: USER_ID,
+      store,
+      executor,
+      toolAppOf: () => undefined,
+      prisma: {},
+    });
+    expect(data.approvals).toEqual([]);
+  });
+
+  it('buildPopupData degrades to the in-memory list when the durable read fails', async () => {
+    const store = new InMemoryTaskStore();
+    const executor = new QuantyExecutor({ store });
+    const prisma = {
+      quantyTask: {},
+      quantyTaskEvent: {},
+      quantyApprovalRecord: { findMany: vi.fn().mockRejectedValue(new Error('db down')) },
+      idempotencyOperation: {},
+    };
+    const data = await buildPopupData({
+      userId: USER_ID,
+      store,
+      executor,
+      toolAppOf: () => undefined,
+      prisma,
+    });
+    // A durable failure must not break the popup — honest degradation.
+    expect(data.approvals).toEqual([]);
+  });
 });

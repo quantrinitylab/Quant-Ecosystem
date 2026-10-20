@@ -15,6 +15,7 @@
 import { getSchedule } from './schedule-registry';
 import type { QuantyExecutor, QuantyTaskStore } from './executor';
 import { quantyAgentState } from './agent-state';
+import { hasDurableDb, listApprovals } from './task-store';
 import type {
   QuantyActivityFeed,
   QuantyActivityItem,
@@ -84,6 +85,29 @@ export interface PopupDataDeps {
   store: QuantyTaskStore;
   executor: QuantyExecutor;
   toolAppOf: (toolName: string) => QuantyToolApp | undefined;
+  /**
+   * Prisma client. Approvals are served from the durable per-user grant log
+   * when it carries the durability tables; when absent the in-memory mirror
+   * is used as honest degradation (see durableTaskStore() in routes).
+   */
+  prisma?: unknown;
+}
+
+/**
+ * Approval history for the popup. Served from the durable per-user grant
+ * log (never the process-global in-memory list, which mixes users on shared
+ * deployments) — the in-memory mirror is only the fallback when the durable
+ * DB is absent. Returned shape is still QuantyApproval[].
+ */
+async function popupApprovals(prisma: unknown, userId: string): Promise<QuantyApproval[]> {
+  if (hasDurableDb(prisma)) {
+    try {
+      return await listApprovals(prisma, userId, 50);
+    } catch {
+      // Durable read failed — fall through to the in-memory mirror below.
+    }
+  }
+  return quantyAgentState.listApprovals(50);
 }
 
 /** Assemble the full popup payload. Honest empty states, never fabricated rows. */
@@ -92,7 +116,7 @@ export async function buildPopupData(deps: PopupDataDeps): Promise<QuantyPopupBa
   return {
     status: deps.executor.liveStatus(),
     activity: buildActivityFeed(tasks, deps.toolAppOf),
-    approvals: quantyAgentState.listApprovals(50),
+    approvals: await popupApprovals(deps.prisma, deps.userId),
     browserTasks: quantyAgentState.listBrowserTasks(50),
     schedule: getSchedule(),
     identity: quantyAgentState.getIdentity(),

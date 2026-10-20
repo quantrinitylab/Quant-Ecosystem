@@ -468,7 +468,8 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
   // QuantyPopupData contract.
   fastify.get('/api/quanty/popup', async (request, reply) => {
     const userId = reqUserId(request);
-    const data = await buildPopupData({ userId, store, executor, toolAppOf });
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const data = await buildPopupData({ userId, store, executor, toolAppOf, prisma });
     return reply.send({ success: true, data });
   });
 }
