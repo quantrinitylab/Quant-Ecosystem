@@ -12,9 +12,12 @@
 // faithful in-memory doubles of its injected dependencies:
 //
 //   * FakeOutboxService  — replicates PrismaOutboxService semantics exactly:
-//       claimBatch returns unprocessed, non-dead-lettered events oldest-first up
-//       to a limit (WHERE processedAt IS NULL AND attempts <= MAX_DELIVERY_ATTEMPTS);
-//       markProcessed stamps processedAt; markFailed increments attempts.
+//       claimBatch returns unprocessed, non-dead-lettered, not-under-a-live-
+//       claim-lease events oldest-first up to a limit (WHERE processedAt IS
+//       NULL AND attempts <= MAX_DELIVERY_ATTEMPTS) and stamps the claim lease
+//       (QC-F-541) on the rows it returns; releaseClaim clears the lease
+//       without resolving the row; markProcessed stamps processedAt and clears
+//       the lease; markFailed increments attempts and clears the lease.
 //   * FakeBackplane      — records realtime publishes (online delivery path) and
 //       can be driven to throw transient publish failures via a shared budget.
 //   * FakePresence       — answers isOnlineAnywhere from a fixed online set.
@@ -32,6 +35,7 @@
 
 import {
   MAX_DELIVERY_ATTEMPTS,
+  OUTBOX_CLAIM_LEASE_MS,
   type OutboxEvent,
   type OutboxService,
   type PrismaTx,
@@ -75,6 +79,8 @@ interface MutableOutboxRow {
   processedAt: Date | null;
   attempts: number;
   lastError: string | null;
+  claimedAt: Date | null;
+  leaseExpiresAt: Date | null;
 }
 
 let seedCounter = 0;
@@ -85,10 +91,27 @@ let seedCounter = 0;
  * enforced by `claimBatch` (Requirement 8.7). Records call counts so tests can
  * assert the per-tick loop invariant (Algorithm 3).
  */
+/** Options for {@link FakeOutboxService}'s claim lease (QC-F-541). */
+export interface FakeOutboxServiceOptions {
+  /** Claim-lease duration in ms. Defaults to {@link OUTBOX_CLAIM_LEASE_MS}, mirroring the real service. */
+  leaseMs?: number;
+  /** Injectable clock (ms since epoch), mirroring the repo's {@link Clock} pattern. */
+  now?: () => number;
+}
+
 export class FakeOutboxService implements OutboxService {
   readonly rows: MutableOutboxRow[] = [];
   markProcessedCalls = 0;
   markFailedCalls = 0;
+  releaseClaimCalls = 0;
+
+  private readonly leaseMs: number;
+  private readonly nowMs: () => number;
+
+  constructor(options: FakeOutboxServiceOptions = {}) {
+    this.leaseMs = options.leaseMs ?? OUTBOX_CLAIM_LEASE_MS;
+    this.nowMs = options.now ?? (() => Date.now());
+  }
 
   /** Seed an unprocessed event directly (bypasses enqueue's tx requirement). */
   seed(
@@ -107,6 +130,8 @@ export class FakeOutboxService implements OutboxService {
       processedAt: null,
       attempts: event.attempts ?? 0,
       lastError: null,
+      claimedAt: event.claimedAt ?? null,
+      leaseExpiresAt: event.leaseExpiresAt ?? null,
     };
     this.rows.push(row);
     return row;
@@ -114,36 +139,67 @@ export class FakeOutboxService implements OutboxService {
 
   async enqueue(
     _tx: PrismaTx,
-    event: Omit<OutboxEvent, 'id' | 'processedAt' | 'attempts'>,
+    event: Omit<OutboxEvent, 'id' | 'processedAt' | 'attempts' | 'claimedAt' | 'leaseExpiresAt'>,
   ): Promise<void> {
     this.seed(event);
   }
 
   /**
    * Mirror of `PrismaOutboxService.claimBatch`: unprocessed, non-dead-lettered
-   * rows, oldest first, up to `limit`. Dead-lettered events (attempts exceeding
-   * MAX_DELIVERY_ATTEMPTS) are excluded so the worker never processes them
-   * again (Requirement 8.7).
+   * rows whose claim lease is absent or expired, oldest first, up to `limit`;
+   * every returned row is stamped with a fresh lease (QC-F-541), so a second
+   * claim — from this or any other worker over the same rows — cannot return
+   * it until the lease lapses or is cleared. Dead-lettered events (attempts
+   * exceeding MAX_DELIVERY_ATTEMPTS) are excluded so the worker never
+   * processes them again (Requirement 8.7).
    */
   async claimBatch(limit: number): Promise<OutboxEvent[]> {
-    return this.rows
-      .filter((r) => r.processedAt === null && r.attempts <= MAX_DELIVERY_ATTEMPTS)
+    const now = this.nowMs();
+    const claimed = this.rows
+      .filter(
+        (r) =>
+          r.processedAt === null &&
+          r.attempts <= MAX_DELIVERY_ATTEMPTS &&
+          (r.leaseExpiresAt === null || r.leaseExpiresAt.getTime() <= now),
+      )
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-      .slice(0, limit)
-      .map((r) => ({
-        id: r.id,
-        conversationId: r.conversationId,
-        messageId: r.messageId,
-        recipientIds: [...r.recipientIds],
-        createdAt: r.createdAt,
-        processedAt: r.processedAt,
-        attempts: r.attempts,
-      }));
+      .slice(0, limit);
+
+    for (const r of claimed) {
+      r.claimedAt = new Date(now);
+      r.leaseExpiresAt = new Date(now + this.leaseMs);
+    }
+
+    return claimed.map((r) => ({
+      id: r.id,
+      conversationId: r.conversationId,
+      messageId: r.messageId,
+      recipientIds: [...r.recipientIds],
+      createdAt: r.createdAt,
+      processedAt: r.processedAt,
+      attempts: r.attempts,
+      claimedAt: r.claimedAt,
+      leaseExpiresAt: r.leaseExpiresAt,
+    }));
+  }
+
+  /** Mirror of `PrismaOutboxService.releaseClaim`: clear the lease, row unresolved. */
+  async releaseClaim(eventId: string): Promise<void> {
+    const row = this.rows.find((r) => r.id === eventId);
+    if (row && row.processedAt === null) {
+      row.claimedAt = null;
+      row.leaseExpiresAt = null;
+    }
+    this.releaseClaimCalls += 1;
   }
 
   async markProcessed(eventId: string): Promise<void> {
     const row = this.rows.find((r) => r.id === eventId);
-    if (row) row.processedAt = new Date();
+    if (row) {
+      row.processedAt = new Date(this.nowMs());
+      row.claimedAt = null;
+      row.leaseExpiresAt = null;
+    }
     this.markProcessedCalls += 1;
   }
 
@@ -152,6 +208,8 @@ export class FakeOutboxService implements OutboxService {
     if (row) {
       row.attempts += 1;
       row.lastError = error;
+      row.claimedAt = null;
+      row.leaseExpiresAt = null;
     }
     this.markFailedCalls += 1;
   }
