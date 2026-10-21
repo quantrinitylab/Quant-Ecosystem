@@ -5273,6 +5273,11 @@ Branch: lane1-audit-013r30
 Rotation -> QM-SCREEN-014 (Quanty workspace) ROUND 30 regression, queued.
 
 
+## QM-SCREEN-013 R31 — QuantGit regression (ROUND 31)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-013r31, started 2026-10-21 ~19:40 IST; R30-013 tip 1d83e81b1 -> origin/main a19fe7ea9 (fresh fetch, 1 first-parent window merge). Code read from origin/main tree only via git show/git grep at tip; qe-main working tree ignored per stale-tree lesson. Remote arch tip ls-remote-verified == worktree HEAD (b05445968) before claim; merge-only, no rebase/reset.)
+Audit started: 2026-10-21 ~19:40 IST (lane-1 deep audit loop, ROUND 31)
+
+
 ## QM-SCREEN-015 R30 — Notifications regression (ROUND 30)
 Status: [x] DONE (R30 regression audit complete 2026-10-21 ~11:50 IST; 1 in-scope window merge (#1451, zero notification-path bytes — pure re-verification pass), 8/8 prior pins byte-verified intact, carryovers confirmed open, 0 new findings, live healthy; fixes tracked via their PRs)
 Owner: LANE-1
