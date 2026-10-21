@@ -1857,6 +1857,7 @@ VERDICT-LIVE: HEALTHY — proxy 127.0.0.1:8888 healthy (google.com 200, no resta
 Rotation -> QM-SCREEN-017 (admin) ROUND 29 regression, queued.
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
+Status: [~] IN PROGRESS — LANE-1, branch lane1-audit-017r31 (2026-10-21 ~23:40 IST). R31 REGRESSION AUDIT.
 Status: [x] DONE — LANE-1, branch lane1-audit-017r30 (2026-10-21 ~13:35–13:55 IST). R30 REGRESSION AUDIT COMPLETE.
 Status: [x] DONE — LANE-1, branch lane1-audit-017r29 (2026-10-21 ~03:35–04:05 IST). R29 REGRESSION AUDIT COMPLETE.
 
