@@ -52,10 +52,10 @@ interface AttachmentPreviewProps {
 }
 
 /*
- * Zoom bounds mirror the pinch config documented in `src/mobile/gestures.ts`
- * (PinchConfig: 0.5 – 3.0). The gesture *service* there only models gestures;
- * this lightbox does the real DOM-level handling: two-finger pinch, wheel
- * zoom, and double-tap toggle.
+ * Zoom bounds: 0.5 – 3.0. This lightbox does the real DOM-level handling:
+ * two-finger pinch, wheel zoom, and double-tap toggle. (The old `src/mobile/`
+ * gesture-service abstraction was removed as dead code 2026-10-20 — it was
+ * never imported and no touch events ever reached it.)
  */
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3.0;
