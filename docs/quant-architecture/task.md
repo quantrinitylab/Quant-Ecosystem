@@ -1839,6 +1839,7 @@ VERDICT-LIVE: HEALTHY — proxy 127.0.0.1:8888 healthy (google.com 200, no resta
 Rotation -> QM-SCREEN-017 (admin) ROUND 29 regression, queued.
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
+Status: [~] IN PROGRESS — LANE-1, branch lane1-audit-017r30 (started 2026-10-21 ~13:35 IST; R29 base 1d83e81b1 -> origin/main 1d83e81b1, fresh fetch; window empty — pure re-verification pass).
 Status: [x] DONE — LANE-1, branch lane1-audit-017r29 (2026-10-21 ~03:35–04:05 IST). R29 REGRESSION AUDIT COMPLETE.
 
 R29 REGRESSION AUDIT COMPLETE (2026-10-21 ~03:35–04:05 IST) — LANE-1, branch lane1-audit-017r29: base = origin/main aed6c62cb (R27-017 base) -> tip 1d83e81b1 (fresh fetch, 10 first-parent merges). REGRESSION DIFF aed6c62cb..1d83e81b1 over admin/audit/retention/dlp/staff/moderator/domain/lifecycle paths: EMPTY — zero admin-path bytes across ALL 10 first-parent merges (per-merge ^1->merge name-only scan, case-insensitive: #1451 calendar booking-postsubmit-deadlink, #1443 quanty-task-durability, #1446 calendar-drag-reschedule-guest-notify, #1445 calendar-attendee-dividers, #1444 compose-divider-pureblack, #1441 smtp-multipart-alternative, #1442 composer-touch-target, #1439 drive-r2-config-gap, #1440 calendar-keyboard-triage, #1438 calendar-drag-reschedule) -> pure re-verification pass. All code read from origin/main tree only (git show/git grep; qe-main working tree ignored per stale-tree lesson).
