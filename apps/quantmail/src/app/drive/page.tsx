@@ -58,6 +58,7 @@ import { DocumentEnginePreview } from '../../components/drive/DocumentEnginePrev
 import { docsEngineKindFor } from '../../lib/docs-engine/formats';
 import { browserApiRequest } from '../../services/browser-api-request';
 import { browserAuthSession } from '../../services/browser-auth-session';
+import { useAuth } from '../../providers/auth-provider';
 import { fetchDriveMemoryItems, forgetDriveMemory } from '../../services/drive-memory';
 
 type DriveItem = {
@@ -550,6 +551,19 @@ function DrivePageContent() {
   const [activityFile, setActivityFile] = useState<DriveItem | null>(null);
   const [aiSummaryFile, setAiSummaryFile] = useState<DriveItem | null>(null);
   const [isDuplicateCleanerOpen, setIsDuplicateCleanerOpen] = useState(false);
+  // CODEX-REVIEW 6308089740: the duplicate-cleaner manager must be
+  // account-scoped. user.id is the stable immutable identity (email is
+  // reassignable); when it changes, bindAccount() hard-clears the previous
+  // account's groups/selections/errors and advances the epoch so late
+  // in-flight responses are dropped. Defensive try/catch: same guard as
+  // AppShell — tests may render without AuthProvider.
+  let cleanerAccountId = '';
+  try {
+    const { user: cleanerUser } = useAuth();
+    cleanerAccountId = cleanerUser?.id || '';
+  } catch {
+    cleanerAccountId = '';
+  }
   // Cleaner-tab fix: one shared DuplicateCleanerManager drives BOTH the
   // cleaner tab and AIDuplicateCleanerModal, so the tab renders real scan
   // results instead of a permanently-empty panel.
@@ -557,20 +571,23 @@ function DrivePageContent() {
     () => new DuplicateCleanerManager(),
     [],
   );
+  useEffect(() => {
+    duplicateCleanerManager.bindAccount(cleanerAccountId || null);
+  }, [duplicateCleanerManager, cleanerAccountId]);
   const [cleanerScanState, setCleanerScanState] =
     useState<DuplicateCleanerState>(() => duplicateCleanerManager.getState());
   const [cleanerHasScanned, setCleanerHasScanned] = useState(false);
   useEffect(() => {
     const unsubscribe = duplicateCleanerManager.subscribe((state) => {
       setCleanerScanState(state);
-      if (state.groups.length > 0 || state.isScanning || state.error !== null) {
-        setCleanerHasScanned(true);
-      }
+      // Honest "has scanned" signal: only a SUCCESSFUL scan counts. A failed
+      // first scan leaves this false, so the tab renders the error alone —
+      // never error + "No duplicates found" together.
+      setCleanerHasScanned(state.completedScanCount > 0);
     });
     return unsubscribe;
   }, [duplicateCleanerManager]);
   const handleCleanerScan = useCallback(() => {
-    setCleanerHasScanned(true);
     duplicateCleanerManager.scanDuplicates().catch(() => {
       // Manager carries the error in state; surfaced honestly by the tab.
     });

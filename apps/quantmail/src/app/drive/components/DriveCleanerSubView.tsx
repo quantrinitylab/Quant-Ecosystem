@@ -201,6 +201,19 @@ export function DriveCleanerSubView({
                   Comparing file contents to find duplicates.
                 </p>
               </>
+            ) : scanError && !hasScanned ? (
+              // CODEX-REVIEW 6308089740: a failed FIRST scan renders the error
+              // alone — never "No scan yet" (a scan WAS attempted) and never
+              // "No duplicates found" (nothing was proven). The role="alert"
+              // banner above carries the message; this panel just offers retry.
+              <>
+                <p className="text-sm font-semibold text-[#F8FAFC]">
+                  Scan couldn&apos;t complete
+                </p>
+                <p className="text-xs text-[#94A3B8]">
+                  Your files were not changed. Try the scan again.
+                </p>
+              </>
             ) : hasScanned ? (
               <>
                 <p className="text-sm font-semibold text-[#F8FAFC]">
