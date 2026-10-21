@@ -10,6 +10,12 @@ interface ViewfinderProps {
   canvasRef?: React.RefObject<HTMLCanvasElement | null>;
   /** Active AR lens to apply in the render loop. Null = no lens. */
   activeLens?: ARLensConfig | null;
+  /**
+   * QC-F-138: freeze the render loop while a capture preview is on screen.
+   * The stream tracks stay live (retake is instant); only drawing pauses,
+   * leaving the last frame on the canvas underneath the preview.
+   */
+  paused?: boolean;
 }
 
 /**
@@ -25,21 +31,38 @@ interface ViewfinderProps {
  * This ensures lens overlays are "baked" into the canvas — any capture
  * (canvas.toBlob / canvas.toDataURL) will include the lens overlay.
  */
-export function Viewfinder({ stream, canvasRef: externalCanvasRef, activeLens }: ViewfinderProps) {
+export function Viewfinder({
+  stream,
+  canvasRef: externalCanvasRef,
+  activeLens,
+  paused,
+}: ViewfinderProps) {
   const internalCanvasRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = externalCanvasRef || internalCanvasRef;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const isActiveRef = useRef(true);
   const activeLensRef = useRef<ARLensConfig | null>(null);
+  const pausedRef = useRef(false);
 
   // Keep lens ref in sync to avoid stale closure in render loop
   useEffect(() => {
     activeLensRef.current = activeLens ?? null;
   }, [activeLens]);
 
+  useEffect(() => {
+    pausedRef.current = paused ?? false;
+  }, [paused]);
+
   const renderFrame = useCallback(() => {
     if (!isActiveRef.current) return;
+
+    // Paused (capture preview open): keep the loop alive but draw nothing —
+    // the last frame stays frozen on the canvas under the preview.
+    if (pausedRef.current) {
+      animationFrameRef.current = requestAnimationFrame(renderFrame);
+      return;
+    }
 
     const canvas = canvasRef.current;
     const video = videoRef.current;
