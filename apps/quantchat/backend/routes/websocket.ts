@@ -61,6 +61,83 @@ export function getJwtSecret(): string {
 const RESUME_BUFFER_SIZE = 100;
 
 /**
+ * QC-F-543 — WebSocket frame-layer bounds. The realtime layer authenticated
+ * the upgrade and gated every frame on membership, but the frame layer
+ * itself was unbounded: the ws library's default 100 MiB maxPayload was the
+ * only size limit, frames had no per-socket rate budget (the /chat
+ * config.rateLimit counts only the HTTP upgrade), and the per-socket
+ * processing queue was an unbounded promise chain retaining every queued
+ * raw frame. One authenticated socket could therefore park huge frames and
+ * an unbounded backlog of DB-backed gate work behind slow processing.
+ *
+ * Band numbers (from a firsthand census of every shipped client frame —
+ * see specialist-qc-f-543-buildprep.md §3): the largest legitimate frame is
+ * a REST-parity chat_message (content cap 10,000 chars ⇒ ≈40.2 KiB on the
+ * wire), so maxPayload is 64 KiB; the global bucket must absorb a reconnect
+ * resubscribe burst (200) while capping sustained rate (50/sec); the
+ * durable sub-bucket must absorb a bulk-receipt burst (64) while capping
+ * DB-backed frames at 10/sec; the queue cap (64 pending × ≤64 KiB) bounds
+ * retained frame memory at ≤4 MiB per socket. Every lever is an env var
+ * with the band default — an invalid value falls back to the default,
+ * never crashes boot. Grep prefix: `QC_WS_`.
+ */
+function parsePositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export const WS_MAX_PAYLOAD_BYTES = parsePositiveIntEnv('QC_WS_MAX_PAYLOAD_BYTES', 65_536);
+const WS_FRAME_BURST = parsePositiveIntEnv('QC_WS_FRAME_BURST', 200);
+const WS_FRAME_REFILL_PER_SEC = parsePositiveIntEnv('QC_WS_FRAME_REFILL_PER_SEC', 50);
+const WS_DURABLE_BURST = parsePositiveIntEnv('QC_WS_DURABLE_BURST', 64);
+const WS_DURABLE_REFILL_PER_SEC = parsePositiveIntEnv('QC_WS_DURABLE_REFILL_PER_SEC', 10);
+const WS_QUEUE_MAX = parsePositiveIntEnv('QC_WS_QUEUE_MAX', 64);
+
+/**
+ * Frame types whose handling performs durable DB work (fresh membership
+ * gate + blocked-pair gate and/or receipt persistence). These are the
+ * frames the durable sub-bucket throttles. `join_conversation` performs a
+ * membership lookup too, but it is deliberately NOT drop-throttled: a
+ * reconnect resubscribe burst is legitimate, and silently dropping a join
+ * would leave the client believing it is subscribed to a room the server
+ * never joined it to — joins stay bounded by the global bucket and the
+ * queue cap instead (specialist brief §7, CT-543-4).
+ */
+const DURABLE_FRAME_TYPES = new Set([
+  'chat_message',
+  'delivery_ack',
+  'message:delivered',
+  'read_receipt',
+  'message:read',
+]);
+
+interface TokenBucket {
+  tokens: number;
+  lastRefillMs: number;
+}
+
+function createTokenBucket(capacity: number): TokenBucket {
+  return { tokens: capacity, lastRefillMs: Date.now() };
+}
+
+/** Lazy-refill token bucket: no timers; state dies with the socket closure. */
+function tryConsumeToken(bucket: TokenBucket, capacity: number, refillPerSec: number): boolean {
+  const now = Date.now();
+  const elapsedSec = (now - bucket.lastRefillMs) / 1000;
+  if (elapsedSec > 0) {
+    bucket.tokens = Math.min(capacity, bucket.tokens + elapsedSec * refillPerSec);
+    bucket.lastRefillMs = now;
+  }
+  if (bucket.tokens >= 1) {
+    bucket.tokens -= 1;
+    return true;
+  }
+  return false;
+}
+
+/**
  * QC-F-041 — live-socket registry for account-status enforcement.
  *
  * The connect-time gate (ConnectionAuth accountStatus resolver) stops NEW
@@ -116,7 +193,12 @@ export function closeLiveSocketsForUser(userId: string, code: string): number {
 }
 
 export async function websocketRoutes(fastify: FastifyInstance) {
-  await fastify.register(websocketPlugin);
+  // QC-F-543 — cap the assembled message size at the transport layer (the
+  // ws default is 100 MiB); an oversized message closes the connection
+  // with 1009 before any frame reaches the handler.
+  await fastify.register(websocketPlugin, {
+    options: { maxPayload: WS_MAX_PAYLOAD_BYTES },
+  });
 
   // QC-F-041: the shared account-status gate decorated in buildApp — the
   // WS verifier applies the same deny-list verdicts as the REST gate.
@@ -963,6 +1045,36 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         await tryJoinRoom(query.conversationId, socket, userId, undefined);
       }
 
+      // QC-F-543 — per-socket frame bounds for THIS connection: two token
+      // buckets (global + durable), the pending-queue depth counter, and a
+      // latch that, once a bound has closed the socket, makes the listener
+      // ignore further frames and makes already-queued frames skip their
+      // DB work instead of draining a dead socket's backlog.
+      const globalBucket = createTokenBucket(WS_FRAME_BURST);
+      const durableBucket = createTokenBucket(WS_DURABLE_BURST);
+      let pendingFrames = 0;
+      let boundsTripped = false;
+      let lastRateErrorAt = 0;
+
+      const sendBoundsError = (
+        code: 'RATE_LIMITED' | 'QUEUE_OVERFLOW',
+        message: string,
+        conversationId?: string,
+      ): void => {
+        if (socket.readyState !== socket.OPEN) return;
+        try {
+          socket.send(
+            JSON.stringify(
+              conversationId
+                ? { type: 'error', code, conversationId, message }
+                : { type: 'error', code, message },
+            ),
+          );
+        } catch {
+          // A half-dead socket must not break the bounds path.
+        }
+      };
+
       // QC-F-037 — frames are handled through a per-socket promise queue.
       // The membership gates are async (DB lookup), and without sequencing
       // two frames sent back-to-back could interleave at an await point and
@@ -971,6 +1083,26 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       const handleMessage = async (rawData: Buffer | string): Promise<void> => {
         try {
           const message = JSON.parse(rawData.toString());
+
+          // QC-F-543 — durable sub-bucket, checked immediately after parse
+          // and BEFORE any gate or DB work: a durable frame that cannot pay
+          // is dropped with a RATE_LIMITED error frame (the socket stays
+          // open, mirroring the NOT_A_MEMBER frame-level convention), so a
+          // flood of chat/receipt frames can never translate into unbounded
+          // DB work — including the receipts path, whose recording work
+          // runs fire-and-forget OUTSIDE this queue and therefore had to be
+          // throttled here at admission-to-handling, not by the queue cap.
+          if (
+            DURABLE_FRAME_TYPES.has(message.type as string) &&
+            !tryConsumeToken(durableBucket, WS_DURABLE_BURST, WS_DURABLE_REFILL_PER_SEC)
+          ) {
+            sendBoundsError(
+              'RATE_LIMITED',
+              'Slow down',
+              typeof message.conversationId === 'string' ? message.conversationId : undefined,
+            );
+            return;
+          }
 
           // Any inbound activity refreshes the user's last-seen timestamp in the
           // shared ZSET so the 30s freshness window stays accurate while the
@@ -1105,11 +1237,95 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         }
       };
       let messageQueue: Promise<void> = Promise.resolve();
+
+      // QC-F-543 — admission is PACED, deliberately not synchronous in the
+      // 'message' listener: the ws parser emits every frame buffered in one
+      // TCP chunk in a single synchronous loop, so promise-chain processing
+      // cannot interleave at all during a chunk — a depth counter fed
+      // synchronously would measure chunk coalescing, not processing lag,
+      // and ANY >cap burst in one chunk (including a legitimate reconnect
+      // resubscribe burst) would trip it before a single frame was handled.
+      // Arrivals therefore land in a holding queue and a setImmediate drain
+      // admits one frame per event-loop turn into the processing chain:
+      // between turns the chain genuinely progresses, so pendingFrames
+      // measures real backlog. The holding queue itself stays bounded by
+      // the global bucket (arrivals past the burst are rejected outright)
+      // and is dropped wholesale on any trip or on socket close.
+      const holdingQueue: Array<Buffer | string> = [];
+      let drainScheduled = false;
+      let socketClosed = false;
+
+      const scheduleDrain = (): void => {
+        if (drainScheduled) return;
+        drainScheduled = true;
+        setImmediate(drainHoldingQueue);
+      };
+
+      const drainHoldingQueue = (): void => {
+        drainScheduled = false;
+        if (boundsTripped || socketClosed) {
+          holdingQueue.length = 0;
+          return;
+        }
+        const rawData = holdingQueue.shift();
+        if (rawData === undefined) return;
+        if (pendingFrames >= WS_QUEUE_MAX) {
+          // Genuine processing lag: the chain has had event-loop turns to
+          // drain and is still at the cap. Answer honestly and close —
+          // silently dropping a queued chat_message would fake delivery;
+          // the client reconnects with backoff (the upgrade itself is
+          // rate-limited at 20/min) and durable sends travel over REST.
+          boundsTripped = true;
+          holdingQueue.length = 0;
+          sendBoundsError('QUEUE_OVERFLOW', 'Too many pending frames');
+          try {
+            socket.close(1013, 'QUEUE_OVERFLOW');
+          } catch {
+            // Already closing.
+          }
+          return;
+        }
+        pendingFrames++;
+        messageQueue = messageQueue
+          .then(() => (boundsTripped ? undefined : handleMessage(rawData)))
+          .finally(() => {
+            pendingFrames--;
+          });
+        if (holdingQueue.length > 0) scheduleDrain();
+      };
+
       socket.on('message', (rawData: Buffer | string) => {
-        messageQueue = messageQueue.then(() => handleMessage(rawData));
+        // QC-F-543 — arrival-side admission, without parsing: the global
+        // bucket counts EVERY frame (heartbeat included — its presence
+        // write is not free). Tripping it answers honestly and closes:
+        // the client is told and reconnects with backoff.
+        if (boundsTripped || socketClosed) return;
+        if (!tryConsumeToken(globalBucket, WS_FRAME_BURST, WS_FRAME_REFILL_PER_SEC)) {
+          boundsTripped = true;
+          holdingQueue.length = 0;
+          // The error frame itself must not become a flood: at most 1/sec,
+          // and the socket is closing anyway.
+          const now = Date.now();
+          if (now - lastRateErrorAt >= 1000) {
+            lastRateErrorAt = now;
+            sendBoundsError('RATE_LIMITED', 'Too many frames');
+          }
+          try {
+            socket.close(1008, 'RATE_LIMITED');
+          } catch {
+            // Already closing.
+          }
+          return;
+        }
+        holdingQueue.push(rawData);
+        scheduleDrain();
       });
 
       socket.on('close', () => {
+        // QC-F-543 — stop the admission drain; unadmitted frames die with
+        // the socket instead of being processed for a departed client.
+        socketClosed = true;
+        holdingQueue.length = 0;
         leaveAllRooms(socket);
         socketUsers.delete(socket);
         unregisterLiveSocket(userId, socket);
