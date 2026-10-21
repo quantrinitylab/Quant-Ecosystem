@@ -655,12 +655,23 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       expect(html).not.toContain('4.8 GB');
     });
 
-    it('shows an honest empty state when no duplicates are found', () => {
+    it('shows an honest "No scan yet" state when no scan has run (never false-clean)', () => {
       const html = renderToStaticMarkup(<DriveCleanerSubView />);
 
-      expect(html).toContain('No duplicates found');
+      expect(html).toContain('No scan yet');
+      expect(html).not.toContain('No duplicates found');
+      expect(html).not.toContain('Your Drive looks clean');
       expect(html).not.toContain('Quarterly_Report_v1.pdf');
       expect(html).not.toContain('Reclaim 4.8 GB Storage');
+    });
+
+    it('shows "No duplicates found" only after a real completed scan', () => {
+      const html = renderToStaticMarkup(
+        <DriveCleanerSubView hasScanned clusters={[]} />,
+      );
+
+      expect(html).toContain('No duplicates found');
+      expect(html).not.toContain('No scan yet');
     });
 
     it('renders real duplicate clusters when provided', () => {

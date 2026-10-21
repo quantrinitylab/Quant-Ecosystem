@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   DriveContextTabsHeader,
+  drivePanelIdentity,
   DriveMobileTabStrip,
   DriveFilesSubView,
   DriveSharedSubView,
@@ -1843,10 +1844,32 @@ function DrivePageContent() {
             />
           )}
 
-          {activeTab === 'cleaner' && <DriveCleanerSubView />}
+          {/* QM-FIX-*-desktop-orphans — honest idle: at this head the shared
+              duplicate-scan manager wiring lives on the pending cleaner
+              branch; until then the tab shows the honest "No scan yet"
+              state (hasScanned=false), never the false-clean
+              "No duplicates found". The scan button explains the pending
+              wiring instead of dead-firing. */}
+          {activeTab === 'cleaner' && (
+            <DriveCleanerSubView
+              hasScanned={false}
+              onScan={() =>
+                showToast({
+                  text: 'Duplicate scan wiring arrives with the pending cleaner update',
+                  type: 'info',
+                  subject: 'drive-cleaner',
+                })
+              }
+            />
+          )}
 
           {(activeTab === 'home' || activeTab === 'files') && activeFilter === 'trash' && (
-            <div className="space-y-4">
+            <div
+              id={drivePanelIdentity(activeTab).panelId}
+              role="tabpanel"
+              aria-labelledby={drivePanelIdentity(activeTab).labelledBy}
+              className="space-y-4"
+            >
               <div className="flex items-center justify-between pb-1">
                 <div>
                   <h3 className="text-sm font-bold text-[var(--quant-foreground)]">Trash</h3>
@@ -1937,8 +1960,42 @@ function DrivePageContent() {
             </div>
           )}
 
-          {(activeTab === 'home' || activeTab === 'files') && activeFilter !== 'trash' && (
+          {/* QM-FIX-*-desktop-orphans — tab↔panel contract: the Files tab
+              declares aria-controls="drive-panel-files", so it MUST render a
+              panel with that id — never a second selected tab pointing at
+              drive-panel-home. Home and Files share the file-browsing
+              surface; each renders under its own panel identity from the
+              single drivePanelIdentity() source of truth. */}
+          {activeTab === 'home' && activeFilter !== 'trash' && (
             <DriveHomeSubView
+              panelId={drivePanelIdentity('home').panelId}
+              labelledBy={drivePanelIdentity('home').labelledBy}
+              files={regularFiles}
+              folders={folders}
+              loading={loading}
+              viewMode={viewMode}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
+              onPreviewItem={(item) => handlePreviewItem(item as any)}
+              onDownloadFile={handleDownloadFile}
+              onToggleStar={handleToggleStar}
+              onDeleteItem={(id, name, e) => handleDeleteItem(id, name, e)}
+              onOpenRename={handleOpenRename}
+              onOpenVersionHistory={(item) => setVersionHistoryFile(item as any)}
+              onOpenAiSummary={(item) => setAiSummaryFile(item as any)}
+              onNavigateToFolder={(folderId, folderName) =>
+                navigateToFolder(folderId, folderName)
+              }
+              trashItems={trashItems}
+              onRestoreTrashItem={handleRestoreItem}
+              onPurgeTrashItem={handlePurgeItem}
+            />
+          )}
+
+          {activeTab === 'files' && activeFilter !== 'trash' && (
+            <DriveHomeSubView
+              panelId={drivePanelIdentity('files').panelId}
+              labelledBy={drivePanelIdentity('files').labelledBy}
               files={regularFiles}
               folders={folders}
               loading={loading}

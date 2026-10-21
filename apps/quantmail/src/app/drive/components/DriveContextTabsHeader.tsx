@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   FolderIcon,
   PadlockIcon,
@@ -29,6 +29,21 @@ export interface DriveContextTabsHeaderProps {
   onTabChange: (tab: DriveSubTab) => void;
   sharedCount?: number;
   starredCount?: number;
+}
+
+/**
+ * QM-FIX-*-desktop-orphans (tab↔panel contract) — single source of truth
+ * for the tab↔panel ID mapping. Every tab `t` declares
+ * aria-controls="drive-panel-t" on its tab button, so the rendered panel
+ * MUST carry id="drive-panel-t" + aria-labelledby="drive-tab-t".
+ * page.tsx uses this for the home/files/trash panels; the header uses it
+ * for its own tab buttons. One definition — impossible to drift.
+ */
+export function drivePanelIdentity(tab: DriveSubTab): {
+  panelId: string;
+  labelledBy: string;
+} {
+  return { panelId: `drive-panel-${tab}`, labelledBy: `drive-tab-${tab}` };
 }
 
 interface TabDef {
@@ -125,28 +140,73 @@ export function DriveContextTabsHeader({
     },
   ];
 
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const tabIds = tabs.map((t) => t.id);
+
+  // QM-FIX-*-desktop-orphans (keyboard P2): WAI-ARIA tablist keyboard
+  // contract — ArrowLeft/ArrowRight move between tabs, Home/End jump to
+  // the first/last tab. Focus moves AND the tab activates (automatic
+  // activation), matching the click behaviour. Roving tabindex is already
+  // in place (active tab tabIndex=0, others -1).
+  const activateTabAt = (index: number) => {
+    const wrapped = (index + tabIds.length) % tabIds.length;
+    const id = tabIds[wrapped];
+    onTabChange(id);
+    tabRefs.current[wrapped]?.focus();
+  };
+
+  const handleTabListKeyDown = (e: React.KeyboardEvent) => {
+    const currentIndex = tabIds.indexOf(activeTab);
+    if (currentIndex === -1) return;
+    switch (e.key) {
+      case 'ArrowRight':
+        e.preventDefault();
+        activateTabAt(currentIndex + 1);
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        activateTabAt(currentIndex - 1);
+        break;
+      case 'Home':
+        e.preventDefault();
+        activateTabAt(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        activateTabAt(tabIds.length - 1);
+        break;
+      default:
+        break;
+    }
+  };
+
   return (
     <div
       role="tablist"
       aria-label="Drive Context Sub-Navigation"
+      onKeyDown={handleTabListKeyDown}
       // Desktop-only: on mobile the shell renders a single top sub-tab strip
       // (<MobileSubTabStrip />) for drive's tabs, so a mid-page duplicate row
       // is the exact double-stack the mobile QA shots flagged.
       // `hidden md:flex` keeps the desktop layout pixel-identical.
       className="hidden md:flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2.5 px-4 sm:px-8 bg-[var(--quant-background)]/95 backdrop-blur-md sticky top-0 z-20"
     >
-      {tabs.map((tab) => {
+      {tabs.map((tab, tabIndex) => {
         const Icon = tab.icon;
         const isActive = activeTab === tab.id;
+        const identity = drivePanelIdentity(tab.id);
 
         return (
           <button
             key={tab.id}
+            ref={(el) => {
+              tabRefs.current[tabIndex] = el;
+            }}
             role="tab"
             aria-selected={isActive}
             aria-label={tab.ariaLabel}
-            id={`drive-tab-${tab.id}`}
-            aria-controls={`drive-panel-${tab.id}`}
+            id={identity.labelledBy}
+            aria-controls={identity.panelId}
             tabIndex={isActive ? 0 : -1}
             onClick={() => onTabChange(tab.id)}
             className={`group inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium transition-all duration-150 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] select-none ${

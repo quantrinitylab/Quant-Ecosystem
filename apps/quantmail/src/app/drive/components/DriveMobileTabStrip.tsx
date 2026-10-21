@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   FolderIcon,
   PadlockIcon,
@@ -92,14 +92,53 @@ export function DriveMobileTabStrip({
     },
   ];
 
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const tabIds = tabs.map((t) => t.id);
+
+  // QM-FIX-*-desktop-orphans (keyboard P2): same WAI-ARIA tablist keyboard
+  // contract as the desktop header — ArrowLeft/ArrowRight/Home/End move
+  // focus and activate the tab (automatic activation).
+  const activateTabAt = (index: number) => {
+    const wrapped = (index + tabIds.length) % tabIds.length;
+    const id = tabIds[wrapped];
+    onTabChange(id);
+    tabRefs.current[wrapped]?.focus();
+  };
+
+  const handleTabListKeyDown = (e: React.KeyboardEvent) => {
+    const currentIndex = tabIds.indexOf(activeTab);
+    if (currentIndex === -1) return;
+    switch (e.key) {
+      case 'ArrowRight':
+        e.preventDefault();
+        activateTabAt(currentIndex + 1);
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        activateTabAt(currentIndex - 1);
+        break;
+      case 'Home':
+        e.preventDefault();
+        activateTabAt(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        activateTabAt(tabIds.length - 1);
+        break;
+      default:
+        break;
+    }
+  };
+
   return (
     <div className="relative md:hidden bg-[var(--quant-background)]/95 backdrop-blur-md sticky top-0 z-20">
       <div
         role="tablist"
         aria-label="Drive sections"
+        onKeyDown={handleTabListKeyDown}
         className="flex items-center gap-2 overflow-x-auto no-scrollbar px-4 py-2"
       >
-        {tabs.map((tab) => {
+        {tabs.map((tab, tabIndex) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
 
@@ -107,6 +146,9 @@ export function DriveMobileTabStrip({
             <button
               key={tab.id}
               type="button"
+              ref={(el) => {
+                tabRefs.current[tabIndex] = el;
+              }}
               role="tab"
               aria-selected={isActive}
               aria-label={tab.ariaLabel}
