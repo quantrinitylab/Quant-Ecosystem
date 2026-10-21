@@ -5012,6 +5012,10 @@ Branch: lane1-audit-014r29
 - LIVE: HEALTHY — proxy 127.0.0.1:8888 was DOWN at run start (VM restart class); restarted via nohup recipe, verified listening. GET /quanty -> 404 (baseline); GET /api/quanty/tasks -> 405; GET /api/quanty/popup -> 401 honest; POST /api/quanty/tasks (no body) -> 400 'command is required' (honest validation-before-auth, matches pin); POST /api/quanty/tasks/abc123/{background,resume} -> 404 (EXPECTED pre-deploy: #1443 not live — #1243 deploy hold ACTIVE, cat-verified hidden_files/orchestrator/deploy-hold.txt, user decision pending since 2026-10-16 — not a new finding). Desktop 1440x900 + mobile 390x844 (iPhone 14) /quanty shots REVIEWED: branded 'This page doesn't exist' + 'Here is where everything actually lives' nav cards (Inbox/Calendar/Drive/Contacts/Search/Settings), pure black, mail-orange error glyph, honest copy, zero old-logo flash — matches R27 baseline exactly. Shots reviewed + deleted; chrome orphans cleaned (/tmp 3.4M). Signed-in Quanty (drawer/copilot/live agent) = needs-auth (protocol), not faked.
 - Rotation -> QM-SCREEN-015 (notifications) ROUND 29 regression, queued.
 
+## QM-SCREEN-014 R30 — Quanty workspace regression (ROUND 30)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-014r30, started 2026-10-21 ~10:35 IST; R29-014 base 497127159 -> origin/main 1d83e81b1, fresh fetch, 1 first-parent merge)
+Audit started: 2026-10-21 ~10:35 IST (lane-1 deep audit loop, ROUND 30)
+
 ## QM-SCREEN-015 R27 — Notifications regression (ROUND 27)
 Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-015r27, started 2026-10-20 ~15:35 IST; R26 base 25f27e408 -> origin/main aed6c62c, fresh fetch)
 Status: [x] DONE (R27 regression audit complete 2026-10-20 ~15:52 IST; empty notification window, prior pins byte-verified intact, 0 new findings, origin healthy with full logged-out live verification; fixes tracked via their PRs)
