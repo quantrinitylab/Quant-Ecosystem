@@ -30,6 +30,7 @@ import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useDrive, type ReceivedShare, type SentShareItem, isDocumentDriveId, readErrorInstruction } from '../../hooks/useDrive';
 import { formatBytes } from '../../lib/format-bytes';
+import { isDriveUploadAction, driveUrlWithoutAction } from '../../lib/drive-actions';
 import { showToast } from '../../components/InboxToast';
 import { useScrollElement, useVirtualizer } from '../../lib/virtual/useVirtualizer';
 import {
@@ -1027,6 +1028,16 @@ function DrivePageContent() {
     window.addEventListener('quant:drive:upload', handler);
     return () => window.removeEventListener('quant:drive:upload', handler);
   }, [handleUploadTrigger]);
+
+  // The header's Executive Quick Actions "+ Upload File" tile navigates here
+  // as /drive?action=upload (QuantMailSuperAppHeader.tsx). Honor it: open the
+  // upload picker once on mount/navigation, then consume the param via replace
+  // (keeping every other param, e.g. tab) so the action can't re-fire.
+  useEffect(() => {
+    if (!isDriveUploadAction(searchParams)) return;
+    handleUploadTrigger();
+    router.replace(driveUrlWithoutAction(searchParams));
+  }, [searchParams, handleUploadTrigger, router]);
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
