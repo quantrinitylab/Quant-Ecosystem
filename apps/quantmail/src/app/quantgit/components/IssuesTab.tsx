@@ -373,9 +373,13 @@ export function IssuesTab({
                   </>
                 )}
               </span>
+              {/* Honest author/recency fallback (BranchesTab 'Unknown'
+                  convention): the mapper emits '' when the backend provides
+                  no author/date — never invent 'user' or 'recently'. */}
               <span>
-                <strong className="text-[#E6EDF3]">{selectedIssue.author}</strong> opened this issue{' '}
-                {selectedIssue.createdAt} · {selectedIssue.commentsCount} comments
+                <strong className="text-[#E6EDF3]">{selectedIssue.author || 'Unknown'}</strong>
+                {selectedIssue.createdAt ? ` opened this issue ${selectedIssue.createdAt}` : ''} ·{' '}
+                {selectedIssue.commentsCount} comments
               </span>
             </div>
           </div>
@@ -388,7 +392,9 @@ export function IssuesTab({
               <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
  <div className="px-4 py-2.5 bg-[#0D1117] flex items-center justify-between">
                   <span className="font-semibold text-xs text-[#E6EDF3]">
-                    {selectedIssue.author} commented {selectedIssue.createdAt}
+                    {/* Honest fallback: never invent 'user' or 'recently'. */}
+                    {selectedIssue.author || 'Unknown'}
+                    {selectedIssue.createdAt ? ` commented ${selectedIssue.createdAt}` : ''}
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#30363D] text-[#8D96A0]">
                     Author
@@ -929,8 +935,10 @@ export function IssuesTab({
                         ))}
                       </div>
                       <p className="text-xs text-[#8D96A0]">
-                        #{issue.id} opened {issue.createdAt} by {issue.author} · Assignee:{' '}
-                        {issue.assignee}
+                        {/* Honest fallback: never invent 'user' or 'recently'. */}
+                        #{issue.id}
+                        {issue.createdAt ? ` opened ${issue.createdAt}` : ''} by{' '}
+                        {issue.author || 'Unknown'} · Assignee: {issue.assignee}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 text-[#8D96A0] shrink-0">

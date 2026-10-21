@@ -771,7 +771,10 @@ export function PullRequestsTab({
                 </span>
               ) : (
                 <span>
-                  <strong className="text-[#E6EDF3]">{selectedPR.author}</strong> wants to merge
+                  {/* Honest fallback (BranchesTab 'Unknown' convention):
+                      the mapper emits '' when the backend provides no author —
+                      never invent 'user'. */}
+                  <strong className="text-[#E6EDF3]">{selectedPR.author || 'Unknown'}</strong> wants to merge
                   into{' '}
                   <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchTarget || 'main'}
@@ -1278,7 +1281,9 @@ export function PullRequestsTab({
                         </span>
                       </div>
                       <p className="text-xs text-[#8D96A0]">
-                        #{pr.id} by {pr.author} was {pr.state} {pr.createdAt}
+                        {/* Honest fallback: never invent 'user' or 'recently'. */}
+                        #{pr.id} by {pr.author || 'Unknown'} was {pr.state}
+                        {pr.createdAt ? ` ${pr.createdAt}` : ''}
                         {/* Diff stats only when actually known — never invented. */}
                         {(pr.additions != null || pr.deletions != null) && (
                           <>
