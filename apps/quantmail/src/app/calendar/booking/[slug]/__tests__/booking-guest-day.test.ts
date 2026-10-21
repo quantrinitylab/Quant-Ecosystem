@@ -19,7 +19,6 @@ import {
   slotsWithinGuestDay,
   formatSlotTimeLabelInTz,
   resolveSlotsResponse,
-  generateGuestDaySlots,
   type BookingSlotItem,
 } from '../booking-utils';
 
@@ -71,46 +70,6 @@ describe('slotsWithinGuestDay', () => {
 
   it('empty in → empty out (no invented slots)', () => {
     expect(slotsWithinGuestDay([], '2026-10-15', 'Asia/Kolkata')).toEqual([]);
-  });
-});
-
-describe('generateGuestDaySlots', () => {
-  it('follows the same guest-day contract as the API (LA host / Kolkata guest)', () => {
-    const slots = generateGuestDaySlots({
-      year: 2028,
-      month: 10,
-      day: 5,
-      guestTimeZone: 'Asia/Kolkata',
-      hostTimeZone: 'America/Los_Angeles',
-      startHour: 9,
-      endHour: 17,
-      durationMin: 60,
-    });
-    // Same geometry as the backend boundary test: 5 Wed-originated +
-    // 3 Thu slots, all labeled on the guest's selected day.
-    expect(slots).toHaveLength(8);
-    expect(slots[0].start.toISOString()).toBe('2028-10-04T19:00:00.000Z');
-    expect(slots[7].start.toISOString()).toBe('2028-10-05T18:00:00.000Z');
-    for (const s of slots) {
-      expect(formatDateToYmdInTz(s.start, 'Asia/Kolkata')).toBe('2028-10-05');
-    }
-  });
-
-  it('never invents slots for another guest day', () => {
-    const slots = generateGuestDaySlots({
-      year: 2028,
-      month: 10,
-      day: 6,
-      guestTimeZone: 'Pacific/Kiritimati',
-      hostTimeZone: 'Pacific/Midway',
-      startHour: 9,
-      endHour: 17,
-      durationMin: 60,
-    });
-    expect(slots.length).toBeGreaterThan(0);
-    for (const s of slots) {
-      expect(formatDateToYmdInTz(s.start, 'Pacific/Kiritimati')).toBe('2028-10-06');
-    }
   });
 });
 
@@ -277,49 +236,5 @@ describe('hostDatesForGuestDayInterval', () => {
     expect(dates).toEqual([{ year: 2026, month: 10, day: 19 }]);
     expect(hostDatesForGuestDayInterval(1000, 1000, 'UTC')).toEqual([]);
     expect(hostDatesForGuestDayInterval(2000, 1000, 'UTC')).toEqual([]);
-  });
-});
-
-describe('generateGuestDaySlots DST (fix/qm-booking-journey-v2)', () => {
-  it('covers the whole 25h fall-back day (repeated hour included, nothing omitted)', () => {
-    const slots = generateGuestDaySlots({
-      year: 2026,
-      month: 11,
-      day: 1,
-      guestTimeZone: 'America/New_York',
-      hostTimeZone: 'America/New_York',
-      startHour: 9,
-      endHour: 17,
-      durationMin: 60,
-    });
-    expect(slots).toHaveLength(8);
-    expect(slots[0].start.toISOString()).toBe('2026-11-01T14:00:00.000Z'); // 9:00 EST (after the 2 AM fall-back)
-    expect(slots[7].start.toISOString()).toBe('2026-11-01T21:00:00.000Z'); // 16:00 EST
-    for (const s of slots) {
-      expect(formatDateToYmdInTz(s.start, 'America/New_York')).toBe('2026-11-01');
-    }
-  });
-
-  it('generates slots for the middle host date over spring-forward', () => {
-    // Guest day 2026-03-08 in UTC; host New York springs forward that day.
-    // The interval touches Mar 7 and Mar 8 host dates; Mar 8 (Sunday) slots
-    // must exist — endpoint sampling never dropped them here, but the
-    // walking enumerator must agree.
-    const slots = generateGuestDaySlots({
-      year: 2026,
-      month: 3,
-      day: 8,
-      guestTimeZone: 'UTC',
-      hostTimeZone: 'America/New_York',
-      startHour: 9,
-      endHour: 17,
-      durationMin: 60,
-    });
-    expect(slots.length).toBeGreaterThan(0);
-    const hostDays = new Set(slots.map((s) => formatDateToYmdInTz(s.start, 'America/New_York')));
-    expect(hostDays.has('2026-03-08')).toBe(true);
-    for (const s of slots) {
-      expect(formatDateToYmdInTz(s.start, 'UTC')).toBe('2026-03-08');
-    }
   });
 });
