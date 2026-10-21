@@ -71,7 +71,7 @@ const STATUS_RANK: Record<DeliveryStatus, number> = { sent: 1, delivered: 2, rea
 export default function ChatPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { data, isLoading, error, refetch } = useMessages(id);
+  const { data, isLoading, error, refetch, historyHidden } = useMessages(id);
   const sendMessage = useSendMessage();
   const { conversations } = useConversations();
   const { me } = useMe();
@@ -854,11 +854,28 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           </div>
         )}
         {messages.length === 0 ? (
-          <EmptyState
-            title="No messages yet"
-            description="Send a message to start the conversation"
-          />
+          historyHidden ? (
+            <EmptyState
+              title="Earlier messages are hidden"
+              description="You're seeing messages from when you joined. This group doesn't share earlier history with new members."
+            />
+          ) : (
+            <EmptyState
+              title="No messages yet"
+              description="Send a message to start the conversation"
+            />
+          )
         ) : (
+          <>
+            {historyHidden && (
+              <div
+                role="note"
+                className="mx-1 mb-3 rounded-xl bg-[var(--quant-muted)] px-3 py-2 text-center text-xs text-[var(--quant-muted-foreground)]"
+              >
+                Earlier messages are hidden — you&apos;re seeing messages from when you
+                joined. This group doesn&apos;t share earlier history with new members.
+              </div>
+            )}
           <motion.div
             variants={messageListVariants}
             initial="hidden"
@@ -1106,6 +1123,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               </motion.div>
             ))}
           </motion.div>
+          </>
         )}
 
         {/* QM-UIUX-056: failed sends — the user's text is never lost. Each
