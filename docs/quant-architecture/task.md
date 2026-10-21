@@ -5378,6 +5378,10 @@ Audit started: 2026-10-22 ~02:45 IST (lane-1 deep audit loop, ROUND 32)
 - Rotation -> QM-SCREEN-010/011 (drive) ROUND 32 regression, queued.
 Status: [x] DONE (R32 regression audit complete 2026-10-22 ~03:05 IST; 0 window merges — pure re-verification pass, all prior pins byte-verified intact, carryovers confirmed open, 0 new findings, origin healthy with full logged-out live verification on both viewports; fixes tracked via their PRs)
 
+## QM-SCREEN-010/011 R32 — Drive regression (ROUND 32)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-010r32, started 2026-10-22 ~03:35 IST; R31-010/011 tip a19fe7ea9 -> origin/main a19fe7ea9, fresh fetch; 0 first-parent window merges — main UNCHANGED, pure re-verification pass. Code read from origin/main tree only via git show/git grep at tip (qe-main working tree ignored per stale-tree lesson). Remote arch tip ls-remote-verified == worktree HEAD (215716247874b15170d5c1ccb2cf0a082f73469b) before claim; merge-only, no rebase/reset.)
+Audit started: 2026-10-22 ~03:35 IST (lane-1 deep audit loop, ROUND 32)
+
 ## QM-SCREEN-010/011 R31 — Drive regression (ROUND 31)
 Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-010-011r31, started 2026-10-21 ~17:34 IST; R30-010/011 tip 1d83e81b1 -> origin/main a19fe7ea9, fresh fetch; code read from origin/main tree only via git show/git grep at tip; qe-main working tree ignored per stale-tree lesson. Remote arch tip ls-remote-verified == worktree HEAD (1db911a47) before claim; merge-only, no rebase/reset.)
 Audit started: 2026-10-21 ~17:34 IST (lane-1 deep audit loop, ROUND 31)
