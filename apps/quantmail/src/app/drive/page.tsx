@@ -31,6 +31,7 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { useDrive, type ReceivedShare, type SentShareItem, isDocumentDriveId, readErrorInstruction } from '../../hooks/useDrive';
 import { formatBytes } from '../../lib/format-bytes';
 import { showToast } from '../../components/InboxToast';
+import { isUploadAction, driveUrlAfterConsumingAction } from '../../lib/drive-action-params';
 import { useScrollElement, useVirtualizer } from '../../lib/virtual/useVirtualizer';
 import {
   IconChevronDown,
@@ -340,6 +341,11 @@ function DrivePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabFromQuery = searchParams?.get('tab');
+  // QM-FIX (drive action=upload deep link): the super-app header's
+  // "+ Upload File" quick action pushes `/drive?action=upload`, but the page
+  // only read the `tab` param — the upload picker never opened. Read it here;
+  // the one-shot trigger effect below consumes it.
+  const actionFromQuery = searchParams?.get('action');
 
   const normalizeTab = useCallback((t: string | null | undefined): DriveSubTab => {
     if (!t) return 'home';
@@ -980,6 +986,25 @@ function DrivePageContent() {
     }
     input.click();
   }, []);
+
+  /**
+   * QM-FIX (drive action=upload deep link): one-shot consumer for
+   * `/drive?action=upload`. Fires the same file-picker trigger the Upload
+   * button uses, then rewrites the URL without `action` so the picker does
+   * not reopen on re-render, back-nav, or a tab-change effect firing.
+   * The ref guard keeps StrictMode double-mounts from double-firing.
+   */
+  const uploadActionHandledRef = useRef(false);
+  useEffect(() => {
+    if (!isUploadAction(actionFromQuery)) {
+      uploadActionHandledRef.current = false;
+      return;
+    }
+    if (uploadActionHandledRef.current) return;
+    uploadActionHandledRef.current = true;
+    handleUploadTrigger();
+    router.replace(driveUrlAfterConsumingAction(searchParams?.toString() ?? ''));
+  }, [actionFromQuery, handleUploadTrigger, router, searchParams]);
 
   /**
    * One upload path for the file picker and for drag-and-drop.
