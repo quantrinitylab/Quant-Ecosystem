@@ -344,7 +344,11 @@ function DrivePageContent() {
   const normalizeTab = useCallback((t: string | null | undefined): DriveSubTab => {
     if (!t) return 'home';
     const lower = t.toLowerCase();
-    if (lower === 'home' || lower === 'my_files' || lower === 'files') return 'home';
+    if (lower === 'home' || lower === 'my_files') return 'home';
+    // QM-FIX-*-desktop-orphans — 'files' is a real DriveSubTab with its own
+    // tab entry (desktop header + mobile strip both push ?tab=files); mapping
+    // it to 'home' made the Files tab snap back to Home after navigation.
+    if (lower === 'files') return 'files';
     if (lower === 'recent') return 'recent';
     if (lower === 'feed') return 'feed';
     if (lower === 'aimemory' || lower === 'memory' || lower === 'ai_memory') return 'aimemory';

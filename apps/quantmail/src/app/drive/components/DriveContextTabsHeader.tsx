@@ -7,6 +7,10 @@ import {
   DriveFeedIcon,
   AiMemoryBrainIcon,
   ClockIcon,
+  HardDriveIcon,
+  SharedUsersIcon,
+  StarIcon,
+  CleanerSparkleIcon,
 } from './DriveIcons';
 
 export type DriveSubTab =
@@ -81,6 +85,44 @@ export function DriveContextTabsHeader({
       icon: PadlockIcon,
       ariaLabel: 'Vault — locked file storage',
     },
+    // QM-FIX-*-desktop-orphans — parity with DriveMobileTabStrip: files,
+    // shared, starred, and cleaner have full views in page.tsx but were
+    // desktop-orphaned (reachable only via direct ?tab= URL). Files gets its
+    // own tab (the old `activeTab === 'files'` fold-into-home special case is
+    // gone); the trailing spacer comment below was already written for
+    // Cleaner being last.
+    {
+      id: 'files',
+      label: 'Files',
+      shortLabel: 'Files',
+      icon: HardDriveIcon,
+      ariaLabel: 'All files',
+    },
+    {
+      id: 'shared',
+      label: 'Shared',
+      shortLabel: 'Shared',
+      icon: SharedUsersIcon,
+      // QM-M39-001 — badges carry real backend counts; no badge when 0
+      // (parity with the mobile strip's `badgeCount > 0` gate).
+      badgeCount: sharedCount,
+      ariaLabel: 'Shared with me',
+    },
+    {
+      id: 'starred',
+      label: 'Starred',
+      shortLabel: 'Starred',
+      icon: StarIcon,
+      badgeCount: starredCount,
+      ariaLabel: 'Starred files',
+    },
+    {
+      id: 'cleaner',
+      label: 'Cleaner',
+      shortLabel: 'Cleaner',
+      icon: CleanerSparkleIcon,
+      ariaLabel: 'Duplicate cleaner',
+    },
   ];
 
   return (
@@ -95,7 +137,7 @@ export function DriveContextTabsHeader({
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;
-        const isActive = activeTab === tab.id || (tab.id === 'home' && activeTab === 'files');
+        const isActive = activeTab === tab.id;
 
         return (
           <button
@@ -133,7 +175,9 @@ export function DriveContextTabsHeader({
               </span>
             )}
 
-            {tab.badgeCount !== undefined && (
+            {/* QM-M39-001 honesty: badges show real counts and only when > 0 —
+                a "0" pill is noise (parity with DriveMobileTabStrip). */}
+            {tab.badgeCount !== undefined && tab.badgeCount > 0 && (
               <span
                 className={`ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
                   isActive
