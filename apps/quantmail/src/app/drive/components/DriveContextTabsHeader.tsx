@@ -7,6 +7,9 @@ import {
   DriveFeedIcon,
   AiMemoryBrainIcon,
   ClockIcon,
+  SharedUsersIcon,
+  StarIcon,
+  CleanerSparkleIcon,
 } from './DriveIcons';
 
 export type DriveSubTab =
@@ -81,6 +84,33 @@ export function DriveContextTabsHeader({
       icon: PadlockIcon,
       ariaLabel: 'Vault — locked file storage',
     },
+    // QM-P2 — desktop-orphaned views (2026-10-11 finding): shared/starred/cleaner
+    // render on desktop only via direct ?tab= URLs and on the mobile strip.
+    // 'files' needs no separate entry — normalizeTab maps it to 'home' and the
+    // isActive fallback below highlights Home when activeTab === 'files'.
+    {
+      id: 'shared',
+      label: 'Shared',
+      shortLabel: 'Shared',
+      icon: SharedUsersIcon,
+      badgeCount: sharedCount,
+      ariaLabel: 'Shared with me and by me',
+    },
+    {
+      id: 'starred',
+      label: 'Starred',
+      shortLabel: 'Starred',
+      icon: StarIcon,
+      badgeCount: starredCount,
+      ariaLabel: 'Starred files',
+    },
+    {
+      id: 'cleaner',
+      label: 'Cleaner',
+      shortLabel: 'Cleaner',
+      icon: CleanerSparkleIcon,
+      ariaLabel: 'Duplicate cleaner',
+    },
   ];
 
   return (
@@ -133,7 +163,9 @@ export function DriveContextTabsHeader({
               </span>
             )}
 
-            {tab.badgeCount !== undefined && (
+            {/* Count badge (shared/starred): mirrors the mobile strip — hidden at
+                zero so a meaningless "0" pill never renders. */}
+            {tab.badgeCount !== undefined && tab.badgeCount > 0 && (
               <span
                 className={`ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
                   isActive
