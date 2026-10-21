@@ -162,6 +162,16 @@ function makeFakePrisma() {
         if (row) Object.assign(row, data);
         return row;
       },
+      // QC-F-518 fixture support: addMember revives a left member row in
+      // place (updateMany on conversationId+userId) before creating one.
+      async updateMany({ where, data }: any) {
+        const row = members.find(
+          (m) => m.conversationId === where.conversationId && m.userId === where.userId,
+        );
+        if (!row) return { count: 0 };
+        Object.assign(row, data);
+        return { count: 1 };
+      },
     },
     chatTheme: {
       async findMany() {

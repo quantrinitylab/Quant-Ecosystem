@@ -327,7 +327,8 @@ describe('QC-F-449 ChannelService.getMessages cursor', () => {
   it('T5: empty channel returns an honest empty page (200 shape, no error)', async () => {
     const ch = await svc.createChannel('owner-1', { name: 'Empty' });
     const res = await svc.getMessages(ch.id, 'owner-1', {});
-    expect(res).toEqual({ messages: [], hasMore: false, nextCursor: null });
+    // QC-F-518 pin update: ChannelFeedPage now always carries historyHidden
+    expect(res).toEqual({ messages: [], hasMore: false, nextCursor: null, historyHidden: false });
   });
 
   it('T6: unknown and foreign cursors fail closed 400 INVALID_CURSOR (no page-1 fallback)', async () => {
@@ -359,6 +360,7 @@ describe('QC-F-449 ChannelService.getMessages cursor', () => {
   it('T8: before = the oldest post id is the honest end (empty page, 200 shape)', async () => {
     const { channelId, ids } = await seedChannel(svc, prisma, 4);
     const res = await svc.getMessages(channelId, 'reader-1', { before: ids[0] });
-    expect(res).toEqual({ messages: [], hasMore: false, nextCursor: null });
+    // QC-F-518 pin update: ChannelFeedPage now always carries historyHidden
+    expect(res).toEqual({ messages: [], hasMore: false, nextCursor: null, historyHidden: false });
   });
 });
