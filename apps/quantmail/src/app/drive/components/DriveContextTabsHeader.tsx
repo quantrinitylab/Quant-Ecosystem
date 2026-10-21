@@ -79,7 +79,10 @@ export function DriveContextTabsHeader({
       label: 'Vault',
       shortLabel: 'Vault',
       icon: PadlockIcon,
-      ariaLabel: 'Vault — locked file storage',
+      // AUD honesty: the vault is not built yet (no lock-to-vault action, no
+      // client-side encryption), so the tab must not promise "locked file
+      // storage" — an unprovable claim. Every word must be provable truth.
+      ariaLabel: 'Vault — not available yet',
     },
   ];
 

@@ -482,46 +482,44 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
   });
 
   // ==========================================================================
-  // 4. DriveVaultSubView Tests
+  // 4. DriveVaultSubView Tests — honest "not available yet" placeholder.
+  // The vault is not built (no lock-to-vault action, no client-side
+  // encryption), so the component renders only the honest placeholder state:
+  // no items prop, no item rows, no impossible "Lock a file" instructions,
+  // no unverified crypto claims.
   // ==========================================================================
   describe('4. DriveVaultSubView Component', () => {
-    it('renders an honest vault status card without unverified crypto claims', () => {
+    it('renders an honest "vault is not available yet" state', () => {
       const html = renderToStaticMarkup(<DriveVaultSubView />);
 
       expect(html).toContain('drive-panel-vault');
+      expect(html).toContain('Vault is not available yet');
+      // No impossible instructions: there is no lock-to-vault action
+      // anywhere in the app.
+      expect(html).not.toContain('Lock a file to add it to your vault');
+      expect(html).not.toContain('Lock files here');
+      // No unverified crypto claims on a placeholder surface.
       expect(html).not.toContain('Zero-Knowledge Encryption');
       expect(html).not.toContain('AES-256-GCM');
       expect(html).not.toContain('SubtleCrypto');
       expect(html).not.toContain('Hardware Keystore');
+      expect(html).not.toContain('E2EE');
     });
 
-    it('shows an honest empty state when there are no vault items', () => {
+    it('admits the missing dependency (client-side encryption) plainly', () => {
       const html = renderToStaticMarkup(<DriveVaultSubView />);
 
-      expect(html).toContain('No vault items yet');
+      expect(html).toContain('Client-side encryption is not available yet');
+    });
+
+    it('renders no item rows or checksums — nothing can be fabricated', () => {
+      const html = renderToStaticMarkup(<DriveVaultSubView />);
+
+      expect(html).not.toContain('SHA-256:');
+      expect(html).not.toContain('Vault Items (');
       expect(html).not.toContain('financial_audit_q3_2026.pdf.enc');
       expect(html).not.toContain('sovereign_identity_credentials.dat.enc');
       expect(html).not.toContain('Decrypt on Demand');
-    });
-
-    it('renders real vault items when provided', () => {
-      const html = renderToStaticMarkup(
-        <DriveVaultSubView
-          items={[
-            {
-              id: 'v1',
-              name: 'notes.txt.enc',
-              cipherSize: 1024,
-              cipherAlgorithm: 'AES-256-GCM',
-              sha256Checksum: 'abc123',
-              encryptedAt: '2026-10-01T00:00:00Z',
-            },
-          ]}
-        />,
-      );
-
-      expect(html).toContain('notes.txt.enc');
-      expect(html).toContain('SHA-256:');
     });
 
     it('contains strictly ZERO raw Unicode emojis in vault subview', () => {
