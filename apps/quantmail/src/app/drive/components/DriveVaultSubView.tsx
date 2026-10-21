@@ -1,13 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { formatBytes } from '../../../lib/format-bytes';
-import {
-  VaultShieldIcon,
-  PadlockIcon,
-  CopyIcon,
-  CheckIcon,
-} from './DriveIcons';
+import { VaultShieldIcon, PadlockIcon } from './DriveIcons';
 
 export interface EncryptedVaultItem {
   id: string;
@@ -22,22 +17,17 @@ export interface DriveVaultSubViewProps {
   items?: EncryptedVaultItem[];
 }
 
+/**
+ * Drive Vault tab.
+ *
+ * Honesty contract: there is no client-side encryption pipeline in QuantMail
+ * yet, so this surface must not render fake encrypted-file cards, fake
+ * checksums, or cipher-suite badges the UI cannot verify. The status card
+ * admits encryption is not available; the empty state no longer instructs
+ * users to perform a "lock a file" action that does not exist anywhere —
+ * it says plainly that the action is not available yet.
+ */
 export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const handleCopySha256 = async (id: string, hash: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(hash);
-      }
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2500);
-    } catch {
-      // fallback
-    }
-  };
-
   return (
     <div
       id="drive-panel-vault"
@@ -45,7 +35,7 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
       aria-labelledby="drive-tab-vault"
       className="space-y-6"
     >
-      {/* 1. Vault Status Card */}
+      {/* 1. Vault Status Card — honest: no crypto claims, admits the gap. */}
       <div className="rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5 shadow-[0_4px_28px_rgba(0,0,0,0.4)]">
         <div className="flex items-center gap-3.5">
           <div className="size-12 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0 shadow-[0_0_16px_color-mix(in_srgb,var(--app-accent)_50%,transparent)]">
@@ -70,68 +60,58 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
         </div>
 
         {items.length === 0 ? (
+          /* Honest empty state: no impossible instructions. Locking a file
+             into the vault is not wired up, and the surface says so. */
           <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center">
             <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[var(--quant-border)] flex items-center justify-center text-[#64748B]">
               <PadlockIcon className="size-5" />
             </div>
             <p className="text-sm font-semibold text-[#F8FAFC]">No vault items yet</p>
-            <p className="text-xs text-[#94A3B8]">Lock a file to add it to your vault.</p>
+            <p className="text-xs text-[#94A3B8] max-w-sm">
+              Locking a file into your vault isn&apos;t available yet — client-side
+              encryption hasn&apos;t shipped, so there&apos;s no way to lock a
+              file right now. This will come alive when the vault pipeline lands.
+            </p>
+            <button
+              type="button"
+              disabled
+              aria-disabled="true"
+              title="Locking files into the vault is not available yet"
+              className="mt-2 px-4 py-2 rounded-xl bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] text-xs font-bold text-[var(--app-accent)] opacity-50 cursor-not-allowed focus-visible:outline-none"
+            >
+              Lock a file — not available yet
+            </button>
           </div>
         ) : (
+          /* Real items render as plain metadata only. Cipher details are the
+             backend's claims, not the UI's — the surface stays free of
+             unverifiable security theatre. */
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {items.map((item) => {
-              const isCopied = copiedId === item.id;
-              const truncatedHash = `${item.sha256Checksum.slice(0, 10)}...${item.sha256Checksum.slice(-8)}`;
-
-              return (
-                <div
-                  key={item.id}
-                  className="group relative flex flex-col justify-between p-4 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="size-9 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
-                        <PadlockIcon className="size-4" />
-                      </div>
-
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] uppercase tracking-wider">
-                        {item.cipherAlgorithm}
-                      </span>
-                    </div>
-
-                    <p className="text-xs font-bold text-[#F8FAFC] truncate group-hover:text-[var(--app-accent)] transition-colors">
-                      {item.name}
-                    </p>
-                    <p className="text-[11px] text-[#94A3B8] mt-0.5">
-                      {formatBytes(item.cipherSize)} · Locked{' '}
-                      {new Date(item.encryptedAt).toLocaleDateString()}
-                    </p>
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="p-4 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-all space-y-1"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="size-9 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
+                    <PadlockIcon className="size-4" />
                   </div>
-
-                  {/* SHA-256 Copy Chip */}
-                  <div className="flex items-center justify-between gap-2 pt-1">
-                    <button
-                      type="button"
-                      aria-label={`Copy SHA-256 checksum for ${item.name}`}
-                      onClick={(e) => handleCopySha256(item.id, item.sha256Checksum, e)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--quant-background)] border border-[var(--quant-border)] text-[11px] font-mono text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
-                    >
-                      {isCopied ? (
-                        <>
-                          <CheckIcon className="size-3 text-emerald-400 shrink-0" />
-                          <span className="text-emerald-400 font-semibold">Checksum Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <CopyIcon className="size-3 text-[#64748B] shrink-0" />
-                          <span>SHA-256: {truncatedHash}</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                  <p className="text-xs font-bold text-[#F8FAFC] truncate">{item.name}</p>
                 </div>
-              );
-            })}
+                <p className="text-[11px] text-[#94A3B8]">
+                  {formatBytes(item.cipherSize)} · Added{' '}
+                  {new Date(item.encryptedAt).toLocaleDateString()}
+                </p>
+                {/* The item's own cipher field, rendered verbatim as neutral
+                    metadata — no verified-security claims attached. */}
+                <p
+                  className="text-[10px] font-mono uppercase tracking-wider text-[#64748B]"
+                  aria-label={`Cipher: ${item.cipherAlgorithm}`}
+                >
+                  {item.cipherAlgorithm}
+                </p>
+              </div>
+            ))}
           </div>
         )}
       </div>
