@@ -12,6 +12,7 @@ import {
   DriveVaultSubView,
   DriveStarredSubView,
   DriveCleanerSubView,
+  duplicateGroupsToClusters,
   DriveHomeSubView,
   DriveFeedSubView,
   DriveAiMemorySubView,
@@ -46,7 +47,11 @@ import {
 import { FileVersionHistoryModal } from '../../components/drive/FileVersionHistoryModal';
 import { FileActivityModal } from '../../components/drive/FileActivityModal';
 import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer';
-import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
+import {
+  AIDuplicateCleanerModal,
+  DuplicateCleanerManager,
+  type DuplicateCleanerState,
+} from '../../components/drive/AIDuplicateCleanerModal';
 import { QuantyFileWorkspace } from '../../components/drive/QuantyFileWorkspace';
 import { apiFetchRaw } from '@quant/api-client';
 import { DocumentEnginePreview } from '../../components/drive/DocumentEnginePreview';
@@ -545,6 +550,31 @@ function DrivePageContent() {
   const [activityFile, setActivityFile] = useState<DriveItem | null>(null);
   const [aiSummaryFile, setAiSummaryFile] = useState<DriveItem | null>(null);
   const [isDuplicateCleanerOpen, setIsDuplicateCleanerOpen] = useState(false);
+  // Cleaner-tab fix: one shared DuplicateCleanerManager drives BOTH the
+  // cleaner tab and AIDuplicateCleanerModal, so the tab renders real scan
+  // results instead of a permanently-empty panel.
+  const duplicateCleanerManager = useMemo(
+    () => new DuplicateCleanerManager(),
+    [],
+  );
+  const [cleanerScanState, setCleanerScanState] =
+    useState<DuplicateCleanerState>(() => duplicateCleanerManager.getState());
+  const [cleanerHasScanned, setCleanerHasScanned] = useState(false);
+  useEffect(() => {
+    const unsubscribe = duplicateCleanerManager.subscribe((state) => {
+      setCleanerScanState(state);
+      if (state.groups.length > 0 || state.isScanning || state.error !== null) {
+        setCleanerHasScanned(true);
+      }
+    });
+    return unsubscribe;
+  }, [duplicateCleanerManager]);
+  const handleCleanerScan = useCallback(() => {
+    setCleanerHasScanned(true);
+    duplicateCleanerManager.scanDuplicates().catch(() => {
+      // Manager carries the error in state; surfaced honestly by the tab.
+    });
+  }, [duplicateCleanerManager]);
   // SIA-P1-6: single primary CTA — the New split-button menu open state.
   const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
   // QM-M39-011: Quanty file workspace (M39 screen 31).
@@ -1839,7 +1869,16 @@ function DrivePageContent() {
             />
           )}
 
-          {activeTab === 'cleaner' && <DriveCleanerSubView />}
+          {activeTab === 'cleaner' && (
+            <DriveCleanerSubView
+              clusters={duplicateGroupsToClusters(cleanerScanState.groups)}
+              isScanning={cleanerScanState.isScanning}
+              scanError={cleanerScanState.error}
+              hasScanned={cleanerHasScanned}
+              onScan={handleCleanerScan}
+              onOpenCleanup={() => setIsDuplicateCleanerOpen(true)}
+            />
+          )}
 
           {(activeTab === 'home' || activeTab === 'files') && activeFilter === 'trash' && (
             <div className="space-y-4">
@@ -2570,6 +2609,7 @@ function DrivePageContent() {
         <AIDuplicateCleanerModal
           isOpen={isDuplicateCleanerOpen}
           onClose={() => setIsDuplicateCleanerOpen(false)}
+          manager={duplicateCleanerManager}
           onCleanupComplete={() => fetchFiles(currentFolderId)}
         />
 
