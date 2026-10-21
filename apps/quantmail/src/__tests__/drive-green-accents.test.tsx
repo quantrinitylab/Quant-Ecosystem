@@ -133,8 +133,9 @@ describe('qm-drive-blue-accent: drive page shared-mode tabs use the token', () =
 
 describe('qm-drive-blue-accent: no #60A5FA leaks in R3-touched drive lib files', () => {
   // #60A5FA (blue) leaks on drive surfaces are routed through var(--app-accent),
-  // which resolves to drive green (#34A853) on /drive routes. StorageQuotaBar is
-  // intentionally not in this list (dead in production; its own test owns it).
+  // which resolves to drive green (#34A853) on /drive routes. (The dead
+  // StorageQuotaBar component was deleted 2026-10-21; its absence is pinned
+  // by storage-quota-deadcode-guard.test.ts.)
   const LEAK_TOKEN = '#60A5FA';
   for (const { name, src } of R3_TOUCHED) {
     it(`components/${name} does not contain "${LEAK_TOKEN}"`, () => {
