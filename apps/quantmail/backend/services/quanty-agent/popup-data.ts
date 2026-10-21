@@ -117,7 +117,8 @@ export async function buildPopupData(deps: PopupDataDeps): Promise<QuantyPopupBa
     status: deps.executor.liveStatus(),
     activity: buildActivityFeed(tasks, deps.toolAppOf),
     approvals: await popupApprovals(deps.prisma, deps.userId),
-    browserTasks: quantyAgentState.listBrowserTasks(50),
+    // Per-user: never the process-global browser-task list (cross-user leak).
+    browserTasks: quantyAgentState.listBrowserTasks(deps.userId, 50),
     schedule: getSchedule(),
     identity: quantyAgentState.getIdentity(),
   };
