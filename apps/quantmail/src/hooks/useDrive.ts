@@ -102,6 +102,10 @@ export interface UseDriveReturn {
   files: DriveFile[];
   loading: boolean;
   error: string | null;
+  // Dedicated file-list load failure, separate from the generic `error`
+  // (which any drive operation may set). Lets the Starred tab clear + show
+  // its own honest error exactly when the file list itself failed to load.
+  filesError: string | null;
   quota: StorageQuota | null;
   currentFolderId: string | null;
   breadcrumbs: { id: string | null; name: string }[];
@@ -446,6 +450,8 @@ export function useDrive(): UseDriveReturn {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  // Dedicated file-list failure signal (see UseDriveReturn.filesError).
+  const [filesError, setFilesError] = useState<string | null>(null);
   // Quota is unknown until the backend answers: a fabricated 15 GB default
   // used to sit here, presenting invented quota before the first fetch.
   const [quota, setQuota] = useState<StorageQuota | null>(null);
@@ -461,6 +467,7 @@ export function useDrive(): UseDriveReturn {
       const seq = ++fetchSeqRef.current;
       setLoading(true);
       setError(null);
+      setFilesError(null);
       const targetFolder = folderId !== undefined ? folderId : currentFolderId;
       try {
         const params = new URLSearchParams();
@@ -475,9 +482,12 @@ export function useDrive(): UseDriveReturn {
         }
       } catch (err) {
         if (seq === fetchSeqRef.current) {
-          setError(
-            getDriveErrorMessage(err, 'Drive is temporarily unavailable. Retry in a moment.'),
-          );
+          const msg = getDriveErrorMessage(err, 'Drive is temporarily unavailable. Retry in a moment.');
+          setError(msg);
+          // Dedicated signal so the Starred tab can clear + render its own
+          // honest error exactly when the file list failed (a stale starred
+          // derivation must never render as current).
+          setFilesError(msg);
         }
       } finally {
         if (seq === fetchSeqRef.current) {
@@ -837,8 +847,11 @@ export function useDrive(): UseDriveReturn {
       const data = await response.json();
       return data.shares || [];
     } catch (err) {
+      // Failure MUST be observable to the caller: page.tsx renders an honest
+      // error banner and clears the list instead of a false empty state.
+      // Swallowing into [] made the caller's try/catch dead code.
       setError(getDriveErrorMessage(err, 'Failed to load received shares'));
-      return [];
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -898,8 +911,10 @@ export function useDrive(): UseDriveReturn {
       const data = await response.json();
       return data.items || [];
     } catch (err) {
+      // Failure MUST be observable to the caller: page.tsx renders an honest
+      // error banner and clears the list instead of a false empty state.
       setError(getDriveErrorMessage(err, 'Failed to load shared-by-me items'));
-      return [];
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -959,6 +974,7 @@ export function useDrive(): UseDriveReturn {
     files,
     loading,
     error,
+    filesError,
     quota,
     currentFolderId,
     breadcrumbs,

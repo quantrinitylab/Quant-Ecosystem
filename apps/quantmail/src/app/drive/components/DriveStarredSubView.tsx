@@ -89,9 +89,13 @@ export function DriveStarredSubView({
         </div>
       )}
 
-      {/* Error state — honest failure, never a fabricated list. */}
+      {/* Error state — honest failure, never a fabricated list. role="alert"
+          so the failure is announced on mobile screen readers too. */}
       {!loading && error && (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center">
+        <div
+          role="alert"
+          className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center"
+        >
           <p className="text-sm font-semibold text-[#F8FAFC]">Couldn&apos;t load starred files</p>
           <p className="text-xs text-[#94A3B8]">{error}</p>
         </div>

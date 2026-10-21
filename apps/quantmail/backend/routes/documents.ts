@@ -19,6 +19,14 @@ function requireUserId(request: FastifyRequest): string {
 }
 
 const createDocumentSchema = z.object({
+  // Canonical-ID contract (doc-editor 404 intent): the client may request a
+  // specific document id (e.g. the docId in /drive/doc/[docId], or the
+  // PATCH→404→POST create fallback). The backend honors it so the created
+  // row lands at the canonical id instead of silently minting a different
+  // one (which used to orphan the URL and duplicate the document on every
+  // subsequent save). A soft-deleted row owned by this user is restored;
+  // any other id collision is 409.
+  id: z.string().trim().min(1).max(128).optional(),
   title: z.string().trim().min(1, 'Document title is required').default('Untitled'),
   content: z.string().optional().default(''),
   metadata: z.record(z.unknown()).optional().default({}),
@@ -341,8 +349,41 @@ export default async function documentRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Canonical-ID contract: honor a client-requested id. A soft-deleted row
+    // owned by this user is explicitly restored (never silently recreated —
+    // the client only sends an id here after an explicit user action); any
+    // other collision is a 409 so the client never claims 'saved' for a
+    // document it does not own.
+    if (parsed.id) {
+      const existing = await prisma.document.findUnique({ where: { id: parsed.id } });
+      if (existing) {
+        if (existing.isDeleted && existing.userId === userId) {
+          const restored = await prisma.document.update({
+            where: { id: parsed.id },
+            data: {
+              isDeleted: false,
+              title: parsed.title,
+              content: parsed.content ?? '',
+              metadata: {
+                ...(parsed.metadata ?? {}),
+                parentId:
+                  parsed.parentId !== undefined
+                    ? parsed.parentId
+                    : ((parsed.metadata as any)?.parentId ?? null),
+              },
+              isPublic: parsed.isPublic ?? false,
+            },
+            include: { versions: true, collaborators: true },
+          });
+          return reply.status(200).send({ success: true, data: restored });
+        }
+        throw createAppError('Document id already exists', 409, 'DOCUMENT_ID_CONFLICT');
+      }
+    }
+
     const document = await prisma.document.create({
       data: {
+        ...(parsed.id ? { id: parsed.id } : {}),
         title: parsed.title,
         content: parsed.content ?? '',
         userId,
@@ -360,6 +401,14 @@ export default async function documentRoutes(fastify: FastifyInstance) {
         versions: true,
         collaborators: true,
       },
+    }).catch((err: unknown) => {
+      // Concurrent-create race on the same canonical id: the loser sees the
+      // unique-constraint violation — map to the same 409 as the
+      // check-then-create path above, never a raw 500.
+      if ((err as { code?: string } | null)?.code === 'P2002') {
+        throw createAppError('Document id already exists', 409, 'DOCUMENT_ID_CONFLICT');
+      }
+      throw err;
     });
 
     return reply.status(201).send({ success: true, data: document });

@@ -44,6 +44,31 @@ export interface DocumentCollaborator {
 // a write (PATCH or the 404 → POST create fallback).
 export type SyncStatus = 'connected' | 'saving' | 'saved' | 'unsaved' | 'offline' | 'error';
 
+// ============================================================================
+// 404 intent contract — what a "not found" load MEANS and what the user may
+// do about it. The backend returns 404 DOCUMENT_NOT_FOUND for BOTH
+// never-existing and soft-deleted documents, so the client distinguishes them
+// with the only honest signal it has: whether this account's local cache
+// holds content for this docId (evidence the document existed in this
+// browser before).
+//
+// - 'missing': 404 + no cached content → the document never existed here.
+// - 'deleted': 404 + cached content present → it existed and is now gone
+//   server-side (deleted elsewhere, or a create that never landed).
+//
+// DocLoadIntent is the actionable consequence:
+// - 'existing': GET 200 — normal editing, PATCH saves.
+// - 'authorized-new': the user may create content here. Reached for a fresh
+//   ('missing') doc URL, or explicitly via authorizeNewDocument() from the
+//   'deleted' state. The first edit's autosave POST-creates with the
+//   canonical docId exactly once; a 404 load ALONE never fires a write.
+// - 'deleted': autosave is DISABLED — a deleted deep link is never silently
+//   recreated. The UI must offer an explicit "create new document" action;
+//   only that explicit choice flips the intent to 'authorized-new'.
+// ============================================================================
+export type DocNotFoundKind = 'missing' | 'deleted';
+export type DocLoadIntent = 'existing' | 'authorized-new' | 'deleted';
+
 export interface DocumentMetadata {
   icon?: string;
   coverImage?: string;

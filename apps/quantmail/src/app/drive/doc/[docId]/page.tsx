@@ -63,6 +63,10 @@ export default function DocumentPage() {
     breadcrumbs,
     subpages,
     retrySave,
+    // 404 intent contract: 'deleted' disables autosave; only the explicit
+    // authorizeNewDocument() action re-enables creation.
+    loadIntent,
+    authorizeNewDocument,
   } = useCollabDoc(docId, currentUserEmail);
   const [fullWidth, setFullWidth] = useState<boolean>(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
@@ -264,6 +268,39 @@ export default function DocumentPage() {
                 </div>
               )}
               {/* Document Title & Icon Header Area */}
+              {/* 404 intent contract — 'deleted': the server no longer has
+                  this document (this browser held a cached copy, so it
+                  existed before). Autosave is disabled: a deleted deep link
+                  is never silently recreated. The user must explicitly
+                  choose to create a new document here — only that explicit
+                  action re-enables the save path. role="alert" so the
+                  state is announced on mobile screen readers too. */}
+              {!isLoading && loadIntent === 'deleted' && (
+                <div role="alert" aria-live="assertive" className="mx-auto max-w-4xl px-4 sm:px-12 pt-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-[#D29922]/40 bg-[#D29922]/10 px-4 py-3">
+                    <p className="flex-1 text-xs text-[#F0F6FC]">
+                      <span className="font-semibold">This document doesn&apos;t exist on the server.</span>{' '}
+                      It may have been deleted. Your edits won&apos;t be saved
+                      unless you create a new document here.
+                    </p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={authorizeNewDocument}
+                        className="rounded-lg border border-[#D29922]/50 bg-black px-3 py-1.5 text-xs font-semibold text-[#D29922] hover:bg-[#D29922] hover:text-black transition-colors"
+                      >
+                        Create new document
+                      </button>
+                      <Link
+                        href="/drive"
+                        className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-3 py-1.5 text-xs font-semibold text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
+                      >
+                        Back to Drive
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div
                 className={`mx-auto pt-12 px-4 sm:px-12 transition-all ${
                   fullWidth ? 'max-w-full' : 'max-w-4xl'
