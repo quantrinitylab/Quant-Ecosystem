@@ -178,6 +178,16 @@ export interface PaginatedResult<T> {
 }
 
 /**
+ * QC-F-518: getMessages result. `historyHidden` is true exactly when the
+ * QC-F-518 cutoff actually applied to THIS caller (a HIDDEN group/channel
+ * bounding the page at the caller's joinedAt) — clients use it to say
+ * "earlier messages are hidden" honestly instead of implying the group
+ * is empty. It never carries a count of hidden messages: their number
+ * is itself part of what is hidden.
+ */
+export type MessagePageResult = PaginatedResult<Message> & { historyHidden: boolean };
+
+/**
  * QC-F-022: this service is a SERVER-SIDE message store — it receives and
  * persists whatever `content` string the caller supplies. It is therefore
  * NOT an end-to-end-encryption path, and it must never pretend to be one.
@@ -577,7 +587,7 @@ export class MessageService {
     conversationId: string,
     userId: string,
     options: PaginationOptions = {},
-  ): Promise<PaginatedResult<Message>> {
+  ): Promise<MessagePageResult> {
     // QC-F-024: verify the caller is an active member before reading any
     // message content or even the total count (both leaked to any logged-in
     // user before this check existed). Same pattern as sendMessage.
@@ -589,22 +599,50 @@ export class MessageService {
       throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
     }
 
+    // QC-F-518: a HIDDEN group/channel bounds this member's history at
+    // their own joinedAt — messages created before they joined are not
+    // theirs to read. DIRECT conversations are never bounded (both
+    // members are present from creation; the setting is rejected there
+    // at write time). There is deliberately NO role exemption: a member
+    // added later as ADMIN is bounded by the same joinedAt, otherwise
+    // "add as admin" would be a one-step history leak. The cutoff is
+    // part of the where for BOTH the page and the count — a total that
+    // still counted pre-join messages would leak their number.
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { type: true, historyVisibility: true },
+    });
+    const joinedAt = (membership as { joinedAt?: Date }).joinedAt;
+    const historyCutoff =
+      conversation?.historyVisibility === 'HIDDEN' &&
+      conversation.type !== 'DIRECT' &&
+      joinedAt
+        ? joinedAt
+        : null;
+
     const page = options.page ?? 1;
     const pageSize = options.pageSize ?? 50;
     const skip = (page - 1) * pageSize;
 
+    const where = {
+      conversationId,
+      isDeleted: false,
+      ...(historyCutoff ? { createdAt: { gte: historyCutoff } } : {}),
+    };
+
     const [data, total] = await Promise.all([
       this.prisma.message.findMany({
-        where: { conversationId, isDeleted: false },
+        where,
         skip,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.message.count({ where: { conversationId, isDeleted: false } }),
+      this.prisma.message.count({ where }),
     ]);
 
     const totalPages = Math.ceil(total / pageSize);
     return {
+      historyHidden: historyCutoff !== null,
       // QC-F-019: a view-once snap's media must be deliverable ONLY through
       // consumeSnap (which records the view and destroys the stored copy).
       // The list payload previously handed the raw mediaUrl to every fetch,
@@ -750,22 +788,70 @@ export class MessageService {
     // Get conversation IDs the user belongs to
     const memberships = await this.prisma.conversationMember.findMany({
       where: { userId, leftAt: null },
-      select: { conversationId: true },
+      select: { conversationId: true, joinedAt: true },
     });
 
     const conversationIds = memberships.map((m: { conversationId: string }) => m.conversationId);
+
+    // QC-F-518: search must not become a side door around the history
+    // cutoff. A HIDDEN group/channel bounds this member's search results
+    // at their own joinedAt, exactly as getMessages bounds the feed —
+    // otherwise a new member could recover pre-join content one keyword
+    // at a time. The bound is per conversation: unbound conversations
+    // keep the original single `in:` clause byte-for-byte, and when NO
+    // conversation is bound the where below is identical to the pre-fix
+    // shape. DIRECT conversations are never bound (see getMessages).
+    const conversations = await this.prisma.conversation.findMany({
+      where: { id: { in: conversationIds } },
+      select: { id: true, type: true, historyVisibility: true },
+    });
+    const joinedAtByConversation = new Map<string, Date>();
+    for (const m of memberships as Array<{ conversationId: string; joinedAt?: Date }>) {
+      if (m.joinedAt) joinedAtByConversation.set(m.conversationId, m.joinedAt);
+    }
+    const historyBounds = new Map<string, Date>();
+    for (const conv of conversations as Array<{
+      id: string;
+      type: string;
+      historyVisibility?: string;
+    }>) {
+      if (conv.historyVisibility !== 'HIDDEN' || conv.type === 'DIRECT') continue;
+      const joinedAt = joinedAtByConversation.get(conv.id);
+      if (joinedAt) historyBounds.set(conv.id, joinedAt);
+    }
 
     // NOTE: A message whose content is CLIENT-side ciphertext (encrypted
     // before it reached this server — QC-F-022) cannot be searched
     // server-side; the blind index (routes/search.ts) covers that case.
     // For now, we exclude messages whose content looks like a ciphertext
     // payload from this plaintext search.
-    const where = {
-      conversationId: { in: conversationIds },
+    const commonWhere = {
       isDeleted: false,
       content: { contains: query, mode: 'insensitive' as const },
       NOT: { content: { startsWith: '{"ciphertext"' } },
     };
+    const where =
+      historyBounds.size === 0
+        ? { conversationId: { in: conversationIds }, ...commonWhere }
+        : {
+            OR: [
+              ...(conversationIds.some((id) => !historyBounds.has(id))
+                ? [
+                    {
+                      conversationId: {
+                        in: conversationIds.filter((id) => !historyBounds.has(id)),
+                      },
+                      ...commonWhere,
+                    },
+                  ]
+                : []),
+              ...[...historyBounds.entries()].map(([id, joinedAt]) => ({
+                conversationId: id,
+                createdAt: { gte: joinedAt },
+                ...commonWhere,
+              })),
+            ],
+          };
 
     const [data, total] = await Promise.all([
       this.prisma.message.findMany({

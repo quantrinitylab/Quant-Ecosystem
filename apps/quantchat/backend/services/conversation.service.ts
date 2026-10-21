@@ -1,4 +1,9 @@
-import type { PrismaClient, Conversation, ConversationMember } from '@prisma/client';
+import type {
+  PrismaClient,
+  Conversation,
+  ConversationMember,
+  HistoryVisibility,
+} from '@prisma/client';
 import { Prisma, ConversationType, ConversationRole } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { getPrivacyService, type PrivacyService } from './privacy.service';
@@ -14,6 +19,18 @@ function toConversationType(type: string): ConversationType {
     default:
       return ConversationType.DIRECT;
   }
+}
+
+/**
+ * QC-F-518: map the public (lowercase) history-visibility string to the
+ * Prisma enum. The enum value is returned as a literal (type-only import
+ * above) so unit tests that stub `@prisma/client` enum exports keep
+ * working. Anything unrecognized falls back to VISIBLE — the schema
+ * default and the pre-QC-F-518 behaviour; the route's zod enum rejects
+ * invalid values before this runs.
+ */
+function toHistoryVisibility(value: string): HistoryVisibility {
+  return (value === 'hidden' ? 'HIDDEN' : 'VISIBLE') as HistoryVisibility;
 }
 
 /** Map a role string (any case) to the Prisma `ConversationRole` enum. */
@@ -49,12 +66,16 @@ export interface CreateConversationInput {
   type: 'direct' | 'group';
   name?: string;
   description?: string;
+  /** QC-F-518: 'hidden' = new members only see messages from their join on. */
+  historyVisibility?: 'visible' | 'hidden';
 }
 
 export interface UpdateConversationInput {
   name?: string;
   description?: string;
   isArchived?: boolean;
+  /** QC-F-518: admin-only setting; rejected on DIRECT conversations. */
+  historyVisibility?: 'visible' | 'hidden';
 }
 
 /**
@@ -371,6 +392,17 @@ export class ConversationService {
   async createConversation(input: CreateConversationInput): Promise<Conversation> {
     const { creatorId, participantIds, type, name, description } = input;
 
+    // QC-F-518: history visibility is meaningless for a 1:1 conversation
+    // (both members are present from creation) — reject it honestly
+    // instead of silently storing a setting that can never apply.
+    if (type === 'direct' && input.historyVisibility !== undefined) {
+      throw createAppError(
+        'History visibility applies to group and channel conversations',
+        400,
+        'HISTORY_VISIBILITY_NOT_APPLICABLE',
+      );
+    }
+
     // For direct conversations, ensure exactly 2 participants
     if (type === 'direct' && participantIds.length !== 1) {
       throw createAppError(
@@ -422,6 +454,10 @@ export class ConversationService {
           name: name ?? null,
           description: description ?? null,
           createdBy: creatorId,
+          // QC-F-518: undefined keeps the DB default (VISIBLE).
+          historyVisibility: input.historyVisibility
+            ? toHistoryVisibility(input.historyVisibility)
+            : undefined,
           lastMessageAt: new Date(),
           metadata: {},
         },
@@ -574,6 +610,34 @@ export class ConversationService {
       await this.assertCanMessage(requesterId, userId);
     }
 
+    // QC-F-518: a user who previously LEFT still has a membership row
+    // (removeMember only stamps leftAt). Creating a second row violates
+    // @@unique([conversationId, userId]) and surfaced as P2002 → 500, so
+    // re-adding a former member was impossible. Revive that row in
+    // place — the ChannelService.subscribe pattern (QC-F-255) — with a
+    // FRESH joinedAt: the member's history bound (QC-F-518) starts at
+    // the rejoin. The role is the adder-supplied role (default MEMBER),
+    // never the row's old role: a removed ADMIN must not revive with
+    // the privileged role (the PR #1237 / QC-F-255 lesson; the channel
+    // revive deliberately differs because a channel's OWNER row is its
+    // only poster, which is not true of a group member).
+    const revived = await this.prisma.conversationMember.updateMany({
+      where: { conversationId, userId },
+      data: {
+        leftAt: null,
+        joinedAt: new Date(),
+        role: toConversationRole(role),
+        isMuted: false,
+        lastReadAt: null,
+      },
+    });
+    if (revived.count > 0) {
+      const row = await this.prisma.conversationMember.findFirst({
+        where: { conversationId, userId, leftAt: null },
+      });
+      if (row) return row;
+    }
+
     return this.prisma.conversationMember.create({
       data: {
         conversationId,
@@ -632,10 +696,30 @@ export class ConversationService {
     // the group's identity (name/description) is an admin action — a plain
     // member or outsider renaming the group was the takeover's first step.
     // Archive-only updates stay available to any member.
-    if (data.name !== undefined || data.description !== undefined) {
+    // QC-F-518: historyVisibility rides the same admin branch — it decides
+    // what every future member can see, so it is not a member-level toggle.
+    if (
+      data.name !== undefined ||
+      data.description !== undefined ||
+      data.historyVisibility !== undefined
+    ) {
       await this.requireAdmin(id, requesterId);
     } else {
       await this.requireMembership(id, requesterId);
+    }
+
+    // QC-F-518: on a DIRECT conversation the setting can never apply
+    // (both members are present from creation) — reject honestly after
+    // the authorization gate, instead of silently storing a dead value.
+    if (
+      data.historyVisibility !== undefined &&
+      conversation.type === ConversationType.DIRECT
+    ) {
+      throw createAppError(
+        'History visibility applies to group and channel conversations',
+        400,
+        'HISTORY_VISIBILITY_NOT_APPLICABLE',
+      );
     }
 
     return this.prisma.conversation.update({
@@ -644,6 +728,9 @@ export class ConversationService {
         ...(data.name !== undefined && { name: data.name }),
         ...(data.description !== undefined && { description: data.description }),
         ...(data.isArchived !== undefined && { isArchived: data.isArchived }),
+        ...(data.historyVisibility !== undefined && {
+          historyVisibility: toHistoryVisibility(data.historyVisibility),
+        }),
       },
     });
   }
