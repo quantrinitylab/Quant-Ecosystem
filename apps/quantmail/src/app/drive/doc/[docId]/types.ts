@@ -37,7 +37,12 @@ export interface DocumentCollaborator {
   lastActive: number;
 }
 
-export type SyncStatus = 'connected' | 'saving' | 'saved' | 'offline' | 'error';
+// Doc-load/save honesty contract: the header badge must NEVER show 'saved'
+// for a document that was never written to the backend. A 404 on the initial
+// load (new document — nothing persisted yet) resolves to 'unsaved', rendered
+// as "Not saved yet"; 'saved' appears only after the backend actually accepts
+// a write (PATCH or the 404 → POST create fallback).
+export type SyncStatus = 'connected' | 'saving' | 'saved' | 'unsaved' | 'offline' | 'error';
 
 export interface DocumentMetadata {
   icon?: string;

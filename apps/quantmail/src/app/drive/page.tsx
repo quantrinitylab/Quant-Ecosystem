@@ -525,6 +525,9 @@ function DrivePageContent() {
   const [renameValue, setRenameValue] = useState('');
   const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
   const [receivedShares, setReceivedShares] = useState<ReceivedShare[]>([]);
+  // Honest load failure for the "Shared with me" tab — shown as a banner
+  // instead of the false empty state.
+  const [sharedError, setSharedError] = useState<string | null>(null);
   // QM-M39-001 — "Shared by me": owned items the user has shared.
   const [sentShares, setSentShares] = useState<SentShareItem[]>([]);
   // Sub-filter inside the Shared tab: shares received vs shares given.
@@ -778,10 +781,12 @@ function DrivePageContent() {
 
   const loadShares = useCallback(async () => {
     setLoadingSpecial(true);
+    setSharedError(null);
     try {
       const list = await fetchReceivedShares();
       setReceivedShares(list ?? []);
     } catch {
+      setSharedError('Shared files could not be loaded. Try again in a moment.');
       showToast({ text: 'Failed to load shared items', type: 'error', subject: 'drive-shares' });
     } finally {
       setLoadingSpecial(false);
@@ -1808,6 +1813,7 @@ function DrivePageContent() {
                     scanReason: s.file?.scanReason ?? null,
                   }))}
                   loading={loadingSpecial}
+                  error={sharedError}
                   onRefresh={loadShares}
                   onAcceptShare={handleAcceptShare}
                   onDeclineShare={handleDeclineShare}
@@ -1832,6 +1838,7 @@ function DrivePageContent() {
             <DriveStarredSubView
               items={items.filter((i) => i.isStarred)}
               loading={loading}
+              error={error}
               onToggleStar={handleToggleStar}
               onPreviewItem={(item) => handlePreviewItem(item as any)}
               onDownloadFile={handleDownloadFile}

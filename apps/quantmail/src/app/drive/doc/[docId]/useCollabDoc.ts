@@ -173,6 +173,20 @@ export function resolveSocketDropStatus(current: SyncStatus): SyncStatus {
   return current === 'error' ? 'error' : 'offline';
 }
 
+// ============================================================================
+// Doc-load honesty contract — NEVER claim 'saved' for a never-written doc.
+// A 404 on the initial GET means the document was never persisted (new doc):
+// resolve to 'unsaved' so the header badge reads "Not saved yet" instead of a
+// false "✓ Saved". 'saved' is reserved for a backend-accepted write (res.ok on
+// the load, or the PATCH / 404→POST create fallback on autosave). Pure and
+// exported so it is unit-testable.
+// ============================================================================
+export function resolveLoadSyncStatus(res: { ok: boolean; status: number }): SyncStatus {
+  if (res.ok) return 'saved';
+  if (res.status === 404) return 'unsaved';
+  return 'error';
+}
+
 // P1 qm-drive-doc-cache-scope: the hook NEVER touches localStorage with an
 // unscoped key. `currentUserEmail` is the authenticated account identity;
 // unknown/empty account = fail closed (no read, no write). Pass it from the
@@ -348,7 +362,7 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
             if (doc.subpages && Array.isArray(doc.subpages)) {
               setSubpages(doc.subpages);
             }
-            setSyncStatus('saved');
+            setSyncStatus(resolveLoadSyncStatus(res));
             setLastSaved(new Date(doc.updatedAt || Date.now()));
             // Immutable binding: this content belongs to keyAtStart.
             loadedAccountRef.current = keyAtStart;
@@ -356,14 +370,17 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
         } else if (res.status === 404) {
           // New document or not yet saved in backend — seed default blocks
           // (pristine defaults already rendered). Bind the save epoch so the
-          // account that creates it may autosave it.
+          // account that creates it may autosave it. resolveLoadSyncStatus
+          // reports 'unsaved' here — never claim 'saved' for a doc the
+          // backend never wrote; the first edit's autosave will POST-create
+          // it and only then flip to 'saved'.
           loadedAccountRef.current = keyAtStart;
-          setSyncStatus('saved');
+          setSyncStatus(resolveLoadSyncStatus(res));
         } else {
           // 401/403/500: the backend rejected the read — honest error, and
           // the pristine state from the hard reset stays. loadedAccountRef
           // is NOT bound, so the autosave below refuses to write.
-          setSyncStatus('error');
+          setSyncStatus(resolveLoadSyncStatus(res));
         }
       } catch {
         // Fallback gracefully on network error
