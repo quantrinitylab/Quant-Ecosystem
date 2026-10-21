@@ -19,6 +19,9 @@ import type { SentShareItem } from '../../../hooks/useDrive';
 export interface DriveSharedByMeSubViewProps {
   items?: SentShareItem[];
   loading?: boolean;
+  // Honest load failure text from the caller (GET /api/drive/shares/sent
+  // rejected). Rendered as an alert banner instead of the false empty state.
+  error?: string | null;
   onRefresh?: () => void;
   onManageAccess?: (item: SentShareItem) => void;
   onPreviewItem?: (item: any) => void;
@@ -65,6 +68,7 @@ function statusLabel(status: string): string {
 export function DriveSharedByMeSubView({
   items = [],
   loading = false,
+  error = null,
   onRefresh,
   onManageAccess,
   onPreviewItem,
@@ -114,6 +118,18 @@ export function DriveSharedByMeSubView({
         )}
       </div>
 
+      {/* Error state — honest failure, never a fabricated list. role="alert"
+          so the failure is announced on mobile screen readers too. */}
+      {!loading && error && (
+        <div
+          role="alert"
+          className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center"
+        >
+          <p className="text-sm font-semibold text-[#F8FAFC]">Couldn&apos;t load shared-by-me items</p>
+          <p className="text-xs text-[#94A3B8]">{error}</p>
+        </div>
+      )}
+
       {/* Shared Items List */}
       {showSkeleton ? (
         <div className="space-y-3" aria-label="Loading shared items">
@@ -127,7 +143,7 @@ export function DriveSharedByMeSubView({
             </div>
           ))}
         </div>
-      ) : items.length === 0 ? (
+      ) : !error && items.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center">
           <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[var(--quant-border)] flex items-center justify-center text-[#64748B]">
             <SharedUsersIcon className="size-5" />

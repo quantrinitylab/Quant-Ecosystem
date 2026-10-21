@@ -37,6 +37,9 @@ export interface SharedItemRecord {
 export interface DriveSharedSubViewProps {
   shares?: SharedItemRecord[];
   loading?: boolean;
+  // Honest load failure text from the caller (e.g. GET /api/drive/shares/received
+  // rejected). Rendered as a banner instead of the empty state.
+  error?: string | null;
   onRefresh?: () => void;
   onAcceptShare?: (shareId: string) => void;
   onDeclineShare?: (shareId: string) => void;
@@ -58,6 +61,7 @@ function getInitials(name: string, email: string): string {
 export function DriveSharedSubView({
   shares = [],
   loading = false,
+  error = null,
   onRefresh,
   onAcceptShare,
   onDeclineShare,
@@ -103,8 +107,43 @@ export function DriveSharedSubView({
         )}
       </div>
 
-      {/* Shared Items List */}
-      {activeShares.length === 0 ? (
+      {/* Loading skeletons — shown while the backend query is in flight so the
+          "No shared files yet" empty state never flashes before real data
+          arrives. */}
+      {loading && activeShares.length === 0 && (
+        <div className="space-y-3" aria-busy="true" aria-label="Loading shared files">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="p-4 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] animate-pulse"
+            >
+              <div className="flex items-center gap-3.5">
+                <div className="size-10 rounded-full bg-[var(--quant-surface-elevated)] shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-1/2 rounded bg-[var(--quant-surface-elevated)]" />
+                  <div className="h-2.5 w-1/3 rounded bg-[var(--quant-surface-elevated)]" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Error state — honest failure, never a fabricated list. role="alert"
+          so the failure is announced on mobile screen readers too. */}
+      {!loading && error && (
+        <div
+          role="alert"
+          className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center"
+        >
+          <p className="text-sm font-semibold text-[#F8FAFC]">Couldn&apos;t load shared files</p>
+          <p className="text-xs text-[#94A3B8]">{error}</p>
+        </div>
+      )}
+
+      {/* Honest empty state — shown only after loading finished without an
+          error, never while the query is still in flight. */}
+      {!loading && !error && activeShares.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center">
           <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[var(--quant-border)] flex items-center justify-center text-[#64748B]">
             <SharedUsersIcon className="size-5" />
@@ -114,7 +153,10 @@ export function DriveSharedSubView({
             When someone shares a file with you, it will appear here.
           </p>
         </div>
-      ) : (
+      )}
+
+      {/* Shared Items List */}
+      {activeShares.length > 0 && (
         <div className="space-y-3">
           {activeShares.map((item) => {
           const initials = getInitials(item.owner.name, item.owner.email);

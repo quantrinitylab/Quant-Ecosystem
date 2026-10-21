@@ -156,6 +156,12 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                 <span className="text-[#8B949E] font-medium hidden md:inline">✓ Saved</span>
               </>
             )}
+            {syncStatus === 'unsaved' && (
+              <>
+                <span className="h-2 w-2 rounded-full bg-[#8B949E]" />
+                <span className="text-[#8B949E] font-medium hidden md:inline">Not saved yet</span>
+              </>
+            )}
             {syncStatus === 'offline' && (
               <>
                 <span className="h-2 w-2 rounded-full bg-[#8B949E]" />

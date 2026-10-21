@@ -28,6 +28,7 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
+import { useAuth } from '../../providers/auth-provider';
 import { useDrive, type ReceivedShare, type SentShareItem, isDocumentDriveId, readErrorInstruction } from '../../hooks/useDrive';
 import { formatBytes } from '../../lib/format-bytes';
 import { showToast } from '../../components/InboxToast';
@@ -374,7 +375,10 @@ function DrivePageContent() {
   const {
     files,
     loading,
-    error,
+    // Dedicated file-list failure: drives the Starred tab's clear + honest
+    // error (the hook's generic `error` may be set by any drive operation,
+    // so it is deliberately not consumed here).
+    filesError,
     breadcrumbs,
     currentFolderId,
     fetchFiles,
@@ -525,6 +529,34 @@ function DrivePageContent() {
   const [renameValue, setRenameValue] = useState('');
   const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
   const [receivedShares, setReceivedShares] = useState<ReceivedShare[]>([]);
+  // Honest load failure for the "Shared with me" tab — shown as a banner
+  // instead of the false empty state.
+  const [sharedError, setSharedError] = useState<string | null>(null);
+  // "Shared by me" load failure — honest error instead of a false empty
+  // state; the list is cleared on failure so no stale rows render.
+  const [sentSharesError, setSentSharesError] = useState<string | null>(null);
+
+  // Account-change hard-clear: one account's share lists must never render
+  // under another account (same class as the doc-editor cache-scope P1).
+  // Defensive try/catch like the doc page — tests may render without
+  // AuthProvider.
+  let currentUserEmail = '';
+  try {
+    const { user: currentUser } = useAuth();
+    currentUserEmail = currentUser?.email || '';
+  } catch {
+    currentUserEmail = '';
+  }
+  const prevShareAccountRef = useRef<string>(currentUserEmail);
+  useEffect(() => {
+    if (prevShareAccountRef.current !== currentUserEmail) {
+      prevShareAccountRef.current = currentUserEmail;
+      setReceivedShares([]);
+      setSentShares([]);
+      setSharedError(null);
+      setSentSharesError(null);
+    }
+  });
   // QM-M39-001 — "Shared by me": owned items the user has shared.
   const [sentShares, setSentShares] = useState<SentShareItem[]>([]);
   // Sub-filter inside the Shared tab: shares received vs shares given.
@@ -778,10 +810,16 @@ function DrivePageContent() {
 
   const loadShares = useCallback(async () => {
     setLoadingSpecial(true);
+    setSharedError(null);
     try {
       const list = await fetchReceivedShares();
       setReceivedShares(list ?? []);
     } catch {
+      // Clear on failure: a stale received-shares list must never render as
+      // current, and its accept/decline mutations must not stay enabled on
+      // data we could not revalidate. The error banner renders instead.
+      setReceivedShares([]);
+      setSharedError('Shared files could not be loaded. Try again in a moment.');
       showToast({ text: 'Failed to load shared items', type: 'error', subject: 'drive-shares' });
     } finally {
       setLoadingSpecial(false);
@@ -888,10 +926,15 @@ function DrivePageContent() {
   // QM-M39-001 — load owned items the user has shared ("Shared by me").
   const loadSentShares = useCallback(async () => {
     setLoadingSpecial(true);
+    setSentSharesError(null);
     try {
       const list = await fetchSentShares();
       setSentShares(list ?? []);
     } catch {
+      // Clear on failure: no stale "shared by me" rows, no enabled
+      // manage-access mutations on unrevalidated data.
+      setSentShares([]);
+      setSentSharesError('Shared-by-me items could not be loaded. Try again in a moment.');
       showToast({ text: 'Failed to load shared-by-me items', type: 'error', subject: 'drive-shares-sent' });
     } finally {
       setLoadingSpecial(false);
@@ -915,6 +958,13 @@ function DrivePageContent() {
   }, [activeTab, loadShares, loadSentShares]);
 
   const items = (files ?? []) as unknown as DriveItem[];
+
+  // Starred failure semantics: when the file list itself failed to load, the
+  // starred derivation is cleared — a stale starred list must never render as
+  // current, and its star-toggle mutations must not act on unrevalidated
+  // data. The generic `error` is deliberately NOT used here: any drive
+  // operation (upload, share, rename, ...) may set it.
+  const starredItems = filesError ? [] : items.filter((i) => i.isStarred);
 
   const filteredItems = useMemo(() => {
     let result = items;
@@ -1054,11 +1104,22 @@ function DrivePageContent() {
     const name = newDocName.trim() || 'Untitled document';
     setCreatingDoc(true);
     try {
-      const docId = 'doc_' + Math.random().toString(36).substring(2, 9);
-      const res = await browserApiRequest('/api/documents', {
+      // Canonical-ID contract: the backend honors the client id, so the
+      // editor URL we navigate to is the real document. On a 409 id
+      // collision, retry once with a fresh id instead of failing.
+      const mintId = () => 'doc_' + Math.random().toString(36).substring(2, 9);
+      let docId = mintId();
+      let res = await browserApiRequest('/api/documents', {
         method: 'POST',
         body: JSON.stringify({ id: docId, title: name }),
       });
+      if (res.status === 409) {
+        docId = mintId();
+        res = await browserApiRequest('/api/documents', {
+          method: 'POST',
+          body: JSON.stringify({ id: docId, title: name }),
+        });
+      }
       if (!res.ok) throw new Error('create failed');
       setShowNewDocModal(false);
       setNewDocName('');
@@ -1808,6 +1869,7 @@ function DrivePageContent() {
                     scanReason: s.file?.scanReason ?? null,
                   }))}
                   loading={loadingSpecial}
+                  error={sharedError}
                   onRefresh={loadShares}
                   onAcceptShare={handleAcceptShare}
                   onDeclineShare={handleDeclineShare}
@@ -1818,6 +1880,7 @@ function DrivePageContent() {
                 <DriveSharedByMeSubView
                   items={sentShares}
                   loading={loadingSpecial}
+                  error={sentSharesError}
                   onRefresh={loadSentShares}
                   onManageAccess={(item) => setShareTarget({ id: item.id, name: item.name })}
                   onPreviewItem={(item) => setPreviewItem(item as any)}
@@ -1830,8 +1893,9 @@ function DrivePageContent() {
 
           {activeTab === 'starred' && (
             <DriveStarredSubView
-              items={items.filter((i) => i.isStarred)}
+              items={starredItems}
               loading={loading}
+              error={filesError}
               onToggleStar={handleToggleStar}
               onPreviewItem={(item) => handlePreviewItem(item as any)}
               onDownloadFile={handleDownloadFile}

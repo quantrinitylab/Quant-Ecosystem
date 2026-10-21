@@ -22,6 +22,8 @@ import type {
   DocumentData,
   DocumentBreadcrumb,
   DocumentSubpage,
+  DocLoadIntent,
+  DocNotFoundKind,
 } from './types';
 import { blocksToMarkdown, markdownToBlocks } from './markdown-serializer';
 
@@ -142,6 +144,12 @@ export async function performDocSave(
 
     // PATCH 404: the document was never created in the DB — try POST create.
     // 'saved' ONLY if the create actually succeeds.
+    // Canonical-ID contract: the POST carries { id: docId } and the backend
+    // honors it (POST /api/documents accepts a client id; a soft-deleted row
+    // owned by this user is restored, any other collision is 409). A 409
+    // means the id belongs to someone else's live document — return 'error'
+    // and never claim 'saved'. Exactly one PATCH and at most one POST fire
+    // per save attempt.
     if (res.status === 404) {
       const postRes = await request('/api/documents', {
         method: 'POST',
@@ -173,6 +181,20 @@ export function resolveSocketDropStatus(current: SyncStatus): SyncStatus {
   return current === 'error' ? 'error' : 'offline';
 }
 
+// ============================================================================
+// Doc-load honesty contract — NEVER claim 'saved' for a never-written doc.
+// A 404 on the initial GET means the document was never persisted (new doc):
+// resolve to 'unsaved' so the header badge reads "Not saved yet" instead of a
+// false "✓ Saved". 'saved' is reserved for a backend-accepted write (res.ok on
+// the load, or the PATCH / 404→POST create fallback on autosave). Pure and
+// exported so it is unit-testable.
+// ============================================================================
+export function resolveLoadSyncStatus(res: { ok: boolean; status: number }): SyncStatus {
+  if (res.ok) return 'saved';
+  if (res.status === 404) return 'unsaved';
+  return 'error';
+}
+
 // P1 qm-drive-doc-cache-scope: the hook NEVER touches localStorage with an
 // unscoped key. `currentUserEmail` is the authenticated account identity;
 // unknown/empty account = fail closed (no read, no write). Pass it from the
@@ -189,6 +211,12 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [breadcrumbs, setBreadcrumbs] = useState<DocumentBreadcrumb[]>([]);
   const [subpages, setSubpages] = useState<DocumentSubpage[]>([]);
+  // 404 intent contract (types.ts): what a "not found" load means and what
+  // the user may do. 'existing' until the load resolves; a 404 resolves to
+  // 'authorized-new' (fresh URL, no cache evidence) or 'deleted' (cache
+  // evidence → the doc existed and is gone server-side).
+  const [loadIntent, setLoadIntent] = useState<DocLoadIntent>('existing');
+  const [notFoundKind, setNotFoundKind] = useState<DocNotFoundKind | null>(null);
 
   const ydocRef = useRef<Y.Doc | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -197,6 +225,12 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
   const localColorRef = useRef<string>(generateCollaboratorColor());
   const isRemoteApplyingRef = useRef<boolean>(false);
   const legacyPurgeDoneRef = useRef<boolean>(false);
+  // 404-contract dirty tracking: the autosave effect must not create a fresh
+  // ('authorized-new') document until the user actually edits something or
+  // explicitly authorizes creation — never from the 404 load alone. Only the
+  // user-initiated setters below mark dirty; load restoration, remote CRDT
+  // applies, and the account-change hard reset never do.
+  const dirtyRef = useRef<boolean>(false);
 
   // P1 qm-drive-doc-cache-scope corrective (CODEX, same class as #1159):
   // accountKeyRef tracks the CURRENT account for stale-async guards; the
@@ -224,6 +258,9 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
     setLastSaved(null);
     setSyncStatus('offline');
     setIsLoading(true);
+    setLoadIntent('existing');
+    setNotFoundKind(null);
+    dirtyRef.current = false;
   }
 
   // Keep the async guards in sync after the reset render commits. Declared
@@ -238,12 +275,14 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
 
   // Synchronize title changes
   const setTitle = useCallback((newTitle: string) => {
+    dirtyRef.current = true;
     setTitleState(newTitle);
   }, []);
 
   // Synchronize block changes
   const setBlocks = useCallback(
     (action: EditorBlock[] | ((prev: EditorBlock[]) => EditorBlock[])) => {
+      dirtyRef.current = true;
       setBlocksState((prev) => {
         const next = typeof action === 'function' ? action(prev) : action;
         // Synchronize with Yjs doc if active
@@ -261,10 +300,12 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
   );
 
   const setMetadata = useCallback((patch: Partial<DocumentMetadata>) => {
+    dirtyRef.current = true;
     setMetadataState((prev) => ({ ...prev, ...patch }));
   }, []);
 
   const setIsPublic = useCallback((pub: boolean) => {
+    dirtyRef.current = true;
     setIsPublicState(pub);
   }, []);
 
@@ -291,6 +332,10 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
       // the previous account must never write into the new account's state.
       const keyAtStart = accountKey;
       setIsLoading(true);
+      // A new load re-derives the 404 intent below; drop any stale verdict
+      // from the previous docId so it never flashes on the new document.
+      setLoadIntent('existing');
+      setNotFoundKind(null);
       try {
         if (!keyAtStart) {
           // Unknown account: fail closed — nothing to read, pristine empty
@@ -299,6 +344,11 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
           return;
         }
         const storage = windowDocCacheStorage();
+        // 404 intent contract: whether this account's cache holds content for
+        // this docId is the only honest client-side signal distinguishing a
+        // never-existing doc ('missing') from one that existed and is gone
+        // server-side ('deleted').
+        let hadCachedContent = false;
         if (storage) {
           // qm-drive-doc-cache-scope: legacy `quant_doc_<docId>` keys are
           // unattributable plaintext — purge once per mount under an
@@ -309,6 +359,9 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
           }
           const cached = readDocCache(storage, docId, keyAtStart);
           if (cached) {
+            // Presence (not parseability) is the existence signal for the
+            // 404 contract below.
+            hadCachedContent = true;
             try {
               const parsed = JSON.parse(cached);
               if (isMounted && keyAtStart === accountKeyRef.current) {
@@ -348,22 +401,39 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
             if (doc.subpages && Array.isArray(doc.subpages)) {
               setSubpages(doc.subpages);
             }
-            setSyncStatus('saved');
+            setSyncStatus(resolveLoadSyncStatus(res));
             setLastSaved(new Date(doc.updatedAt || Date.now()));
             // Immutable binding: this content belongs to keyAtStart.
             loadedAccountRef.current = keyAtStart;
           }
         } else if (res.status === 404) {
-          // New document or not yet saved in backend — seed default blocks
-          // (pristine defaults already rendered). Bind the save epoch so the
-          // account that creates it may autosave it.
+          // 404 intent contract (types.ts DocLoadIntent):
+          // - No cached content → 'missing': a fresh doc URL. Intent
+          //   'authorized-new': the first edit's autosave POST-creates with
+          //   the canonical docId exactly once. The 404 load itself fires NO
+          //   write — writes are edit-driven only.
+          // - Cached content → 'deleted': this browser held content for a doc
+          //   the server no longer has. Intent 'deleted': autosave is
+          //   DISABLED so a deleted deep link is never silently recreated;
+          //   only the explicit authorizeNewDocument() action re-enables
+          //   creation.
+          // Bind the save epoch so the account that creates it may autosave
+          // it. resolveLoadSyncStatus reports 'unsaved' here — never claim
+          // 'saved' for a doc the backend never wrote.
           loadedAccountRef.current = keyAtStart;
-          setSyncStatus('saved');
+          if (hadCachedContent) {
+            setNotFoundKind('deleted');
+            setLoadIntent('deleted');
+          } else {
+            setNotFoundKind('missing');
+            setLoadIntent('authorized-new');
+          }
+          setSyncStatus(resolveLoadSyncStatus(res));
         } else {
           // 401/403/500: the backend rejected the read — honest error, and
           // the pristine state from the hard reset stays. loadedAccountRef
           // is NOT bound, so the autosave below refuses to write.
-          setSyncStatus('error');
+          setSyncStatus(resolveLoadSyncStatus(res));
         }
       } catch {
         // Fallback gracefully on network error
@@ -387,6 +457,20 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
   const [saveAttempt, setSaveAttempt] = useState(0);
   const retrySave = useCallback(() => setSaveAttempt((n) => n + 1), []);
 
+  // 404 intent contract: the ONLY way out of the 'deleted' intent. An
+  // explicit user action ("Create new document") — never an edit, never a
+  // load — authorizes creation at this docId. The next autosave then runs
+  // the normal PATCH → 404 → POST(canonical id) path exactly once.
+  const authorizeNewDocument = useCallback(() => {
+    setNotFoundKind((kind) => (kind === 'deleted' ? 'missing' : kind));
+    setLoadIntent((intent) => (intent === 'deleted' ? 'authorized-new' : intent));
+    // The explicit action counts as create intent for the dirty gate below.
+    dirtyRef.current = true;
+    // Trigger the autosave effect so the explicit creation is attempted
+    // promptly rather than waiting for the next keystroke.
+    setSaveAttempt((n) => n + 1);
+  }, []);
+
   useEffect(() => {
     if (isLoading) return;
     // Requirement 2: gate ALL writes (REST autosave AND local cache) on a
@@ -395,6 +479,16 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
     // have resolved, otherwise the retained prior-account state would be
     // written under the new account's key before its own load settles.
     if (!accountKey || loadedAccountRef.current !== accountKey) return;
+    // 404 intent contract: autosave fires ONLY for 'existing' docs and for
+    // 'authorized-new' ones (fresh URL, or the user explicitly chose to
+    // create from the 'deleted' state). A 'deleted' deep link is NEVER
+    // silently recreated by an edit — authorizeNewDocument() is the only
+    // path that re-enables creation.
+    if (loadIntent !== 'existing' && loadIntent !== 'authorized-new') return;
+    // A 404 load alone must never fire a write: a fresh ('authorized-new')
+    // document is created only after an actual user edit or the explicit
+    // authorizeNewDocument() action — opening the URL is not a write.
+    if (loadIntent === 'authorized-new' && !dirtyRef.current) return;
 
     setSyncStatus((current) => (current === 'connected' ? 'connected' : 'saving'));
 
@@ -453,7 +547,7 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [docId, title, blocks, metadata, isPublic, isLoading, saveAttempt, accountKey]);
+  }, [docId, title, blocks, metadata, isPublic, isLoading, saveAttempt, accountKey, loadIntent]);
 
   // Yjs WebSocket gateway connection (/collab/:docId)
   // yjs is ~100KB+ — imported lazily so the drive/doc route bundle stays lean
@@ -681,5 +775,9 @@ export function useCollabDoc(docId: string, currentUserEmail?: string) {
     subpages,
     setSubpages,
     retrySave,
+    // 404 intent contract (types.ts DocLoadIntent / DocNotFoundKind).
+    loadIntent,
+    notFoundKind,
+    authorizeNewDocument,
   };
 }

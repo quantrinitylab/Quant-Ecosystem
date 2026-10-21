@@ -6,6 +6,7 @@ import {
   COLLAB_WS_SUBPROTOCOL,
   buildCollabWsHandshake,
   performDocSave,
+  resolveLoadSyncStatus,
   type DocSavePayload,
 } from '../useCollabDoc';
 
@@ -110,5 +111,23 @@ describe('performDocSave — honest save status', () => {
       throw new Error('network down');
     };
     expect(await performDocSave(req, 'doc-1', PAYLOAD, 'a@example.com')).toBe('offline');
+  });
+});
+
+// Doc-load honesty contract: the badge must NEVER show 'saved' for a document
+// the backend never wrote. A 404 on the initial load (new document — nothing
+// persisted) resolves to 'unsaved' ("Not saved yet"); 'saved' appears only
+// after the backend actually accepts a write.
+describe('resolveLoadSyncStatus', () => {
+  it('returns saved when the load succeeded', () => {
+    expect(resolveLoadSyncStatus({ ok: true, status: 200 })).toBe('saved');
+  });
+
+  it('returns unsaved — never saved — on a 404 for a never-written doc', () => {
+    expect(resolveLoadSyncStatus({ ok: false, status: 404 })).toBe('unsaved');
+  });
+
+  it.each([401, 403, 500])('returns error on rejected reads (%i)', (status) => {
+    expect(resolveLoadSyncStatus({ ok: false, status })).toBe('error');
   });
 });

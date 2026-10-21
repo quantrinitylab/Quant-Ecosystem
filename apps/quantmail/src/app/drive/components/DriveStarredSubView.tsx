@@ -24,6 +24,9 @@ export interface StarredItem {
 export interface DriveStarredSubViewProps {
   items: StarredItem[];
   loading?: boolean;
+  // Honest load failure text from the caller (e.g. the drive file query
+  // rejected). Rendered as a banner instead of the empty state.
+  error?: string | null;
   onToggleStar?: (item: StarredItem, e?: React.MouseEvent) => void;
   onPreviewItem?: (item: StarredItem) => void;
   onDownloadFile?: (id: string, name: string) => void;
@@ -33,6 +36,7 @@ export interface DriveStarredSubViewProps {
 export function DriveStarredSubView({
   items,
   loading = false,
+  error = null,
   onToggleStar,
   onPreviewItem,
   onDownloadFile,
@@ -67,8 +71,39 @@ export function DriveStarredSubView({
         </div>
       </div>
 
-      {/* Starred Files Grid */}
-      {activeItems.length === 0 ? (
+      {/* Loading skeletons — shown while the backend query is in flight so the
+          "No starred files yet" empty state never flashes before real data
+          arrives. */}
+      {loading && activeItems.length === 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5" aria-busy="true" aria-label="Loading starred files">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className="p-4 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] space-y-3 animate-pulse"
+            >
+              <div className="h-9 w-9 rounded-lg bg-[var(--quant-surface-elevated)]" />
+              <div className="h-3 w-3/4 rounded bg-[var(--quant-surface-elevated)]" />
+              <div className="h-2.5 w-1/2 rounded bg-[var(--quant-surface-elevated)]" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Error state — honest failure, never a fabricated list. role="alert"
+          so the failure is announced on mobile screen readers too. */}
+      {!loading && error && (
+        <div
+          role="alert"
+          className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center"
+        >
+          <p className="text-sm font-semibold text-[#F8FAFC]">Couldn&apos;t load starred files</p>
+          <p className="text-xs text-[#94A3B8]">{error}</p>
+        </div>
+      )}
+
+      {/* Honest empty state — shown only after loading finished without an
+          error, never while the query is still in flight. */}
+      {!loading && !error && activeItems.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center">
           <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[var(--quant-border)] flex items-center justify-center text-[#64748B]">
             <StarFilledIcon className="size-5" />
@@ -78,7 +113,10 @@ export function DriveStarredSubView({
             Star a file to pin it here for quick access.
           </p>
         </div>
-      ) : (
+      )}
+
+      {/* Starred Files Grid */}
+      {activeItems.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
           {activeItems.map((item) => (
           <div
