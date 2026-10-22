@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Debug builds only: allow plain http:// to the Android emulator's host alias
+         (10.0.2.2) and localhost, so a local backend can be used through
+         --dart-define=API_BASE_URL (see lib/config/quant_api_config.dart).
+         Release builds keep Android's default of HTTPS only. -->
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>
