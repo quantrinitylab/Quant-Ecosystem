@@ -1908,6 +1908,7 @@ VERDICT-LIVE: HEALTHY — proxy 127.0.0.1:8888 healthy (google.com 200, no resta
 Rotation -> QM-SCREEN-017 (admin) ROUND 29 regression, queued.
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-017r33, started 2026-10-22 ~19:40 IST; R32 base a19fe7ea92b -> origin/main a19fe7ea92b)
 Status: [x] DONE — LANE-1, branch lane1-audit-017r32 (2026-10-22 ~09:40–10:05 IST). R32 REGRESSION AUDIT COMPLETE.
 
 R32 REGRESSION AUDIT COMPLETE (2026-10-22 ~09:40–10:05 IST) — LANE-1, branch lane1-audit-017r32: base = origin/main a19fe7ea9 (R31-017 tip) -> origin/main a19fe7ea9 (fresh fetch, 0 first-parent merges — main UNCHANGED since 2026-10-21 ~23:40 IST). WINDOW EMPTY -> pure re-verification pass. All code read from origin/main tree only (git show/git grep; qe-main working tree ignored per stale-tree lesson).
