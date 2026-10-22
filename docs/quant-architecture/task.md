@@ -1109,6 +1109,9 @@ LIVE (2026-10-11 ~21:55 IST): /drive → sign-in gate desktop+mobile (no leak, s
 REQUIREMENT GAPS vs Required (R2 update): resumable transfer IMPLEMENTED (chunk protocol, in-memory sessions 24h TTL); offline cache STILL MISSING; scan-state listing coverage now complete except Trash (P2 above); signed delivery IMPLEMENTED but public-link quarantine BYPASS (P0 above); preview matrix honest; versioning/share/editor/Quanty all verified wired.
 
 ## QM-SCREEN-012 — Contacts / people / relationship context
+### REGRESSION ROUND 34 (2026-10-23 ~00:34–01:00 IST, LANE-1, branch lane1-audit-012r34)
+Status: [~] IN PROGRESS — Owner: LANE-1, branch lane1-audit-012r34. R34 REGRESSION AUDIT IN PROGRESS.
+
 ### REGRESSION ROUND 33 (2026-10-22 ~14:35–15:05 IST, LANE-1, branch lane1-audit-012r33)
 Status: [x] DONE — Owner: LANE-1, branch lane1-audit-012r33. R33 REGRESSION AUDIT COMPLETE (lane-1 deep audit loop).
 - Base: R32 @ a19fe7ea9 -> origin/main a19fe7ea9 (fresh fetch, 0 first-parent merges in window — main UNCHANGED since R32-012). Pure re-verification pass. Code read from origin/main tree only (qe-main working tree ignored per stale-tree lesson; `git grep <rev>` silently returns nothing in this env — verified via `git archive origin/main <paths>` snapshot + `git show`; documented).
