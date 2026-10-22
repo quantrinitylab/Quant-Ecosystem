@@ -83,8 +83,9 @@ describe('AuthGuard: /calendar/booking/* is public for signed-out guests (fix/qm
   });
 
   it('still hard-gates private surfaces for signed-out visitors (no regression)', () => {
-    // AuthGuard returns null for private pages when signed out; the page
-    // itself never reaches the browser — the login redirect fires instead.
+    // AuthGuard renders only the brand splash for private pages when signed
+    // out; the page itself never reaches the browser — the login redirect
+    // fires instead.
     // NOTE (fix/qm-unknown-route-404): /inbox is not a real route — it is
     // unknown and now renders the branded 404's children instead of gating.
     expect(renderGuard('/calendar', false)).not.toContain(CONTENT_MARKER);
@@ -110,6 +111,43 @@ describe('AuthGuard: /calendar/booking/* is public for signed-out guests (fix/qm
     );
     expect(html).toContain(CONTENT_MARKER);
     expect(html).not.toContain('Authenticating...');
+  });
+
+  it('shows the QuantWorkplace splash, not the "Authenticating..." loader, while a private route loads', () => {
+    // The splash is the first paint (see quantworkplace-splash-first-paint.test.tsx).
+    // The words are still announced, once, but only to screen readers.
+    navState.pathname = '/calendar';
+    authState.isLoading = true;
+    authState.isAuthenticated = false;
+    const html = renderToStaticMarkup(
+      <AuthGuard>
+        <div data-marker={CONTENT_MARKER}>calendar</div>
+      </AuthGuard>,
+    );
+    expect(html).toContain('data-testid="qw-splash"');
+    expect(html).not.toContain('data-testid="loading"');
+    expect(html).not.toContain(CONTENT_MARKER);
+    expect(html).toContain('<span class="sr-only">Authenticating...</span>');
+    // Not drawn: outside the sr-only span the words do not occur in the markup.
+    expect(html.replace('<span class="sr-only">Authenticating...</span>', '')).not.toContain(
+      'Authenticating...',
+    );
+  });
+
+  it('never shows the splash on public routes, even while the session is loading', () => {
+    authState.isLoading = true;
+    authState.isAuthenticated = false;
+    for (const pathname of ['/login', '/register', '/invite/abc123', '/calendar/booking/host-slug-123']) {
+      navState.pathname = pathname;
+      const html = renderToStaticMarkup(
+        <AuthGuard>
+          <div data-marker={CONTENT_MARKER}>public</div>
+        </AuthGuard>,
+      );
+      expect(html, pathname).toContain(CONTENT_MARKER);
+      expect(html, pathname).not.toContain('qw-splash');
+      expect(html, pathname).not.toContain('Authenticating...');
+    }
   });
 
   it('keeps exact PUBLIC_PATHS working for signed-out visitors (no regression)', () => {
