@@ -7,7 +7,7 @@ export async function PUT(
   { params }: { params: Promise<{ fileId: string }> },
 ) {
   const { fileId } = await params;
-  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${fileId}/star`, {
+  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${encodeURIComponent(fileId)}/star`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -24,7 +24,7 @@ export async function DELETE(
   { params }: { params: Promise<{ fileId: string }> },
 ) {
   const { fileId } = await params;
-  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${fileId}/star`, {
+  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${encodeURIComponent(fileId)}/star`, {
     method: 'DELETE',
     headers: { Authorization: request.headers.get('Authorization') || '' },
   });
