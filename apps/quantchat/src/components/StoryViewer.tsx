@@ -22,6 +22,10 @@ interface StoryViewerProps {
   onNext: () => void;
   onPrev: () => void;
   autoAdvance?: boolean;
+  /** QC-F-556: when provided, a Share action is offered for the current
+   * story. The host owns the share sheet + send; the viewer only reports
+   * which story was tapped. */
+  onShare?: (story: Story) => void;
 }
 
 const STORY_DURATION_MS = 5000;
@@ -34,6 +38,7 @@ export function StoryViewer({
   onNext,
   onPrev,
   autoAdvance = true,
+  onShare,
 }: StoryViewerProps) {
   const currentStory = stories[currentIndex];
   const [isPaused, setIsPaused] = useState(false);
@@ -230,6 +235,15 @@ export function StoryViewer({
               </div>
               <div className="flex items-center gap-2">
                 {isPaused && <span className="text-xs text-white/60 font-medium">PAUSED</span>}
+                {onShare && (
+                  <button
+                    onClick={() => onShare(currentStory)}
+                    className="text-white text-sm font-medium px-3 h-8 flex items-center justify-center rounded-full hover:bg-white/10 min-h-touch"
+                    aria-label="Share story"
+                  >
+                    Share
+                  </button>
+                )}
                 <button
                   onClick={onClose}
                   className="text-white text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 min-w-touch min-h-touch"
