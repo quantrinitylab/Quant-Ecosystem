@@ -7,10 +7,14 @@
 //   - useSelectAvatar()        → POST /api/avatar/select + cross-surface invalidation
 //   - avatarQueryKey / invalidateAvatar → propagation primitive (Task 5.8)
 //
-// Avatar propagation (Task 5.8): selecting/updating an avatar invalidates the
-// ['avatar', userId] query so every mounted AlienAvatar that reads the same key
-// refetches and re-renders. With staleTime kept short the new avatar appears on
-// all surfaces well within the 5s requirement.
+// Avatar propagation (Task 5.8, mechanism corrected by QC-F-564): the server
+// is the propagation path — POST /avatar/select also projects the chosen
+// imageUrl onto User.avatarUrl, the field chat, stories, search, map and the
+// Flutter DTOs all read, so those surfaces show the new avatar on their next
+// refresh. Client-side, selecting invalidates the ['avatar', userId] query
+// (the mounted AlienAvatar on the profile header refetches at once) and the
+// ['me'] query (own profile/settings surfaces). There is no timed guarantee;
+// surfaces converge on their next fetch.
 // ============================================================================
 'use client';
 
@@ -56,15 +60,16 @@ export interface UseAvatarResult {
 }
 
 /**
- * Reads a user's selected avatar. Used by AlienAvatar across all surfaces so a
- * single invalidation propagates everywhere (Task 5.6 / 5.8).
+ * Reads a user's selected avatar. Used by AlienAvatar (whose shipped mount is
+ * the profile header) so the shared query refetches after a select
+ * (Task 5.6 / 5.8).
  */
 export function useAvatar(userId: string | null | undefined): UseAvatarResult {
   const query = useQuery({
     queryKey: avatarQueryKey(userId ?? '__none__'),
     queryFn: () => fetchAvatar(userId as string),
     enabled: Boolean(userId),
-    // Short stale window so updates propagate to all surfaces within 5s (Task 5.8).
+    // Short stale window so the mounted avatar refetches soon after a change (Task 5.8).
     staleTime: 2000,
   });
 
@@ -126,9 +131,10 @@ async function postSelect(variant: AvatarVariant): Promise<UserAvatar> {
 }
 
 /**
- * Mutation: persist the chosen variant, then invalidate the shared avatar query
- * so it propagates to every surface (chat, profile, story rings, friend list,
- * map pins, reactions) within 5 seconds (Task 5.8).
+ * Mutation: persist the chosen variant. The server projects the selection
+ * onto User.avatarUrl (QC-F-564), which chat, stories, search, map and
+ * Flutter read on their next refresh; here we refresh the mounted
+ * AlienAvatar and the ['me'] profile query immediately (Task 5.8).
  */
 export function useSelectAvatar(userId: string) {
   const queryClient = useQueryClient();
@@ -138,6 +144,8 @@ export function useSelectAvatar(userId: string) {
       // Seed the cache immediately, then invalidate to refetch authoritative copy.
       queryClient.setQueryData(avatarQueryKey(userId), saved);
       void invalidateAvatar(queryClient, userId);
+      // Own profile/settings surfaces render `me.avatarUrl` — refresh them too.
+      void queryClient.invalidateQueries({ queryKey: ['me'] });
     },
   });
 }
