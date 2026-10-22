@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TIMEZONES } from '../../types';
-import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolvePostSubmitDeadLink, resolveSlotsResponse, resolveSlotsLoadFailure, slotsWithinGuestDay, guestDayKeyToYmd, compareGuestDayKeys, todayInTimeZone, weekdayInTimeZone, isGuestDayEnabled, formatGuestDayHeader, formatGuestDayShort, defaultSelectedGuestDay, daysIn1BasedMonth } from './booking-utils';
+import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolvePostSubmitDeadLink, resolveSlotsResponse, resolveSlotsLoadFailure, slotsWithinGuestDay, guestDayKeyToYmd, compareGuestDayKeys, todayInTimeZone, weekdayInTimeZone, isGuestDayEnabled, formatGuestDayHeader, formatGuestDayShort, defaultSelectedGuestDay, daysIn1BasedMonth, lockThenConfirmBooking } from './booking-utils';
 import type { BookingLinkDetails, BookingLinkLoadStatus, BookingSlotItem, GuestDayKey } from './booking-utils';
 import {
   IconClock,
@@ -453,46 +453,38 @@ export default function PublicBookingPage(props: PageProps) {
     };
 
     try {
-      const res = await apiFetchRaw(`/api/calendar/booking/${resolvedSlug}/book`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bookingPayload),
-      });
+      // fix/qm-slot-lock-dead-surface-6: the slot is locked pre-confirm.
+      // POST /calendar/booking/:slug/lock existed but was dead surface — no
+      // client called it and the Next.js proxy allow-list 404'd it — so the
+      // 409 race the lock exists to prevent was unmitigated in the real
+      // flow. lockThenConfirmBooking is fail-closed: a failed lock never
+      // falls through to an unprotected /book.
+      const submit = await lockThenConfirmBooking(apiFetchRaw, resolvedSlug, bookingPayload);
 
-      if (!res.ok) {
-        // Honest failure: 409 slot-taken, 410 inactive link, 404 unknown slug,
-        // 400 invalid payload, 429 rate-limited, 5xx server problem.
-        // Never render "Booking Confirmed!" on a failure — stay on step 2
-        // with the real reason.
-        let serverMessage: string | undefined;
-        try {
-          const errJson = await res.json();
-          const err = errJson?.error;
-          serverMessage =
-            (typeof err === 'object' && err ? err.message : undefined) ||
-            (typeof err === 'string' ? err : undefined) ||
-            (typeof errJson?.message === 'string' ? errJson.message : undefined);
-        } catch {
-          // Error body unreadable — fall through to the status-mapped copy.
-        }
+      if (!submit.ok) {
+        // Honest failure: 409 slot-taken/locked, 410 inactive link, 404
+        // unknown slug, 400 invalid payload, 429 rate-limited, 5xx server
+        // problem, 0 network failure. Never render "Booking Confirmed!" on
+        // a failure — stay on step 2 with the real reason.
         // fix/qm-booking-postsubmit-deadlink: the link died between the
-        // initial link load and the booking POST (deleted/paused mid-step-2).
-        // This is the SAME surface as a dead link found pre-selection —
-        // flip to the honest dead-link panel (not-found / inactive) instead
-        // of keeping the booking form on screen with an inline error. Every
-        // other failure keeps the inline form error via failBooking.
-        const postSubmitDeadLink = resolvePostSubmitDeadLink(res.status, serverMessage);
+        // initial link load and the submit (deleted/paused mid-step-2). A
+        // 404/410 on EITHER the lock or the book step is the SAME surface
+        // as a dead link found pre-selection — flip to the honest dead-link
+        // panel (not-found / inactive) instead of keeping the booking form
+        // on screen with an inline error. Every other failure keeps the
+        // inline form error via failBooking.
+        const postSubmitDeadLink = resolvePostSubmitDeadLink(submit.status, submit.serverMessage);
         if (postSubmitDeadLink) {
           setLinkStatus(postSubmitDeadLink.status);
           setLinkErrorMessage(postSubmitDeadLink.message);
           setIsSubmitting(false);
           return;
         }
-        failBooking(resolveBookingFailureMessage(res.status, serverMessage));
+        failBooking(resolveBookingFailureMessage(submit.status, submit.serverMessage));
         return;
       }
 
-      const json = await res.json();
+      const json = submit.bookBody as { data?: { icsContent?: string; icsData?: string; hostName?: string; hostEmail?: string } } | null | undefined;
       // The backend returns { event, icsContent, hostName, hostEmail } —
       // icsContent is generated server-side with the REAL organizer and
       // must be preferred over any client-side fallback.

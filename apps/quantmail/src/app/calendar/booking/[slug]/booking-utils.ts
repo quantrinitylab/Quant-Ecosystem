@@ -697,3 +697,133 @@ export function generateGuestDaySlots(spec: GuestDaySlotSpec): BookingSlotItem[]
   slots.sort((a, b) => a.start.getTime() - b.start.getTime());
   return slots;
 }
+
+// ============================================================================
+// Slot lock pre-confirm (fix/qm-slot-lock-dead-surface-6)
+// ============================================================================
+// The backend's POST /calendar/booking/:slug/lock existed from the start but
+// was dead surface: no client called it AND the Next.js proxy allow-list had
+// no row admitting it, so the 409 race the lock exists to prevent was
+// unmitigated in the real booking flow. lockThenConfirmBooking performs the
+// submit sequence the public booking page must run: acquire the lock first,
+// then confirm the booking carrying the lockId.
+//
+// Fail-closed: a failed lock NEVER falls through to an unprotected /book —
+// without the lock, two guests submitting the same slot at once can both pass
+// the backend's pre-write availability check and double-book. The caller maps
+// { ok: false } to an honest message via resolveBookingFailureMessage; a
+// 404/410 on EITHER step means the link died mid-flow and should flip to the
+// dead-link panel via resolvePostSubmitDeadLink.
+
+import type { apiFetchRaw } from '@quant/api-client';
+
+export interface SlotBookingPayload {
+  /** Slot start as an ISO string. */
+  slot: string;
+  name: string;
+  email: string;
+  notes: string;
+}
+
+export type BookingSubmitStep = 'lock' | 'book';
+
+export interface BookingSubmitResult {
+  ok: boolean;
+  step: BookingSubmitStep;
+  /** HTTP status of the failing step; 0 = the request never reached the server. */
+  status: number;
+  serverMessage?: string;
+  /** Lock id the backend issued (when the lock step returned one). */
+  lockId?: string;
+  /** Parsed /book response body on success. */
+  bookBody?: unknown;
+}
+
+/** Extract the honest error message from a backend failure body, never throwing. */
+async function extractSubmitServerMessage(res: Response): Promise<string | undefined> {
+  try {
+    const errJson = (await res.json()) as {
+      error?: { message?: unknown } | string;
+      message?: unknown;
+    } | null;
+    const err = errJson?.error;
+    return (
+      (typeof err === 'object' && err ? (err.message as string | undefined) : undefined) ||
+      (typeof err === 'string' ? err : undefined) ||
+      (typeof errJson?.message === 'string' ? errJson.message : undefined)
+    );
+  } catch {
+    // Error body unreadable — the caller falls back to the status-mapped copy.
+    return undefined;
+  }
+}
+
+/**
+ * Lock the slot pre-confirm, then confirm the booking carrying the lockId.
+ * Pure wiring over an injected fetch (apiFetchRaw in the page, a mock in
+ * tests) so the lock-before-book ordering is unit-testable.
+ */
+export async function lockThenConfirmBooking(
+  fetchRaw: typeof apiFetchRaw,
+  slug: string,
+  payload: SlotBookingPayload,
+): Promise<BookingSubmitResult> {
+  // Step 1 — lock the slot pre-confirm. The lock holds the slot for this
+  // booker's email (10-minute TTL, refreshed on re-lock by the same email).
+  let lockRes: Response;
+  try {
+    lockRes = await fetchRaw(`/api/calendar/booking/${slug}/lock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slot: payload.slot, email: payload.email }),
+    });
+  } catch {
+    // Network failure: the lock never reached the server. Fail closed —
+    // an unprotected /book reintroduces the double-book race.
+    return { ok: false, step: 'lock', status: 0 };
+  }
+  if (!lockRes.ok) {
+    return {
+      ok: false,
+      step: 'lock',
+      status: lockRes.status,
+      serverMessage: await extractSubmitServerMessage(lockRes),
+    };
+  }
+  let lockId: string | undefined;
+  try {
+    const lockJson = (await lockRes.json()) as { lockId?: unknown } | null;
+    lockId = typeof lockJson?.lockId === 'string' ? lockJson.lockId : undefined;
+  } catch {
+    // The lock is held server-side even if the body is unreadable — continue
+    // without the id; /book re-derives the active lock from slot + email.
+  }
+
+  // Step 2 — confirm the booking, carrying the lockId when we have one.
+  let bookRes: Response;
+  try {
+    bookRes = await fetchRaw(`/api/calendar/booking/${slug}/book`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(lockId ? { ...payload, lockId } : payload),
+    });
+  } catch {
+    return { ok: false, step: 'book', status: 0, lockId };
+  }
+  if (!bookRes.ok) {
+    return {
+      ok: false,
+      step: 'book',
+      status: bookRes.status,
+      serverMessage: await extractSubmitServerMessage(bookRes),
+      lockId,
+    };
+  }
+  let bookBody: unknown;
+  try {
+    bookBody = await bookRes.json();
+  } catch {
+    bookBody = undefined;
+  }
+  return { ok: true, step: 'book', status: bookRes.status, lockId, bookBody };
+}
