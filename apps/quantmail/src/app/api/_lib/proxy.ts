@@ -50,6 +50,12 @@ export async function proxyToBackend(
   // would strip the key the web client minted and every mutation would 400.
   const idempotencyKey = request.headers.get('Idempotency-Key');
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  // fix/qm-share-pw-query-param: share-link passwords travel ONLY in this
+  // header (never the query string). The proxy must forward it, or the
+  // backend's header-only gate would 401 every password-protected public
+  // download. Same allow-list pattern as Idempotency-Key above.
+  const sharePassword = request.headers.get('x-share-password');
+  if (sharePassword) headers['x-share-password'] = sharePassword;
 
   const url = new URL(backendPath, base);
   // Forward search params for GET requests
