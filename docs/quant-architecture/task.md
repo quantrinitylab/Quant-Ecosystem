@@ -1756,6 +1756,7 @@ Status: [x] DONE (R13 regression audit complete 2026-10-16 ~16:35–16:38 IST �
 
 ## QM-SCREEN-016 — Settings / profile / identity / devices / sessions / security
 Status: [x] DONE — LANE-1, branch lane1-audit-016r32. R32 REGRESSION AUDIT COMPLETE (2026-10-22 ~08:35–08:50 IST). Claim lane1-audit-016r32, DONE (this commit).
+Status: [~] CLAIM — LANE-1, branch lane1-audit-016r33. R33 REGRESSION STARTED (2026-10-22 ~18:35 IST). Base: R32 tip a19fe7ea92b -> origin/main a19fe7ea92b (fresh fetch, 0 first-parent merges — main UNCHANGED).
 
 R32 REGRESSION AUDIT COMPLETE: [x] DONE — LANE-1, branch lane1-audit-016r32 (2026-10-22 ~08:35–08:50 IST). Base: R31-016 tip a19fe7ea9 -> origin/main a19fe7ea9 (fresh fetch, 0 first-parent merges — main UNCHANGED, pure re-verification pass). Code read from origin/main tree only (qe-main working tree ignored per stale-tree lesson; ledger worktree tip 33396bc11 == remote arch tip before writing, no sync needed).
 - WINDOW: 0 merges. No window review needed.
