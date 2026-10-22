@@ -46,6 +46,15 @@ interface UseReelsFeedReturn {
   hasMore: boolean;
   isLoading: boolean;
   isFetchingNextPage: boolean;
+  // QC-F-372: the query's real error state, surfaced honestly. `error` is
+  // any page's failure; `nextPageError` isolates a failed NEXT page so the
+  // page can keep the loaded reels and offer an inline retry instead of
+  // silently swallowing it. A QC-F-453 cursor-400 terminal page is NOT an
+  // error — both stay null/false there.
+  error: Error | null;
+  isError: boolean;
+  refetch: () => void;
+  nextPageError: Error | null;
   likeReel: (reelId: string) => void;
   unlikeReel: (reelId: string) => void;
   shareReel: (reelId: string) => void;
@@ -86,6 +95,10 @@ export function useReelsFeed(): UseReelsFeedReturn {
     hasNextPage,
     isLoading,
     isFetchingNextPage,
+    error,
+    isError,
+    refetch,
+    isFetchNextPageError,
   } = useInfiniteQuery({
     queryKey: ['reels-feed'],
     queryFn: ({ pageParam }) => fetchReelsFeed(pageParam as string | undefined),
@@ -103,6 +116,9 @@ export function useReelsFeed(): UseReelsFeedReturn {
     return true;
   });
   const hasMore = hasNextPage ?? false;
+  // QC-F-372: a failed next page keeps the loaded pages; only that failure
+  // is exposed separately (useChannelFeed's olderError derivation).
+  const nextPageError = isFetchNextPageError ? error : null;
 
   // Optimistic like mutation
   const likeMutation = useMutation({
@@ -239,6 +255,10 @@ export function useReelsFeed(): UseReelsFeedReturn {
     hasMore,
     isLoading,
     isFetchingNextPage,
+    error,
+    isError,
+    refetch,
+    nextPageError,
     likeReel: (reelId: string) => likeMutation.mutate(reelId),
     unlikeReel: (reelId: string) => unlikeMutation.mutate(reelId),
     shareReel: (reelId: string) => shareMutation.mutate(reelId),
