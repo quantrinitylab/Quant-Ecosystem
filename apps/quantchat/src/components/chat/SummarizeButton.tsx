@@ -10,7 +10,9 @@ import { apiFetchRaw } from '@quant/api-client';
 //
 // Triggers a conversation summary of the most recent messages (the caller
 // passes ≤ 50 messages) and renders the AI-generated summary + key topics in a
-// popover. The summary is AI content, so it carries the AI-generated badge.
+// popover. A summary carries the AI-generated badge ONLY when the backend
+// flags it as real AI output (isAIGenerated === true) — the honest-empty
+// 0-message result is factual and stays unbadged (QC-F-519).
 // ============================================================================
 
 export interface SummaryResponse {
@@ -131,7 +133,7 @@ export function SummarizeButton({
                   <span className="text-xs text-gray-400">
                     {summary.messageCount} message{summary.messageCount === 1 ? '' : 's'}
                   </span>
-                  <AIGeneratedBadge size="sm" />
+                  {summary.isAIGenerated === true && <AIGeneratedBadge size="sm" />}
                 </div>
               </div>
             ) : (

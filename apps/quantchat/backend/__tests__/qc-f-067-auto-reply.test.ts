@@ -460,3 +460,80 @@ describe('QC-F-067 MessageService isAIGenerated pass-through', () => {
     expect((humanMsg as unknown as { isAIGenerated: boolean }).isAIGenerated).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// QC-F-519 — agent unavailable (throws AI_UNAVAILABLE): ticket must not jam
+// (C3) and nothing may be delivered in the user's name (Warg-A)
+// ---------------------------------------------------------------------------
+describe('QC-F-519 auto-reply when the agent is unavailable', () => {
+  it('16. generateFor rejects, cancels its ticket, and a later retry succeeds (no jam)', async () => {
+    const db = makeDb();
+    const throwing = makeAgent(() => {
+      throw Object.assign(new Error('AI is unavailable right now'), {
+        statusCode: 503,
+        code: 'AI_UNAVAILABLE',
+      });
+    });
+    const { service, manager } = makeService(db, throwing);
+    await service.setEnabled(A, CONV, true);
+
+    await expect(
+      service.generateFor(A, { conversationId: CONV, incomingMessage: 'kal milte hain?', context: [] }),
+    ).rejects.toMatchObject({ statusCode: 503, code: 'AI_UNAVAILABLE' });
+    // C3: the failed generation left NO pending ticket behind.
+    expect(manager.pendingFor(A, CONV)).toHaveLength(0);
+
+    // A working agent on the same manager succeeds immediately — proof the
+    // failure did not permanently jam auto-reply for this user+conversation.
+    const working = makeAgent();
+    const retry = new AutoReplyService(db.prisma, manager, working, makeDeliver().deliver);
+    const res = await retry.generateFor(A, {
+      conversationId: CONV,
+      incomingMessage: 'kal milte hain?',
+      context: [],
+    });
+    expect(res).toMatchObject({ generated: true, content: `auto-reply from ${A}` });
+    expect(manager.pendingFor(A, CONV)).toHaveLength(0);
+  });
+
+  it('17. handleIncomingMessage delivers NOTHING when the agent is unavailable, ticket cleaned, retry works', async () => {
+    const db = makeDb();
+    const throwing = makeAgent(() => {
+      throw Object.assign(new Error('AI is unavailable right now'), {
+        statusCode: 503,
+        code: 'AI_UNAVAILABLE',
+      });
+    });
+    const { deliver, calls } = makeDeliver();
+    const { service, manager } = makeService(db, throwing, deliver);
+    await service.setEnabled(A, CONV, true);
+
+    const delivered = await service.handleIncomingMessage({
+      conversationId: CONV,
+      senderId: B,
+      messageId: 'm_incoming',
+      content: 'kal milte hain?',
+      isAIGenerated: false,
+    });
+    // Warg-A: zero delivery — no canned text ever reaches the other members.
+    expect(delivered).toBe(0);
+    expect(calls).toHaveLength(0);
+    // C3: no pending ticket jam for the recipient.
+    expect(manager.pendingFor(A, CONV)).toHaveLength(0);
+
+    // Next incoming with a working agent delivers exactly one real reply.
+    const working = makeAgent();
+    const retry = new AutoReplyService(db.prisma, manager, working, deliver);
+    const delivered2 = await retry.handleIncomingMessage({
+      conversationId: CONV,
+      senderId: B,
+      messageId: 'm_incoming_2',
+      content: 'aur batao?',
+      isAIGenerated: false,
+    });
+    expect(delivered2).toBe(1);
+    expect(calls).toEqual([
+      { conversationId: CONV, senderId: A, content: `auto-reply from ${A}` },
+    ]);
+  });
+});

@@ -8,16 +8,20 @@
 //   - 12.5 Notification prioritization + low-priority daily digest batching
 //   - 12.6 Translation with source-language auto-detection
 //   - 12.7 Content creation (caption / story-text / reel-description)
-//   - 12.8 AI-generated labelling invariant (isAIGenerated:true on all output)
+//   - 12.8 AI-generated labelling invariant (isAIGenerated:true ONLY on output
+//     that real @quant/ai inference actually produced — QC-F-519)
 //   - 12.9 Auto-reply cancellation manager
 //
-// Every operation prefers the real @quant/ai inference pipeline when an AIEngine
-// is supplied AND a provider is configured; otherwise it falls back to fully
-// deterministic templates so the routes remain functional without live ML.
+// Every operation uses the real @quant/ai inference pipeline. When no engine
+// is supplied, inference throws, or inference returns nothing usable, the
+// operation fails honestly with 503 AI_UNAVAILABLE — it NEVER substitutes
+// hand-written canned text and labels it AI-generated (QC-F-519: the canned
+// fallback was deleted, not relabelled).
 // ============================================================================
 
 import { z } from 'zod';
 import type { AIEngine } from '@quant/ai';
+import { createAppError } from '@quant/server-core';
 
 // ----------------------------------------------------------------------------
 // Shared message shape + schemas
@@ -95,7 +99,9 @@ export interface SummaryResult {
   summary: string;
   keyTopics: string[];
   messageCount: number;
-  isAIGenerated: true;
+  // boolean (not literal true): the 0-message honest-empty result carries
+  // isAIGenerated:false — it is a factual statement, not AI output (QC-F-519).
+  isAIGenerated: boolean;
 }
 
 export interface SuggestionsResult {
@@ -196,16 +202,10 @@ export function analyzeStyle(samples: ChatMessage[]): StyleProfile {
   };
 }
 
-function applyStyle(base: string, style: StyleProfile): string {
-  let out = base;
-  if (style.lowercase) out = out.toLowerCase();
-  if (style.exclaims) out = out.replace(/\.?$/, '!');
-  if (style.usesEmoji && style.emoji) out = `${out} ${style.emoji}`.trim();
-  return out;
-}
-
 // ----------------------------------------------------------------------------
-// Deterministic template generators (fallbacks)
+// Deterministic helpers — topic extraction. These PREPARE real inference
+// results (key topics of an AI summary); they never produce output that is
+// presented as AI-generated (QC-F-519).
 // ----------------------------------------------------------------------------
 
 const STOPWORDS = new Set([
@@ -302,131 +302,9 @@ export function extractKeyTopics(messages: ChatMessage[], limit = 5): string[] {
     .map(([word]) => word);
 }
 
-export function templateSummary(input: SummarizeInput): SummaryResult {
-  const { messages } = input;
-  const keyTopics = extractKeyTopics(messages);
-  const participants = [...new Set(messages.map((m) => m.sender))];
-  const last = messages[messages.length - 1];
-
-  let summary: string;
-  if (messages.length === 0) {
-    summary = 'No messages to summarize yet.';
-  } else {
-    const who =
-      participants.length <= 1
-        ? (participants[0] ?? 'the user')
-        : `${participants.slice(0, -1).join(', ')} and ${participants[participants.length - 1]}`;
-    const topicPart = keyTopics.length > 0 ? ` about ${keyTopics.slice(0, 3).join(', ')}` : '';
-    const lastPart = last ? ` Most recent: "${truncate(last.content, 80)}".` : '';
-    summary = `Conversation between ${who}${topicPart} across ${messages.length} message${
-      messages.length === 1 ? '' : 's'
-    }.${lastPart}`;
-  }
-
-  return { summary, keyTopics, messageCount: messages.length, isAIGenerated: true };
-}
-
-function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max - 1)}\u2026` : text;
-}
-
-function isQuestion(text: string): boolean {
-  return (
-    /\?\s*$/.test(text.trim()) ||
-    /^\s*(what|how|when|where|why|who|can|could|do|does|are|is)\b/i.test(text)
-  );
-}
-
-export function templateAutoReply(input: AutoReplyInput): AutoReplyResult {
-  const style = analyzeStyle(input.context);
-  const incoming = input.incomingMessage.trim();
-
-  let base: string;
-  if (isQuestion(incoming)) {
-    base = 'Good question, let me get back to you on that.';
-  } else if (/\b(thanks|thank you|thx)\b/i.test(incoming)) {
-    base = "You're welcome.";
-  } else if (/\b(sorry|apolog)/i.test(incoming)) {
-    base = 'No worries at all.';
-  } else if (/\b(hi|hey|hello|yo)\b/i.test(incoming)) {
-    base = 'Hey, good to hear from you.';
-  } else if (/\b(bye|later|gtg|goodnight|good night)\b/i.test(incoming)) {
-    base = 'Talk soon, take care.';
-  } else {
-    base = 'Got it, thanks for letting me know.';
-  }
-
-  return {
-    content: applyStyle(base, style),
-    isAIGenerated: true,
-    confidence: input.context.length > 0 ? 0.55 : 0.4,
-  };
-}
-
-export function templateSuggestions(input: SuggestionsInput): string[] {
-  const last =
-    [...input.messages].reverse().find((m) => !m.isSelf) ??
-    input.messages[input.messages.length - 1];
-  const text = last?.content ?? '';
-
-  let suggestions: string[];
-  if (isQuestion(text)) {
-    suggestions = [
-      'Yes, definitely!',
-      'Let me think about it.',
-      "I'm not sure, what do you think?",
-    ];
-  } else if (/\b(thanks|thank you)\b/i.test(text)) {
-    suggestions = ['Anytime!', 'No problem at all.', 'Glad to help.'];
-  } else if (/\b(hi|hey|hello)\b/i.test(text)) {
-    suggestions = ['Hey there!', 'Hi! How are you?', "What's up?"];
-  } else if (/\b(meet|plan|tonight|tomorrow|weekend)\b/i.test(text)) {
-    suggestions = ['Sounds good to me!', 'What time works?', 'Let me check my schedule.'];
-  } else {
-    suggestions = ['Got it!', 'Sounds good.', 'Tell me more.'];
-  }
-
-  // Property 31 invariant: never return more than 3 suggestions.
-  return suggestions.slice(0, 3);
-}
-
-export function templateContent(input: GenerateContentInput): string[] {
-  const topics = extractKeyTopics([{ sender: 'ctx', content: input.context }], 3);
-  const subject = topics[0] ?? (input.context.split(/\s+/).slice(0, 3).join(' ') || 'this moment');
-
-  const banks: Record<ContentType, string[]> = {
-    caption: [
-      `Living for ${subject}. \u2728`,
-      `When ${subject} just hits different.`,
-      `${capitalize(subject)} vibes only.`,
-      `Caught in the moment: ${subject}.`,
-      `No caption needed, but here's one about ${subject}.`,
-    ],
-    'story-text': [
-      `Today was all about ${subject} \uD83D\uDC7D`,
-      `A little ${subject} to brighten your feed.`,
-      `Swipe up for more ${subject}!`,
-      `${capitalize(subject)} season is officially open.`,
-      `POV: you found the best ${subject}.`,
-    ],
-    'reel-description': [
-      `Everything you need to know about ${subject} in 30 seconds.`,
-      `Watch till the end for the ${subject} twist!`,
-      `${capitalize(subject)} like you've never seen before.`,
-      `Saving this ${subject} reel for later? Same.`,
-      `Tag someone who needs to see this ${subject} moment.`,
-    ],
-  };
-
-  return banks[input.type].slice(0, input.count);
-}
-
-function capitalize(text: string): string {
-  return text.length === 0 ? text : text[0]!.toUpperCase() + text.slice(1);
-}
-
 // ----------------------------------------------------------------------------
-// Language detection + template translation (deterministic fallback)
+// Language detection (deterministic) — prepares real inference calls
+// (detected source language rides along with the AI translation result).
 // ----------------------------------------------------------------------------
 
 const LANG_WORD_HINTS: Record<string, string[]> = {
@@ -459,90 +337,6 @@ export function detectLanguage(text: string): string {
     }
   }
   return best;
-}
-
-// Minimal phrase dictionary for the deterministic translation fallback.
-const PHRASE_TABLE: Record<string, Record<string, string>> = {
-  es: {
-    hello: 'hola',
-    hi: 'hola',
-    thanks: 'gracias',
-    'thank you': 'gracias',
-    yes: 'sí',
-    no: 'no',
-    'good morning': 'buenos días',
-    'how are you': 'cómo estás',
-  },
-  fr: {
-    hello: 'bonjour',
-    hi: 'salut',
-    thanks: 'merci',
-    'thank you': 'merci',
-    yes: 'oui',
-    no: 'non',
-    'good morning': 'bonjour',
-    'how are you': 'comment ça va',
-  },
-  de: {
-    hello: 'hallo',
-    hi: 'hallo',
-    thanks: 'danke',
-    'thank you': 'danke',
-    yes: 'ja',
-    no: 'nein',
-    'good morning': 'guten morgen',
-    'how are you': 'wie geht es dir',
-  },
-};
-
-export function templateTranslate(input: TranslateInput): TranslationResult {
-  const detected = detectLanguage(input.text);
-  const target = input.targetLanguage.slice(0, 2).toLowerCase();
-
-  // Already in target language → return as-is with high confidence.
-  if (detected === target) {
-    return {
-      translatedText: input.text,
-      detectedSourceLanguage: detected,
-      targetLanguage: target,
-      isAIGenerated: true,
-      confidence: 0.95,
-    };
-  }
-
-  const table = PHRASE_TABLE[target];
-  let translated = input.text;
-  let matched = false;
-  if (table) {
-    const lowered = input.text
-      .toLowerCase()
-      .trim()
-      .replace(/[.!?]+$/, '');
-    if (table[lowered]) {
-      translated = table[lowered]!;
-      matched = true;
-    } else {
-      // Word-by-word best-effort substitution.
-      translated = input.text.replace(/[a-zA-Z]+/g, (word) => {
-        const hit = table[word.toLowerCase()];
-        if (hit) matched = true;
-        return hit ?? word;
-      });
-    }
-  }
-
-  if (!matched) {
-    // Deterministic, clearly-labelled fallback so callers still get output.
-    translated = `[${target}] ${input.text}`;
-  }
-
-  return {
-    translatedText: translated,
-    detectedSourceLanguage: detected,
-    targetLanguage: target,
-    isAIGenerated: true,
-    confidence: matched ? 0.6 : 0.3,
-  };
 }
 
 // ----------------------------------------------------------------------------
@@ -578,7 +372,8 @@ export function prioritizeNotifications(input: PrioritizeInput): PrioritizedNoti
 }
 
 // ----------------------------------------------------------------------------
-// QuantAIAgent — orchestrates real @quant/ai with deterministic fallback
+// QuantAIAgent — orchestrates real @quant/ai; fails honestly (503
+// AI_UNAVAILABLE) whenever real inference is unavailable (QC-F-519)
 // ----------------------------------------------------------------------------
 
 export class QuantAIAgent {
@@ -604,7 +399,8 @@ export class QuantAIAgent {
       const content = res.content?.trim();
       return content && content.length > 0 ? content : null;
     } catch {
-      // No provider configured / inference failed → fall back to templates.
+      // No provider configured / inference failed → null; every caller
+      // turns null into an honest 503 AI_UNAVAILABLE (QC-F-519).
       return null;
     }
   }
@@ -627,12 +423,22 @@ export class QuantAIAgent {
     if (aiContent) {
       return { content: aiContent, isAIGenerated: true, confidence: 0.9 };
     }
-    return templateAutoReply(input);
+    // QC-F-519: no real inference → honest failure. A canned reply must
+    // never be delivered (or returned) as if the user/AI wrote it.
+    throw createAppError('AI is unavailable right now', 503, 'AI_UNAVAILABLE');
   }
 
   async summarize(input: SummarizeInput, userId: string): Promise<SummaryResult> {
-    const fallback = templateSummary(input);
-    if (input.messages.length === 0) return fallback;
+    // QC-F-519 honest-empty exception: with zero messages there is nothing
+    // to infer — return the factual empty result WITHOUT an AI claim.
+    if (input.messages.length === 0) {
+      return {
+        summary: 'No messages to summarize yet.',
+        keyTopics: [],
+        messageCount: 0,
+        isAIGenerated: false,
+      };
+    }
 
     const convoText = input.messages.map((m) => `${m.sender}: ${m.content}`).join('\n');
     const aiContent = await this.tryInfer(
@@ -646,12 +452,12 @@ export class QuantAIAgent {
     if (aiContent) {
       return {
         summary: aiContent,
-        keyTopics: fallback.keyTopics,
+        keyTopics: extractKeyTopics(input.messages),
         messageCount: input.messages.length,
         isAIGenerated: true,
       };
     }
-    return fallback;
+    throw createAppError('AI is unavailable right now', 503, 'AI_UNAVAILABLE');
   }
 
   async suggestions(input: SuggestionsInput, userId: string): Promise<SuggestionsResult> {
@@ -665,16 +471,18 @@ export class QuantAIAgent {
       0.7,
     );
 
-    let suggestions: string[];
-    if (aiContent) {
-      suggestions = aiContent
-        .split('\n')
-        .map((line) => line.replace(/^[\d]+[.)\s]+|^[-*\u2022]\s*/, '').trim())
-        .filter((line) => line.length > 0)
-        .slice(0, 3);
-      if (suggestions.length === 0) suggestions = templateSuggestions(input);
-    } else {
-      suggestions = templateSuggestions(input);
+    if (!aiContent) {
+      throw createAppError('AI is unavailable right now', 503, 'AI_UNAVAILABLE');
+    }
+    const suggestions = aiContent
+      .split('\n')
+      .map((line) => line.replace(/^[\d]+[.)\s]+|^[-*\u2022]\s*/, '').trim())
+      .filter((line) => line.length > 0)
+      .slice(0, 3);
+    // QC-F-519 (C2): a real reply that parses to nothing is still an
+    // inference failure — never backfill it with hand-written suggestions.
+    if (suggestions.length === 0) {
+      throw createAppError('AI is unavailable right now', 503, 'AI_UNAVAILABLE');
     }
 
     // Property 31 invariant: hard cap at 3.
@@ -702,7 +510,7 @@ export class QuantAIAgent {
         confidence: 0.9,
       };
     }
-    return templateTranslate(input);
+    throw createAppError('AI is unavailable right now', 503, 'AI_UNAVAILABLE');
   }
 
   async generateContent(
@@ -722,16 +530,17 @@ export class QuantAIAgent {
       0.9,
     );
 
-    let suggestions: string[];
-    if (aiContent) {
-      suggestions = aiContent
-        .split('\n')
-        .map((line) => line.replace(/^[\d]+[.)\s]+|^[-*\u2022]\s*/, '').trim())
-        .filter((line) => line.length > 0)
-        .slice(0, input.count);
-      if (suggestions.length === 0) suggestions = templateContent(input);
-    } else {
-      suggestions = templateContent(input);
+    if (!aiContent) {
+      throw createAppError('AI is unavailable right now', 503, 'AI_UNAVAILABLE');
+    }
+    const suggestions = aiContent
+      .split('\n')
+      .map((line) => line.replace(/^[\d]+[.)\s]+|^[-*\u2022]\s*/, '').trim())
+      .filter((line) => line.length > 0)
+      .slice(0, input.count);
+    // QC-F-519 (C2): empty parse = inference failure, never a canned bank.
+    if (suggestions.length === 0) {
+      throw createAppError('AI is unavailable right now', 503, 'AI_UNAVAILABLE');
     }
 
     return { type: input.type, suggestions, isAIGenerated: true };
