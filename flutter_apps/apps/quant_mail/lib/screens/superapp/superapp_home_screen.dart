@@ -9,19 +9,20 @@ import '../composer/email_composer_modal.dart';
 import '../composer/undo_send_bar.dart';
 import '../composer/undo_send_manager.dart';
 import '../account/account_profile_sheet.dart';
-import '../contacts/contacts_pillar_view.dart';
 import '../quantgit/quantgit_pillar_view.dart';
+import 'quant_workplace_splash_screen.dart';
 
-/// Sovereign QuantMail Super-App Home Screen
+/// Sovereign QuantMail Super-App Home Screen — 1:1 with Chrome Mobile (`quantmail.in`)
 ///
-/// Features the complete unified architecture:
-/// - Brand Identity: Canonical QuantMail logo & monogram.
-/// - Tier 1: Workspace selector pill ('Quant Trinity Lab [v]') + Global Voice & QR Search Bar.
-/// - Tier 2: 5-Pillar Horizontal Mini-App Rail (Mail, Calendar, Drive, Contacts, QuantGit).
-/// - Tier 3: Executive Quick-Glance Tiles (Priority Mail, Next Meeting, Drive Storage, Quick Actions).
-/// - Tier 4: Contextual 56dp Bottom Navigation Dock with dynamic pillar subviews.
-///
-/// Strictly ZERO raw Unicode emojis and ZERO Skia clipPath invocations.
+/// Key architectural laws:
+/// - Top 5-Pillar Connected Liquid Switcher with 3D mascot logos (`mail`, `calendar`,
+///   `drive`, `contacts`, `quantgit`) + circular `QM` AccountBadge.
+/// - Hide-on-scroll: scrolling down collapses the top 5-pillar switcher (`0dp`) so
+///   the Search Bar row (`Search + ⌘ + Ember`) moves to the very top of the screen;
+///   scrolling up or reaching top reveals it immediately.
+/// - ZERO redundant mobile overlay sidebars or hamburger (`☰`) buttons.
+/// - ZERO duplicate filter/tab rows.
+/// - Single Connected Liquid Bottom Bar (`QuantContextBottomBar`) per pillar + circular `+` FAB.
 class SuperAppHomeScreen extends StatefulWidget {
   final QuantPillar initialPillar;
   final int initialSubViewIndex;
@@ -36,22 +37,71 @@ class SuperAppHomeScreen extends StatefulWidget {
   State<SuperAppHomeScreen> createState() => _SuperAppHomeScreenState();
 }
 
-class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
-    with SingleTickerProviderStateMixin {
+class _SuperAppHomeScreenState extends State<SuperAppHomeScreen> {
   late QuantPillar _activePillar;
   late int _activeSubViewIndex;
-  String _activeWorkspace = 'Quant Trinity Lab';
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   bool _isListeningVoice = false;
 
+  // Hide-on-scroll state for the top 5-pillar switcher
+  bool _isHeaderHidden = false;
+  double _lastScrollPixels = 0.0;
+
+  // Mail view state:
+  // Top sliding toggle in Search bar row: 'inbox' | 'structured'
+  String _mailViewMode = 'inbox';
+  // Focus bar tabs in 'inbox' mode: 'All', 'Unread', 'Drafts', 'Contacts', 'Spam'
+  String _activeInboxFocusTab = 'All';
+  // Sub-tabs in 'structured' mode: 'All', 'Log', 'Groups', 'Updates'
+  String _activeStructuredSubTab = 'All';
+  // Toggle to preview populated threads vs empty inbox hero
+  bool _showSampleThreads = false;
+
+  // Unified Multi-Account Hub state (Primary QuantMail + Linked Gmail accounts)
+  String _activeAccountFilter = 'all';
+  bool _quantyUnifiedAccess = true;
+  final List<Map<String, dynamic>> _linkedAccounts = [
+    {
+      'id': 'sentinel@quantmail.in',
+      'email': 'sentinel@quantmail.in',
+      'name': 'Dev Sentinel',
+      'provider': 'QuantMail Primary',
+      'isPrimary': true,
+      'color': const Color(0xFFFF6B35),
+      'unread': 2,
+      'status': 'Sovereign E2EE · Synced',
+    },
+    {
+      'id': 'alex.quant@gmail.com',
+      'email': 'alex.quant@gmail.com',
+      'name': 'Alex (Personal Gmail)',
+      'provider': 'Gmail · OAuth 2.0',
+      'isPrimary': false,
+      'color': const Color(0xFFEA4335),
+      'unread': 5,
+      'status': 'Gmail Connected · Instant Sync',
+    },
+    {
+      'id': 'founder.ops@gmail.com',
+      'email': 'founder.ops@gmail.com',
+      'name': 'Founder Ops (Work Gmail)',
+      'provider': 'Gmail · Workspace',
+      'isPrimary': false,
+      'color': const Color(0xFF4285F4),
+      'unread': 3,
+      'status': 'Gmail Connected · Instant Sync',
+    },
+  ];
+
+  // Drive filter chip state
+  String _activeDriveFilter = 'All';
+
   // Domain state
   late List<MailThread> _allThreads;
-  MailCategoryLens _activeMailLens = MailCategoryLens.primary;
   final Set<String> _starredThreadIds = {};
 
-  // Pillar badge counters — honest: zero until backed by real data.
-  // Badges render only when count > 0, so the UI shows no invented numbers.
+  // Honest badge counters
   final Map<QuantPillar, int> _pillarBadges = {
     QuantPillar.mail: 0,
     QuantPillar.calendar: 0,
@@ -60,17 +110,15 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     QuantPillar.quantGit: 0,
   };
 
-  // Category unread counters — honest: zero until backed by real data.
-  final Map<MailCategoryLens, int> _categoryUnreadCounts = {
-    MailCategoryLens.primary: 0,
-    MailCategoryLens.updates: 0,
-    MailCategoryLens.promotions: 0,
-    MailCategoryLens.forums: 0,
-    MailCategoryLens.vips: 0,
-  };
-
-  // Undo Send Manager
   final UndoSendManager _undoSendManager = UndoSendManager.instance;
+
+  static const List<QuantPillar> _orderedPillars = [
+    QuantPillar.mail,
+    QuantPillar.calendar,
+    QuantPillar.drive,
+    QuantPillar.contacts,
+    QuantPillar.quantGit,
+  ];
 
   @override
   void initState() {
@@ -94,11 +142,10 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
   }
 
   void _onPillarChanged(QuantPillar pillar) {
-    // Active-tab retap = refresh: reset subview + filters, clear search.
     if (_activePillar == pillar) {
       setState(() {
         _activeSubViewIndex = 0;
-        _activeMailLens = MailCategoryLens.primary;
+        _isHeaderHidden = false;
         _searchController.clear();
       });
       return;
@@ -106,187 +153,493 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     setState(() {
       _activePillar = pillar;
       _activeSubViewIndex = 0;
+      _isHeaderHidden = false;
+      _lastScrollPixels = 0.0;
+      _searchController.clear();
     });
   }
 
-  void _onSubViewChanged(int index) {
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) return false;
+
+    if (notification is ScrollUpdateNotification) {
+      final delta = notification.scrollDelta ?? 0.0;
+      final isUserDrag = notification.dragDetails != null;
+
+      if (delta > 3.0 && isUserDrag && !_isHeaderHidden) {
+        setState(() => _isHeaderHidden = true);
+      } else if (delta < -4.0 && isUserDrag && _isHeaderHidden) {
+        setState(() => _isHeaderHidden = false);
+      }
+    } else if (notification is OverscrollNotification) {
+      if (notification.overscroll > 3.0 && !_isHeaderHidden) {
+        setState(() => _isHeaderHidden = true);
+      } else if (notification.overscroll < -4.0 && _isHeaderHidden) {
+        setState(() => _isHeaderHidden = false);
+      }
+    }
+    return false;
+  }
+
+  List<QuantContextNavItem> _bottomItemsForPillar(QuantPillar pillar) {
+    switch (pillar) {
+      case QuantPillar.mail:
+        return const [
+          QuantContextNavItem(
+            id: 'inbox',
+            label: 'Inbox',
+            icon: Icons.inbox_rounded,
+          ),
+          QuantContextNavItem(
+            id: 'quanty',
+            label: 'Quanty',
+            isQuantyLogoOnly: true,
+          ),
+          QuantContextNavItem(
+            id: 'sent',
+            label: 'Sent',
+            icon: Icons.send_outlined,
+          ),
+          QuantContextNavItem(
+            id: 'drafts',
+            label: 'Drafts',
+            icon: Icons.description_outlined,
+          ),
+          QuantContextNavItem(
+            id: 'profile',
+            label: 'Profile',
+            isProfileAvatar: true,
+            profileInitials: 'QM',
+          ),
+        ];
+      case QuantPillar.calendar:
+        return const [
+          QuantContextNavItem(
+            id: 'day',
+            label: 'Day',
+            icon: Icons.calendar_view_day_rounded,
+          ),
+          QuantContextNavItem(
+            id: 'week',
+            label: 'Week',
+            icon: Icons.view_week_outlined,
+          ),
+          QuantContextNavItem(
+            id: 'month',
+            label: 'Month',
+            icon: Icons.calendar_month_outlined,
+          ),
+          QuantContextNavItem(
+            id: 'profile',
+            label: 'Profile',
+            isProfileAvatar: true,
+            profileInitials: 'QM',
+          ),
+        ];
+      case QuantPillar.drive:
+        return const [
+          QuantContextNavItem(
+            id: 'my-drive',
+            label: 'My Drive',
+            icon: Icons.folder_outlined,
+          ),
+          QuantContextNavItem(
+            id: 'recent',
+            label: 'Recent',
+            icon: Icons.access_time_rounded,
+          ),
+          QuantContextNavItem(
+            id: 'starred',
+            label: 'Starred',
+            icon: Icons.star_border_rounded,
+          ),
+          QuantContextNavItem(
+            id: 'profile',
+            label: 'Profile',
+            isProfileAvatar: true,
+            profileInitials: 'QM',
+          ),
+        ];
+      case QuantPillar.contacts:
+        return const [
+          QuantContextNavItem(
+            id: 'all',
+            label: 'All',
+            icon: Icons.people_outline_rounded,
+          ),
+          QuantContextNavItem(
+            id: 'favorites',
+            label: 'Favorites',
+            icon: Icons.star_border_rounded,
+          ),
+          QuantContextNavItem(
+            id: 'profile',
+            label: 'Profile',
+            isProfileAvatar: true,
+            profileInitials: 'QM',
+          ),
+        ];
+      case QuantPillar.quantGit:
+        return const [
+          QuantContextNavItem(
+            id: 'repos',
+            label: 'Repositories',
+            icon: Icons.account_tree_outlined,
+          ),
+          QuantContextNavItem(
+            id: 'overview',
+            label: 'Overview',
+            icon: Icons.grid_view_rounded,
+          ),
+          QuantContextNavItem(
+            id: 'profile',
+            label: 'Profile',
+            isProfileAvatar: true,
+            profileInitials: 'QM',
+          ),
+        ];
+    }
+  }
+
+  void _onBottomNavTap(int index) {
+    final items = _bottomItemsForPillar(_activePillar);
+    if (index < 0 || index >= items.length) return;
+    final tapped = items[index];
+    if (tapped.isQuantyLogoOnly) {
+      _showQuantyAgentSheet();
+      return;
+    }
     setState(() {
       _activeSubViewIndex = index;
     });
   }
 
-  List<MailThread> get _filteredThreads {
-    return _allThreads.where((thread) {
-      if (thread.isArchived) return false;
-      if (thread.category != _activeMailLens) return false;
-      if (_searchQuery.isEmpty) return true;
+  void _showLinkGmailModal() {
+    final emailCtrl = TextEditingController();
+    final nameCtrl = TextEditingController();
 
-      final q = _searchQuery.toLowerCase();
-      final senderMatch = thread.sender.toLowerCase().contains(q);
-      final emailMatch = thread.senderEmail.toLowerCase().contains(q);
-      final subjectMatch = thread.subject.toLowerCase().contains(q);
-      final snippetMatch = thread.snippet.toLowerCase().contains(q);
-
-      return senderMatch || emailMatch || subjectMatch || snippetMatch;
-    }).toList();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF14161D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.0)),
+        side: BorderSide(color: Color(0xFF232938), width: 1.0),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20.0,
+            right: 20.0,
+            top: 16.0,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24.0,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38.0,
+                  height: 4.0,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2.0),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16.0),
+              Row(
+                children: [
+                  Container(
+                    width: 38.0,
+                    height: 38.0,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEA4335).withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(10.0),
+                      border: Border.all(
+                        color: const Color(0xFFEA4335).withOpacity(0.45),
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'G',
+                      style: TextStyle(
+                        color: Color(0xFFEA4335),
+                        fontSize: 18.0,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12.0),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Link External Gmail Account',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16.0,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        SizedBox(height: 2.0),
+                        Text(
+                          'Connect inside your primary QuantMail account with Quanty AI unified access',
+                          style: TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16.0),
+              TextField(
+                controller: emailCtrl,
+                style: const TextStyle(color: Colors.white, fontSize: 13.5),
+                decoration: InputDecoration(
+                  labelText: 'Gmail Address (e.g. team@gmail.com)',
+                  labelStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12.5),
+                  filled: true,
+                  fillColor: const Color(0xFF0E1017),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                    borderSide: const BorderSide(color: Color(0xFF232938)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10.0),
+              TextField(
+                controller: nameCtrl,
+                style: const TextStyle(color: Colors.white, fontSize: 13.5),
+                decoration: InputDecoration(
+                  labelText: 'Account Label (e.g. Personal / Startup Gmail)',
+                  labelStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12.5),
+                  filled: true,
+                  fillColor: const Color(0xFF0E1017),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                    borderSide: const BorderSide(color: Color(0xFF232938)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16.0),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final email = emailCtrl.text.trim().isEmpty
+                        ? 'quant.team@gmail.com'
+                        : emailCtrl.text.trim();
+                    final label = nameCtrl.text.trim().isEmpty
+                        ? 'Linked Gmail ($email)'
+                        : nameCtrl.text.trim();
+                    setState(() {
+                      _linkedAccounts.add({
+                        'id': email,
+                        'email': email,
+                        'name': label,
+                        'provider': 'Gmail · OAuth 2.0',
+                        'isPrimary': false,
+                        'color': const Color(0xFFEA4335),
+                        'unread': 1,
+                        'status': 'Gmail Connected · Instant Sync',
+                      });
+                    });
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: const Color(0xFF16181F),
+                        content: Text(
+                          'Linked $email to your QuantMail Hub (Quanty AI synced)',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add_link_rounded, size: 18.0),
+                  label: const Text('Connect Gmail via OAuth 2.0'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF6B35),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13.0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   // ===========================================================================
-  // MODALS & DIALOGS
+  // SHEETS & DIALOGS (Command Palette, Quanty Ember Agent, Voice Search, Profile)
   // ===========================================================================
 
-  void _showWorkspaceModal() {
-    final workspaces = [
+  void _showCommandPaletteSheet() {
+    final accent = PillarVisuals.accentFor(_activePillar);
+    final commands = [
       {
-        'id': 'ws-01',
-        'name': 'Quant Trinity Lab',
-        'desc': 'Primary Enterprise Organization',
-        'role': 'Owner',
-        'members': 24,
-        'accent': QuantColors.moltenAmber,
+        'icon': Icons.all_inclusive_rounded,
+        'label': 'QuantWorkplace Revolving Splash',
+        'shortcut': '⌘W',
+        'onTap': () {
+          Navigator.pop(context);
+          QuantWorkplaceSplashScreen.showPreview(context);
+        },
       },
       {
-        'id': 'ws-02',
-        'name': 'Sovereign Foundation',
-        'desc': 'Ecosystem Governance & Research',
-        'role': 'Admin',
-        'members': 8,
-        'accent': QuantColors.sovereignCyan,
+        'icon': Icons.edit_outlined,
+        'label': 'Compose new email',
+        'shortcut': 'C',
+        'onTap': () {
+          Navigator.pop(context);
+          _openEmailComposer();
+        },
       },
       {
-        'id': 'ws-03',
-        'name': 'Personal Workspace',
-        'desc': 'Alex Mercer Private Keyring',
-        'role': 'Member',
-        'members': 1,
-        'accent': QuantColors.obsidianPurple,
+        'icon': Icons.auto_awesome_rounded,
+        'label': 'Ask Ember (Quanty AI)',
+        'shortcut': '⌘J',
+        'onTap': () {
+          Navigator.pop(context);
+          _showQuantyAgentSheet();
+        },
+      },
+      {
+        'icon': Icons.mail_outline_rounded,
+        'label': 'Switch to QuantMail Inbox',
+        'shortcut': 'G I',
+        'onTap': () {
+          Navigator.pop(context);
+          _onPillarChanged(QuantPillar.mail);
+        },
+      },
+      {
+        'icon': Icons.calendar_today_rounded,
+        'label': 'Switch to QuantCalendar',
+        'shortcut': 'G C',
+        'onTap': () {
+          Navigator.pop(context);
+          _onPillarChanged(QuantPillar.calendar);
+        },
+      },
+      {
+        'icon': Icons.folder_open_rounded,
+        'label': 'Switch to QuantDrive',
+        'shortcut': 'G D',
+        'onTap': () {
+          Navigator.pop(context);
+          _onPillarChanged(QuantPillar.drive);
+        },
+      },
+      {
+        'icon': Icons.people_outline_rounded,
+        'label': 'Switch to Contacts',
+        'shortcut': 'G P',
+        'onTap': () {
+          Navigator.pop(context);
+          _onPillarChanged(QuantPillar.contacts);
+        },
+      },
+      {
+        'icon': Icons.code_rounded,
+        'label': 'Switch to QuantGit',
+        'shortcut': 'G G',
+        'onTap': () {
+          Navigator.pop(context);
+          _onPillarChanged(QuantPillar.quantGit);
+        },
       },
     ];
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: QuantColors.darkSlateCard,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF14161D),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
-        side: BorderSide(color: QuantColors.hairlineBorder, width: 1.0),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22.0)),
+        side: BorderSide(color: Color(0xFF232938), width: 1.0),
       ),
       builder: (ctx) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 20.0),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 24.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 36.0,
-                    height: 4.0,
-                    decoration: BoxDecoration(
-                      color: QuantColors.hairlineBorder,
-                      borderRadius: BorderRadius.circular(2.0),
-                    ),
+                Container(
+                  width: 36.0,
+                  height: 4.0,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2.0),
                   ),
                 ),
-                const SizedBox(height: 16.0),
+                const SizedBox(height: 14.0),
                 Row(
                   children: [
-                    const Icon(
-                      Icons.business_center_rounded,
+                    Icon(
+                      Icons.keyboard_command_key_rounded,
                       size: 18.0,
-                      color: QuantColors.moltenAmber,
+                      color: accent,
                     ),
                     const SizedBox(width: 8.0),
-                    Text(
-                      'Switch Workspace',
-                      style: QuantTypography.titleMedium.copyWith(
+                    const Text(
+                      'Command Palette',
+                      style: TextStyle(
                         color: Colors.white,
+                        fontSize: 15.0,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 14.0),
-                ...workspaces.map((ws) {
-                  final isSelected = ws['name'] == _activeWorkspace;
-                  final accent = ws['accent'] as Color;
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
-                    child: InkWell(
-                      onTap: () {
-                        setState(() {
-                          _activeWorkspace = ws['name'] as String;
-                        });
-                        Navigator.pop(ctx);
-                      },
-                      borderRadius: BorderRadius.circular(12.0),
-                      child: Container(
-                        padding: const EdgeInsets.all(12.0),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? QuantColors.elevatedCard
-                              : QuantColors.voidObsidian,
-                          borderRadius: BorderRadius.circular(12.0),
-                          border: Border.all(
-                            color: isSelected
-                                ? accent.withOpacity(0.8)
-                                : QuantColors.hairlineBorder,
-                            width: isSelected ? 1.2 : 0.8,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 36.0,
-                              height: 36.0,
-                              decoration: BoxDecoration(
-                                color: accent.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(8.0),
-                                border: Border.all(
-                                  color: accent.withOpacity(0.3),
-                                  width: 1.0,
-                                ),
-                              ),
-                              child: Icon(
-                                Icons.domain_rounded,
-                                size: 18.0,
-                                color: accent,
-                              ),
-                            ),
-                            const SizedBox(width: 12.0),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    ws['name'] as String,
-                                    style: QuantTypography.bodyMedium.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2.0),
-                                  Text(
-                                    '${ws['desc']} · ${ws['members']} members',
-                                    style: QuantTypography.pillarLabel.copyWith(
-                                      color: Colors.white54,
-                                      fontSize: 11.0,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (isSelected)
-                              Icon(
-                                Icons.check_circle_rounded,
-                                size: 18.0,
-                                color: accent,
-                              ),
-                          ],
+                const SizedBox(height: 12.0),
+                ...commands.map((cmd) {
+                  return ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    leading: Icon(
+                      cmd['icon'] as IconData,
+                      color: Colors.white70,
+                      size: 20.0,
+                    ),
+                    title: Text(
+                      cmd['label'] as String,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8.0,
+                        vertical: 3.0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E2230),
+                        borderRadius: BorderRadius.circular(6.0),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Text(
+                        cmd['shortcut'] as String,
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 11.0,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
+                    onTap: cmd['onTap'] as VoidCallback,
                   );
                 }),
               ],
@@ -297,15 +650,126 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     );
   }
 
+  void _showQuantyAgentSheet() {
+    final accent = PillarVisuals.accentFor(_activePillar);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF14161D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.0)),
+        side: BorderSide(color: Color(0xFF232938), width: 1.0),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20.0, 14.0, 20.0, 24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36.0,
+                  height: 4.0,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2.0),
+                  ),
+                ),
+                const SizedBox(height: 18.0),
+                Container(
+                  width: 68.0,
+                  height: 68.0,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: accent, width: 2.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withOpacity(0.35),
+                        blurRadius: 16.0,
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(3.0),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/mascots/ember.webp',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12.0),
+                const Text(
+                  'Ember · Quanty Live Agent',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 17.0,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4.0),
+                Text(
+                  _quantyUnifiedAccess
+                      ? 'Unified AI access active across sentinel@quantmail.in + ${_linkedAccounts.length - 1} linked Gmail accounts.'
+                      : 'Triage inbox, draft replies, schedule meetings, or search across Mail, Drive & QuantGit.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 12.5,
+                  ),
+                ),
+                const SizedBox(height: 18.0),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18.0),
+                        label: const Text('Chat Copilot'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 13.0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.0),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10.0),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.graphic_eq_rounded, size: 18.0),
+                        label: const Text('Voice Live'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0xFF2D3548)),
+                          padding: const EdgeInsets.symmetric(vertical: 13.0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.0),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showVoiceSearchModal() {
     setState(() => _isListeningVoice = true);
+    final accent = PillarVisuals.accentFor(_activePillar);
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: QuantColors.darkSlateCard,
+      backgroundColor: const Color(0xFF14161D),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24.0)),
-        side: BorderSide(color: QuantColors.hairlineBorder, width: 1.0),
+        side: BorderSide(color: Color(0xFF232938), width: 1.0),
       ),
       builder: (ctx) {
         return SafeArea(
@@ -315,65 +779,30 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 36.0,
-                  height: 4.0,
+                  width: 60.0,
+                  height: 60.0,
                   decoration: BoxDecoration(
-                    color: QuantColors.hairlineBorder,
-                    borderRadius: BorderRadius.circular(2.0),
-                  ),
-                ),
-                const SizedBox(height: 20.0),
-                Container(
-                  width: 64.0,
-                  height: 64.0,
-                  decoration: BoxDecoration(
-                    color: QuantColors.moltenAmber.withOpacity(0.15),
+                    color: accent.withOpacity(0.15),
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: QuantColors.moltenAmber.withOpacity(0.5),
-                      width: 1.5,
-                    ),
+                    border: Border.all(color: accent, width: 1.5),
                   ),
-                  child: const Icon(
-                    Icons.mic_rounded,
-                    size: 32.0,
-                    color: QuantColors.moltenAmber,
-                  ),
+                  child: Icon(Icons.mic_rounded, size: 30.0, color: accent),
                 ),
-                const SizedBox(height: 16.0),
-                Text(
-                  'Listening for Voice Query...',
-                  style: QuantTypography.titleMedium.copyWith(
+                const SizedBox(height: 14.0),
+                const Text(
+                  'Listening for Voice Search...',
+                  style: TextStyle(
                     color: Colors.white,
+                    fontSize: 16.0,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 6.0),
-                Text(
-                  'Speak to search your mail',
-                  style: QuantTypography.bodySmall.copyWith(
-                    color: Colors.white54,
-                  ),
-                ),
-                const SizedBox(height: 20.0),
-                Wrap(
-                  spacing: 8.0,
-                  runSpacing: 8.0,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    _buildVoiceChip(ctx, 'Unread mail'),
-                    _buildVoiceChip(ctx, 'Meetings today'),
-                    _buildVoiceChip(ctx, 'Starred threads'),
-                  ],
-                ),
                 const SizedBox(height: 16.0),
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                  },
-                  child: Text(
-                    'Cancel Voice Search',
-                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Color(0xFF94A3B8)),
                   ),
                 ),
               ],
@@ -382,134 +811,8 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
         );
       },
     ).whenComplete(() {
-      if (mounted) {
-        setState(() => _isListeningVoice = false);
-      }
+      if (mounted) setState(() => _isListeningVoice = false);
     });
-  }
-
-  Widget _buildVoiceChip(BuildContext ctx, String query) {
-    return ActionChip(
-      label: Text(
-        query,
-        style: const TextStyle(color: Colors.white70, fontSize: 11.5),
-      ),
-      backgroundColor: QuantColors.voidObsidian,
-      side: const BorderSide(color: QuantColors.hairlineBorder, width: 0.8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-      onPressed: () {
-        _searchController.text = query;
-        Navigator.pop(ctx);
-      },
-    );
-  }
-
-  void _showQrScanModal() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: QuantColors.darkSlateCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24.0)),
-        side: BorderSide(color: QuantColors.hairlineBorder, width: 1.0),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 36.0,
-                  height: 4.0,
-                  decoration: BoxDecoration(
-                    color: QuantColors.hairlineBorder,
-                    borderRadius: BorderRadius.circular(2.0),
-                  ),
-                ),
-                const SizedBox(height: 16.0),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.qr_code_scanner_rounded,
-                      size: 20.0,
-                      color: QuantColors.sovereignCyan,
-                    ),
-                    const SizedBox(width: 8.0),
-                    Text(
-                      'Sovereign QR Authenticator',
-                      style: QuantTypography.titleMedium.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20.0),
-                Container(
-                  width: 180.0,
-                  height: 180.0,
-                  decoration: BoxDecoration(
-                    color: QuantColors.voidObsidian,
-                    borderRadius: BorderRadius.circular(16.0),
-                    border: Border.all(
-                      color: QuantColors.sovereignCyan.withOpacity(0.6),
-                      width: 1.5,
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.qr_code_2_rounded,
-                        size: 96.0,
-                        color: QuantColors.sovereignCyan.withOpacity(0.8),
-                      ),
-                      const SizedBox(height: 8.0),
-                      Text(
-                        'Align QR Code in frame',
-                        style: QuantTypography.pillarLabel.copyWith(
-                          color: Colors.white54,
-                          fontSize: 10.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16.0),
-                Text(
-                  'Scan to pair desktop workstation, verify hardware key, or import contact credentials.',
-                  textAlign: TextAlign.center,
-                  style: QuantTypography.bodySmall.copyWith(
-                    color: Colors.white54,
-                    fontSize: 12.0,
-                  ),
-                ),
-                const SizedBox(height: 16.0),
-                ElevatedButton.icon(
-                  onPressed: () => Navigator.pop(ctx),
-                  icon: const Icon(Icons.close_rounded, size: 16.0),
-                  label: const Text('Close Scanner'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: QuantColors.elevatedCard,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10.0),
-                      side: const BorderSide(
-                        color: QuantColors.hairlineBorder,
-                        width: 1.0,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
   }
 
   void _showAccountProfileSheet() {
@@ -528,6 +831,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
         _undoSendManager.enqueueDraft(
           draft: draft,
           onFinalSend: (d) async {
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 backgroundColor: QuantColors.darkSlateSurface,
@@ -544,81 +848,407 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
   }
 
   // ===========================================================================
-  // BUILD METHOD — responsive: mobile gets the single bottom 5-pillar dock,
-  // desktop (>=900px) gets a real desktop layout: left sidebar + content.
+  // MAIN SCAFFOLD
   // ===========================================================================
-
-  static const List<QuantPillar> _orderedPillars = [
-    QuantPillar.mail,
-    QuantPillar.calendar,
-    QuantPillar.drive,
-    QuantPillar.contacts,
-    QuantPillar.quantGit,
-  ];
-
-  bool _isDesktop(BuildContext context) =>
-      MediaQuery.sizeOf(context).width >= 900;
 
   @override
   Widget build(BuildContext context) {
-    if (_isDesktop(context)) return _buildDesktopScaffold();
-    return _buildMobileScaffold();
-  }
+    final accent = PillarVisuals.accentFor(_activePillar);
+    final bottomItems = _bottomItemsForPillar(_activePillar);
+    final isProfileSubView =
+        _activeSubViewIndex == bottomItems.length - 1 &&
+        bottomItems.isNotEmpty &&
+        bottomItems.last.isProfileAvatar;
 
-  Widget _buildMobileScaffold() {
     return Scaffold(
-      backgroundColor: QuantColors.voidObsidian,
-      appBar: QuantMailSuperAppBar(
-        activePillar: _activePillar,
-        activeWorkspace: _activeWorkspace,
-        onWorkspaceTap: _showWorkspaceModal,
-        searchController: _searchController,
-        onSearchChanged: (_) => _onSearchChanged(),
-        onVoiceSearchTap: _showVoiceSearchModal,
-        onQrScanTap: _showQrScanModal,
-        onProfileTap: _showAccountProfileSheet,
-        isListeningVoice: _isListeningVoice,
-      ),
-      body: Stack(
+      backgroundColor: const Color(0xFF090A0E),
+      body: Column(
         children: [
-          // Active Pillar Dynamic Body
-          _buildPillarBody(),
-
-          // 10-Second Undo Send Notification Bar
-          Positioned(
-            left: 16.0,
-            right: 16.0,
-            bottom: 68.0,
-            child: UndoSendBar(manager: _undoSendManager),
+          // Sticky Top Bar: Full-width 5-Pillar 3D Mascot Liquid Glass Switcher
+          // + Pinned Search Row (Search + Sliding Inbox/Structured Pill + Ember)
+          QuantMailSuperAppBar(
+            activePillar: _activePillar,
+            onPillarSelected: _onPillarChanged,
+            isHeaderHidden: _isHeaderHidden,
+            searchController: _searchController,
+            onSearchChanged: (_) => _onSearchChanged(),
+            onVoiceSearchTap: _showVoiceSearchModal,
+            onCommandPaletteTap: _showCommandPaletteSheet,
+            onQuantyTap: _showQuantyAgentSheet,
+            onProfileTap: _showAccountProfileSheet,
+            isListeningVoice: _isListeningVoice,
+            unreadCounts: _pillarBadges,
+            accountInitials: 'QM',
+            mailViewMode: _mailViewMode,
+            onMailViewModeChanged: (mode) {
+              setState(() {
+                _mailViewMode = mode;
+                // If user was on Profile tab in bottom bar, bring them back to Mail view
+                if (isProfileSubView) {
+                  _activeSubViewIndex = 0;
+                }
+              });
+            },
           ),
-        ],
-      ),
-      bottomNavigationBar: _buildPillarBottomNav(),
-      floatingActionButton: _buildFloatingActionButton(),
-    );
-  }
 
-  Widget _buildDesktopScaffold() {
-    return Scaffold(
-      backgroundColor: QuantColors.voidObsidian,
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildDesktopSidebar(),
+          // Main Content Area with Connected Top Ambient Glow + Instant IndexedStack
           Expanded(
-            child: Column(
+            child: Stack(
               children: [
-                _buildDesktopTopBar(),
-                _buildSubviewChips(),
-                Expanded(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 960.0),
-                      child: _buildPillarBody(),
+                // Connected Top Ambient Glow flowing from the active pillar switcher into the screen
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 76.0,
+                  child: IgnorePointer(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 240),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            accent.withOpacity(0.14),
+                            accent.withOpacity(0.04),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
+
+                // Top 1px glowing connector meniscus line
+                Positioned(
+                  top: 0,
+                  left: 24.0,
+                  right: 24.0,
+                  height: 1.0,
+                  child: IgnorePointer(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 240),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            accent.withOpacity(0.45),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                NotificationListener<ScrollNotification>(
+                  onNotification: _handleScrollNotification,
+                  child: isProfileSubView
+                      ? _buildUnifiedProfileHubView()
+                      : _buildPillarBody(),
+                ),
+
+                // 10-Second Undo Send Bar
+                Positioned(
+                  left: 16.0,
+                  right: 16.0,
+                  bottom: 16.0,
+                  child: UndoSendBar(manager: _undoSendManager),
+                ),
+
+                // Circular Per-Pillar `+` FAB (matches Chrome Mobile QuantFab)
+                if (_activePillar != QuantPillar.quantGit && !isProfileSubView)
+                  Positioned(
+                    right: 16.0,
+                    bottom: 14.0,
+                    child: GestureDetector(
+                      onTap: _onFabTap,
+                      child: Container(
+                        width: 54.0,
+                        height: 54.0,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: accent,
+                          boxShadow: [
+                            BoxShadow(
+                              color: accent.withOpacity(0.42),
+                              blurRadius: 16.0,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.add_rounded,
+                          size: 28.0,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
+            ),
+          ),
+
+          // Single Connected Liquid Contextual Bottom Bar (with Profile at rightmost slot)
+          QuantContextBottomBar(
+            items: bottomItems,
+            activeIndex: _activeSubViewIndex,
+            accentColor: accent,
+            onTap: _onBottomNavTap,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _onFabTap() {
+    switch (_activePillar) {
+      case QuantPillar.mail:
+        _openEmailComposer();
+        break;
+      case QuantPillar.calendar:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Color(0xFF16181F),
+            content: Text('New calendar event'),
+          ),
+        );
+        break;
+      case QuantPillar.drive:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Color(0xFF16181F),
+            content: Text('Upload files to QuantDrive'),
+          ),
+        );
+        break;
+      case QuantPillar.contacts:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Color(0xFF16181F),
+            content: Text('Create new contact'),
+          ),
+        );
+        break;
+      case QuantPillar.quantGit:
+        break;
+    }
+  }
+
+  // ===========================================================================
+  // PILLAR BODY DISPATCHER (Instant 0ms IndexedStack Switching)
+  // ===========================================================================
+
+  Widget _buildPillarBody() {
+    final pillarIndex = _orderedPillars.indexOf(_activePillar);
+    return IndexedStack(
+      index: pillarIndex < 0 ? 0 : pillarIndex,
+      children: [
+        _buildMailPillarView(),
+        _buildCalendarPillarView(),
+        _buildDrivePillarView(),
+        _buildContactsPillarView(),
+        QuantGitPillarView(
+          activeSubViewIndex: _activeSubViewIndex.clamp(0, 1),
+          onSubViewChanged: (idx) => setState(() => _activeSubViewIndex = idx),
+        ),
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // 1. MAIL PILLAR VIEW — Clean Layout (NO Extra Row Below Search Bar!)
+  // ===========================================================================
+
+  Widget _buildMailPillarView() {
+    return Column(
+      children: [
+        if (_mailViewMode == 'inbox')
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12.0, 4.0, 12.0, 6.0),
+            child: _buildInboxFocusBar(),
+          ),
+        Expanded(
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            padding: const EdgeInsets.fromLTRB(12.0, 6.0, 12.0, 96.0),
+            children: [
+              if (_mailViewMode == 'inbox') ...[
+                if (!_showSampleThreads && _searchQuery.isEmpty)
+                  _buildChromeMobileEmptyInboxHero()
+                else
+                  ..._buildFilteredThreadCards(),
+              ] else ...[
+                // `Structured` View Mode (`All | Log | Groups | Updates` + Linked Accounts)
+                _buildStructuredViewBody(),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInboxFocusBar() {
+    const tabs = ['All', 'Unread', 'Drafts', 'Contacts', 'Spam'];
+    const accent = Color(0xFFFF6B35);
+
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 40.0,
+            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+            decoration: BoxDecoration(
+              color: const Color(0xFF14161D),
+              borderRadius: BorderRadius.circular(14.0),
+              border: Border.all(color: const Color(0xFF232938), width: 1.0),
+            ),
+            child: Row(
+              children: tabs.map((tab) {
+                final isSelected = _activeInboxFocusTab == tab;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _activeInboxFocusTab = tab),
+                    behavior: HitTestBehavior.opaque,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF1E2230)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10.0),
+                        border: isSelected
+                            ? Border.all(
+                                color: accent.withOpacity(0.65),
+                                width: 1.0,
+                              )
+                            : null,
+                      ),
+                      child: Text(
+                        tab,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: isSelected
+                              ? Colors.white
+                              : const Color(0xFF94A3B8),
+                          fontSize: 11.5,
+                          fontWeight:
+                              isSelected ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8.0),
+        // Right Circular Filter Icon Button
+        GestureDetector(
+          onTap: () {
+            setState(() => _showSampleThreads = !_showSampleThreads);
+          },
+          behavior: HitTestBehavior.opaque,
+          child: Tooltip(
+            message: _showSampleThreads
+                ? 'Show empty inbox state'
+                : 'Preview sample threads',
+            child: Container(
+              width: 40.0,
+              height: 40.0,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF14161D),
+                border: Border.all(
+                  color: _showSampleThreads
+                      ? accent.withOpacity(0.75)
+                      : const Color(0xFF232938),
+                  width: 1.0,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.tune_rounded,
+                size: 18.0,
+                color: _showSampleThreads ? accent : const Color(0xFF94A3B8),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Exact 1:1 Chrome Mobile Empty Inbox State:
+  /// 3D Mail Envelope Mascot (`mail-lg.png`) + "All done for the day" +
+  /// "Enjoy your empty inbox." + "Compose new email" pill button.
+  Widget _buildChromeMobileEmptyInboxHero() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 56.0, bottom: 240.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          GestureDetector(
+            onTap: () => QuantWorkplaceSplashScreen.showPreview(context),
+            behavior: HitTestBehavior.opaque,
+            child: Image.asset(
+              'assets/mascots/mail-lg.png',
+              width: 108.0,
+              height: 108.0,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
+          const SizedBox(height: 18.0),
+          const Text(
+            'All done for the day',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 17.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 6.0),
+          const Text(
+            'Enjoy your empty inbox.',
+            style: TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 13.0,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          const SizedBox(height: 20.0),
+          GestureDetector(
+            onTap: _openEmailComposer,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20.0,
+                vertical: 11.0,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFF16181F),
+                borderRadius: BorderRadius.circular(12.0),
+                border: Border.all(
+                  color: const Color(0xFF262C3D),
+                  width: 1.0,
+                ),
+              ),
+              child: const Text(
+                'Compose new email',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13.0,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ],
@@ -626,160 +1256,447 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     );
   }
 
-  /// Desktop left sidebar — Gmail-style: brand, compose, 5 pillars, profile.
-  Widget _buildDesktopSidebar() {
-    return Container(
-      width: 232.0,
-      decoration: const BoxDecoration(
-        color: QuantColors.darkSlateCard,
-        border: Border(
-          right: BorderSide(color: QuantColors.hairlineBorder, width: 1.0),
-        ),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
+  /// Upgraded `Structured` View (formerly `People`):
+  /// - Unified Linked Accounts Filter Bar (`All Accounts`, `@quantmail.in`, linked `@gmail.com`, `+ Add Gmail`)
+  /// - `All | Log | Groups | Updates` segmented bar
+  /// - Structured multi-account conversation cards + Quanty AI unified access badge
+  Widget _buildStructuredViewBody() {
+    const subTabs = [
+      {'id': 'All', 'icon': Icons.grid_view_rounded},
+      {'id': 'Log', 'icon': Icons.people_outline_rounded},
+      {'id': 'Groups', 'icon': Icons.groups_outlined},
+      {'id': 'Updates', 'icon': Icons.notifications_none_rounded},
+    ];
+    const accent = Color(0xFFFF6B35);
+
+    final structuredStreams = [
+      {
+        'sender': 'Google Cloud Billing',
+        'email': 'billing-noreply@google.com',
+        'account': 'founder.ops@gmail.com',
+        'accountTag': 'Gmail · Work',
+        'tagColor': const Color(0xFF4285F4),
+        'category': 'Updates',
+        'count': 4,
+        'snippet': 'Invoice & Oracle Cloud migration settlement summary ready for review.',
+        'time': '11:20 AM',
+      },
+      {
+        'sender': 'Quant Core Engineering',
+        'email': 'core-team@quantmail.in',
+        'account': 'sentinel@quantmail.in',
+        'accountTag': 'QuantMail Primary',
+        'tagColor': const Color(0xFFFF6B35),
+        'category': 'Groups',
+        'count': 9,
+        'snippet': 'Liquid glass morphism + 5-pillar instant switcher deployed to production.',
+        'time': '10:45 AM',
+      },
+      {
+        'sender': 'Rohan Verma',
+        'email': 'rohan.v@gmail.com',
+        'account': 'alex.quant@gmail.com',
+        'accountTag': 'Gmail · Personal',
+        'tagColor': const Color(0xFFEA4335),
+        'category': 'Log',
+        'count': 3,
+        'snippet': 'Sent the updated APK test build notes and API keys.',
+        'time': 'Yesterday',
+      },
+    ].where((item) {
+      if (_activeAccountFilter != 'all' &&
+          item['account'] != _activeAccountFilter) {
+        return false;
+      }
+      if (_activeStructuredSubTab != 'All' &&
+          item['category'] != _activeStructuredSubTab) {
+        return false;
+      }
+      return true;
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 2.0),
+        // Header row with title + Quanty AI Unified Access pill
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const QuantMonogramLogo(size: 28.0),
-                  const SizedBox(width: 8.0),
-                  RichText(
-                    text: TextSpan(
+                  Text(
+                    'Structured Streams',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: 2.0),
+                  Text(
+                    'Unified across QuantMail & linked Gmail accounts',
+                    style: TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 11.8,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: _showLinkGmailModal,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10.0,
+                  vertical: 6.0,
+                ),
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(10.0),
+                  border: Border.all(color: accent.withOpacity(0.45)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_link_rounded, size: 15.0, color: accent),
+                    SizedBox(width: 4.0),
+                    Text(
+                      '+ Gmail',
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 10.0),
+
+        // Horizontal Unified Account Filter Chips (`All Accounts` | `sentinel@quantmail.in` | `alex.quant@gmail.com` ...)
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildAccountFilterChip(
+                id: 'all',
+                label: 'All Accounts (${_linkedAccounts.length})',
+                dotColor: accent,
+              ),
+              ..._linkedAccounts.map((acc) {
+                return _buildAccountFilterChip(
+                  id: acc['id'] as String,
+                  label: acc['email'] as String,
+                  dotColor: acc['color'] as Color,
+                );
+              }),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 10.0),
+
+        // `All | Log | Groups | Updates` segmented bar
+        Container(
+          height: 40.0,
+          padding: const EdgeInsets.all(4.0),
+          decoration: BoxDecoration(
+            color: const Color(0xFF14161D),
+            borderRadius: BorderRadius.circular(12.0),
+            border: Border.all(color: const Color(0xFF232938)),
+          ),
+          child: Row(
+            children: subTabs.map((t) {
+              final id = t['id'] as String;
+              final isSelected = _activeStructuredSubTab == id;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _activeStructuredSubTab = id),
+                  behavior: HitTestBehavior.opaque,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? accent.withOpacity(0.18)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: isSelected
+                          ? Border.all(color: accent.withOpacity(0.55), width: 1.0)
+                          : null,
+                    ),
+                    alignment: Alignment.center,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        TextSpan(
-                          text: 'Quant',
-                          style: QuantTypography.titleMedium.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: -0.5,
+                        Icon(
+                          t['icon'] as IconData,
+                          size: 14.0,
+                          color: isSelected ? accent : const Color(0xFF94A3B8),
+                        ),
+                        const SizedBox(width: 4.5),
+                        Flexible(
+                          child: Text(
+                            id,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? Colors.white
+                                  : const Color(0xFF94A3B8),
+                              fontSize: 11.5,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
                           ),
                         ),
-                        TextSpan(
-                          text: 'Mail',
-                          style: QuantTypography.titleMedium.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: QuantColors.moltenAmber,
-                            letterSpacing: -0.5,
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+
+        const SizedBox(height: 12.0),
+
+        // Quanty AI Cross-Account Intelligence Banner
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                accent.withOpacity(0.14),
+                const Color(0xFF141722),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(13.0),
+            border: Border.all(color: accent.withOpacity(0.35)),
+          ),
+          child: Row(
+            children: [
+              ClipOval(
+                child: Image.asset(
+                  'assets/mascots/ember.webp',
+                  width: 28.0,
+                  height: 28.0,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(width: 10.0),
+              Expanded(
+                child: Text(
+                  'Quanty AI has unified access across primary QuantMail + ${_linkedAccounts.length - 1} linked Gmail accounts',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6.0),
+              GestureDetector(
+                onTap: _showQuantyAgentSheet,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8.0,
+                    vertical: 4.0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                  child: const Text(
+                    'Ask AI',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 12.0),
+
+        // Structured Stream Cards
+        ...structuredStreams.map((stream) {
+          final tagColor = stream['tagColor'] as Color;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 9.0),
+            child: Container(
+              padding: const EdgeInsets.all(13.0),
+              decoration: BoxDecoration(
+                color: const Color(0xFF14161D),
+                borderRadius: BorderRadius.circular(14.0),
+                border: Border.all(color: const Color(0xFF232938)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 40.0,
+                    height: 40.0,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: tagColor.withOpacity(0.16),
+                      border: Border.all(color: tagColor.withOpacity(0.45)),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      (stream['sender'] as String)[0],
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15.0,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 11.0),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                stream['sender'] as String,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6.5,
+                                vertical: 2.0,
+                              ),
+                              decoration: BoxDecoration(
+                                color: tagColor.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(6.0),
+                                border: Border.all(
+                                  color: tagColor.withOpacity(0.4),
+                                ),
+                              ),
+                              child: Text(
+                                stream['accountTag'] as String,
+                                style: TextStyle(
+                                  color: Color.lerp(tagColor, Colors.white, 0.3),
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 3.0),
+                        Text(
+                          stream['snippet'] as String,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 12.0,
+                            height: 1.35,
                           ),
+                        ),
+                        const SizedBox(height: 6.0),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.forum_outlined,
+                              size: 12.5,
+                              color: accent.withOpacity(0.85),
+                            ),
+                            const SizedBox(width: 4.0),
+                            Text(
+                              '${stream['count']} messages in stream · ${stream['category']}',
+                              style: const TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 11.0,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              stream['time'] as String,
+                              style: const TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 10.5,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14.0),
-              // Gmail-style compose button
-              ElevatedButton.icon(
-                onPressed: _openEmailComposer,
-                icon: const Icon(Icons.edit_rounded, size: 18.0),
-                label: const Text('Compose'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: QuantColors.moltenAmber,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 12.0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10.0),
-                  ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildAccountFilterChip({
+    required String id,
+    required String label,
+    required Color dotColor,
+  }) {
+    final isSelected = _activeAccountFilter == id;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6.0),
+      child: GestureDetector(
+        onTap: () => setState(() => _activeAccountFilter = id),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? dotColor.withOpacity(0.18)
+                : const Color(0xFF14161D),
+            borderRadius: BorderRadius.circular(999.0),
+            border: Border.all(
+              color: isSelected
+                  ? dotColor.withOpacity(0.75)
+                  : const Color(0xFF232938),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7.0,
+                height: 7.0,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: dotColor,
                 ),
               ),
-              const SizedBox(height: 12.0),
-              ..._orderedPillars.map((pillar) {
-                final isSelected = pillar == _activePillar;
-                final accent = pillar.accentColor;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 4.0),
-                  child: InkWell(
-                    onTap: () => _onPillarChanged(pillar),
-                    borderRadius: BorderRadius.circular(10.0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12.0, vertical: 10.0),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? accent.withOpacity(0.14)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(10.0),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            pillar.icon,
-                            size: 20.0,
-                            color: isSelected ? accent : Colors.white60,
-                          ),
-                          const SizedBox(width: 12.0),
-                          Expanded(
-                            child: Text(
-                              pillar.label,
-                              style: TextStyle(
-                                color:
-                                    isSelected ? Colors.white : Colors.white70,
-                                fontSize: 13.5,
-                                fontWeight: isSelected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-              const Spacer(),
-              InkWell(
-                onTap: _showAccountProfileSheet,
-                borderRadius: BorderRadius.circular(10.0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12.0, vertical: 10.0),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10.0),
-                    border: Border.all(
-                      color: QuantColors.hairlineBorder,
-                      width: 1.0,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 28.0,
-                        height: 28.0,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF6366F1), Color(0xFFA855F7)],
-                          ),
-                          borderRadius: BorderRadius.circular(8.0),
-                        ),
-                        alignment: Alignment.center,
-                        child: const Text(
-                          'AM',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 11.0,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10.0),
-                      Expanded(
-                        child: Text(
-                          _activeWorkspace,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12.0,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              const SizedBox(width: 6.0),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                  fontSize: 11.2,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
             ],
@@ -789,410 +1706,321 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     );
   }
 
-  /// Desktop slim top bar with full-width search.
-  Widget _buildDesktopTopBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 8.0),
-      decoration: const BoxDecoration(
-        color: QuantColors.voidObsidian,
-        border: Border(
-          bottom: BorderSide(color: QuantColors.hairlineBorder, width: 1.0),
-        ),
+  /// Unified Profile & Multi-Account Hub (opened when tapping `Profile` at the rightmost
+  /// slot of the Bottom Navigation Bar):
+  /// - Shows Primary QuantMail Account (`sentinel@quantmail.in`)
+  /// - Shows all Linked External Gmail Accounts (`alex.quant@gmail.com`, `founder.ops@gmail.com`)
+  /// - Interactive `+ Link Gmail Account` button
+  /// - Quanty AI (Ember) Cross-Account Access toggle
+  Widget _buildUnifiedProfileHubView() {
+    final accent = PillarVisuals.accentFor(_activePillar);
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
       ),
-      child: Container(
-        height: 42.0,
-        decoration: BoxDecoration(
-          color: QuantColors.darkSlateCard,
-          borderRadius: BorderRadius.circular(10.0),
-          border: Border.all(
-            color: QuantColors.hairlineBorder,
-            width: 1.0,
+      padding: const EdgeInsets.fromLTRB(12.0, 8.0, 12.0, 96.0),
+      children: [
+        // Primary QuantMail Sovereign Account Card
+        Container(
+          padding: const EdgeInsets.all(16.0),
+          decoration: BoxDecoration(
+            color: const Color(0xFF14161D),
+            borderRadius: BorderRadius.circular(18.0),
+            border: Border.all(color: accent.withOpacity(0.45), width: 1.2),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 52.0,
+                height: 52.0,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [accent, accent.withOpacity(0.65)],
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: const Text(
+                  'QM',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18.0,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14.0),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Dev Sentinel',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16.0,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(width: 6.0),
+                        Icon(
+                          Icons.verified_rounded,
+                          size: 16.0,
+                          color: Color(0xFFFF6B35),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 2.0),
+                    Text(
+                      'sentinel@quantmail.in · Primary QuantMail',
+                      style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 12.0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: _showAccountProfileSheet,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10.0,
+                    vertical: 6.0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E2230),
+                    borderRadius: BorderRadius.circular(10.0),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: const Text(
+                    'Vault',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        child: Row(
-          children: [
-            const SizedBox(width: 12.0),
-            const Icon(
-              Icons.search_rounded,
-              size: 18.0,
-              color: QuantColors.moltenAmber,
-            ),
-            const SizedBox(width: 8.0),
-            Expanded(
-              child: TextField(
-                controller: _searchController,
-                onChanged: (_) => _onSearchChanged(),
-                style: QuantTypography.bodyMedium.copyWith(
-                  color: Colors.white,
-                  fontSize: 13.0,
+
+        const SizedBox(height: 14.0),
+
+        // Quanty AI Cross-Account Access Card
+        Container(
+          padding: const EdgeInsets.all(14.0),
+          decoration: BoxDecoration(
+            color: const Color(0xFF14161D),
+            borderRadius: BorderRadius.circular(16.0),
+            border: Border.all(color: const Color(0xFF232938)),
+          ),
+          child: Row(
+            children: [
+              ClipOval(
+                child: Image.asset(
+                  'assets/mascots/ember.webp',
+                  width: 38.0,
+                  height: 38.0,
+                  fit: BoxFit.cover,
                 ),
-                decoration: InputDecoration(
-                  hintText: 'Search ${_activePillar.label.toLowerCase()}...',
-                  hintStyle: QuantTypography.bodyMedium.copyWith(
-                    color: Colors.white38,
-                    fontSize: 12.5,
-                  ),
-                  border: InputBorder.none,
-                  isDense: true,
+              ),
+              const SizedBox(width: 12.0),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Quanty AI Unified Multi-Mailbox Access',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: 2.0),
+                    Text(
+                      'Allow Ember AI to read, search & draft across primary QuantMail + all linked Gmail accounts',
+                      style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: _quantyUnifiedAccess,
+                activeColor: accent,
+                onChanged: (val) => setState(() => _quantyUnifiedAccess = val),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16.0),
+
+        // Linked Accounts Header + `+ Link Gmail Account` Button
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'CONNECTED MAILBOXES (${_linkedAccounts.length})',
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+              ),
+            ),
+            GestureDetector(
+              onTap: _showLinkGmailModal,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10.0,
+                  vertical: 5.0,
+                ),
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(8.0),
+                  border: Border.all(color: accent.withOpacity(0.5)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_rounded, size: 15.0, color: accent),
+                    const SizedBox(width: 4.0),
+                    Text(
+                      'Link Gmail Account',
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
 
-  /// Secondary subview chips (desktop only, calendar/drive).
-  /// Mail uses its category lenses; contacts/quantgit render their own
-  /// internal subview tabs — no duplication.
-  Widget _buildSubviewChips() {
-    if (_activePillar != QuantPillar.calendar &&
-        _activePillar != QuantPillar.drive) {
-      return const SizedBox.shrink();
-    }
-    final subViews = _activePillar.subViews;
-    final accent = _activePillar.accentColor;
-    return Container(
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.fromLTRB(20.0, 10.0, 20.0, 2.0),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: List.generate(subViews.length, (index) {
-            final sub = subViews[index];
-            final selected = index == _activeSubViewIndex;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: ChoiceChip(
-                label: Text(sub.label),
-                selected: selected,
-                onSelected: (_) => _onSubViewChanged(index),
-                selectedColor: accent.withOpacity(0.18),
-                backgroundColor: QuantColors.darkSlateCard,
-                side: BorderSide(
-                  color: selected
-                      ? accent.withOpacity(0.8)
-                      : QuantColors.hairlineBorder,
-                  width: 1.0,
-                ),
-                labelStyle: TextStyle(
-                  color: selected ? Colors.white : Colors.white60,
-                  fontSize: 12.0,
-                  fontWeight:
-                      selected ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-            );
-          }),
-        ),
-      ),
-    );
-  }
+        const SizedBox(height: 10.0),
 
-  Widget? _buildFloatingActionButton() {
-    // Only show primary FAB for mail, calendar, or drive
-    switch (_activePillar) {
-      case QuantPillar.mail:
-        return FloatingActionButton(
-          onPressed: _openEmailComposer,
-          backgroundColor: QuantColors.moltenAmber,
-          foregroundColor: Colors.black,
-          elevation: 6.0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-          ),
-          child: const Icon(Icons.edit_note_rounded, size: 26.0),
-        );
-      case QuantPillar.calendar:
-        return FloatingActionButton(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                backgroundColor: QuantColors.darkSlateSurface,
-                content: Text('Create event'),
-              ),
-            );
-          },
-          backgroundColor: QuantColors.sunsetGold,
-          foregroundColor: Colors.black,
-          elevation: 6.0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-          ),
-          child: const Icon(Icons.event_available_rounded, size: 24.0),
-        );
-      case QuantPillar.drive:
-        return FloatingActionButton(
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                backgroundColor: QuantColors.darkSlateSurface,
-                content: Text('Upload file'),
-              ),
-            );
-          },
-          backgroundColor: QuantColors.sovereignCyan,
-          foregroundColor: Colors.black,
-          elevation: 6.0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-          ),
-          child: const Icon(Icons.upload_file_rounded, size: 24.0),
-        );
-      default:
-        return null;
-    }
-  }
-
-  // ===========================================================================
-  // TIER 4: CONTEXTUAL 56DP BOTTOM NAVIGATION DOCK
-  // ===========================================================================
-
-  /// THE single navigation system on mobile: 5-pillar bottom dock.
-  /// Tapping the active tab refreshes (resets subview + filters).
-  Widget _buildPillarBottomNav() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: QuantColors.darkSlateCard,
-        border: Border(
-          top: BorderSide(
-            color: QuantColors.hairlineBorder,
-            width: 1.0,
-          ),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 62.0,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: _orderedPillars.map((pillar) {
-              final isSelected = pillar == _activePillar;
-              final accent = pillar.accentColor;
-              final badgeCount = _pillarBadges[pillar] ?? 0;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => _onPillarChanged(pillar),
-                  behavior: HitTestBehavior.opaque,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12.0, vertical: 3.0),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? accent.withOpacity(0.18)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(10.0),
-                            ),
-                            child: Icon(
-                              pillar.icon,
-                              size: 22.0,
-                              color: isSelected ? accent : Colors.white54,
-                            ),
-                          ),
-                          if (badgeCount > 0)
-                            Positioned(
-                              top: -4.0,
-                              right: 6.0,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 5.0, vertical: 1.0),
-                                decoration: BoxDecoration(
-                                  color: accent,
-                                  borderRadius: BorderRadius.circular(8.0),
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 16.0,
-                                  minHeight: 14.0,
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  badgeCount > 99 ? '99+' : '$badgeCount',
-                                  style: const TextStyle(
-                                    color: Colors.black,
-                                    fontSize: 9.0,
-                                    fontWeight: FontWeight.w800,
-                                    height: 1.0,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 2.0),
-                      Text(
-                        pillar.label,
-                        maxLines: 1,
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.white54,
-                          fontSize: 10.0,
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // PILLAR BODY DISPATCHER
-  // ===========================================================================
-
-  Widget _buildPillarBody() {
-    switch (_activePillar) {
-      case QuantPillar.mail:
-        return _buildMailPillarView();
-      case QuantPillar.calendar:
-        return _buildCalendarPillarView();
-      case QuantPillar.drive:
-        return _buildDrivePillarView();
-      case QuantPillar.contacts:
-        return ContactsPillarView(
-          activeSubViewIndex: _activeSubViewIndex,
-          onSubViewChanged: _onSubViewChanged,
-        );
-      case QuantPillar.quantGit:
-        return QuantGitPillarView(
-          activeSubViewIndex: _activeSubViewIndex,
-          onSubViewChanged: _onSubViewChanged,
-        );
-    }
-  }
-
-  // ===========================================================================
-  // MAIL PILLAR VIEW (TIER 3 EXECUTIVE TILES + LENSES + THREAD LIST)
-  // ===========================================================================
-
-  Widget _buildMailPillarView() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 80.0),
-      children: [
-        // Category lenses — content first, no stacked summary cards.
-        _buildCategoryLensesRow(),
-
-        const SizedBox(height: 12.0),
-
-        // Thread count header (honest — real count only)
-        _buildThreadStatusHeader(),
-
-        const SizedBox(height: 8.0),
-
-        // Virtualized Thread Cards
-        ..._filteredThreads.map((thread) => _buildThreadCard(thread)),
-
-        if (_filteredThreads.isEmpty) _buildEmptyState(),
-      ],
-    );
-  }
-
-  Widget _buildCategoryLensesRow() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: MailCategoryLens.values.map((lens) {
-          final isSelected = lens == _activeMailLens;
-          final unreadCount = _categoryUnreadCounts[lens] ?? 0;
-          final accent = lens.accentColor;
-
+        // Connected Accounts List (Primary QuantMail + Linked Gmail Accounts)
+        ..._linkedAccounts.map((acc) {
+          final color = acc['color'] as Color;
+          final isPrimary = acc['isPrimary'] as bool;
           return Padding(
-            padding: const EdgeInsets.only(right: 6.0),
-            child: GestureDetector(
-              onTap: () {
-                setState(() => _activeMailLens = lens);
-              },
-              behavior: HitTestBehavior.opaque,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
-                decoration: BoxDecoration(
-                  color: isSelected ? QuantColors.darkSlateCard : QuantColors.voidObsidian,
-                  borderRadius: BorderRadius.circular(8.0),
-                  border: Border.all(
-                    color: isSelected ? accent.withOpacity(0.8) : QuantColors.hairlineBorder,
-                    width: isSelected ? 1.2 : 0.8,
-                  ),
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Container(
+              padding: const EdgeInsets.all(13.0),
+              decoration: BoxDecoration(
+                color: const Color(0xFF14161D),
+                borderRadius: BorderRadius.circular(14.0),
+                border: Border.all(
+                  color: isPrimary
+                      ? color.withOpacity(0.45)
+                      : const Color(0xFF232938),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      lens.icon,
-                      size: 14.0,
-                      color: isSelected ? accent : Colors.white60,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38.0,
+                    height: 38.0,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color.withOpacity(0.16),
+                      border: Border.all(color: color.withOpacity(0.5)),
                     ),
-                    const SizedBox(width: 5.0),
-                    Text(
-                      lens.label,
+                    alignment: Alignment.center,
+                    child: Text(
+                      isPrimary ? 'Q' : 'G',
                       style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.white60,
-                        fontSize: 11.5,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: color,
+                        fontSize: 15.0,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                    if (unreadCount > 0) ...[
-                      const SizedBox(width: 5.0),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4.0,
-                          vertical: 0.5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected ? accent : QuantColors.hairlineBorder,
-                          borderRadius: BorderRadius.circular(5.0),
-                        ),
-                        child: Text(
-                          unreadCount.toString(),
-                          style: TextStyle(
-                            color: isSelected ? Colors.black : Colors.white70,
-                            fontSize: 9.0,
+                  ),
+                  const SizedBox(width: 12.0),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          acc['name'] as String,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13.5,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
+                        const SizedBox(height: 2.0),
+                        Text(
+                          '${acc['email']} · ${acc['status']}',
+                          style: const TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0,
+                      vertical: 3.0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(999.0),
+                    ),
+                    child: Text(
+                      '${acc['unread']} new',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                  ),
+                ],
               ),
             ),
           );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildThreadStatusHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          '${_filteredThreads.length} Threads in ${_activeMailLens.label}',
-          style: QuantTypography.pillarLabel.copyWith(
-            color: Colors.white54,
-            fontWeight: FontWeight.w600,
-            fontSize: 11.0,
-          ),
-        ),
+        }),
       ],
     );
   }
 
+  List<Widget> _buildFilteredThreadCards() {
+    final threads = _allThreads.where((t) {
+      if (t.isArchived) return false;
+      if (_activeInboxFocusTab == 'Unread' && !t.isUnread) return false;
+      if (_searchQuery.isEmpty) return true;
+      final q = _searchQuery.toLowerCase();
+      return t.sender.toLowerCase().contains(q) ||
+          t.subject.toLowerCase().contains(q) ||
+          t.snippet.toLowerCase().contains(q);
+    }).toList();
+
+    if (threads.isEmpty) {
+      return [_buildChromeMobileEmptyInboxHero()];
+    }
+    return threads.map(_buildThreadCard).toList();
+  }
+
   Widget _buildThreadCard(MailThread thread) {
-    final isStarred = _starredThreadIds.contains(thread.id) || thread.isStarred;
+    final isStarred =
+        _starredThreadIds.contains(thread.id) || thread.isStarred;
+    const accent = Color(0xFFFF6B35);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -1205,153 +2033,128 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                 thread: thread,
                 onThreadUpdated: (updated) {
                   setState(() {
-                    final idx = _allThreads.indexWhere((t) => t.id == updated.id);
+                    final idx =
+                        _allThreads.indexWhere((t) => t.id == updated.id);
                     if (idx != -1) _allThreads[idx] = updated;
                   });
                 },
-                onArchive: () {
-                  setState(() => thread.isArchived = true);
-                },
-                onTrash: () {
-                  setState(() => thread.isArchived = true);
-                },
+                onArchive: () => setState(() => thread.isArchived = true),
+                onTrash: () => setState(() => thread.isArchived = true),
               ),
             ),
           );
         },
-        borderRadius: BorderRadius.circular(12.0),
+        borderRadius: BorderRadius.circular(14.0),
         child: Container(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.all(13.0),
           decoration: BoxDecoration(
-            color: thread.isUnread
-                ? QuantColors.darkSlateCard
-                : QuantColors.voidObsidian,
-            borderRadius: BorderRadius.circular(12.0),
+            color: const Color(0xFF14161D),
+            borderRadius: BorderRadius.circular(14.0),
             border: Border.all(
               color: thread.isUnread
-                  ? QuantColors.moltenAmber.withOpacity(0.3)
-                  : QuantColors.hairlineBorder,
+                  ? accent.withOpacity(0.35)
+                  : const Color(0xFF232938),
               width: 1.0,
             ),
           ),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  // Avatar
-                  Container(
-                    width: 32.0,
-                    height: 32.0,
-                    decoration: BoxDecoration(
-                      color: QuantColors.moltenAmber.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(
-                        color: QuantColors.moltenAmber.withOpacity(0.3),
-                        width: 0.8,
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      thread.sender.isNotEmpty ? thread.sender[0].toUpperCase() : 'Q',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13.0,
-                      ),
-                    ),
+              Container(
+                width: 38.0,
+                height: 38.0,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accent.withOpacity(0.16),
+                  border: Border.all(color: accent.withOpacity(0.35)),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  thread.sender.isNotEmpty
+                      ? thread.sender[0].toUpperCase()
+                      : 'Q',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14.0,
                   ),
-                  const SizedBox(width: 10.0),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+              ),
+              const SizedBox(width: 12.0),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                thread.sender,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: QuantTypography.bodyMedium.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: thread.isUnread
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  fontSize: 12.5,
-                                ),
-                              ),
+                        Expanded(
+                          child: Text(
+                            thread.sender,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: thread.isUnread
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              fontSize: 13.5,
                             ),
-                            if (thread.isPriorityTriage) ...[
-                              const SizedBox(width: 4.0),
-                              const Icon(
-                                Icons.stars_rounded,
-                                size: 14.0,
-                                color: QuantColors.moltenAmber,
-                              ),
-                            ],
-                          ],
+                          ),
                         ),
-                        Text(
-                          thread.senderEmail,
-                          style: QuantTypography.pillarLabel.copyWith(
-                            color: Colors.white54,
-                            fontSize: 10.5,
+                        const Text(
+                          '10:42 AM',
+                          style: TextStyle(
+                            color: Color(0xFF64748B),
+                            fontSize: 11.0,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      isStarred ? Icons.star_rounded : Icons.star_border_rounded,
-                      size: 18.0,
-                      color: isStarred ? QuantColors.sunsetGold : Colors.white30,
+                    const SizedBox(height: 3.0),
+                    Text(
+                      thread.subject,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: thread.isUnread
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        fontSize: 12.5,
+                      ),
                     ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 28.0, minHeight: 28.0),
-                    splashRadius: 16.0,
-                    onPressed: () {
-                      setState(() {
-                        if (isStarred) {
-                          _starredThreadIds.remove(thread.id);
-                          thread.isStarred = false;
-                        } else {
-                          _starredThreadIds.add(thread.id);
-                          thread.isStarred = true;
-                        }
-                      });
-                    },
-                  ),
-                  const SizedBox(width: 6.0),
-                  Text(
-                    '10:42 AM',
-                    style: QuantTypography.pillarLabel.copyWith(
-                      color: Colors.white38,
-                      fontSize: 10.0,
+                    const SizedBox(height: 2.0),
+                    Text(
+                      thread.snippet,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 12.0,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8.0),
-              Text(
-                thread.subject,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: QuantTypography.bodyMedium.copyWith(
-                  color: Colors.white,
-                  fontWeight: thread.isUnread ? FontWeight.w600 : FontWeight.w400,
-                  fontSize: 12.0,
+                  ],
                 ),
               ),
-              const SizedBox(height: 3.0),
-              Text(
-                thread.snippet,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: QuantTypography.bodySmall.copyWith(
-                  color: Colors.white60,
-                  fontSize: 11.0,
+              const SizedBox(width: 6.0),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (isStarred) {
+                      _starredThreadIds.remove(thread.id);
+                      thread.isStarred = false;
+                    } else {
+                      _starredThreadIds.add(thread.id);
+                      thread.isStarred = true;
+                    }
+                  });
+                },
+                child: Icon(
+                  isStarred ? Icons.star_rounded : Icons.star_border_rounded,
+                  size: 19.0,
+                  color: isStarred
+                      ? const Color(0xFFF59E0B)
+                      : const Color(0xFF64748B),
                 ),
               ),
             ],
@@ -1361,116 +2164,532 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     );
   }
 
-  Widget _buildEmptyState() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40.0),
-      child: Center(
-        child: Column(
-          children: [
-            const Icon(
-              Icons.inbox_rounded,
-              size: 48.0,
-              color: Colors.white24,
-            ),
-            const SizedBox(height: 12.0),
-            Text(
-              'No mail in ${_activeMailLens.label} yet',
-              style: QuantTypography.titleMedium.copyWith(
-                color: Colors.white70,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4.0),
-            Text(
-              'New mail will appear here.',
-              style: QuantTypography.bodySmall.copyWith(color: Colors.white38),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // ===========================================================================
-  // CALENDAR PILLAR VIEW
+  // 2. CALENDAR PILLAR VIEW — 1:1 with Chrome Mobile `/calendar` (`steps/404/media_0.png`)
   // ===========================================================================
 
   Widget _buildCalendarPillarView() {
+    const accent = Color(0xFF4285F4);
+    final hours = List.generate(24, (i) {
+      if (i == 0) return '12 AM';
+      if (i < 12) return '$i AM';
+      if (i == 12) return '12 PM';
+      return '${i - 12} PM';
+    });
+
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 80.0),
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: const EdgeInsets.fromLTRB(12.0, 6.0, 12.0, 96.0),
       children: [
-        _buildHonestEmptyState(
-          icon: Icons.calendar_month_rounded,
-          accent: QuantColors.sunsetGold,
-          title: 'No meetings today',
-          subtitle: 'Your schedule is clear. New events will appear here.',
+        // Calendar Header Card matching Chrome Mobile `/calendar`
+        Container(
+          padding: const EdgeInsets.all(12.0),
+          decoration: BoxDecoration(
+            color: const Color(0xFF14161D),
+            borderRadius: BorderRadius.circular(16.0),
+            border: Border.all(color: const Color(0xFF232938)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12.0,
+                      vertical: 6.0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1C202B),
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: Border.all(color: const Color(0xFF2C3344)),
+                    ),
+                    child: const Text(
+                      'Today',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.0,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+                  const Icon(
+                    Icons.chevron_left_rounded,
+                    color: Colors.white70,
+                    size: 20.0,
+                  ),
+                  const SizedBox(width: 4.0),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.white70,
+                    size: 20.0,
+                  ),
+                  const SizedBox(width: 6.0),
+                  const Expanded(
+                    child: Text(
+                      'Sunday, Oct 18',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10.0),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0,
+                      vertical: 4.0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0E1017),
+                      borderRadius: BorderRadius.circular(6.0),
+                      border: Border.all(color: const Color(0xFF232938)),
+                    ),
+                    child: const Text(
+                      'GMT+5:30',
+                      style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 11.0,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: _onFabTap,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14.0,
+                        vertical: 7.0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(10.0),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add_rounded, size: 16.0, color: Colors.white),
+                          SizedBox(width: 4.0),
+                          Text(
+                            'Event',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 10.0),
+
+        // 24-Hour Scrollable Timeline Grid
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0E1017),
+            borderRadius: BorderRadius.circular(16.0),
+            border: Border.all(color: const Color(0xFF1E2330)),
+          ),
+          child: Column(
+            children: List.generate(hours.length, (idx) {
+              final isCurrentHour = idx == 7;
+              return Container(
+                height: 52.0,
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.white.withOpacity(0.05),
+                      width: 1.0,
+                    ),
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 56.0,
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 10.0, top: 6.0),
+                            child: Text(
+                              hours[idx],
+                              style: const TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          width: 1.0,
+                          color: Colors.white.withOpacity(0.06),
+                        ),
+                        const Expanded(child: SizedBox()),
+                      ],
+                    ),
+                    if (isCurrentHour)
+                      Positioned(
+                        left: 50.0,
+                        right: 0.0,
+                        top: 22.0,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 8.0,
+                              height: 8.0,
+                              decoration: const BoxDecoration(
+                                color: accent,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            Expanded(
+                              child: Container(
+                                height: 1.5,
+                                color: accent,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
+          ),
         ),
       ],
     );
   }
+
+  // ===========================================================================
+  // 3. DRIVE PILLAR VIEW — 1:1 with Chrome Mobile `/drive` (`steps/408/media_0.png`)
+  // ===========================================================================
 
   Widget _buildDrivePillarView() {
+    const accent = Color(0xFF34A853);
+    const filters = ['All', 'Folders', 'Docs', 'Images', 'Sheets', 'Archives'];
+
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 80.0),
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: const EdgeInsets.fromLTRB(12.0, 6.0, 12.0, 96.0),
       children: [
-        _buildHonestEmptyState(
-          icon: Icons.folder_rounded,
-          accent: QuantColors.sovereignCyan,
-          title: 'No files yet',
-          subtitle: 'Files you upload will appear here.',
+        // Drive Header Card
+        Container(
+          padding: const EdgeInsets.all(12.0),
+          decoration: BoxDecoration(
+            color: const Color(0xFF14161D),
+            borderRadius: BorderRadius.circular(16.0),
+            border: Border.all(color: const Color(0xFF232938)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.cloud_queue_rounded,
+                    size: 18.0,
+                    color: accent,
+                  ),
+                  const SizedBox(width: 8.0),
+                  const Text(
+                    'My Drive',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15.0,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0,
+                      vertical: 2.0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E2230),
+                      borderRadius: BorderRadius.circular(999.0),
+                    ),
+                    child: const Text(
+                      '0 items',
+                      style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10.0,
+                      vertical: 6.0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1C202B),
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: Border.all(color: const Color(0xFF2C3344)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.create_new_folder_outlined,
+                          size: 15.0,
+                          color: Colors.white70,
+                        ),
+                        SizedBox(width: 5.0),
+                        Text(
+                          'Folder',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6.0),
+                  GestureDetector(
+                    onTap: _onFabTap,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12.0,
+                        vertical: 6.0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.upload_rounded,
+                            size: 15.0,
+                            color: Colors.black,
+                          ),
+                          SizedBox(width: 4.0),
+                          Text(
+                            'Upload',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10.0),
+              // Single Filter Row
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: filters.map((f) {
+                    final isSelected = _activeDriveFilter == f;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6.0),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _activeDriveFilter = f),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12.0,
+                            vertical: 5.5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? accent.withOpacity(0.18)
+                                : const Color(0xFF0E1017),
+                            borderRadius: BorderRadius.circular(999.0),
+                            border: Border.all(
+                              color: isSelected
+                                  ? accent.withOpacity(0.75)
+                                  : const Color(0xFF232938),
+                            ),
+                          ),
+                          child: Text(
+                            f,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? accent
+                                  : const Color(0xFF94A3B8),
+                              fontSize: 11.5,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
         ),
+
+        const SizedBox(height: 20.0),
+
+        // Drive Empty State Card with 3D Drive Mascot
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 56.0, horizontal: 24.0),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0E1017),
+            borderRadius: BorderRadius.circular(18.0),
+            border: Border.all(color: const Color(0xFF1F2433)),
+          ),
+          child: Column(
+            children: [
+              Image.asset(
+                'assets/mascots/drive-lg.png',
+                width: 96.0,
+                height: 96.0,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 16.0),
+              const Text(
+                'This folder is empty',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6.0),
+              const Text(
+                'Drop files here or tap Upload to get started.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF94A3B8),
+                  fontSize: 12.5,
+                ),
+              ),
+              const SizedBox(height: 18.0),
+              GestureDetector(
+                onTap: _onFabTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18.0,
+                    vertical: 10.0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                  child: const Text(
+                    '+ Upload Files',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 180.0),
       ],
     );
   }
 
-  /// Shared honest empty-state tile (no invented data, no fake claims).
-  Widget _buildHonestEmptyState({
-    required IconData icon,
-    required Color accent,
-    required String title,
-    required String subtitle,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 56.0, horizontal: 24.0),
-      decoration: BoxDecoration(
-        color: QuantColors.darkSlateCard,
-        borderRadius: BorderRadius.circular(16.0),
-        border: Border.all(
-          color: QuantColors.hairlineBorder,
-          width: 1.0,
+  // ===========================================================================
+  // 4. CONTACTS PILLAR VIEW — Clean Single Header (Zero Duplicate Search/Sub-bars)
+  // ===========================================================================
+
+  Widget _buildContactsPillarView() {
+    const accent = Color(0xFFF59E0B);
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: const EdgeInsets.fromLTRB(12.0, 8.0, 12.0, 180.0),
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 56.0, horizontal: 24.0),
+          decoration: BoxDecoration(
+            color: const Color(0xFF14161D),
+            borderRadius: BorderRadius.circular(18.0),
+            border: Border.all(color: const Color(0xFF232938)),
+          ),
+          child: Column(
+            children: [
+              Image.asset(
+                'assets/mascots/contacts-lg.png',
+                width: 96.0,
+                height: 96.0,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 16.0),
+              Text(
+                _activeSubViewIndex == 1 ? 'No favorite contacts' : 'No contacts yet',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6.0),
+              const Text(
+                'Contacts you add or email frequently will appear here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF94A3B8),
+                  fontSize: 12.5,
+                ),
+              ),
+              const SizedBox(height: 18.0),
+              GestureDetector(
+                onTap: _onFabTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18.0,
+                    vertical: 10.0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                  child: const Text(
+                    '+ New Contact',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 64.0,
-            height: 64.0,
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(18.0),
-            ),
-            child: Icon(icon, size: 30.0, color: accent),
-          ),
-          const SizedBox(height: 16.0),
-          Text(
-            title,
-            style: QuantTypography.titleMedium.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6.0),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: QuantTypography.bodySmall.copyWith(
-              color: Colors.white54,
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
-
 }
