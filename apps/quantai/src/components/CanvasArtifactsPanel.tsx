@@ -242,6 +242,16 @@ export function CanvasArtifactsPanel({
                 title="Artifact Live Preview"
                 srcDoc={previewDoc}
                 sandbox="allow-scripts allow-modals"
+                // Deterministic preview policy: mirrors what the preview needs
+                // today (tailwind CDN + inline styles + data/blob images) so a
+                // page-level CSP can never silently break user previews, and a
+                // browser CSP-inheritance quirk can never silently loosen them.
+                // The sandbox attribute above still contains the preview.
+                // NOTE: @types/react has no `csp` on IframeHTMLAttributes yet,
+                // so it goes through a spread (no excess-prop check on spreads).
+                {...{
+                  csp: "default-src 'none'; script-src 'unsafe-inline' https: http:; style-src 'unsafe-inline' https: http:; img-src https: http: data: blob:; font-src https: http: data:; connect-src https: http:; media-src https: http: data: blob:;",
+                }}
                 className={`h-full border border-zinc-800 rounded-xl bg-white shadow-2xl transition-all ${
                   previewDevice === 'desktop'
                     ? 'w-full'
