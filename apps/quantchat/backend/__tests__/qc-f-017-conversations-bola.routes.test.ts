@@ -24,6 +24,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { ZodError } from 'zod';
 
 // The services only need the Prisma enum *values* at runtime; stub them the
 // same way conversation.service.test.ts does (values match the schema).
@@ -178,8 +179,17 @@ async function buildRouteApp(
   prisma: unknown,
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
-  // Mirror of server-core error-handler's AppError branch.
+  // Mirror of server-core error-handler: ZodError branch first (QC-F-553 —
+  // the routes throw raw ZodErrors; production maps them to 400
+  // VALIDATION_ERROR, and the clear tests below need that mapping to tell a
+  // validation rejection from an authorization rejection), then AppError.
   app.setErrorHandler((err, _request, reply) => {
+    if (err instanceof ZodError) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Request validation failed', statusCode: 400 },
+      });
+    }
     const e = err as Error & { statusCode?: number; code?: string };
     if (typeof e.statusCode === 'number') {
       return reply.status(e.statusCode).send({
@@ -460,5 +470,92 @@ describe('QC-F-017 conversations BOLA', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(fake.conversation.disappearTimer).toBe(30);
+  });
+});
+
+describe('QC-F-553 description clear (wire)', () => {
+  let fake: ReturnType<typeof makeFakePrisma>;
+  let app: FastifyInstance | null = null;
+
+  beforeEach(() => {
+    fake = makeFakePrisma();
+    app = null;
+  });
+
+  afterEach(async () => {
+    if (app) await app.close();
+  });
+
+  async function as(auth: { userId: string; username: string }) {
+    app = await buildRouteApp(auth, fake.prisma);
+    return app;
+  }
+
+  it('T553-R1: OWNER clear (description: null) → 200, GET shows description gone', async () => {
+    const server = await as(OWNER);
+    const res = await server.inject({
+      method: 'PUT',
+      url: '/conversations/conv-1',
+      payload: { description: null },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(fake.conversation.description).toBeNull();
+
+    const got = await server.inject({ method: 'GET', url: '/conversations/conv-1' });
+    expect(got.statusCode).toBe(200);
+    expect(got.json().data.description).toBeNull();
+  });
+
+  it('T553-R2: plain MEMBER clear → 403 NOT_CONVERSATION_ADMIN, description untouched', async () => {
+    const server = await as(MEMBER);
+    const res = await server.inject({
+      method: 'PUT',
+      url: '/conversations/conv-1',
+      payload: { description: null },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('NOT_CONVERSATION_ADMIN');
+    expect(fake.conversation.description).toBe('original description');
+  });
+
+  it('T553-R3 (control): OWNER set empty string stays a stored empty string', async () => {
+    const server = await as(OWNER);
+    const res = await server.inject({
+      method: 'PUT',
+      url: '/conversations/conv-1',
+      payload: { description: '' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(fake.conversation.description).toBe('');
+  });
+
+  it('T553-R4 (control): MEMBER empty-body PUT → 200 unchanged (PATCH semantics)', async () => {
+    const server = await as(MEMBER);
+    const res = await server.inject({
+      method: 'PUT',
+      url: '/conversations/conv-1',
+      payload: {},
+    });
+    expect(res.statusCode).toBe(200);
+    expect(fake.conversation.description).toBe('original description');
+  });
+
+  it('T553-R5: OWNER set then clear — full cycle ends with description gone', async () => {
+    const server = await as(OWNER);
+    const set = await server.inject({
+      method: 'PUT',
+      url: '/conversations/conv-1',
+      payload: { description: 'Naya varnan' },
+    });
+    expect(set.statusCode).toBe(200);
+    expect(fake.conversation.description).toBe('Naya varnan');
+
+    const cleared = await server.inject({
+      method: 'PUT',
+      url: '/conversations/conv-1',
+      payload: { description: null },
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(fake.conversation.description).toBeNull();
   });
 });
