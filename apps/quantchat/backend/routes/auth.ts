@@ -244,6 +244,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
     // check let any external host become a tracking avatar. Only
     // own-storage URLs are accepted here; `data:` is NOT (no shipped
     // caller sends one — generated avatars go through /avatar/select).
+    // QC-F-564 note: /avatar/select projects its own gate-validated
+    // imageUrl onto User.avatarUrl server-side (one transaction). That is
+    // a server-internal write of an already-validated value — it does NOT
+    // widen this PUT: client-sent `data:` payloads stay rejected here.
     // Runs after the 401 gate above so the URL policy is never an oracle
     // for unauthenticated callers. Envelope matches this handler's style.
     if (
