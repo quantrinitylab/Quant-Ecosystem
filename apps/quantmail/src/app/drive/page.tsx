@@ -1395,7 +1395,7 @@ function DrivePageContent() {
                 className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] sm:min-h-0 ${
                   activeFilter === filter.key && (activeTab === 'home' || activeTab === 'files')
                     ? 'bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)] shadow-[0_0_14px_color-mix(in_srgb,var(--app-accent)_15%,transparent),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
-                    : 'border border-white/[0.08] bg-white/[0.03] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-white/[0.06] hover:border-white/[0.14]'
+                    : 'border border-white/[0.08] bg-[var(--quant-surface)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-hover)] hover:border-white/[0.14]'
                 }`}
               >
                 {filter.label}
