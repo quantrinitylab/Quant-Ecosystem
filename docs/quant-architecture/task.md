@@ -5512,3 +5512,8 @@ Branch: lane1-audit-014r32
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents spawned (protocol: P0/P1 only; subagent.list 0 active at run start). findings.md untouched (clean pass).
 - VERDICT-LIVE: API-HEALTHY, VISUAL DEFERRED. Proxy 127.0.0.1:8888 healthy (google 200 0.5s, no restart). GET /quanty -> 404; /api/quanty/popup -> 401; /api/quanty/tasks -> 405; /api/quanty/browser-tasks -> 404 (route not on live build — pre-deploy); POST /api/quanty/tasks (no body) -> 400 '{"error":"command is required"}' — all match R31 baseline byte-for-byte. Desktop+mobile screenshots BLOCKED this run: transient EPERM window (recurring VM issue, AGENTS.md 2026-10-21) SIGTRAPs new Chrome launches ~160ms after start (desktop + mobile attempts both failed; --dump-dom one-shot also dead) while the sibling's 9333 session keeps running (untouched). Live build frozen under #1243 deploy hold (cat-verified this run) — R31's reviewed visual baseline (~21:05 IST: branded 'This page doesn't exist' + real nav cards, pure black, zero old-logo flash) stands on the identical build. Signed-in Quanty = needs-auth (protocol), not faked.
 - Rotation -> QM-SCREEN-015 (notifications) ROUND 32 regression, queued.
+
+
+## QM-SCREEN-018 R32 — Help regression (ROUND 32)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-018r32, started 2026-10-22 ~10:35 IST; R31-018 base a19fe7ea92b -> origin/main a19fe7ea92b, fresh fetch, 0 first-parent merges — window EMPTY)
+Audit started: 2026-10-22 ~10:35 IST (lane-1 deep audit loop, ROUND 32)
