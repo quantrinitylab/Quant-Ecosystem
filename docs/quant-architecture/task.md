@@ -5643,3 +5643,8 @@ Audit started: 2026-10-22 ~17:40 IST (lane-1 deep audit loop, ROUND 33)
 Status: [x] DONE (R33 regression audit complete 2026-10-22 ~18:00 IST; 0 window merges — pure re-verification pass, 8/8 prior pins byte-verified intact, carryovers confirmed open, 0 new findings, origin healthy with full logged-out live verification on both viewports; fixes tracked via their PRs)
 Owner: LANE-1
 Branch: lane1-audit-015r33
+
+
+## QM-SCREEN-018 R33 — Help regression (ROUND 33)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-018r33, started 2026-10-22 ~20:35 IST; base = origin/main a19fe7ea92b, fresh fetch, 0 first-parent merges — main UNCHANGED. Code read from origin/main tree only via git archive snapshot + git show (qe-main working tree ignored per stale-tree lesson; git grep <rev> silently empty in this env). Ledger HEAD == remote arch tip edacf323d ls-remote-verified before write; merge-only, no rebase/reset; never touch another lane's [~].)
+Audit started: 2026-10-22 ~20:35 IST (lane-1 deep audit loop, ROUND 33)
