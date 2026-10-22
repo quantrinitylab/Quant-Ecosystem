@@ -1886,6 +1886,8 @@ VERDICT-LIVE: HEALTHY — proxy 127.0.0.1:8888 healthy (google.com 200, no resta
 Rotation -> QM-SCREEN-017 (admin) ROUND 29 regression, queued.
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
+Status: [~] IN_PROGRESS — Owner: LANE-1, Branch: lane1-audit-017r32 (2026-10-22 ~09:40 IST). R32 REGRESSION AUDIT CLAIMED.
+
 Status: [x] DONE — LANE-1, branch lane1-audit-017r31 (2026-10-21 ~23:40–23:55 IST). R31 REGRESSION AUDIT COMPLETE.
 
 R31 REGRESSION AUDIT COMPLETE (2026-10-21 ~23:40–23:55 IST) — LANE-1, branch lane1-audit-017r31: base = origin/main 1d83e81b1 (R30-017 tip) -> origin/main a19fe7ea9 (fresh fetch, exactly 1 first-parent merge: #1450 fix/qm-quanty-popup-approvals-durable). WINDOW REVIEW: #1450 = 3 Quanty files ONLY (backend/routes/quanty-agent.ts, backend/services/quanty-agent/popup-data.ts, backend/__tests__/quanty-live-integration.test.ts); name-only diff over admin/audit/retention/dlp/staff/moderator/domain/lifecycle paths = EMPTY -> pure re-verification pass. All code read from origin/main tree only (git show/git grep; qe-main working tree ignored per stale-tree lesson).
