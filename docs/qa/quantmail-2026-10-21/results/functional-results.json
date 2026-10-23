@@ -1,0 +1,426 @@
+{
+  "run": "mvhzs28i",
+  "base": "http://127.0.0.1:3010",
+  "total": 47,
+  "pass": 46,
+  "fail": 1,
+  "results": [
+    {
+      "name": "health /health -> 200",
+      "pass": true,
+      "info": "status=200"
+    },
+    {
+      "name": "health /livez -> 200",
+      "pass": true,
+      "info": "status=200"
+    },
+    {
+      "name": "health /readyz -> 200",
+      "pass": true,
+      "info": "status=200"
+    },
+    {
+      "name": "health /api/health -> 200",
+      "pass": true,
+      "info": "status=200"
+    },
+    {
+      "name": "register Alice -> 2xx + token + cookie",
+      "pass": true,
+      "info": "status=200 hasToken=true cookie=true emailVerification={\"required\":true,\"emailVerified\":false,\"emailSent\":false}"
+    },
+    {
+      "name": "register Bob -> 2xx",
+      "pass": true,
+      "info": "status=200"
+    },
+    {
+      "name": "register duplicate -> 409 USER_EXISTS",
+      "pass": true,
+      "info": "status=409 code=USER_EXISTS"
+    },
+    {
+      "name": "register weak password -> 400",
+      "pass": true,
+      "info": "status=400 code=VALIDATION_ERROR"
+    },
+    {
+      "name": "register without Origin -> 403 UNTRUSTED_ORIGIN",
+      "pass": true,
+      "info": "status=403 code=UNTRUSTED_ORIGIN"
+    },
+    {
+      "name": "login Alice -> 200 + token",
+      "pass": true,
+      "info": "status=200"
+    },
+    {
+      "name": "login Bob -> 200 + token",
+      "pass": true,
+      "info": "status=200"
+    },
+    {
+      "name": "login wrong password -> 401 INVALID_CREDENTIALS",
+      "pass": true,
+      "info": "status=401 code=INVALID_CREDENTIALS"
+    },
+    {
+      "name": "login without Origin -> 403",
+      "pass": true,
+      "info": "status=403 code=UNTRUSTED_ORIGIN"
+    },
+    {
+      "name": "CRITICAL access token valid on /auth/sessions -> 200 (JWT mismatch check)",
+      "pass": true,
+      "info": "status=200 sessions=2"
+    },
+    {
+      "name": "2fa status -> 200 enabled:false",
+      "pass": true,
+      "info": "status=200 enabled=false"
+    },
+    {
+      "name": "protected endpoint w/o token -> 401",
+      "pass": true,
+      "info": "status=401"
+    },
+    {
+      "name": "default folders created at signup",
+      "pass": true,
+      "info": "status=200 types=[\"INBOX\",\"SENT\",\"DRAFTS\",\"ARCHIVE\",\"TRASH\",\"SPAM\"]"
+    },
+    {
+      "name": "labels list -> 200 array",
+      "pass": true,
+      "info": "status=200"
+    },
+    {
+      "name": "create label -> 201",
+      "pass": true,
+      "info": "status=201"
+    },
+    {
+      "name": "Alice sends internal email (send:true) -> 201",
+      "pass": true,
+      "info": "status=201 id=cmvhzs2h5000lqp0vmw237w0v deliveryStatus=delivered"
+    },
+    {
+      "name": "compose without Idempotency-Key -> 400 IDEMPOTENCY_KEY_REQUIRED",
+      "pass": true,
+      "info": "status=400 code=IDEMPOTENCY_KEY_REQUIRED"
+    },
+    {
+      "name": "idempotent replay (same key/body) -> same id, no dup",
+      "pass": true,
+      "info": "status=201 id=cmvhzs2h5000lqp0vmw237w0v"
+    },
+    {
+      "name": "same key + different body -> 422 IDEMPOTENCY_KEY_REUSE",
+      "pass": true,
+      "info": "status=422 code=IDEMPOTENCY_KEY_REUSE"
+    },
+    {
+      "name": "Alice SENT folder contains the message",
+      "pass": true,
+      "info": "status=200 count=1"
+    },
+    {
+      "name": "CORE internal delivery A->B: Bob INBOX has Alice's email",
+      "pass": true,
+      "info": "from=qa.alice.mvhzs28i@quantmail.in deliveryStatus=delivered isRead=false"
+    },
+    {
+      "name": "Bob reads received email -> 200",
+      "pass": true,
+      "info": "status=200"
+    },
+    {
+      "name": "Bob threads list -> 200",
+      "pass": true,
+      "info": "status=200"
+    },
+    {
+      "name": "IDOR: Bob cannot read Alice's SENT message id -> 403/404",
+      "pass": true,
+      "info": "status=403"
+    },
+    {
+      "name": "create contact -> 201",
+      "pass": false,
+      "info": "status=409"
+    },
+    {
+      "name": "list contacts -> 200 + metadata",
+      "pass": true,
+      "info": "status=200 total=1"
+    },
+    {
+      "name": "contacts strict schema rejects unknown key -> 400",
+      "pass": true,
+      "info": "status=400 code=VALIDATION_ERROR"
+    },
+    {
+      "name": "create calendar -> 201",
+      "pass": true,
+      "info": "status=201"
+    },
+    {
+      "name": "list calendars -> 200",
+      "pass": true,
+      "info": "status=200 count=1"
+    },
+    {
+      "name": "create event -> 201",
+      "pass": true,
+      "info": "status=201"
+    },
+    {
+      "name": "list events in window -> 200 includes event",
+      "pass": true,
+      "info": "status=200 count=1"
+    },
+    {
+      "name": "event end<start -> 400",
+      "pass": true,
+      "info": "status=400 code=INVALID_RANGE"
+    },
+    {
+      "name": "drive quota -> 200 raw {used,total}",
+      "pass": true,
+      "info": "status=200 used=0 total=16106127360"
+    },
+    {
+      "name": "drive files list -> 200 (DB-backed, no storage needed)",
+      "pass": true,
+      "info": "status=200 files=0"
+    },
+    {
+      "name": "search emails finds delivered message",
+      "pass": true,
+      "info": "status=200 count=1"
+    },
+    {
+      "name": "search/all cross-app -> 200",
+      "pass": true,
+      "info": "status=200"
+    },
+    {
+      "name": "AI chat unconfigured -> 503 AI_UNAVAILABLE (graceful)",
+      "pass": true,
+      "info": "status=503 code=AI_UNAVAILABLE"
+    },
+    {
+      "name": "refresh with cookie -> 200 new token",
+      "pass": true,
+      "info": "status=200 rotated=true"
+    },
+    {
+      "name": "refreshed token works -> 200",
+      "pass": true,
+      "info": "status=200"
+    },
+    {
+      "name": "logout -> 200",
+      "pass": true,
+      "info": "status=200"
+    },
+    {
+      "name": "refresh after logout -> 401 (revoked family)",
+      "pass": true,
+      "info": "status=401"
+    },
+    {
+      "name": "unknown route -> 404",
+      "pass": true,
+      "info": "status=404"
+    },
+    {
+      "name": "login rate-limit kicks in (<=8 attempts) -> 429",
+      "pass": true,
+      "info": "sequence=[401,429]"
+    }
+  ],
+  "latency": [
+    {
+      "endpoint": "GET /health",
+      "n": 1,
+      "avgMs": 25.7,
+      "maxMs": 25.7
+    },
+    {
+      "endpoint": "POST /auth/register",
+      "n": 5,
+      "avgMs": 23.8,
+      "maxMs": 64.7
+    },
+    {
+      "endpoint": "POST /auth/login",
+      "n": 6,
+      "avgMs": 21.5,
+      "maxMs": 42.6
+    },
+    {
+      "endpoint": "POST /emails",
+      "n": 4,
+      "avgMs": 9.8,
+      "maxMs": 32.9
+    },
+    {
+      "endpoint": "GET /drive/files",
+      "n": 1,
+      "avgMs": 6.4,
+      "maxMs": 6.4
+    },
+    {
+      "endpoint": "GET /search/emails",
+      "n": 1,
+      "avgMs": 6.2,
+      "maxMs": 6.2
+    },
+    {
+      "endpoint": "GET /emails",
+      "n": 2,
+      "avgMs": 5.8,
+      "maxMs": 6
+    },
+    {
+      "endpoint": "POST /auth/refresh",
+      "n": 2,
+      "avgMs": 4.7,
+      "maxMs": 7.2
+    },
+    {
+      "endpoint": "POST /events",
+      "n": 2,
+      "avgMs": 4.5,
+      "maxMs": 7.6
+    },
+    {
+      "endpoint": "GET /search/all",
+      "n": 1,
+      "avgMs": 4.5,
+      "maxMs": 4.5
+    },
+    {
+      "endpoint": "GET /auth/sessions",
+      "n": 3,
+      "avgMs": 3.8,
+      "maxMs": 9
+    },
+    {
+      "endpoint": "GET /readyz",
+      "n": 1,
+      "avgMs": 3.7,
+      "maxMs": 3.7
+    },
+    {
+      "endpoint": "GET /auth/2fa/status",
+      "n": 1,
+      "avgMs": 3.7,
+      "maxMs": 3.7
+    },
+    {
+      "endpoint": "POST /ai/chat",
+      "n": 1,
+      "avgMs": 3.2,
+      "maxMs": 3.2
+    },
+    {
+      "endpoint": "GET /events",
+      "n": 1,
+      "avgMs": 3.1,
+      "maxMs": 3.1
+    },
+    {
+      "endpoint": "GET /drive/quota",
+      "n": 1,
+      "avgMs": 2.8,
+      "maxMs": 2.8
+    },
+    {
+      "endpoint": "GET /livez",
+      "n": 1,
+      "avgMs": 2.6,
+      "maxMs": 2.6
+    },
+    {
+      "endpoint": "POST /labels",
+      "n": 1,
+      "avgMs": 2.6,
+      "maxMs": 2.6
+    },
+    {
+      "endpoint": "GET /emails/cmvhzs2hn000qqp0vu45priub",
+      "n": 1,
+      "avgMs": 2.6,
+      "maxMs": 2.6
+    },
+    {
+      "endpoint": "GET /emails/cmvhzs2h5000lqp0vmw237w0v",
+      "n": 1,
+      "avgMs": 2.5,
+      "maxMs": 2.5
+    },
+    {
+      "endpoint": "GET /folders",
+      "n": 1,
+      "avgMs": 2.4,
+      "maxMs": 2.4
+    },
+    {
+      "endpoint": "POST /calendars",
+      "n": 1,
+      "avgMs": 2.4,
+      "maxMs": 2.4
+    },
+    {
+      "endpoint": "POST /auth/logout",
+      "n": 1,
+      "avgMs": 2.4,
+      "maxMs": 2.4
+    },
+    {
+      "endpoint": "GET /labels",
+      "n": 1,
+      "avgMs": 2.3,
+      "maxMs": 2.3
+    },
+    {
+      "endpoint": "POST /contacts",
+      "n": 2,
+      "avgMs": 2.3,
+      "maxMs": 2.8
+    },
+    {
+      "endpoint": "GET /threads",
+      "n": 1,
+      "avgMs": 2.2,
+      "maxMs": 2.2
+    },
+    {
+      "endpoint": "GET /contacts",
+      "n": 1,
+      "avgMs": 2.1,
+      "maxMs": 2.1
+    },
+    {
+      "endpoint": "GET /api/health",
+      "n": 1,
+      "avgMs": 1.9,
+      "maxMs": 1.9
+    },
+    {
+      "endpoint": "GET /calendars",
+      "n": 1,
+      "avgMs": 1.9,
+      "maxMs": 1.9
+    },
+    {
+      "endpoint": "GET /this-route-does-not-exist",
+      "n": 1,
+      "avgMs": 1.1,
+      "maxMs": 1.1
+    }
+  ]
+}
