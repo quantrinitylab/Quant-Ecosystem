@@ -134,6 +134,8 @@ type FolderRow = {
   isDeleted: boolean;
   deletedAt: Date | null;
   trashRootId: string | null;
+  // fix/qm-drive-folder-colors-2: nullable palette hex (NULL = default tint).
+  color: string | null;
   updatedAt: Date;
 };
 type MemoryRow = {
@@ -425,6 +427,35 @@ function fileDto(file: FileRow, owner: Owner, decorations?: Decorations) {
     scannedAt: file.scannedAt ?? null,
   };
 }
+// ============================================================================
+// fix/qm-drive-folder-colors-2 — Drive-style folder color palette.
+// A FIXED set of 16 swatches (plus NULL = default). The backend validates
+// every color write against this list, so the UI can never persist a junk
+// hex and a folder can never render in an arbitrary color.
+// ============================================================================
+const FOLDER_COLOR_PALETTE = [
+  '#E87171', // tomato
+  '#F6A76B', // tangerine
+  '#F7D354', // sunflower
+  '#A3E635', // lime
+  '#7DD8A8', // mint
+  '#4FD1C5', // seafoam
+  '#63B3ED', // sky
+  '#8EA2F8', // periwinkle
+  '#B794F6', // lavender
+  '#D68BE0', // orchid
+  '#F687B3', // rose
+  '#FDBA74', // peach
+  '#9CA3AF', // graphite
+  '#64748B', // slate
+  '#A18072', // cocoa
+  '#7C8DA6', // steel
+] as const;
+const FOLDER_COLOR_SET = new Set<string>(FOLDER_COLOR_PALETTE);
+const folderColorSchema = z.string().nullable().refine(
+  (c) => c === null || FOLDER_COLOR_SET.has(c),
+  { message: 'color must be null or one of the Drive palette colors' },
+);
 function folderDto(folder: FolderRow, owner: Owner, decorations?: Decorations) {
   return {
     id: folder.id,
@@ -438,6 +469,8 @@ function folderDto(folder: FolderRow, owner: Owner, decorations?: Decorations) {
     owner,
     sharedWith: decorations?.shares.get(`folder:${folder.id}`) ?? [],
     isStarred: folder.isStarred,
+    // fix/qm-drive-folder-colors-2: NULL = default folder color.
+    color: folder.color ?? null,
     versions: [],
   };
 }
@@ -1180,9 +1213,15 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
   });
   fastify.post('/drive/folders', async (request, reply) => {
     const parsed = z
-      .object({ name: z.string().min(1).max(200), parentId: z.string().nullable().optional() })
+      .object({
+        name: z.string().min(1).max(200),
+        parentId: z.string().nullable().optional(),
+        // fix/qm-drive-folder-colors-2: optional initial color from the palette.
+        color: folderColorSchema.optional(),
+      })
       .safeParse(request.body);
-    if (!parsed.success) throw parsed.error;
+    if (!parsed.success)
+      throw createAppError('Invalid folder payload', 400, 'VALIDATION_ERROR');
     const userId = requireUserId(request);
     const owner = await ownerInfo(prisma, userId);
     let path = `/${parsed.data.name}`;
@@ -1194,7 +1233,13 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       path = `${parent.path}/${parsed.data.name}`;
     }
     const folder = await prisma.folder.create({
-      data: { userId, name: parsed.data.name, parentId: parsed.data.parentId ?? null, path },
+      data: {
+        userId,
+        name: parsed.data.name,
+        parentId: parsed.data.parentId ?? null,
+        path,
+        color: parsed.data.color ?? null,
+      },
     });
     return reply.status(201).send(folderDto(folder, owner));
   });
@@ -1216,8 +1261,28 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
         name: folder.name,
         parentId: folder.parentId ?? null,
         path: folder.path,
+        // fix/qm-drive-folder-colors-2: NULL = default folder color.
+        color: folder.color ?? null,
       })),
     });
+  });
+  // fix/qm-drive-folder-colors-2 — PUT /drive/folders/:id/color: Drive-style
+  // "Change color" for folders only. Body: { color: <palette hex> | null } —
+  // null resets to the default tint. Files are rejected with 400; the palette
+  // is fixed server-side so junk hexes can never be persisted.
+  fastify.put<{ Params: { id: string } }>('/drive/folders/:id/color', async (request, reply) => {
+    const parsed = z.object({ color: folderColorSchema }).safeParse(request.body);
+    if (!parsed.success)
+      throw createAppError('Invalid folder color', 400, 'VALIDATION_ERROR');
+    const userId = requireUserId(request);
+    const item = await ownedItem(prisma, request.params.id, userId);
+    if (item.type !== 'folder')
+      throw createAppError('Only folders can have a color', 400, 'VALIDATION_ERROR');
+    const row = await prisma.folder.update({
+      where: { id: item.row.id },
+      data: { color: parsed.data.color },
+    });
+    return reply.send({ id: row.id, color: row.color ?? null });
   });
   fastify.put<{ Params: { id: string }; Body: { name?: string } }>(
     '/drive/files/:id',
