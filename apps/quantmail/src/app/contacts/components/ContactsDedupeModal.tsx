@@ -24,6 +24,10 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
   const [isLoading, setIsLoading] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [selectedPrimaries, setSelectedPrimaries] = useState<Record<number, string>>({});
+  // Fingerprint of the plan the wizard previewed: handed back to
+  // deduplicateContacts so a plan that changed underneath 409s instead of
+  // silently merging an expanded set.
+  const [planFingerprint, setPlanFingerprint] = useState<string | undefined>(undefined);
 
   const loadDuplicates = useCallback(async () => {
     setIsLoading(true);
@@ -31,6 +35,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
       const res = await apiClient.getContactDuplicates();
       if (res.success && res.data) {
         setClusters(res.data);
+        setPlanFingerprint(res.planFingerprint);
         // Default each cluster's primary to the server-suggested primary
         const initial: Record<number, string> = {};
         res.data.forEach((group, idx) => {
@@ -89,7 +94,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
   const handleAutoMergeAll = async () => {
     setIsMerging(true);
     try {
-      const res = await apiClient.deduplicateContacts();
+      const res = await apiClient.deduplicateContacts(planFingerprint);
       if (res.success) {
         const count = res.data?.mergedCount ?? 0;
         showToast({
@@ -102,6 +107,15 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
         // confirms everything the wizard showed is now merged.
         await loadDuplicates();
         onMerged();
+      } else if (res.error?.code === 'STALE_MERGE_PLAN') {
+        // The data changed under the preview (new duplicates, new
+        // dismissals): never merge the expanded set silently — reload the
+        // fresh plan so the user reviews it first.
+        showToast({
+          text: 'The duplicate list changed — review the updated list and try again',
+          type: 'error',
+        });
+        await loadDuplicates();
       } else {
         showToast({ text: res.error?.message || 'Auto-merge failed', type: 'error' });
       }

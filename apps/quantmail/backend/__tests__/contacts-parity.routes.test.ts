@@ -627,8 +627,7 @@ describe('Wave 8 — Phase M & Contacts Parity Suite (Developer 1)', () => {
       expect(remaining.map((c: { id: string }) => c.id).sort()).toEqual([c1.id, c2.id].sort());
     });
 
-    it('returns mergedCount: 0 when no duplicates exist', async () => {
-      await prisma.contact.create({
+    it('returns mergedCount: 0 when no duplicates exist', async () => {      await prisma.contact.create({
         data: {
           id: 'contact-unique-1',
           userId: 'user-1',
@@ -651,7 +650,70 @@ describe('Wave 8 — Phase M & Contacts Parity Suite (Developer 1)', () => {
       });
 
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ success: true, data: { mergedCount: 0 } });
+      // The deduplicate response now also carries the plan fingerprint the
+      // wizard hands back for STALE_MERGE_PLAN detection; with no duplicates
+      // the plan is empty (sha1 of the empty string, truncated).
+      expect(response.json()).toEqual({
+        success: true,
+        data: { mergedCount: 0, planFingerprint: 'da39a3ee5e6b4b0d' },
+      });
+    });
+
+    it('409s STALE_MERGE_PLAN when the preview fingerprint no longer matches', async () => {
+      // P1 (#1328 follow-up): a preview taken before a new duplicate arrived
+      // must conflict and ask for re-preview, never silently expand the merge.
+      await prisma.contact.create({
+        data: {
+          id: 'contact-stale-1',
+          userId: 'user-1',
+          name: 'Stale One',
+          email: 'stale@example.com',
+        },
+      });
+      await prisma.contact.create({
+        data: {
+          id: 'contact-stale-2',
+          userId: 'user-1',
+          name: 'Stale Two',
+          email: 'STALE@example.com',
+        },
+      });
+
+      const preview = await app.inject({ method: 'GET', url: '/contacts/duplicates' });
+      expect(preview.statusCode).toBe(200);
+      const freshFingerprint = preview.json().planFingerprint;
+      expect(typeof freshFingerprint).toBe('string');
+
+      // A new duplicate lands after the preview was taken.
+      await prisma.contact.create({
+        data: {
+          id: 'contact-stale-3',
+          userId: 'user-1',
+          name: 'Stale Three',
+          email: 'stale@example.com',
+        },
+      });
+
+      const stale = await app.inject({
+        method: 'POST',
+        url: '/contacts/deduplicate',
+        payload: { planFingerprint: freshFingerprint },
+      });
+      expect(stale.statusCode).toBe(409);
+      expect(stale.json().error.code).toBe('STALE_MERGE_PLAN');
+      // Nothing merged on the conflict path.
+      const remaining = await prisma.contact.findMany({ where: { userId: 'user-1' } });
+      expect(remaining).toHaveLength(3);
+
+      // Re-previewing yields a fresh fingerprint that proceeds.
+      const rePreview = await app.inject({ method: 'GET', url: '/contacts/duplicates' });
+      const ok = await app.inject({
+        method: 'POST',
+        url: '/contacts/deduplicate',
+        payload: { planFingerprint: rePreview.json().planFingerprint },
+      });
+      expect(ok.statusCode).toBe(200);
+      expect(ok.json().data.mergedCount).toBe(2);
     });
   });
 
