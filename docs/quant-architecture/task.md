@@ -5820,3 +5820,10 @@ Rotation -> QM-SCREEN-010/011 (drive) ROUND 35 regression, queued.
 Status: [x] DONE (R35 regression audit complete 2026-10-23 ~08:35-08:55 IST; 0 window merges — pure re-verification pass, all prior pins byte-verified intact, 4 stale carryovers corrected-closed with code evidence, remaining carryovers confirmed open, 0 new findings, origin healthy with full logged-out live verification on both viewports; fixes tracked via their PRs)
 Owner: LANE-1
 Branch: lane1-audit-008r35
+
+
+## QM-SCREEN-010/011 R35 — Drive regression (ROUND 35)
+Status: [~] IN PROGRESS (2026-10-23 ~09:40 IST audit start, LANE-1, Branch: lane1-audit-010r35)
+Owner: LANE-1
+Branch: lane1-audit-010r35
+Audit started: 2026-10-23 ~09:40 IST (lane-1 deep audit loop, ROUND 35)
