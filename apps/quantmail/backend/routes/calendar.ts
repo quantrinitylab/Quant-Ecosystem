@@ -139,6 +139,13 @@ const lockSlotSchema = z.object({
   slot: z.string(),
   email: z.string().email(),
 });
+// fix/qm-booking-link-host-controls: host pause/resume. PATCH accepts ONLY the
+// isActive flag — every other field stays server-side immutable through this
+// endpoint, so a crafted body can never rename or re-anchor someone else's
+// link (and the service re-checks ownership anyway).
+const updateBookingLinkSchema = z.object({
+  isActive: z.boolean(),
+});
 const confirmBookingSchema = z.object({
   slot: z.string(),
   name: z.string().min(1),
@@ -3100,6 +3107,34 @@ export default async function calendarRoutes(
     return reply.send({ success: true, data: { message: 'Booking link deleted' } });
   };
 
+  // Host pause/resume (fix/qm-booking-link-host-controls): toggle a link's
+  // isActive flag. Invalid bodies 400; unknown or other-host ids 404 (the
+  // service throws BOOKING_LINK_NOT_FOUND for both — no oracle).
+  const handleUpdateBookingLink = async (
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply,
+  ) => {
+    const parsed = updateBookingLinkSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        success: false,
+        error: {
+          code: 'BOOKING_LINK_PATCH_INVALID',
+          message: `Expected { isActive: boolean }: ${parsed.error.issues
+            .map((i) => i.message)
+            .join('; ')}`,
+        },
+      });
+    }
+    const userId = requireUserId(request);
+    const updated = await bookingService().updateBookingLink(
+      request.params.id,
+      userId,
+      parsed.data,
+    );
+    return reply.send({ success: true, data: updated });
+  };
+
   const handleGetBookingLink = async (
     request: FastifyRequest<{ Params: { slug: string } }>,
     reply: FastifyReply,
@@ -3185,6 +3220,15 @@ export default async function calendarRoutes(
   fastify.delete<{ Params: { id: string } }>(
     '/calendar/booking/links/:id',
     handleDeleteBookingLink,
+  );
+  // fix/qm-booking-link-host-controls: host pause/resume. The Next proxy
+  // allow-list admits PATCH only on the authenticated /booking/links/:id
+  // prefix (routes-config.ts) — the /calendar/booking alias mirrors DELETE's
+  // registration for direct-backend clients but stays proxy-blocked like it.
+  fastify.patch<{ Params: { id: string } }>('/booking/links/:id', handleUpdateBookingLink);
+  fastify.patch<{ Params: { id: string } }>(
+    '/calendar/booking/links/:id',
+    handleUpdateBookingLink,
   );
 
   // Public booking link routes

@@ -1,11 +1,15 @@
 // ============================================================================
-// Booking-link proxy allow-list pin (fix/qm-bookinglinks-read-write).
+// Booking-link proxy allow-list pin (fix/qm-bookinglinks-read-write, extended by
+// fix/qm-booking-link-host-controls).
 //
-// The BookingLinksModal reads the host's links (GET /api/booking/links) and
-// deletes them (DELETE /api/booking/links/:id) through the Next.js catch-all
-// proxy, which only forwards methods listed in ALLOWED_BACKEND_ROUTES. Before
-// this fix only POST was listed, so the modal could write but never read back
-// (split-brain) and could never delete. These tests pin the allow-list rows.
+// The BookingLinksModal reads the host's links (GET /api/booking/links),
+// deletes them (DELETE /api/booking/links/:id), and pauses/resumes them
+// (PATCH /api/booking/links/:id) through the Next.js catch-all proxy, which
+// only forwards methods listed in ALLOWED_BACKEND_ROUTES. Before
+// fix/qm-bookinglinks-read-write only POST was listed, so the modal could
+// write but never read back (split-brain) and could never delete. Before
+// fix/qm-booking-link-host-controls PATCH was missing, so the host could
+// never pause a link. These tests pin the allow-list rows.
 // ============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -20,8 +24,8 @@ describe('booking links proxy allow-list', () => {
     expect(methodsFor('booking/links')).toEqual(['GET', 'POST']);
   });
 
-  it('lists DELETE (and only DELETE) for the id-addressed path /booking/links/:id', () => {
-    expect(methodsFor('booking/links/clx-booking-server-1')).toEqual(['DELETE']);
+  it('lists DELETE and PATCH (and only those) for the id-addressed path /booking/links/:id', () => {
+    expect(methodsFor('booking/links/clx-booking-server-1')).toEqual(['DELETE', 'PATCH']);
   });
 
   it('does not expose the id-addressed path for reads (public reads stay on /calendar/booking/:slug)', () => {

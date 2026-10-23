@@ -89,6 +89,12 @@ export interface PrismaClient {
     findUnique: (args: { where: Record<string, unknown> }) => Promise<unknown>;
     findMany: (args: Record<string, unknown>) => Promise<unknown[]>;
     delete?: (args: { where: Record<string, unknown> }) => Promise<unknown>;
+    // fix/qm-booking-link-host-controls: required, not optional — a host
+    // pause/resume must never silently no-op when the delegate lacks it.
+    update: (args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => Promise<unknown>;
   };
   event: {
     findMany: (args: Record<string, unknown>) => Promise<unknown[]>;
@@ -480,6 +486,36 @@ export class BookingLinkService {
     if (this.prisma.bookingLink.delete) {
       await this.prisma.bookingLink.delete({ where: { id } });
     }
+  }
+
+  /**
+   * Host pause/resume (fix/qm-booking-link-host-controls): flip a link's
+   * isActive flag. The ownership check mirrors deleteBookingLink — a host can
+   * only toggle their own links (404 otherwise, so cross-user toggling is
+   * indistinguishable from a missing link). Only the isActive field is
+   * writable through this path; every other field is intentionally ignored.
+   * The public booking page, slot queries, and confirmBooking already honor
+   * isActive=false (inactive dead-link state), so pausing takes effect
+   * everywhere an invitee can reach the link.
+   */
+  async updateBookingLink(
+    id: string,
+    userId: string,
+    patch: { isActive?: boolean },
+  ): Promise<BookingLink> {
+    const link = (await this.prisma.bookingLink.findUnique({ where: { id } })) as Record<
+      string,
+      unknown
+    > | null;
+    if (!link || link['userId'] !== userId) {
+      throw createAppError('Booking link not found', 404, 'BOOKING_LINK_NOT_FOUND');
+    }
+    const data: Record<string, unknown> = { updatedAt: new Date() };
+    if (typeof patch.isActive === 'boolean') {
+      data['isActive'] = patch.isActive;
+    }
+    const updated = await this.prisma.bookingLink.update({ where: { id }, data });
+    return this.toBookingLink(updated);
   }
 
   async lockSlot(
