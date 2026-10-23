@@ -5950,3 +5950,9 @@ Also verified intact: unread badge counts real conversations (:183-205); quant:d
 - [ ] FINDING R36-NEW-1 P3: hairline borders in shell overlay chrome vs no-divider rule | expected: no divider lines | actual: border-b in (a) mobile collapsible search panel (AppShell.tsx:849), (b) account-menu section separator (AccountBadge.tsx:358), (c) command-palette input header (CommandPalette.tsx:190) — all overlay/menu chrome, pre-existing pattern class, not content-list dividers; design observation, left unassigned, fold into next shell pass.
 NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 1 P3. No fix agents (protocol P0/P1-only; subagent.list 0 active at run start and end). findings.md untouched.
 LIVE HEALTHY, VISUAL VERIFIED: proxy 200 (0.60s, no restart); / -> 307 -> /login (1.25s). Desktop 1440x900 (9334) + mobile 390x844 (iPhone 14, MOBILE_CHROME_PORT=9363, wait_s=14 hydrated) / shots REVIEWED: settled sign-in both viewports, current clay M-mark, honest tri-cards, ONE IDENTITY footer, (c) 2026, pure black, mail-orange, zero old-logo flash; standing P3 'Quant Mail' wordmark spacing re-seen not re-filed. Shots deleted; exactly my 2 chrome dirs removed via exact-compare (live sibling 9333 dir untouched); /tmp 7%. Signed-in shell + command palette functional = needs-auth. #1243 deploy hold ACTIVE (standing) — nothing to deploy.
+
+## QM-SCREEN-004 R36
+Status: [~] IN PROGRESS (audit claim 2026-10-23 ~19:35 IST)
+Owner: LANE-1 (round-36 regression)
+Branch: lane1-audit-004r36
+Base: origin/main e91cd548a19b319900165df8b2d57971fa0c966e (fresh fetch; same as R36-003 base, zero new main merges) -> pure re-verification + fresh hunt vs R2 pins.
