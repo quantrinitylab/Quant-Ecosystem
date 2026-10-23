@@ -1943,7 +1943,7 @@ VERDICT-LIVE: HEALTHY — proxy 127.0.0.1:8888 healthy (google.com 200, no resta
 Rotation -> QM-SCREEN-017 (admin) ROUND 29 regression, queued.
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
-Status: [x] DONE — LANE-1, branch lane1-audit-017r34 (2026-10-23 ~05:35–06:10 IST). R34 REGRESSION AUDIT COMPLETE.
+Status: [~] IN PROGRESS — LANE-1, branch lane1-audit-017r35 (2026-10-23 ~15:35 IST). R35 REGRESSION AUDIT. Owner: LANE-1.
 
 R34 REGRESSION AUDIT COMPLETE (2026-10-23 ~05:35–06:10 IST) — LANE-1, branch lane1-audit-017r34: base = origin/main a19fe7ea92b (R33-017 tip) -> origin/main a19fe7ea92b (fresh fetch, 0 first-parent merges — main UNCHANGED since R33-017 2026-10-22 ~19:40 IST). WINDOW EMPTY -> pure re-verification pass (6th consecutive empty window today). All code read from origin/main tree only (git archive snapshot /tmp/qsnap017; qe-main working tree ignored per stale-tree lesson; git grep <rev> silently empty in this env — workaround stands).
 #855 PRIOR FIXES BYTE-VERIFIED INTACT @ a19fe7ea92b: backend/routes/retention.ts 8x requireStaff; audit-logs.ts 0 startsWith('admin'); admin.ts STAFF_ROLES {'ADMIN','MODERATOR'} (:32) + 14x requireStaff; AdminGuard 3 hits in app/admin/layout.tsx.
