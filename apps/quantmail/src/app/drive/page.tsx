@@ -28,7 +28,10 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
-import { useDrive, type ReceivedShare, type SentShareItem, isDocumentDriveId, readErrorInstruction } from '../../hooks/useDrive';
+import { useDrive, type ReceivedShare, type SentShareItem, type DriveSearchRequestFilters, isDocumentDriveId, readErrorInstruction } from '../../hooks/useDrive';
+import {
+  parseDriveSearchQuery,
+} from '../../components/drive/drive-search-operators';
 import { formatBytes } from '../../lib/format-bytes';
 import { showToast } from '../../components/InboxToast';
 import { useScrollElement, useVirtualizer } from '../../lib/virtual/useVirtualizer';
@@ -77,6 +80,61 @@ type DriveItem = {
 };
 
 type DriveFilter = 'all' | 'folders' | 'documents' | 'images' | 'starred' | 'trash' | 'shared';
+
+/** Owner metadata filter (Google-Drive-style `owner:` operator as a chip). */
+type OwnerChipFilter = 'any' | 'me' | 'shared';
+/** Modified-date metadata filter (Google-Drive-style `before:`/`after:` as a chip). */
+type ModifiedChipFilter = 'any' | 'today' | 'week' | 'month' | 'year';
+
+const OWNER_CHIP_OPTIONS: { key: OwnerChipFilter; label: string }[] = [
+  { key: 'any', label: 'Anyone' },
+  { key: 'me', label: 'Owned by me' },
+  { key: 'shared', label: 'Shared' },
+];
+
+const MODIFIED_CHIP_OPTIONS: { key: ModifiedChipFilter; label: string }[] = [
+  { key: 'any', label: 'Any time' },
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'Past 7 days' },
+  { key: 'month', label: 'Past 30 days' },
+  { key: 'year', label: 'Past year' },
+];
+
+const OWNER_CHIP_LABELS: Record<OwnerChipFilter, string> = {
+  any: 'Owner',
+  me: 'Owned by me',
+  shared: 'Shared',
+};
+
+const MODIFIED_CHIP_LABELS: Record<ModifiedChipFilter, string> = {
+  any: 'Modified',
+  today: 'Today',
+  week: 'Past 7 days',
+  month: 'Past 30 days',
+  year: 'Past year',
+};
+
+/**
+ * Start-of-period as YYYY-MM-DD (local day) for the Modified chip. Sent as
+ * the `after:` param so the backend applies the same window server-side.
+ */
+function modifiedChipAfterDate(filter: ModifiedChipFilter): string | undefined {
+  if (filter === 'any') return undefined;
+  const start = new Date();
+  if (filter === 'today') {
+    start.setHours(0, 0, 0, 0);
+  } else if (filter === 'week') {
+    start.setDate(start.getDate() - 7);
+  } else if (filter === 'month') {
+    start.setDate(start.getDate() - 30);
+  } else {
+    start.setDate(start.getDate() - 365);
+  }
+  const y = start.getFullYear();
+  const m = String(start.getMonth() + 1).padStart(2, '0');
+  const d = String(start.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 /** Shared dedupe key so an upload's progress line is replaced by its outcome. */
 const UPLOAD_TOAST = 'drive-upload';
@@ -465,6 +523,17 @@ function DrivePageContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewModeState] = useState<'grid' | 'list'>('grid');
   const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
+  // Google-Drive-style metadata filter chips (owner / modified date) sitting
+  // next to the type filter pills. A typed `owner:` / `after:` operator in the
+  // search box overrides the corresponding chip for that search.
+  const [ownerFilter, setOwnerFilter] = useState<OwnerChipFilter>('any');
+  const [modifiedFilter, setModifiedFilter] = useState<ModifiedChipFilter>('any');
+  const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
+  const [modifiedMenuOpen, setModifiedMenuOpen] = useState(false);
+  const [ownerMenuPos, setOwnerMenuPos] = useState<{ left: number; top: number } | null>(null);
+  const [modifiedMenuPos, setModifiedMenuPos] = useState<{ left: number; top: number } | null>(null);
+  const ownerChipRef = useRef<HTMLButtonElement>(null);
+  const modifiedChipRef = useRef<HTMLButtonElement>(null);
   const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
@@ -750,19 +819,32 @@ function DrivePageContent() {
     }
   }, [fetchFiles, currentFolderId, activeFilter]);
 
-  // Debounced search: avoid firing an API request on every keystroke
+  // Debounced search: avoid firing an API request on every keystroke.
+  // Google-Drive-style operators typed in the box (`type:` / `name:` /
+  // `owner:` / `before:` / `after:`) are parsed out before the request; the
+  // typed operator wins over the matching filter chip for that search.
   useEffect(() => {
     const q = searchQuery.trim();
     const t = setTimeout(() => {
-      if (q) searchFiles(q);
-      else if (activeFilter !== 'trash' && activeFilter !== 'shared') {
+      if (q) {
+        const parsed = parseDriveSearchQuery(q);
+        const requestFilters: DriveSearchRequestFilters = {};
+        if (parsed.filters.type) requestFilters.type = parsed.filters.type;
+        if (parsed.filters.name) requestFilters.name = parsed.filters.name;
+        requestFilters.owner =
+          parsed.filters.owner ?? (ownerFilter !== 'any' ? ownerFilter : undefined);
+        if (parsed.filters.before) requestFilters.before = parsed.filters.before;
+        requestFilters.after =
+          parsed.filters.after ?? modifiedChipAfterDate(modifiedFilter);
+        searchFiles(parsed.text, requestFilters);
+      } else if (activeFilter !== 'trash' && activeFilter !== 'shared') {
         fetchFiles(currentFolderId, activeFilter !== 'all' ? activeFilter : undefined);
       }
     }, 300);
     return () => clearTimeout(t);
-    // Intentionally keyed on searchQuery alone: re-running on folder id or on the
-    // fetcher identities would restart the debounce mid-keystroke.
-  }, [searchQuery, currentFolderId, activeFilter]);
+    // Keyed on the chips too: changing Owner/Modified while searching must
+    // re-run the search instead of silently keeping stale results.
+  }, [searchQuery, currentFolderId, activeFilter, ownerFilter, modifiedFilter]);
 
   const loadTrash = useCallback(async () => {
     setLoadingSpecial(true);
@@ -945,9 +1027,24 @@ function DrivePageContent() {
       } else if (activeFilter === 'starred') {
         result = result.filter((i) => i.isStarred);
       }
+      // Owner / Modified metadata chips (Google-Drive-style `owner:` /
+      // `before:`/`after:` as chips). The search API applies them server-side
+      // while searching, so they only need client-side application here in
+      // browse mode.
+      if (ownerFilter === 'shared') {
+        result = result.filter((i) => (i.sharedWith?.length ?? 0) > 0);
+      }
+      const chipAfter = modifiedChipAfterDate(modifiedFilter);
+      if (chipAfter) {
+        const cutoff = new Date(`${chipAfter}T00:00:00`);
+        result = result.filter((i) => {
+          const m = new Date(i.modifiedAt);
+          return !Number.isNaN(m.getTime()) && m >= cutoff;
+        });
+      }
     }
     return result;
-  }, [items, activeFilter, searchQuery]);
+  }, [items, activeFilter, searchQuery, ownerFilter, modifiedFilter]);
 
   const folders = useMemo(() => filteredItems.filter((i) => i.type === 'folder'), [filteredItems]);
   const regularFiles = useMemo(
@@ -1401,6 +1498,69 @@ function DrivePageContent() {
                 {filter.label}
               </button>
             ))}
+            {/* Owner / Modified metadata filter chips — Google-Drive-style
+                `owner:` / `before:` / `after:` operators as chips, next to the
+                type pills. Menus are fixed-positioned (measured from the chip)
+                because the pill strip is overflow-x-auto and would clip an
+                absolutely positioned menu. */}
+            <div className="relative shrink-0">
+              <button
+                key="owner-filter"
+                ref={ownerChipRef}
+                type="button"
+                onClick={() => {
+                  const r = ownerChipRef.current?.getBoundingClientRect();
+                  if (r) {
+                    setOwnerMenuPos({
+                      left: Math.max(8, Math.min(r.left, window.innerWidth - 200)),
+                      top: r.bottom + 6,
+                    });
+                  }
+                  setOwnerMenuOpen((prev) => !prev);
+                  setModifiedMenuOpen(false);
+                }}
+                aria-haspopup="menu"
+                aria-expanded={ownerMenuOpen}
+                data-testid="drive-owner-filter-chip"
+                className={`inline-flex min-h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] sm:min-h-0 ${
+                  ownerFilter !== 'any'
+                    ? 'bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)] shadow-[0_0_14px_color-mix(in_srgb,var(--app-accent)_15%,transparent),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
+                    : 'border border-white/[0.08] bg-white/[0.03] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-white/[0.06] hover:border-white/[0.14]'
+                }`}
+              >
+                {OWNER_CHIP_LABELS[ownerFilter]}
+                <IconChevronDown size={12} />
+              </button>
+            </div>
+            <div className="relative shrink-0">
+              <button
+                key="modified-filter"
+                ref={modifiedChipRef}
+                type="button"
+                onClick={() => {
+                  const r = modifiedChipRef.current?.getBoundingClientRect();
+                  if (r) {
+                    setModifiedMenuPos({
+                      left: Math.max(8, Math.min(r.left, window.innerWidth - 200)),
+                      top: r.bottom + 6,
+                    });
+                  }
+                  setModifiedMenuOpen((prev) => !prev);
+                  setOwnerMenuOpen(false);
+                }}
+                aria-haspopup="menu"
+                aria-expanded={modifiedMenuOpen}
+                data-testid="drive-modified-filter-chip"
+                className={`inline-flex min-h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] sm:min-h-0 ${
+                  modifiedFilter !== 'any'
+                    ? 'bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)] shadow-[0_0_14px_color-mix(in_srgb,var(--app-accent)_15%,transparent),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
+                    : 'border border-white/[0.08] bg-white/[0.03] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-white/[0.06] hover:border-white/[0.14]'
+                }`}
+              >
+                {MODIFIED_CHIP_LABELS[modifiedFilter]}
+                <IconChevronDown size={12} />
+              </button>
+            </div>
             {/* Trailing spacer: padding-right collapses inside overflow-x-auto,
                 so without this a mid-list pill ("Folders") renders cut off at
                 the row's edge on narrow screens. */}
@@ -1562,6 +1722,98 @@ function DrivePageContent() {
 
           </div>
         </div>
+
+        {/* Owner / Modified filter-chip menus (fixed-positioned, measured from
+            the chip at open time — the pill strip is overflow-x-auto and would
+            clip an absolutely positioned menu). */}
+        {ownerMenuOpen && ownerMenuPos && (
+          <>
+            <div
+              className="fixed inset-0 z-40 cursor-default"
+              onClick={() => setOwnerMenuOpen(false)}
+              aria-hidden="true"
+            />
+            <div
+              role="menu"
+              aria-label="Owner filter"
+              style={{ left: ownerMenuPos.left, top: ownerMenuPos.top }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setOwnerMenuOpen(false);
+              }}
+              className="fixed z-50 w-48 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] py-1 shadow-xl"
+            >
+              {OWNER_CHIP_OPTIONS.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={ownerFilter === opt.key}
+                  data-testid={`drive-owner-option-${opt.key}`}
+                  onClick={() => {
+                    setOwnerFilter(opt.key);
+                    setOwnerMenuOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between px-3.5 py-2.5 text-left text-xs font-medium transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:bg-white/[0.06] ${
+                    ownerFilter === opt.key
+                      ? 'text-[var(--app-accent)]'
+                      : 'text-[var(--quant-foreground)]'
+                  }`}
+                >
+                  {opt.label}
+                  {ownerFilter === opt.key && (
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {modifiedMenuOpen && modifiedMenuPos && (
+          <>
+            <div
+              className="fixed inset-0 z-40 cursor-default"
+              onClick={() => setModifiedMenuOpen(false)}
+              aria-hidden="true"
+            />
+            <div
+              role="menu"
+              aria-label="Modified date filter"
+              style={{ left: modifiedMenuPos.left, top: modifiedMenuPos.top }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setModifiedMenuOpen(false);
+              }}
+              className="fixed z-50 w-48 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] py-1 shadow-xl"
+            >
+              {MODIFIED_CHIP_OPTIONS.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={modifiedFilter === opt.key}
+                  data-testid={`drive-modified-option-${opt.key}`}
+                  onClick={() => {
+                    setModifiedFilter(opt.key);
+                    setModifiedMenuOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between px-3.5 py-2.5 text-left text-xs font-medium transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:bg-white/[0.06] ${
+                    modifiedFilter === opt.key
+                      ? 'text-[var(--app-accent)]'
+                      : 'text-[var(--quant-foreground)]'
+                  }`}
+                >
+                  {opt.label}
+                  {modifiedFilter === opt.key && (
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Mobile tab strip (QM-UIUX-019): the desktop header below is
             hidden on mobile, so without this strip 7 of 8 Drive surfaces

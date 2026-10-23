@@ -98,6 +98,19 @@ interface ShareParams {
   permission: 'view' | 'edit' | 'admin';
 }
 
+export interface DriveSearchRequestFilters {
+  /** Google-Drive-style `type:` keyword, e.g. 'pdf', 'image', 'folder'. */
+  type?: string;
+  /** `name:` operator term. */
+  name?: string;
+  /** `owner:` operator: 'me' | 'shared' | '<email>'. */
+  owner?: string;
+  /** `before:` operator, YYYY-MM-DD. */
+  before?: string;
+  /** `after:` operator, YYYY-MM-DD. */
+  after?: string;
+}
+
 export interface UseDriveReturn {
   files: DriveFile[];
   loading: boolean;
@@ -120,7 +133,7 @@ export interface UseDriveReturn {
   restoreVersion: (fileId: string, versionId: string) => Promise<void>;
   navigateToFolder: (folderId: string | null, folderName?: string) => void;
   navigateToBreadcrumb: (index: number) => void;
-  searchFiles: (query: string) => Promise<void>;
+  searchFiles: (query: string, filters?: DriveSearchRequestFilters) => Promise<void>;
   getDownloadUrl: (fileId: string) => string;
   downloadFile: (fileId: string, fileName?: string) => Promise<void>;
   acceptShare: (shareId: string) => Promise<{ success: boolean; share: any }>;
@@ -749,11 +762,18 @@ export function useDrive(): UseDriveReturn {
     [breadcrumbs, fetchFiles],
   );
 
-  const searchFiles = useCallback(async (query: string) => {
+  const searchFiles = useCallback(async (query: string, filters?: DriveSearchRequestFilters) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiRequest(`/api/drive/search?q=${encodeURIComponent(query)}`);
+      const params = new URLSearchParams();
+      if (query) params.set('q', query);
+      if (filters?.type) params.set('type', filters.type);
+      if (filters?.name) params.set('name', filters.name);
+      if (filters?.owner) params.set('owner', filters.owner);
+      if (filters?.before) params.set('before', filters.before);
+      if (filters?.after) params.set('after', filters.after);
+      const response = await apiRequest(`/api/drive/search?${params.toString()}`);
       if (!response.ok) throw new Error('Search failed');
       const data = await response.json();
       setFiles(data.files || []);

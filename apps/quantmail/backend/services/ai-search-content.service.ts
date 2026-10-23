@@ -6,6 +6,11 @@
  * relevance scoring and snippet extraction.
  */
 import { createAppError } from '@quant/server-core';
+import {
+  afterCutoff,
+  beforeCutoff,
+  mimePatternsForDriveType,
+} from '../lib/drive-search-filters';
 
 export interface FileIndexRecord {
   id: string;
@@ -26,11 +31,25 @@ export interface SearchResult {
 
 export interface SearchOptions {
   limit?: number;
+  /**
+   * Structured search-operator filters (`type:` / `name:` / `before:` /
+   * `after:`), parsed by the frontend out of the search box and forwarded by
+   * the `/drive/ai/search` route. Applied as real post-filters on the file
+   * rows — never as score tweaks.
+   */
+  filters?: {
+    type?: string;
+    name?: string;
+    before?: string;
+    after?: string;
+  };
 }
 
 interface SearchFileRow {
   id: string;
   name: string;
+  mimeType: string;
+  updatedAt: Date;
 }
 
 export interface SearchPrismaTransactionClient {
@@ -90,6 +109,21 @@ export class AISearchContentService {
     userId: string,
     options?: SearchOptions,
   ): Promise<SearchResult[]> {
+    const filters = options?.filters;
+
+    // `type:` operator — unknown keyword ⇒ honest empty (the route rejects
+    // hand-built unknowns the same way); `type:folder` ⇒ the content index
+    // holds files only, so there is nothing to return.
+    let mimePatterns: string[] | null = null;
+    if (filters?.type) {
+      const patterns = mimePatternsForDriveType(filters.type.toLowerCase());
+      if (patterns === null || patterns.length === 0) return [];
+      mimePatterns = patterns;
+    }
+    const beforeDate = beforeCutoff(filters?.before);
+    const afterDate = afterCutoff(filters?.after);
+    const nameIncludes = filters?.name?.trim().toLowerCase() || null;
+
     const terms = [...new Set(query.toLowerCase().split(/\s+/).filter(Boolean))];
     if (!terms.length) return [];
     const limit = Math.min(100, Math.max(1, options?.limit ?? 20));
@@ -104,18 +138,31 @@ export class AISearchContentService {
     });
 
     const fileIds = [...new Set(records.map((record) => record.fileId))];
+    // The file row is the authority for mime type / modified date / name —
+    // the index row's snapshot can be stale, so operator filters are applied
+    // here against live file metadata, not the indexed copy.
     const files = fileIds.length
       ? await this.prisma.file.findMany({
           where: { id: { in: fileIds }, userId, isDeleted: false },
-          select: { id: true, name: true },
+          select: { id: true, name: true, mimeType: true, updatedAt: true },
         })
       : [];
-    const fileNameById = new Map<string, string>(files.map((file) => [file.id, file.name]));
+    const fileById = new Map<string, SearchFileRow>(files.map((file) => [file.id, file]));
 
     const results: SearchResult[] = [];
     for (const record of records) {
-      const fileName = fileNameById.get(record.fileId);
-      if (!fileName) continue;
+      const file = fileById.get(record.fileId);
+      if (!file) continue;
+      if (
+        mimePatterns &&
+        !mimePatterns.some((p) => file.mimeType.toLowerCase().includes(p.toLowerCase()))
+      ) {
+        continue;
+      }
+      if (beforeDate && !(file.updatedAt < beforeDate)) continue;
+      if (afterDate && !(file.updatedAt >= afterDate)) continue;
+      if (nameIncludes && !file.name.toLowerCase().includes(nameIncludes)) continue;
+      const fileName = file.name;
       const contentLower = record.content.toLowerCase();
       const matchCount = terms.reduce(
         (count, term) => count + (contentLower.includes(term) ? 1 : 0),
