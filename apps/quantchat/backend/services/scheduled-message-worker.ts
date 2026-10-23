@@ -90,11 +90,15 @@ interface SchedulerTxClient {
   message: { create: (args: unknown) => Promise<unknown> };
   conversation: {
     update: (args: unknown) => Promise<unknown>;
-    /** QC-F-359: conversation-type authority for the blocked-pair gate. */
+    /**
+     * QC-F-359: conversation-type authority for the blocked-pair gate.
+     * QC-F-231 Slice A: the same read also serves the delivery-time
+     * disappear-timer snapshot (`select: { disappearTimer: true }`).
+     */
     findUnique: (args: {
       where: { id: string };
-      select?: { type: true };
-    }) => Promise<{ type: string } | null>;
+      select?: { type?: true; disappearTimer?: true };
+    }) => Promise<{ type?: string; disappearTimer?: number | null } | null>;
   };
   /** QC-F-359: PrivacyService's block-list reads (checkBlockedBy). */
   user: {
@@ -310,12 +314,28 @@ export class ScheduledMessageWorker {
 
       // 3. Deliver. The row's status is already SENT from the claim; commit
       // publishes the Message and the status atomically together.
+      //
+      // QC-F-231 Slice A: a scheduled delivery ALSO snapshots the
+      // conversation's disappear timer server-side (same semantics as
+      // MessageService.sendMessage — the stamp is delivery-time, matching
+      // the timer the conversation had when the message actually sent).
+      // Scheduled rows carry no disappearMode, so no send-anchored
+      // expiresAt is stamped here.
+      const timerRow = await tx.conversation.findUnique({
+        where: { id: record.conversationId },
+        select: { disappearTimer: true },
+      });
+      const timerSeconds = timerRow?.disappearTimer;
       await tx.message.create({
         data: {
           conversationId: record.conversationId,
           senderId: record.userId,
           content: record.content,
           type: 'TEXT',
+          metadata:
+            typeof timerSeconds === 'number' && timerSeconds > 0
+              ? { disappearTimerSeconds: timerSeconds }
+              : undefined,
         },
       });
       await tx.conversation.update({
