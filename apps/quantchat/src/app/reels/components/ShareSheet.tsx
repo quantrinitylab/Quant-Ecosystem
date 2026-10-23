@@ -1,25 +1,35 @@
 // ============================================================================
 // QuantChat - Share Sheet (Task 3.7)
-// Uses native Web Share API with fallback to custom share menu
+// Custom share menu for a reel.
 //
 // QC-F-025 honesty fix: a share is only counted (onShare) when a share
 // actually happened. Previously every menu option — including the no-op
 // Send Message / Add to Story / Save Video entries — fired onShare, which
 // POSTs /reels/:id/share and inflates the reel's share count (and its
 // Spotlight engagement score) for an action that never occurred.
-// Now:
-//  - Copy Link copies for real and counts only when the clipboard write
-//    succeeds; a failed/unavailable clipboard shows an honest notice and
-//    counts nothing.
-//  - Native share counts only when navigator.share resolves; cancelling
-//    the native sheet counts nothing.
-//  - Send Message / Add to Story / Save Video have no working flow behind
-//    them in this build, so they are shown disabled and labelled
-//    "Not available" instead of pretending to succeed.
+// Send Message / Add to Story / Save Video have no working flow behind
+// them in this build, so they are shown disabled and labelled
+// "Not available" instead of pretending to succeed.
+//
+// QC-F-373 honesty fix: Copy Link and the native share attempt built a
+// URL for /reels/<id> — a route that does not exist (no page segment,
+// no route-access registry pattern), so every link this sheet produced
+// landed on the 404 page, yet a successful clipboard write or native
+// share still counted a share for it. Until QC-F-365 lands a real
+// focused reel route (/reels?reel=<id>), there is no honest link to
+// give out, so:
+//  - Copy Link is disabled and labelled "Not available" like the other
+//    options; the dead URL is not produced anywhere in this component.
+//  - The native share attempt on open is removed: opening this sheet
+//    now only shows the menu and never sends a dead link to the OS
+//    share sheet.
+//  - No interaction with this sheet fires onShare. Re-enabling the link
+//    options on the real focused route is QC-F-373 Slice-2, defined in
+//    specialist-qc-f-373-buildprep.md §6.4.
 // ============================================================================
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ShareSheetProps {
@@ -35,7 +45,7 @@ const BRAND_SPRINGS = {
 };
 
 const SHARE_OPTIONS = [
-  { id: 'copy', label: 'Copy Link', icon: '🔗', available: true },
+  { id: 'copy', label: 'Copy Link', icon: '🔗', available: false },
   { id: 'message', label: 'Send Message', icon: '💬', available: false },
   { id: 'story', label: 'Add to Story', icon: '📸', available: false },
   { id: 'download', label: 'Save Video', icon: '💾', available: false },
@@ -45,81 +55,21 @@ type ShareOptionId = (typeof SHARE_OPTIONS)[number]['id'];
 
 export function ShareSheet({ isOpen, onClose, reelId, caption, onShare }: ShareSheetProps) {
   const [notice, setNotice] = useState<string | null>(null);
-  // The backdrop's onAnimationComplete can fire more than once (enter and
-  // exit); the native share sheet must be attempted at most once per open,
-  // otherwise a completed share could be counted twice.
-  const nativeAttemptedRef = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
-      nativeAttemptedRef.current = false;
       setNotice(null);
     }
   }, [isOpen]);
 
-  const reelUrl = useCallback(
-    () => `${typeof window !== 'undefined' ? window.location.origin : ''}/reels/${reelId}`,
-    [reelId],
-  );
-
-  const handleNativeShare = useCallback(async () => {
-    if (nativeAttemptedRef.current) return;
-    nativeAttemptedRef.current = true;
-
-    const shareData: ShareData = {
-      title: 'Check out this reel on QuantChat!',
-      text: caption,
-      url: reelUrl(),
-    };
-
-    // Try native Web Share API first
-    if (typeof navigator !== 'undefined' && navigator.share) {
-      try {
-        await navigator.share(shareData);
-        // The user completed a share in the OS sheet — only now is it
-        // truthful to count it.
-        onShare(reelId);
-        onClose();
-        return;
-      } catch {
-        // User cancelled or API not available - fall through to custom menu.
-        // A cancelled share is NOT counted.
-      }
-    }
-  }, [reelId, caption, onShare, onClose, reelUrl]);
-
-  const handleOptionClick = useCallback(
-    async (optionId: ShareOptionId) => {
-      if (optionId === 'copy') {
-        const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
-        if (!clipboard?.writeText) {
-          setNotice('Copying is not available in this browser — the link was not copied and no share was counted.');
-          return;
-        }
-        try {
-          await clipboard.writeText(reelUrl());
-        } catch {
-          setNotice('Could not copy the link — no share was counted. Please try again.');
-          return;
-        }
-        // The link really is on the clipboard — counting this share is honest.
-        onShare(reelId);
-        onClose();
-        return;
-      }
-
-      // Send Message / Add to Story / Save Video have no working flow in
-      // this build. They render disabled (see below), so this is only a
-      // guard: never report a share that did not happen.
-      setNotice('That share option is not available yet — no share was counted.');
-    },
-    [reelId, onShare, onClose, reelUrl],
-  );
-
-  // Attempt native share on open
-  const handleOpen = useCallback(() => {
-    handleNativeShare();
-  }, [handleNativeShare]);
+  // QC-F-373: reelId / caption / onShare stay in the prop shape for the
+  // Slice-2 re-enable, but no option in this build may use them — Copy
+  // Link has no real destination yet and the other three options have
+  // no flow behind them. Every option therefore lands on this one
+  // honest guard: never copy, never share, never count.
+  const handleOptionClick = useCallback((_optionId: ShareOptionId) => {
+    setNotice('That share option is not available yet — no share was counted.');
+  }, []);
 
   return (
     <AnimatePresence>
@@ -132,7 +82,6 @@ export function ShareSheet({ isOpen, onClose, reelId, caption, onShare }: ShareS
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            onAnimationComplete={handleOpen}
           />
 
           {/* Sheet */}
@@ -158,7 +107,7 @@ export function ShareSheet({ isOpen, onClose, reelId, caption, onShare }: ShareS
               {SHARE_OPTIONS.map((option) => (
                 <button
                   key={option.id}
-                  onClick={() => void handleOptionClick(option.id)}
+                  onClick={() => handleOptionClick(option.id)}
                   disabled={!option.available}
                   aria-disabled={!option.available}
                   className={`flex flex-col items-center gap-2 rounded-lg p-3 transition-colors ${
