@@ -31,14 +31,8 @@ describe('DisappearingService (Tasks 14.8 / 14.9 / 14.10)', () => {
   let prisma: ReturnType<typeof createMockPrisma>;
 
   beforeEach(() => {
-    vi.useFakeTimers();
     prisma = createMockPrisma();
     service = new DisappearingService(prisma as never);
-  });
-
-  afterEach(() => {
-    service.destroy();
-    vi.useRealTimers();
   });
 
   describe('setConversationTimer (14.8)', () => {
@@ -69,20 +63,34 @@ describe('DisappearingService (Tasks 14.8 / 14.9 / 14.10)', () => {
   });
 
   describe('markViewedAndScheduleDeletion (14.9)', () => {
-    it('records the view, sets expiresAt, and schedules deletion', async () => {
-      prisma.message.findUnique.mockResolvedValue({ id: 'm1', conversationId: 'c1', metadata: {} });
-      prisma.message.update.mockResolvedValue({});
+    // QC-F-231 Slice C: the in-memory setTimeout fast-path is RETIRED. The
+    // view stamps expiresAt in the DB; the durable MessageExpiryWorker owns
+    // the purge. Advancing time must therefore do NOTHING here — this is
+    // the negative pin for the old behaviour.
+    it('records the view and stamps expiresAt; advancing time purges nothing', async () => {
+      vi.useFakeTimers();
+      try {
+        prisma.message.findUnique.mockResolvedValue({ id: 'm1', conversationId: 'c1', metadata: {} });
+        prisma.message.update.mockResolvedValue({});
 
-      const result = await service.markViewedAndScheduleDeletion('m1', 5, 'user-1');
-      expect(result.expiresAt.getTime() - result.viewedAt.getTime()).toBe(5000);
-      expect(prisma.message.update).toHaveBeenCalledTimes(1);
+        const result = await service.markViewedAndScheduleDeletion('m1', 5, 'user-1');
+        expect(result.expiresAt.getTime() - result.viewedAt.getTime()).toBe(5000);
+        expect(prisma.message.update).toHaveBeenCalledTimes(1);
+        expect(prisma.message.update).toHaveBeenCalledWith({
+          where: { id: 'm1' },
+          data: {
+            expiresAt: expect.any(Date),
+            metadata: { viewedAt: expect.any(String) },
+          },
+        });
 
-      // After the timer elapses the message is soft-deleted.
-      await vi.advanceTimersByTimeAsync(5000);
-      expect(prisma.message.update).toHaveBeenCalledWith({
-        where: { id: 'm1' },
-        data: { isDeleted: true, content: '[Message expired]' },
-      });
+        // No in-memory timer exists any more: even after the timer elapses,
+        // no soft-delete update fires from this service.
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(prisma.message.update).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('is idempotent — a second view does not extend the timer', async () => {
@@ -102,17 +110,22 @@ describe('DisappearingService (Tasks 14.8 / 14.9 / 14.10)', () => {
     // QC-F-038: a non-member must not be able to start a message's
     // destruction timer — and nothing may be scheduled as a side effect.
     it('rejects a non-member view with 403 NOT_A_MEMBER and schedules nothing', async () => {
-      prisma.message.findUnique.mockResolvedValue({ id: 'm1', conversationId: 'c1', metadata: {} });
-      prisma.conversationMember.findFirst.mockResolvedValue(null);
+      vi.useFakeTimers();
+      try {
+        prisma.message.findUnique.mockResolvedValue({ id: 'm1', conversationId: 'c1', metadata: {} });
+        prisma.conversationMember.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.markViewedAndScheduleDeletion('m1', 5, 'user-stranger'),
-      ).rejects.toMatchObject({ statusCode: 403, code: 'NOT_A_MEMBER' });
+        await expect(
+          service.markViewedAndScheduleDeletion('m1', 5, 'user-stranger'),
+        ).rejects.toMatchObject({ statusCode: 403, code: 'NOT_A_MEMBER' });
 
-      expect(prisma.message.update).not.toHaveBeenCalled();
-      // Even after time passes, no expiry update may fire for the denied view.
-      await vi.advanceTimersByTimeAsync(60_000);
-      expect(prisma.message.update).not.toHaveBeenCalled();
+        expect(prisma.message.update).not.toHaveBeenCalled();
+        // Even after time passes, no expiry update may fire for the denied view.
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(prisma.message.update).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     // QC-F-038: a member who left (leftAt set) is no longer an active member;
