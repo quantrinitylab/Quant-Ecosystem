@@ -61,6 +61,19 @@ export interface RoomEvent {
    * setting. Optional; absent means deliver to the whole room as before.
    */
   excludeUserIds?: string[];
+  /**
+   * QC-F-117 — who already delivered this event to local sockets.
+   * `publishRoomEvent` (websocket.ts) delivers locally inline and buffers
+   * before publishing, so it sets this `true`: the origin instance's
+   * backplane handler must skip it (Requirement 4.4 de-dup).
+   * `publishConversationEvent` (realtime-publisher.ts, the REST path) does
+   * NOT deliver locally — it relies on the backplane for ALL delivery — so
+   * it sets this `false`: the origin instance's handler must still deliver
+   * locally (and buffer for §20 resume). Absent (older publishers, presence
+   * transitions that broadcast inline) means "already delivered" — the
+   * pre-QC-F-117 discard behaviour.
+   */
+  localDeliveryDone?: boolean;
 }
 
 /** Handler invoked with each inbound backplane event for a conversation. */
@@ -390,9 +403,17 @@ export class InProcessBackplane implements RealtimeBackplane {
     // No cross-instance channel exists in single-node mode.
   }
 
-  async publish(_conversationId: string, _event: RoomEvent): Promise<void> {
-    // Same-instance sockets are served directly by the websocket layer; there
-    // are no peer instances to forward to.
+  async publish(conversationId: string, event: RoomEvent): Promise<void> {
+    // QC-F-117 — single-node steady state behaves as a one-node cluster: the
+    // event is handed to the registered handler exactly as a remote
+    // instance's event would be. The websocket layer's origin-discard rule
+    // still applies — it only skips when the origin already delivered
+    // locally (`localDeliveryDone !== false`), so REST-published events
+    // (which never deliver inline) now reach local sockets + the §20 resume
+    // buffer even without Redis. Previously this was a no-op, which meant
+    // REST fan-out silently reached NOBODY in single-node deployments.
+    const stamped: RoomEvent = { ...event, originInstanceId: this.instanceId };
+    this.handler?.(conversationId, stamped);
   }
 
   onMessage(handler: RoomEventHandler): void {

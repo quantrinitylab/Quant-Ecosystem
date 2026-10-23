@@ -82,6 +82,14 @@ export async function publishConversationEvent(
       originInstanceId: backplane.instanceId,
       payload: envelope,
       envelope,
+      // QC-F-117 — the REST path never delivers locally inline: the origin
+      // instance's backplane handler must still deliver to local sockets
+      // (and buffer for §20 resume). Without this, single-node deployments
+      // (InProcessBackplane) and the origin instance in a Redis cluster
+      // silently dropped REST fan-out — the phantom WS `chat_message` relay
+      // was the de-facto live-delivery path. It is now deleted; this flag
+      // makes the REST fan-out the real one.
+      localDeliveryDone: false,
       ...(input.excludeUserIds && input.excludeUserIds.length > 0
         ? { excludeUserIds: [...input.excludeUserIds] }
         : {}),
