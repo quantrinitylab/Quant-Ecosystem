@@ -502,10 +502,13 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       expect(html).not.toContain('financial_audit_q3_2026.pdf.enc');
       expect(html).not.toContain('sovereign_identity_credentials.dat.enc');
       expect(html).not.toContain('Decrypt on Demand');
+      // The dead-end is fixed: the empty state must NOT promise a lock action
+      // that does not exist — it admits the action is not available yet.
+      expect(html).not.toContain('Lock a file to add it to your vault');
+      expect(html).toContain('not available yet');
     });
 
-    it('renders real vault items when provided', () => {
-      const html = renderToStaticMarkup(
+    it('renders real vault items as plain metadata, without crypto theatre', () => {      const html = renderToStaticMarkup(
         <DriveVaultSubView
           items={[
             {
@@ -521,7 +524,11 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       );
 
       expect(html).toContain('notes.txt.enc');
-      expect(html).toContain('SHA-256:');
+      expect(html).toContain('1 KB');
+      // The item's own cipher field renders verbatim as neutral metadata
+      // (real data, not a UI claim); security theatre stays out.
+      expect(html).toContain('AES-256-GCM');
+      expect(html).not.toContain('SHA-256');
     });
 
     it('contains strictly ZERO raw Unicode emojis in vault subview', () => {
