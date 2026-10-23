@@ -5790,3 +5790,9 @@ Owner: LANE-1
 Branch: lane1-audit-015r34
 
 
+
+
+
+## QM-SCREEN-007 R35 — Search regression (ROUND 35)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-007r35, started 2026-10-23 ~07:35 IST; R34-007 tip a19fe7ea92b -> origin/main a19fe7ea92b (fresh fetch), 0 first-parent merges — main UNCHANGED. Code read from origin/main object tree only via git archive snapshots + git show (qe-main working tree ignored per stale-tree lesson; git grep <rev> silently empty in this env — snapshot greps; ledger worktree HEAD == remote arch tip 1f536a2db03a ls-remote-verified before write; merge-only, no rebase/reset; never touch another lane's [~]; never QM-AUTH-001, QM-SCREEN-000, QM-AUTH-011, QM-AUTH-014.)
+Audit started: 2026-10-23 ~07:35 IST (lane-1 deep audit loop, ROUND 35)
