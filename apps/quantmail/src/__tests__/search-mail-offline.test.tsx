@@ -63,6 +63,14 @@ vi.mock('../hooks/useUniversalSearch', () => ({
   useUniversalSearch: () => ({ data: null, isLoading: false, error: null }),
 }));
 
+// The page reads the user's real labels for the as-you-type suggestion
+// dropdown's Labels section. The test shell has no QueryClientProvider, so
+// mock it like the other page hooks — an empty label list simply means the
+// section renders nothing.
+vi.mock('../hooks/useLabels', () => ({
+  useLabels: () => ({ data: [], isLoading: false, error: null }),
+}));
+
 vi.mock('../app/search/UniversalSearchResults', () => ({
   UniversalSearchResults: () => null,
 }));
