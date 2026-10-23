@@ -38,10 +38,11 @@ export function extractStorageKey(mediaUrl: string): string {
  * QC-F-329: a snap's persisted mediaUrl is sender-controlled, so the storage
  * key derived from it is too. The only ownership fact the system actually
  * issues is the upload key shape (MediaService.generateUploadUrl:
- * `${userId}/${mediaId}/${filename}`); there is no durable media registry
- * to look up (MediaService keeps an in-memory map, and the Prisma `Media`
- * table has no writers). Ownership is therefore structural: the derived
- * key's first segment must be the message sender's own id. The URL host is
+ * `${userId}/${mediaId}/${filename}`); the durable media registry is the
+ * Prisma `Media` table (written by MediaService.finalizeUpload, QC-F-573),
+ * but finalize-time ownership is already enforced there, so for this
+ * sender-controlled mediaUrl the check stays structural: the derived key's
+ * first segment must be the message sender's own id. The URL host is
  * deliberately NOT checked — presign/delete always act on the server's own
  * bucket via StorageClient; only the key chooses the object.
  */
