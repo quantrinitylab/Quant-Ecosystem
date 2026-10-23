@@ -1,3 +1,5 @@
+const { buildCspHeader } = require('./csp-policy');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: [
@@ -85,6 +87,9 @@ const nextConfig = {
             // (QC-F-153). Same lesson QuantMail learned for its microphone.
             value: 'camera=(self), microphone=(self), geolocation=(self)',
           },
+          // QC-F-155: CSP Report-Only (Slice-1) — directives live in
+          // ./csp-policy.js (single source, parity-pinned in tests).
+          buildCspHeader(),
         ],
       },
     ];
