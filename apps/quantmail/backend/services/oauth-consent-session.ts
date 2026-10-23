@@ -27,12 +27,14 @@
 // three are JWT-shaped. `tokenType` is pinned to 'oauth-consent' and checked
 // on verify, as a second line of defence against token-type confusion.
 //
-// Single-use is enforced per backend instance via a consumed-jti set with lazy
-// expiry sweep. Caveat, stated honestly (same as SSO tickets): in a
-// multi-replica deployment a token consumed on replica A is not yet
-// known-consumed on replica B. Tokens are 600s-lived and 256-bit random, so
-// the practical replay window is tiny; a strictly cross-instance single-use
-// guarantee would need a DB-backed store instead of this in-memory set.
+// Single-use is enforced via a pluggable consumed-jti store (see
+// ConsentTokenStore below). Production uses the DB-backed
+// PrismaConsentTokenStore against the `oauth_consent_tokens` table (unique
+// jti => the database itself is the atomic check-and-mark, so a token consumed
+// on replica A is known-consumed on replica B — cross-instance replay
+// resistance holds, no best-effort caveat). The in-memory store remains only
+// as the unit-test default and an offline fallback; it is NOT sufficient for
+// multi-replica deployments on its own.
 
 import { createHmac, randomBytes } from 'node:crypto';
 import * as jose from 'jose';
@@ -107,14 +109,112 @@ export async function mintConsentToken(claims: ConsentTokenClaims): Promise<stri
     .sign(getConsentSecret());
 }
 
-// Consumed jtis: jti -> absolute expiry (ms). Per-instance single-use
-// enforcement; see the module header for the multi-replica caveat.
-const consumedJtis = new Map<string, number>();
+// ============================================================================
+// Consumed-jti stores: single-use enforcement for consent tokens.
+// ============================================================================
+//
+// The store is the atomic check-and-mark: tryConsume returns true exactly once
+// per jti (the first valid presentation) and false on every replay. Because
+// the check must hold ACROSS backend replicas, the production store is
+// DB-backed (PrismaConsentTokenStore, table `oauth_consent_tokens` with a
+// UNIQUE jti — the database's unique constraint is the cross-instance mutex).
+// The in-memory store is the safe default for unit tests and offline
+// development; do NOT rely on it alone in a multi-replica deploy.
 
-function sweepConsumedJtis(nowMs: number): void {
-  for (const [jti, expiresAtMs] of consumedJtis) {
-    if (expiresAtMs <= nowMs) consumedJtis.delete(jti);
+/** Minimal DB surface the store needs (PrismaClient satisfies this). */
+export interface ConsentTokenDbClient {
+  $executeRawUnsafe(query: string, ...params: unknown[]): Promise<unknown>;
+}
+
+export interface ConsentTokenStore {
+  /**
+   * Atomically mark `jti` consumed. Resolves true on the FIRST call for a
+   * jti, false when the jti was already consumed (replay). Rejects on
+   * unexpected storage errors — callers treat that as fail-closed (no
+   * decision), never as "not consumed".
+   */
+  tryConsume(jti: string, expiresAt: Date): Promise<boolean>;
+}
+
+/** Per-process store with lazy expiry sweep. Test/offline default only. */
+export class InMemoryConsentTokenStore implements ConsentTokenStore {
+  private readonly consumed = new Map<string, number>();
+
+  async tryConsume(jti: string, expiresAt: Date): Promise<boolean> {
+    const nowMs = Date.now();
+    for (const [k, v] of this.consumed) {
+      if (v <= nowMs) this.consumed.delete(k);
+    }
+    if (this.consumed.has(jti)) return false;
+    this.consumed.set(jti, expiresAt.getTime());
+    return true;
   }
+}
+
+const OAUTH_CONSENT_TOKENS_TABLE = 'oauth_consent_tokens';
+
+/**
+ * DB-backed store: INSERT the consumed jti; the UNIQUE(jti) constraint makes
+ * the insert atomic across replicas — a second insert of the same jti fails
+ * with a unique violation, which is the replay signal. Any other DB error
+ * propagates (fail-closed: the consent decision is never made on a broken
+ * store). Raw SQL keeps this independent of the generated Prisma client.
+ */
+export class PrismaConsentTokenStore implements ConsentTokenStore {
+  private lastSweepMs = 0;
+  private static readonly SWEEP_INTERVAL_MS = 60_000;
+
+  constructor(private readonly db: ConsentTokenDbClient) {}
+
+  private static isUniqueViolation(err: unknown): boolean {
+    const code = (err as { code?: unknown } | null)?.code;
+    if (code === 'P2002' || code === '23505') return true;
+    const msg = String((err as { message?: unknown } | null)?.message ?? err ?? '');
+    return /duplicate key|unique constraint|UNIQUE constraint/i.test(msg);
+  }
+
+  async tryConsume(jti: string, expiresAt: Date): Promise<boolean> {
+    try {
+      await this.db.$executeRawUnsafe(
+        `INSERT INTO "${OAUTH_CONSENT_TOKENS_TABLE}" ("jti", "expiresAt", "createdAt") VALUES ($1, $2, NOW())`,
+        jti,
+        expiresAt,
+      );
+    } catch (err) {
+      if (PrismaConsentTokenStore.isUniqueViolation(err)) return false; // replay
+      throw err; // fail closed: honest error, no consent decision made
+    }
+    // Lazy sweep of expired rows (time-gated so it stays one extra query/min).
+    const nowMs = Date.now();
+    if (nowMs - this.lastSweepMs > PrismaConsentTokenStore.SWEEP_INTERVAL_MS) {
+      this.lastSweepMs = nowMs;
+      try {
+        await this.db.$executeRawUnsafe(
+          `DELETE FROM "${OAUTH_CONSENT_TOKENS_TABLE}" WHERE "expiresAt" <= NOW()`,
+        );
+      } catch {
+        // Sweep is best-effort hygiene; a failed sweep never blocks consent.
+      }
+    }
+    return true;
+  }
+}
+
+// The active store. Swapped in production via setConsentTokenStore().
+let activeStore: ConsentTokenStore = new InMemoryConsentTokenStore();
+
+/**
+ * Configure the consumed-jti store. Production must call this with a
+ * PrismaConsentTokenStore wired to the shared database; until then the
+ * per-instance in-memory store applies (documented above).
+ */
+export function setConsentTokenStore(store: ConsentTokenStore): void {
+  activeStore = store;
+}
+
+/** Exposed for tests: inspect/reset the active store. */
+export function getConsentTokenStoreForTests(): ConsentTokenStore {
+  return activeStore;
 }
 
 /** Verify a consent token WITHOUT consuming it. Returns the payload or null. */
@@ -156,9 +256,10 @@ export async function verifyConsentToken(token: string): Promise<ConsentTokenPay
 export async function consumeConsentToken(token: string): Promise<ConsentTokenPayload | null> {
   const payload = await verifyConsentToken(token);
   if (!payload) return null;
-  const nowMs = Date.now();
-  sweepConsumedJtis(nowMs);
-  if (consumedJtis.has(payload.jti)) return null;
-  consumedJtis.set(payload.jti, nowMs + CONSENT_TOKEN_TTL_SECONDS * 1000);
+  const firstUse = await activeStore.tryConsume(
+    payload.jti,
+    new Date(Date.now() + CONSENT_TOKEN_TTL_SECONDS * 1000),
+  );
+  if (!firstUse) return null;
   return payload;
 }
