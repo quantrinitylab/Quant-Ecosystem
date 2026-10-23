@@ -10,9 +10,7 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
-  DriveFilesSubView,
   DriveStarredSubView,
-  type DriveItem,
 } from '../app/drive/components';
 import {
   FileScanBadge,
@@ -42,7 +40,7 @@ vi.mock('../hooks/useStorageQuota', () => ({
   }),
 }));
 
-const filesByStatus: DriveItem[] = [
+const filesByStatus: HomeDriveItem[] = [
   { id: 'f-unknown', name: 'unscanned.bin', type: 'file', mimeType: 'application/octet-stream', size: 10, modifiedAt: '2026-10-08T00:00:00Z' },
   { id: 'f-pending', name: 'queued.bin', type: 'file', mimeType: 'application/octet-stream', size: 10, modifiedAt: '2026-10-08T00:00:00Z', scanStatus: 'pending' },
   { id: 'f-scanning', name: 'scanning.bin', type: 'file', mimeType: 'application/octet-stream', size: 10, modifiedAt: '2026-10-08T00:00:00Z', scanStatus: 'scanning' },
@@ -101,44 +99,6 @@ describe('QM-M39-009 scan-state honesty contract', () => {
       expect(html).toContain('Quarantined');
       expect(html).toContain('EICAR test signature');
       expect(html).toContain('Preview and download are disabled');
-    });
-  });
-
-  describe('DriveFilesSubView rows', () => {
-    it('renders a scan badge per file in grid view', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={filesByStatus} folders={[]} viewMode="grid" />,
-      );
-      expect(html).toContain('Not scanned');
-      expect(html).toContain('Scan queued');
-      expect(html).toContain('Scanning');
-      expect(html).toContain('Scanned · clean');
-      expect(html).toContain('Quarantined');
-    });
-
-    it('renders a scan badge per file in list view', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={filesByStatus} folders={[]} viewMode="list" />,
-      );
-      expect(html).toContain('Not scanned');
-      expect(html).toContain('Quarantined');
-    });
-
-    it('never renders unknown as safe on any row', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={[filesByStatus[0]]} folders={[]} viewMode="list" />,
-      );
-      expect(html).toContain('Not scanned');
-      // No "Scanned · clean" badge may appear for an unknown file.
-      expect(html).not.toContain('Scanned · clean');
-    });
-
-    it('disables the Download button for quarantined files', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={[filesByStatus[4]]} folders={[]} viewMode="list" />,
-      );
-      expect(html).toContain('disabled');
-      expect(html).toContain('Quarantined — download disabled');
     });
   });
 

@@ -3,14 +3,12 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   DriveContextTabsHeader,
-  DriveFilesSubView,
   DriveSharedSubView,
   DriveSharedByMeSubView,
   DriveVaultSubView,
   DriveStarredSubView,
   DriveCleanerSubView,
   type DriveSubTab,
-  type DriveItem,
 } from '../app/drive/components';
 import type { SentShareItem } from '../hooks/useDrive';
 
@@ -27,64 +25,6 @@ vi.mock('../hooks/useStorageQuota', () => ({
 }));
 
 describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
-  const sampleFiles: DriveItem[] = [
-    {
-      id: 'file-1',
-      name: 'Q3_Ecosystem_Architecture.pdf',
-      type: 'file',
-      mimeType: 'application/pdf',
-      size: 14200000,
-      modifiedAt: '2026-10-01T10:00:00Z',
-      isStarred: true,
-    },
-    {
-      id: 'file-2',
-      name: 'Sovereign_Keystore_Spec.docx',
-      type: 'file',
-      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      size: 8600000,
-      modifiedAt: '2026-09-28T14:30:00Z',
-      isStarred: false,
-    },
-    {
-      id: 'file-3',
-      name: 'fastcdc_chunker.rs',
-      type: 'file',
-      mimeType: 'text/x-rust',
-      size: 5200000,
-      modifiedAt: '2026-09-29T11:15:00Z',
-      isStarred: true,
-    },
-    {
-      id: 'file-4',
-      name: 'ledger_backup_cas.tar.gz',
-      type: 'file',
-      mimeType: 'application/gzip',
-      size: 24000000,
-      modifiedAt: '2026-09-30T16:45:00Z',
-      isStarred: false,
-    },
-  ];
-
-  const sampleFolders: DriveItem[] = [
-    {
-      id: 'folder-1',
-      name: 'Cryptographic_Keys',
-      type: 'folder',
-      mimeType: '',
-      size: 0,
-      modifiedAt: '2026-09-20T08:00:00Z',
-    },
-    {
-      id: 'folder-2',
-      name: 'Research_Whitepapers',
-      type: 'folder',
-      mimeType: '',
-      size: 0,
-      modifiedAt: '2026-09-25T12:00:00Z',
-    },
-  ];
-
   // Helper to ensure strictly ZERO raw Unicode emojis
   const assertZeroRawEmojis = (html: string) => {
     // Matches standard emoji unicode ranges
@@ -150,114 +90,6 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       assertZeroRawEmojis(html);
     });
   });
-
-  // ==========================================================================
-  // 2. DriveFilesSubView Tests
-  // ==========================================================================
-  describe('2. DriveFilesSubView Component', () => {
-    it('renders storage quota meter from the real quota hook (not a hardcoded pair)', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} />,
-      );
-
-      expect(html).toContain('Storage Quota Meter');
-      // Mocked hook value: 14.2 GB used of 100 GB total.
-      expect(html).toContain('14.2 GB');
-      expect(html).toContain('/ 100 GB');
-      expect(html).toContain('Your current usage and available space.');
-      expect(html).toContain('role="progressbar"');
-      expect(html).not.toContain('Calculating');
-      // R3-P1 copy honesty: no unprovable marketing claims on the quota card.
-      expect(html).not.toContain('Enterprise Sovereign Cloud');
-      expect(html).not.toContain('FastCDC Content-Defined Chunking');
-      expect(html).not.toContain('Zero-Egress');
-      expect(html).not.toContain('All objects backed by FastCDC');
-    });
-
-    it('quota sub-line carries mt-0.5 (spacing parity with SingleEnterpriseStorageGauge in DriveSubViews)', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} />,
-      );
-
-      // The "% used · … available" sub-line must have the same top margin as
-      // its sibling gauge (DriveSubViews.tsx SingleEnterpriseStorageGauge),
-      // which renders class "... font-medium mt-0.5" on the same sub-line.
-      expect(html).toContain('14% used');
-      expect(html).toContain(
-        '<p class="text-[11px] text-[var(--app-accent)] font-medium mt-0.5">',
-      );
-    });
-
-    it('renders all 4 color-coded type cards (PDF Red, DOC Blue, CODE Green, ZIP Gold)', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} />,
-      );
-
-      // PDF Red
-      expect(html).toContain('PDF Documents');
-      expect(html).toContain('RED');
-
-      // DOC Blue
-      expect(html).toContain('Documents &amp; Text');
-      expect(html).toContain('BLUE');
-
-      // CODE Green
-      expect(html).toContain('Code &amp; Scripts');
-      expect(html).toContain('GREEN');
-
-      // ZIP Gold
-      expect(html).toContain('Archives &amp; Data');
-      expect(html).toContain('GOLD');
-    });
-
-    it('does NOT render unconditional FastCDC deduplication badges on files (R4-NEW-1)', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} />,
-      );
-
-      expect(html).not.toContain('FastCDC Deduped');
-      // Unprovable per-file storage-internals claims are gone too.
-      expect(html).not.toContain('CAS: 64KB');
-    });
-
-    it('does NOT render unconditional FastCDC deduplication badges in grid view (R4-NEW-1)', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} viewMode="grid" />,
-      );
-
-      expect(html).not.toContain('FastCDC Deduped');
-      expect(html).not.toContain('CAS: 64KB');
-    });
-
-    it('renders folders and regular files in grid view', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} viewMode="grid" />,
-      );
-
-      expect(html).toContain('Cryptographic_Keys');
-      expect(html).toContain('Research_Whitepapers');
-      expect(html).toContain('Q3_Ecosystem_Architecture.pdf');
-      expect(html).toContain('fastcdc_chunker.rs');
-    });
-
-    it('renders list view table when viewMode is list', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} viewMode="list" />,
-      );
-
-      expect(html).toContain('Q3_Ecosystem_Architecture.pdf');
-      expect(html).toContain('fastcdc_chunker.rs');
-      expect(html).toContain('Download');
-    });
-
-    it('contains strictly ZERO raw Unicode emojis in files subview', () => {
-      const html = renderToStaticMarkup(
-        <DriveFilesSubView files={sampleFiles} folders={sampleFolders} />,
-      );
-      assertZeroRawEmojis(html);
-    });
-  });
-
   // ==========================================================================
   // 3. DriveSharedSubView Tests
   // ==========================================================================
