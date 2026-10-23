@@ -1726,8 +1726,11 @@ export class QuantMailApiClient {
         duplicates: Contact[];
         reason: 'email' | 'name';
       }>
-    >
+    > & { planFingerprint?: string }
   > {
+    // The backend also returns planFingerprint (top level): the wizard hands
+    // it back to deduplicateContacts so a changed-underneath plan 409s with
+    // STALE_MERGE_PLAN instead of silently expanding the merge.
     return this.get('/contacts/duplicates');
   }
 
@@ -1795,8 +1798,16 @@ export class QuantMailApiClient {
     return this.post('/contacts/duplicates/dismiss', { primaryId, duplicateId });
   }
 
-  async deduplicateContacts(): Promise<ApiResponse<{ mergedCount: number }>> {
-    return this.post('/contacts/deduplicate', {});
+  async deduplicateContacts(
+    planFingerprint?: string,
+  ): Promise<ApiResponse<{ mergedCount: number; planFingerprint: string }>> {
+    // planFingerprint is the wizard preview's fingerprint: when the data
+    // changed since the preview, the backend 409s STALE_MERGE_PLAN instead of
+    // silently merging an expanded set.
+    return this.post(
+      '/contacts/deduplicate',
+      planFingerprint ? { planFingerprint } : {},
+    );
   }
 
   /**
