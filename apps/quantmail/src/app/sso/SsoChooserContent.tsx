@@ -517,7 +517,7 @@ export function SsoChooserContent({
         {/* Title & Client Destination Subtitle */}
         <div className="text-center mb-6">
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">
-            {showChooser ? 'Choose an account' : 'Sign in to Quant Account'}
+            {showChooser ? 'Choose an account' : 'Sign in to QuantMail'}
           </h1>
           <p className="mt-1.5 text-sm text-zinc-400 flex items-center justify-center gap-1.5">
             <span>to continue to</span>
