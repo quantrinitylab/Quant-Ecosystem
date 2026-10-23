@@ -97,22 +97,33 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
   //
   // NOTE (Wave 89): the header was redesigned from 5 tabs
   // (My Files/Shared/Vault/Starred/Cleaner) to 4 context tabs
-  // (Home/Feed/AI Memory/Vault). These assertions track the new contract.
+  // (Home/Feed/AI Memory/Vault). QM-M39-002 added Recent; the 2026-10-11 P2
+  // finding restored Shared/Starred/Cleaner so all 9 Drive views are reachable
+  // on desktop ('files' is covered by Home — normalizeTab maps it there).
+  // These assertions track the new contract.
   // ==========================================================================
   describe('1. DriveContextTabsHeader Component', () => {
-    it('renders all 4 context tabs', () => {
+    it('renders all 8 desktop context tabs', () => {
       const html = renderToStaticMarkup(
         <DriveContextTabsHeader activeTab="home" onTabChange={() => {}} />,
       );
 
       expect(html).toContain('drive-tab-home');
+      expect(html).toContain('drive-tab-recent');
       expect(html).toContain('drive-tab-feed');
       expect(html).toContain('drive-tab-aimemory');
       expect(html).toContain('drive-tab-vault');
+      // QM-P2: previously desktop-orphaned — reachable only via ?tab= URL.
+      expect(html).toContain('drive-tab-shared');
+      expect(html).toContain('drive-tab-starred');
+      expect(html).toContain('drive-tab-cleaner');
 
       expect(html).toContain('Home');
       expect(html).toContain('Feed');
       expect(html).toContain('AI Memory');
+      expect(html).toContain('>Shared<');
+      expect(html).toContain('>Starred<');
+      expect(html).toContain('>Cleaner<');
       // R3-P2 copy honesty: the vault tab must carry a provable label —
       // no "Sovereign" marketing anywhere in the header.
       expect(html).toContain('>Vault<');
@@ -120,7 +131,7 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
     });
 
     it('sets aria-selected="true" on active tab', () => {
-      const tabs: DriveSubTab[] = ['home', 'feed', 'aimemory', 'vault'];
+      const tabs: DriveSubTab[] = ['home', 'recent', 'feed', 'aimemory', 'vault', 'shared', 'starred', 'cleaner'];
 
       tabs.forEach((activeTab) => {
         const html = renderToStaticMarkup(
@@ -131,6 +142,30 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
           new RegExp(`<button[^>]*id="drive-tab-${activeTab}"[^>]*aria-selected="true"|<button[^>]*aria-selected="true"[^>]*id="drive-tab-${activeTab}"`),
         );
       });
+    });
+
+    it('highlights Home when the active tab is files (home covers the files view)', () => {
+      const html = renderToStaticMarkup(
+        <DriveContextTabsHeader activeTab="files" onTabChange={() => {}} />,
+      );
+      expect(html).toMatch(
+        /<button[^>]*id="drive-tab-home"[^>]*aria-selected="true"|<button[^>]*aria-selected="true"[^>]*id="drive-tab-home"/,
+      );
+    });
+
+    it('renders shared/starred count badges only when the count is > 0 (mirrors mobile strip)', () => {
+      const html = renderToStaticMarkup(
+        <DriveContextTabsHeader activeTab="shared" onTabChange={() => {}} sharedCount={3} starredCount={7} />,
+      );
+      // Badge pills for the two non-zero counts render…
+      expect(html).toContain('>3<');
+      expect(html).toContain('>7<');
+
+      const zeroed = renderToStaticMarkup(
+        <DriveContextTabsHeader activeTab="home" onTabChange={() => {}} sharedCount={0} starredCount={0} />,
+      );
+      // …but no "0" badge pill may ever render.
+      expect(zeroed).not.toContain('>0<');
     });
 
     it('renders badgeText for AI Memory (AI) and no unverified E2EE badge on Vault', () => {
