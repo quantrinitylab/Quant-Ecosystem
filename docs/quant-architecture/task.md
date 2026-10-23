@@ -5921,3 +5921,10 @@ Audit started: 2026-10-23 ~16:35 IST (lane-1 deep audit loop, ROUND 35)
 - VERDICT-LIVE: HEALTHY, VISUAL VERIFIED. Proxy 127.0.0.1:8888 healthy (quantmail.in 307, 2.1s, no restart). /help /privacy /terms /sso /api/oauth/jwks /.well-known/openid-configuration -> 200 x6; /api/oauth/userinfo -> honest 401; /invite/bogus-token-xyz -> 200 honest; /api/contact-groups/invite/bogus-token-xyz -> honest 404 INVITE_NOT_FOUND — all match R34 baseline (+ jwks 200 real keys, noted above). Desktop 1440x900 (9334) + mobile 390x844 (iPhone 14, MOBILE_CHROME_PORT=9361, wait_s=14 hydrated) /help shots REVIEWED: honest tri-topic cards both viewports ('Email address recovery is not available yet', mailto support@quantrinity.in), pure black, mail-orange CTAs, current clay M-mark, ONE IDENTITY footer, (c) 2026, zero old-logo flash; standing known issues re-seen not re-filed (white ghost on 'AI triage' card, P3 'Quant Mail' wordmark spacing in mobile+desktop headers). Shots reviewed + deleted; exactly my 2 run-created chrome profile dirs removed (pre-cleaned 3 orphans — zero live chromes verified before/after; sibling dirs none active); /tmp 27%->cleanup done. Signed-in help/invite-accept/SSO-handoff flows = needs-auth (protocol), not faked. #1243 deploy hold ACTIVE (cat-verified this run) — nothing to deploy.
 - STILL-UNVERIFIED: signed-in SSO handoff flow; RPs verifying id_tokens via the advertised jwks_uri (now live-servable — the R9 blocker is gone, RP-side verification out of lane scope).
 Rotation -> QM-SCREEN-002 (login) ROUND 36 regression, queued (018 completes the ROUND 35 cycle).
+
+## QM-SCREEN-002 R36 — login / register / recovery / verification regression
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-002r36
+Base: origin/main 401c6b2cae (same as R35-018 base; zero new main merges since)
+Prior: R2 (2026-10-11) was the last dedicated 002 audit (findings: 1 P0 phone-field removed via #872, P1 emailVerified hardcoded, P1 /forgot-email phone-flow, P2 ?token= handoff, P2 'AI triage' copy). R36 = pure re-verification + fresh hunt on /login, /register, /forgot-email, /sso, recovery + 2FA surfaces.
