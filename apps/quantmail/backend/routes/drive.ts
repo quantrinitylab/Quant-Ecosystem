@@ -718,6 +718,101 @@ async function purgeRows(
     prisma.folder.deleteMany({ where: { id: { in: folderIds }, userId, isDeleted: true } }),
   ]);
 }
+
+/**
+ * fix/qm-drive-trash-empty — shared trash-purge core. Powers both the
+ * per-user POST /drive/trash/cleanup endpoint and the server-side auto-purge
+ * sweep. purgeAll=true deletes every trashed row for the user (backs the
+ * "Empty trash" button); otherwise only rows older than the retention window
+ * are purged (Google Drive/Dropbox parity: 30-day trash retention). Trashed
+ * documents (QM-UIUX-079 projections, which carry no deletedAt) age on
+ * updatedAt — the old cleanup query was files/folders-only and left
+ * documents accumulating forever.
+ */
+async function purgeUserTrash(
+  fastify: FastifyInstance,
+  userId: string,
+  opts: { retentionDays?: number; purgeAll?: boolean } = {},
+): Promise<{ purged: number }> {
+  const prisma = getPrisma(fastify);
+  const purgeAll = opts.purgeAll === true;
+  const retentionDays = purgeAll ? 0 : Math.max(1, Number(opts.retentionDays) || 30);
+  const threshold = new Date(Date.now() - retentionDays * 86_400_000);
+  const agedFileFolderWhere = purgeAll
+    ? { userId, isDeleted: true }
+    : { userId, isDeleted: true, deletedAt: { lte: threshold } };
+  const agedDocumentWhere = purgeAll
+    ? { userId, isDeleted: true }
+    : { userId, isDeleted: true, updatedAt: { lte: threshold } };
+  const [files, folders, docs] = await Promise.all([
+    prisma.file.findMany({ where: agedFileFolderWhere, select: { id: true } }),
+    prisma.folder.findMany({ where: agedFileFolderWhere, select: { id: true } }),
+    prisma.document.findMany({ where: agedDocumentWhere, select: { id: true } }),
+  ]);
+  const fileIds = files.map((f: any) => f.id);
+  const folderIds = folders.map((f: any) => f.id);
+  const docIds = docs.map((d: any) => d.id);
+  if (fileIds.length || folderIds.length) {
+    await purgeRows(fastify, userId, fileIds, folderIds);
+  }
+  // Document rows: versions/collaborators/comments cascade per the prisma
+  // schema (same as the per-item purge path). Deleted one-by-one to stay
+  // compatible with prisma engines/fakes that only model delete().
+  for (const docId of docIds) {
+    await prisma.document.delete({ where: { id: docId } });
+  }
+  return { purged: fileIds.length + folderIds.length + docIds.length };
+}
+
+/**
+ * fix/qm-drive-trash-empty — server-side trash auto-purge sweep. POST
+ * /drive/trash/cleanup had zero production callers, so trashed files
+ * accumulated indefinitely. Called on a timer from backend/app.ts
+ * (env-gated, 24h default cadence, skipped in the test env). Per-user
+ * failures are logged and skipped — one bad row never stalls the whole
+ * sweep. Idempotent: a re-run after a partial purge finds nothing left.
+ */
+export async function sweepExpiredDriveTrash(
+  fastify: FastifyInstance,
+  log: { info: (...args: any[]) => void; error: (...args: any[]) => void },
+  retentionDays = 30,
+): Promise<{ users: number; purged: number }> {
+  const prisma = getPrisma(fastify);
+  if (!driveStorageReady()) {
+    log.info('[drive-trash] auto-purge sweep skipped: object storage not configured');
+    return { users: 0, purged: 0 };
+  }
+  const windowDays = Math.max(1, Number(retentionDays) || 30);
+  const threshold = new Date(Date.now() - windowDays * 86_400_000);
+  const [files, folders, docs] = await Promise.all([
+    prisma.file.findMany({
+      where: { isDeleted: true, deletedAt: { lte: threshold } },
+      select: { userId: true },
+    }),
+    prisma.folder.findMany({
+      where: { isDeleted: true, deletedAt: { lte: threshold } },
+      select: { userId: true },
+    }),
+    prisma.document.findMany({
+      where: { isDeleted: true, updatedAt: { lte: threshold } },
+      select: { userId: true },
+    }),
+  ]);
+  const userIds = new Set<string>();
+  for (const row of [...files, ...folders, ...docs]) {
+    if (row && typeof row.userId === 'string' && row.userId) userIds.add(row.userId);
+  }
+  let purged = 0;
+  for (const userId of userIds) {
+    try {
+      purged += (await purgeUserTrash(fastify, userId, { retentionDays: windowDays })).purged;
+    } catch (error) {
+      log.error(`[drive-trash] auto-purge sweep failed for a user: ${String(error)}`);
+    }
+  }
+  return { users: userIds.size, purged };
+}
+
 function metaStr(metadata: unknown, key: string): string | null {
   if (!metadata || typeof metadata !== 'object') return null;
   const value = (metadata as Record<string, unknown>)[key];
@@ -2533,33 +2628,20 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     return reply.send({ ok: true, purged: files.length + folders.length });
   });
 
-  fastify.post<{ Body: { retentionDays?: number } }>(
+  // fix/qm-drive-trash-empty — extended: purgeAll=true backs the "Empty
+  // trash" button (purges every trashed row regardless of age), and the
+  // retention path now also covers trashed documents (QM-UIUX-079
+  // projections), which the old files/folders-only query left accumulating
+  // forever. Shared core lives in purgeUserTrash above.
+  fastify.post<{ Body: { retentionDays?: number; purgeAll?: boolean } }>(
     '/drive/trash/cleanup',
     async (request, reply) => {
       const userId = requireUserId(request);
       requireStorage();
-      const retentionDays = Math.max(1, Number(request.body?.retentionDays) || 30);
-      const thresholdDate = new Date(Date.now() - retentionDays * 86_400_000);
-      const [files, folders] = await Promise.all([
-        prisma.file.findMany({
-          where: { userId, isDeleted: true, deletedAt: { lte: thresholdDate } },
-          select: { id: true },
-        }),
-        prisma.folder.findMany({
-          where: { userId, isDeleted: true, deletedAt: { lte: thresholdDate } },
-          select: { id: true },
-        }),
-      ]);
-      const fileIds = files.map((f: any) => f.id);
-      const folderIds = folders.map((f: any) => f.id);
-      if (fileIds.length || folderIds.length) {
-        await purgeRows(fastify, userId, fileIds, folderIds);
-      }
-      return reply.send({
-        success: true,
-        purgedCount: fileIds.length + folderIds.length,
-        retentionDays,
-      });
+      const purgeAll = request.body?.purgeAll === true;
+      const retentionDays = purgeAll ? 0 : Math.max(1, Number(request.body?.retentionDays) || 30);
+      const { purged } = await purgeUserTrash(fastify, userId, { retentionDays, purgeAll });
+      return reply.send({ success: true, purgedCount: purged, retentionDays });
     },
   );
   fastify.post('/drive/upload', { bodyLimit: DRIVE_MAX_BODY_BYTES }, async (request, reply) => {

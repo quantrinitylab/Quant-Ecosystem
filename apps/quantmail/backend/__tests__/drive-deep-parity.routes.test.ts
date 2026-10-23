@@ -1151,6 +1151,187 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
     expect(files.find((f) => f.id === 'file_recent_trash')).toBeDefined();
   });
 
+  // fix/qm-drive-trash-empty — the new bulk "Empty trash" action: purgeAll
+  // purges EVERY trashed row for the user regardless of age — files, folders
+  // AND trashed documents.
+  it('purgeAll empties all trash regardless of age (files, folders, documents)', async () => {
+    const fortyDaysAgo = new Date(Date.now() - 40 * 86_400_000);
+    const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000);
+    const fileFixture = (id: string, deletedAt: Date): FileRow => ({
+      id,
+      name: `${id}.zip`,
+      mimeType: 'application/zip',
+      size: 5000,
+      folderId: null,
+      isStarred: false,
+      isDeleted: true,
+      deletedAt,
+      trashRootId: id,
+      encryptedContent: `enc_${id}`,
+      encryptionIV: 'iv',
+      encryptionAuthTag: 'tag',
+      encryptionKey: 'key',
+      contentHash: `hash_${id}`,
+      userId: 'user_alice',
+      updatedAt: deletedAt,
+      createdAt: deletedAt,
+    });
+    files.push(fileFixture('file_pa_old', fortyDaysAgo), fileFixture('file_pa_recent', tenDaysAgo));
+    folders.push({
+      id: 'folder_pa_old',
+      name: 'old-folder',
+      parentId: null,
+      path: '/old-folder',
+      userId: 'user_alice',
+      isStarred: false,
+      isDeleted: true,
+      deletedAt: fortyDaysAgo,
+      trashRootId: 'folder_pa_old',
+      updatedAt: fortyDaysAgo,
+      createdAt: fortyDaysAgo,
+    });
+    documents.push(
+      {
+        id: 'doc_pa_old',
+        userId: 'user_alice',
+        title: 'old doc',
+        isDeleted: true,
+        updatedAt: fortyDaysAgo,
+        createdAt: fortyDaysAgo,
+      },
+      {
+        id: 'doc_pa_recent',
+        userId: 'user_alice',
+        title: 'recent doc',
+        isDeleted: true,
+        updatedAt: tenDaysAgo,
+        createdAt: tenDaysAgo,
+      },
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/drive/trash/cleanup',
+      headers: { 'content-type': 'application/json' },
+      payload: { purgeAll: true },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.success).toBe(true);
+    expect(body.purgedCount).toBe(5);
+    expect(files.find((f) => f.id === 'file_pa_old')).toBeUndefined();
+    // Even the 10-day-old file is gone: purgeAll ignores the retention window.
+    expect(files.find((f) => f.id === 'file_pa_recent')).toBeUndefined();
+    expect(folders.find((f) => f.id === 'folder_pa_old')).toBeUndefined();
+    expect(documents.find((d) => d.id === 'doc_pa_old')).toBeUndefined();
+    expect(documents.find((d) => d.id === 'doc_pa_recent')).toBeUndefined();
+  });
+
+  // fix/qm-drive-trash-empty — regression: the old retention cleanup only
+  // queried files/folders, so trashed documents (QM-UIUX-079 projections)
+  // accumulated forever. Documents age on updatedAt (no deletedAt column).
+  it('retention cleanup also purges expired trashed documents', async () => {
+    const fortyDaysAgo = new Date(Date.now() - 40 * 86_400_000);
+    const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000);
+    documents.push(
+      {
+        id: 'doc_expired',
+        userId: 'user_alice',
+        title: 'expired doc',
+        isDeleted: true,
+        updatedAt: fortyDaysAgo,
+        createdAt: fortyDaysAgo,
+      },
+      {
+        id: 'doc_fresh',
+        userId: 'user_alice',
+        title: 'fresh doc',
+        isDeleted: true,
+        updatedAt: tenDaysAgo,
+        createdAt: tenDaysAgo,
+      },
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/drive/trash/cleanup',
+      headers: { 'content-type': 'application/json' },
+      payload: { retentionDays: 30 },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.success).toBe(true);
+    expect(body.purgedCount).toBe(1);
+    expect(documents.find((d) => d.id === 'doc_expired')).toBeUndefined();
+    expect(documents.find((d) => d.id === 'doc_fresh')).toBeDefined();
+  });
+
+  // fix/qm-drive-trash-empty — the server-side auto-purge sweep (wired to a
+  // 24h timer in backend/app.ts): purges expired trash for every user, keeps
+  // items inside the retention window.
+  it('sweepExpiredDriveTrash purges expired trash across all users', async () => {
+    const { sweepExpiredDriveTrash } = await import('../routes/drive');
+    const fortyDaysAgo = new Date(Date.now() - 40 * 86_400_000);
+    const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000);
+    const fileFixture = (id: string, userId: string, deletedAt: Date): FileRow => ({
+      id,
+      name: `${id}.zip`,
+      mimeType: 'application/zip',
+      size: 5000,
+      folderId: null,
+      isStarred: false,
+      isDeleted: true,
+      deletedAt,
+      trashRootId: id,
+      encryptedContent: `enc_${id}`,
+      encryptionIV: 'iv',
+      encryptionAuthTag: 'tag',
+      encryptionKey: 'key',
+      contentHash: `hash_${id}`,
+      userId,
+      updatedAt: deletedAt,
+      createdAt: deletedAt,
+    });
+    files.push(
+      fileFixture('file_sweep_alice', 'user_alice', fortyDaysAgo),
+      fileFixture('file_sweep_bob', 'user_bob', fortyDaysAgo),
+      fileFixture('file_sweep_alice_recent', 'user_alice', tenDaysAgo),
+    );
+    const logs: string[] = [];
+    const log = {
+      info: (...args: unknown[]) => logs.push(args.join(' ')),
+      error: (...args: unknown[]) => logs.push(args.join(' ')),
+    };
+
+    const result = await sweepExpiredDriveTrash(app, log, 30);
+
+    expect(result.users).toBe(2);
+    expect(result.purged).toBe(2);
+    expect(files.find((f) => f.id === 'file_sweep_alice')).toBeUndefined();
+    expect(files.find((f) => f.id === 'file_sweep_bob')).toBeUndefined();
+    expect(files.find((f) => f.id === 'file_sweep_alice_recent')).toBeDefined();
+  });
+
+  // fix/qm-drive-trash-empty — the sweep must never throw or write when
+  // object storage is not configured; it logs and skips instead.
+  it('sweepExpiredDriveTrash skips cleanly when storage is not configured', async () => {
+    const { sweepExpiredDriveTrash } = await import('../routes/drive');
+    const { driveStorageReady } = await import('../services/drive-storage.service');
+    vi.mocked(driveStorageReady).mockReturnValueOnce(false);
+    const logs: string[] = [];
+    const log = {
+      info: (...args: unknown[]) => logs.push(args.join(' ')),
+      error: (...args: unknown[]) => logs.push(args.join(' ')),
+    };
+
+    const result = await sweepExpiredDriveTrash(app, log, 30);
+
+    expect(result).toEqual({ users: 0, purged: 0 });
+    expect(logs.some((m) => m.includes('skipped'))).toBe(true);
+  });
+
   it('supports server-side cursor pagination and sorting on GET /drive/files', async () => {
     for (let i = 1; i <= 10; i++) {
       files.push({
