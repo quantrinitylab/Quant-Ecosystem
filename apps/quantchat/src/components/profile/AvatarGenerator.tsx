@@ -64,10 +64,10 @@ export function AvatarGenerator({ userId, onSaved, className = '' }: AvatarGener
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => undefined);
-      }
+      // NOTE: the stream is NOT attached here. The preview <video> only
+      // renders once cameraActive is true, so at this point videoRef.current
+      // is always null and attaching here silently never happened (QC-F-409).
+      // The attach effect below connects the stream after the element mounts.
       setCameraActive(true);
     } catch {
       setErrorMessage('Camera access was blocked. Upload a photo instead.');
@@ -76,12 +76,36 @@ export function AvatarGenerator({ userId, onSaved, className = '' }: AvatarGener
 
   useEffect(() => stopCamera, [stopCamera]);
 
+  // Attach the live stream to the preview element AFTER it mounts. This is
+  // the single attach site: the <video> exists only while cameraActive is
+  // true, which is exactly the state this effect keys on (QC-F-409).
+  useEffect(() => {
+    if (!cameraActive) return;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
+    }
+    void video.play().catch(() => undefined);
+  }, [cameraActive]);
+
   const captureFromCamera = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
+    // Never fabricate a photo from an element that has no real frame yet.
+    // Without a live stream / decoded frame dimensions the canvas would be
+    // a black placeholder sent to the backend as if it were a real face
+    // photo, and the user would be blamed for a "unclear photo" (QC-F-409).
+    // Fail honestly and keep the camera running so they can retry.
+    if (!streamRef.current || video.videoWidth <= 0 || video.videoHeight <= 0) {
+      setErrorMessage('Camera is still warming up — wait until you can see yourself, then capture.');
+      return;
+    }
+    setErrorMessage(null);
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 480;
-    canvas.height = video.videoHeight || 480;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
