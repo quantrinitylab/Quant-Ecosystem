@@ -36,6 +36,20 @@ import { PollService } from '../services/poll.service';
 // on an anonymous poll; quiz answers are revealed only to the creator
 // or after voting. All shaping lives in PollService.serializePoll /
 // getPollResults; these routes only bound the body and pass through.
+//
+// QC-F-549 — poll close / expiry.
+// Polls previously never closed: no closing field, no close endpoint,
+// no closed check on vote. Now `POST /:pollId/close` (creator-only)
+// closes a poll, `votePoll` rejects closed polls with 409 POLL_CLOSED,
+// and an optional creator-declared `closesAt` at creation closes lazily
+// once it passes (never a default). Pinned order: close is
+// 404 → membership 403 NOT_A_MEMBER → 403 NOT_POLL_CREATOR →
+// 409 POLL_ALREADY_CLOSED; vote is 404 → 403 → 409 POLL_CLOSED →
+// 400 INVALID_OPTION. Serialize/results always carry `isClosed` +
+// real `closedAt`; closing a quiz poll reveals its answer to every
+// member (QC-F-335's deferred branch). The closed state lives on the
+// same in-memory record as the poll itself — chat-poll persistence is
+// QC-F-071's owed debt and is NOT folded in here.
 interface AuthedRequest {
   auth?: { userId?: string };
   user?: { id?: string };
@@ -65,6 +79,9 @@ const createPollSchema = z.object({
   isAnonymous: z.boolean().optional(),
   correctOptionIndex: z.number().int().min(0).optional(),
   explanation: z.string().trim().max(500).optional(),
+  // QC-F-549: shape only — a datetime string; the future-instant
+  // semantic check lives in PollService (400 INVALID_POLL).
+  closesAt: z.string().datetime().optional(),
 });
 
 const voteSchema = z.object({
@@ -90,6 +107,7 @@ const pollsRoutes: FastifyPluginAsync = async (fastify) => {
       isAnonymous: parsed.data.isAnonymous,
       correctOptionIndex: parsed.data.correctOptionIndex,
       explanation: parsed.data.explanation,
+      closesAt: parsed.data.closesAt,
     });
     // QC-F-335: never return the raw record — it carries the full
     // voter roster. serializePoll is the single exposure point.
@@ -110,6 +128,16 @@ const pollsRoutes: FastifyPluginAsync = async (fastify) => {
     // response must not hand the voter the roster either, and a quiz
     // vote response is where the voter gets their correct/incorrect
     // feedback (the reveal predicate is satisfied by having voted).
+    return reply.send({ success: true, data: pollService.serializePoll(poll, userId) });
+  });
+
+  fastify.post('/:pollId/close', async (request, reply) => {
+    const userId = requireUserId(request);
+    const { pollId } = request.params as { pollId: string };
+    const poll = await pollService.closePoll(pollId, userId);
+    // Same serializer as create/vote (QC-F-335): the response is the
+    // closed poll's honest shape — isClosed/closedAt included — never
+    // the raw record.
     return reply.send({ success: true, data: pollService.serializePoll(poll, userId) });
   });
 
