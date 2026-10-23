@@ -5964,3 +5964,10 @@ ROUND RECORD (2026-10-23 ~19:35-19:50 IST, LANE-1; code: origin/main tree only v
 - Fresh hunt clean: 0 lorem/coming-soon/dummy-user/mock-user/fake-user/#FF8C42; 0 ?token= in inbox trees; 0 invented marketing claims (AI triage/quantum-resistant/bank-grade); 0 fake copy.
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents (protocol P0/P1-only; subagent.list 0 active at run start and end). findings.md untouched.
 - LIVE HEALTHY, VISUAL VERIFIED: proxy healthy (no restart); / -> 200 hydrated sign-in (live predates main — deploy-hold staleness vs main's 307); /inbox -> 404 (no /inbox route, R2-consistent); /people -> 200; /api/emails -> honest 401. Desktop 1440x900 (9334) + mobile 390x844 (iPhone 14, MOBILE_CHROME_PORT=9371, wait_s=14 hydrated) / shots REVIEWED: pure black, mail-orange accents, clay M-mark current, honest tri-cards, ONE IDENTITY footer, (c) 2026, zero old-logo flash; standing knowns re-seen not re-filed ('Quant Mail' wordmark spacing, white ghost 'AI triage' card). Shots deleted; exactly my 4 chrome dirs removed via exact-compare (live sibling 9333 dir untouched); /tmp 9%. Signed-in inbox/people/threads/bulk/snooze = needs-auth. #1243 deploy hold ACTIVE (cat-verified) — nothing to deploy.
+
+## QM-SCREEN-005 R36 — Thread / reply / attachments regression (ROUND 36)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-005r36
+Audit started: 2026-10-23 ~20:35 IST (lane-1 deep audit loop, ROUND 36)
+Base: R36-004 tip e91cd548a19b319900165df8b2d57971fa0c966e -> origin/main e91cd548a19b319900165df8b2d57971fa0c966e (fresh fetch, zero new main merges) -> last 005 audit was R2 (2026-10-11); full re-verification pass vs R2 pins + fresh hunt.
