@@ -151,6 +151,15 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^calendar\/booking\/[^/]+$/, methods: ['GET'] },
   { pattern: /^calendar\/booking\/[^/]+\/slots$/, methods: ['GET'] },
   { pattern: /^calendar\/booking\/[^/]+\/book$/, methods: ['POST'] },
+  // Slot lock (fix/qm-slot-lock-dead-surface-6): POST /calendar/booking/:slug/lock
+  // existed in the backend but the Next.js catch-all proxy 404'd it — no
+  // allow-list row admitted it, and no client called it, so the 409 race the
+  // lock exists to prevent was unmitigated in the real booking flow. The
+  // public booking page now locks the slot pre-confirm; this row lets that
+  // proxied call through. Public-by-prefix like /book: the backend's
+  // publicPaths admit /calendar/booking/* for logged-out invitees, so the
+  // auth hook never 401s this guest call.
+  { pattern: /^calendar\/booking\/[^/]+\/lock$/, methods: ['POST'] },
 
   // ── Mail filters ───────────────────────────────────────────────────────────
   // Mounted at /mail-filters, not /filters (backend/app.ts).

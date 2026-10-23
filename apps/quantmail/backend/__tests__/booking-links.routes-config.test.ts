@@ -35,4 +35,12 @@ describe('booking links proxy allow-list', () => {
     expect(methodsFor('calendar/booking/my-slug/slots')).toContain('GET');
     expect(methodsFor('calendar/booking/my-slug/book')).toContain('POST');
   });
+
+  // fix/qm-slot-lock-dead-surface-6: POST /calendar/booking/:slug/lock was
+  // dead surface — no allow-list row admitted it, so the Next.js catch-all
+  // proxy 404'd it and the public booking page could never lock the slot
+  // pre-confirm. Pin the row so a future edit cannot silently re-break it.
+  it('admits POST for the slot-lock path /calendar/booking/:slug/lock', () => {
+    expect(methodsFor('calendar/booking/my-slug/lock')).toEqual(['POST']);
+  });
 });
