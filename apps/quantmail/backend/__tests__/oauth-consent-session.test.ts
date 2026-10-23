@@ -26,6 +26,10 @@ import {
   getConsentSecretForTests,
   CONSENT_TOKEN_TTL_SECONDS,
   CONSENT_TOKEN_TYPE,
+  ConsentTokenStore,
+  InMemoryConsentTokenStore,
+  PrismaConsentTokenStore,
+  setConsentTokenStore,
 } from '../services/oauth-consent-session';
 import {
   mintSsoTicket,
@@ -152,5 +156,126 @@ describe('oauth-consent-session', () => {
     const { payload } = await jose.jwtVerify(token, getConsentSecretForTests());
     expect(payload.exp! - before).toBeLessThanOrEqual(CONSENT_TOKEN_TTL_SECONDS);
     expect(payload.exp! - before).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================================
+// Cross-instance single-use: the DB-backed consumed-jti store.
+// ============================================================================
+//
+// The finding: the old per-instance in-memory set let a token consumed on
+// replica A replay on replica B. These tests pin the fix: two store instances
+// (two "replicas") sharing one backing database must agree on first-use —
+// exactly one consume wins, every replay loses, even under a race.
+//
+// The fake DB below emulates the UNIQUE(jti) constraint of the real
+// `oauth_consent_tokens` table (migration 0091).
+// ============================================================================
+
+function makeSharedFakeDb() {
+  const rows = new Map<string, Date>(); // jti -> expiresAt, shared by "replicas"
+  return {
+    rows,
+    failNextWith: null as Error | null,
+    async $executeRawUnsafe(query: string, ...params: unknown[]): Promise<unknown> {
+      if (query.startsWith('INSERT')) {
+        if (this.failNextWith) {
+          const e = this.failNextWith;
+          this.failNextWith = null;
+          throw e;
+        }
+        const jti = params[0] as string;
+        if (rows.has(jti)) {
+          const err = new Error(
+            'duplicate key value violates unique constraint "oauth_consent_tokens_pkey"',
+          ) as Error & { code?: string };
+          err.code = 'P2002';
+          throw err;
+        }
+        rows.set(jti, params[1] as Date);
+        return 1;
+      }
+      if (query.startsWith('DELETE')) {
+        const now = new Date();
+        for (const [k, v] of rows) if (v <= now) rows.delete(k);
+        return 1;
+      }
+      throw new Error(`unexpected query: ${query}`);
+    },
+  };
+}
+
+describe('oauth-consent-session consumed-jti stores', () => {
+  const expiresAt = () => new Date(Date.now() + CONSENT_TOKEN_TTL_SECONDS * 1000);
+
+  it('cross-instance replay: replica B rejects a jti consumed on replica A', async () => {
+    const db = makeSharedFakeDb();
+    const replicaA = new PrismaConsentTokenStore(db);
+    const replicaB = new PrismaConsentTokenStore(db); // separate instance, same DB
+    expect(await replicaA.tryConsume('jti-aaa', expiresAt())).toBe(true);
+    expect(await replicaB.tryConsume('jti-aaa', expiresAt())).toBe(false);
+  });
+
+  it('exactly one replica wins a simultaneous consume race on the same jti', async () => {
+    const db = makeSharedFakeDb();
+    const replicaA = new PrismaConsentTokenStore(db);
+    const replicaB = new PrismaConsentTokenStore(db);
+    const results = await Promise.all([
+      replicaA.tryConsume('jti-race', expiresAt()),
+      replicaB.tryConsume('jti-race', expiresAt()),
+    ]);
+    expect(results.filter(Boolean)).toHaveLength(1);
+  });
+
+  it('treats driver-level unique violations (23505 / message match) as replay', async () => {
+    const db = makeSharedFakeDb();
+    db.failNextWith = Object.assign(
+      new Error('duplicate key value violates unique constraint'),
+      { code: '23505' },
+    );
+    const store = new PrismaConsentTokenStore(db);
+    expect(await store.tryConsume('jti-x', expiresAt())).toBe(false);
+    // ...and a violation detected only via the message text
+    db.failNextWith = new Error('UNIQUE constraint failed: oauth_consent_tokens.jti');
+    expect(await store.tryConsume('jti-y', expiresAt())).toBe(false);
+  });
+
+  it('fails CLOSED on non-unique DB errors (no consent decision on a broken store)', async () => {
+    const db = makeSharedFakeDb();
+    db.failNextWith = new Error('connection refused');
+    const store = new PrismaConsentTokenStore(db);
+    await expect(store.tryConsume('jti-z', expiresAt())).rejects.toThrow('connection refused');
+  });
+
+  it('sweeps expired rows on the lazy interval', async () => {
+    const db = makeSharedFakeDb();
+    const store = new PrismaConsentTokenStore(db);
+    await store.tryConsume('jti-old', new Date(Date.now() - 1000)); // already expired
+    await store.tryConsume('jti-new', expiresAt());
+    // Sweep runs on the next consume after the interval gate; force it by
+    // resetting the gate through a fresh store sharing the same DB.
+    const store2 = new PrismaConsentTokenStore(db);
+    await store2.tryConsume('jti-other', expiresAt());
+    expect(db.rows.has('jti-old')).toBe(false);
+    expect(db.rows.has('jti-new')).toBe(true);
+  });
+
+  it('in-memory store keeps single-use semantics (test default)', async () => {
+    const store: ConsentTokenStore = new InMemoryConsentTokenStore();
+    expect(await store.tryConsume('jti-m', expiresAt())).toBe(true);
+    expect(await store.tryConsume('jti-m', expiresAt())).toBe(false);
+  });
+
+  it('consumeConsentToken honors the configured store end-to-end', async () => {
+    const db = makeSharedFakeDb();
+    const previous = new InMemoryConsentTokenStore();
+    setConsentTokenStore(new PrismaConsentTokenStore(db));
+    try {
+      const token = await mintConsentToken(claims);
+      expect(await consumeConsentToken(token)).not.toBeNull(); // first use wins
+      expect(await consumeConsentToken(token)).toBeNull(); // replay loses
+    } finally {
+      setConsentTokenStore(previous); // restore the test default
+    }
   });
 });
