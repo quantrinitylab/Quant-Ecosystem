@@ -398,6 +398,7 @@ function DrivePageContent() {
     fetchTrashFiles,
     restoreFile,
     purgeFile,
+    emptyTrash,
     moveFiles,
   } = useDrive();
 
@@ -1190,6 +1191,32 @@ function DrivePageContent() {
     }
   };
 
+  const handleEmptyTrash = async () => {
+    const count = trashItems.length;
+    if (count === 0) return;
+    const label = `${count} item${count > 1 ? 's' : ''}`;
+    const ok = await confirm({
+      title: 'Empty trash?',
+      message: `${label} will be permanently deleted. This cannot be undone.`,
+      confirmLabel: 'Empty Trash',
+      variant: 'destructive',
+    });
+    if (ok) {
+      try {
+        const purged = await emptyTrash();
+        const purgedLabel = `${purged} item${purged === 1 ? '' : 's'}`;
+        showToast({
+          text: purged > 0 ? `Permanently deleted ${purgedLabel}` : 'Trash is already empty',
+          type: 'info',
+          subject: 'drive-empty-trash',
+        });
+        await loadTrash();
+      } catch {
+        showToast({ text: 'Failed to empty trash', type: 'error', subject: 'drive-empty-trash' });
+      }
+    }
+  };
+
   const handleAcceptShare = async (shareId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     try {
@@ -1847,12 +1874,23 @@ function DrivePageContent() {
                 <div>
                   <h3 className="text-sm font-bold text-[var(--quant-foreground)]">Trash</h3>
                   <p className="text-xs text-[var(--quant-muted-foreground)]">
-                    Items in trash can be restored or deleted permanently.
+                    Items in trash are automatically deleted after 30 days. Restore what you
+                    need, or empty the trash now.
                   </p>
                 </div>
-                <Button variant="secondary" onClick={loadTrash} className="text-xs">
-                  Refresh Trash
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="secondary" onClick={loadTrash} className="text-xs">
+                    Refresh Trash
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={handleEmptyTrash}
+                    disabled={trashItems.length === 0 || loadingSpecial}
+                    className="px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs font-medium text-rose-300 hover:bg-rose-500/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Empty Trash
+                  </button>
+                </div>
               </div>
 
               {loadingSpecial && (
@@ -1954,6 +1992,7 @@ function DrivePageContent() {
               trashItems={trashItems}
               onRestoreTrashItem={handleRestoreItem}
               onPurgeTrashItem={handlePurgeItem}
+              onEmptyTrash={handleEmptyTrash}
             />
           )}
 

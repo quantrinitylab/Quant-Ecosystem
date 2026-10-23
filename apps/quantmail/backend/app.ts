@@ -45,7 +45,7 @@ import ciLogsRoutes from './routes/ci-logs';
 import ciHealingRoutes from './routes/ci-healing';
 import { startCiRunStatusSync } from './modules/code/services/ci-run-events';
 import calendarRoutes from './routes/calendar';
-import driveRoutes from './routes/drive';
+import driveRoutes, { sweepExpiredDriveTrash } from './routes/drive';
 import { driveSyncRoutes } from './routes/drive-sync';
 import { chunkedUploadRoutes } from './routes/chunked-upload';
 import aiComposeRoutes from './routes/ai-compose';
@@ -560,6 +560,43 @@ export async function buildApp(config?: AppConfig) {
     if (typeof reminderSweep.unref === 'function') reminderSweep.unref();
     app.addHook('onClose', async () => {
       clearInterval(reminderSweep);
+    });
+  }
+
+  // fix/qm-drive-trash-empty — Drive trash auto-purge sweep. POST
+  // /drive/trash/cleanup had zero production callers, so trashed files
+  // accumulated indefinitely; the Trash view also offered only per-item purge
+  // with no bulk "Empty trash". This timer runs the retention purge for every
+  // user on a cadence (Google Drive/Dropbox parity: 30-day trash retention).
+  // Env-gated (DRIVE_TRASH_SWEEP_INTERVAL_MS, default 24h;
+  // DRIVE_TRASH_RETENTION_DAYS, default 30; 0 or non-finite interval disables)
+  // and skipped under NODE_ENV=test so suites never see timer-driven writes.
+  // The handle is unref'd and cleared onClose so it can neither hold the
+  // process open nor fire after shutdown. Failures are logged, never thrown.
+  const trashSweepIntervalMs = Number(process.env['DRIVE_TRASH_SWEEP_INTERVAL_MS'] ?? 86_400_000);
+  const trashRetentionDays = Number(process.env['DRIVE_TRASH_RETENTION_DAYS'] ?? 30);
+  if (
+    process.env['NODE_ENV'] !== 'test' &&
+    Number.isFinite(trashSweepIntervalMs) &&
+    trashSweepIntervalMs > 0
+  ) {
+    const trashSweep = setInterval(() => {
+      sweepExpiredDriveTrash(app, app.log, trashRetentionDays).then(
+        (result) => {
+          if (result.purged > 0) {
+            app.log.info(
+              `[drive-trash] auto-purge sweep: users=${result.users} ` +
+                `purged=${result.purged} retentionDays=${trashRetentionDays}`,
+            );
+          }
+        },
+        (error: unknown) =>
+          app.log.error(`[drive-trash] auto-purge sweep failed: ${String(error)}`),
+      );
+    }, trashSweepIntervalMs);
+    if (typeof trashSweep.unref === 'function') trashSweep.unref();
+    app.addHook('onClose', async () => {
+      clearInterval(trashSweep);
     });
   }
 
