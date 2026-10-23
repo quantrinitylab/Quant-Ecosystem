@@ -6,6 +6,7 @@ import {
   clearScheduledTasks,
 } from '../services/quanty-agent/schedule-registry';
 import { quantyAgentState } from '../services/quanty-agent/agent-state';
+import { buildPopupData, type PopupDataDeps } from '../services/quanty-agent/popup-data';
 import {
   QuantyExecutor,
   InMemoryTaskStore,
@@ -79,11 +80,69 @@ describe('quanty-agent agent-state', () => {
     expect(quantyAgentState.updateBrowserTask('missing', { status: 'done' })).toBeNull();
   });
 
+  it('scopes browser tasks per user (no cross-user leak)', () => {
+    const u1 = quantyAgentState.recordBrowserTask({ title: 'U1 research', url: 'https://u1.example', userId: 'user-1' });
+    quantyAgentState.recordBrowserTask({ title: 'U2 research', url: 'https://u2.example', userId: 'user-2' });
+
+    const forU1 = quantyAgentState.listBrowserTasks('user-1', 50);
+    expect(forU1.map((t) => t.id)).toEqual([u1.id]);
+    expect(forU1[0].url).toBe('https://u1.example');
+
+    const forU2 = quantyAgentState.listBrowserTasks('user-2', 50);
+    expect(forU2).toHaveLength(1);
+    expect(forU2[0].title).toBe('U2 research');
+    expect(forU2.map((t) => t.id)).not.toContain(u1.id);
+
+    // Limit applies after filtering.
+    const limited = quantyAgentState.listBrowserTasks('user-2', 0);
+    expect(limited).toEqual([]);
+  });
+
+  it('fails closed: no user -> [] instead of the global browser-task list', () => {
+    quantyAgentState.recordBrowserTask({ title: 'U1 research', url: 'https://u1.example', userId: 'user-1' });
+    quantyAgentState.recordBrowserTask({ title: 'U2 research', url: 'https://u2.example', userId: 'user-2' });
+    // Tasks recorded without an owner are also invisible to everyone.
+    quantyAgentState.recordBrowserTask({ title: 'ownerless', url: 'https://anon.example' });
+
+    expect(quantyAgentState.listBrowserTasks(undefined, 50)).toEqual([]);
+    expect(quantyAgentState.listBrowserTasks(null, 50)).toEqual([]);
+    expect(quantyAgentState.listBrowserTasks('', 50)).toEqual([]);
+    expect(quantyAgentState.listBrowserTasks('user-1', 50)).toHaveLength(1);
+  });
+
   it('returns placeholder identity cards', () => {
     const id = quantyAgentState.getIdentity();
     expect(id.soul.title).toBeTruthy();
     expect(id.memory.title).toBeTruthy();
     expect(id.soul.updatedAt).toBeTruthy();
+  });
+});
+
+describe('quanty-agent popup browser-task scoping', () => {
+  beforeEach(() => quantyAgentState.clear());
+
+  const popupDeps = (userId: string): PopupDataDeps =>
+    ({
+      userId,
+      store: { listByUser: async () => [] },
+      executor: { liveStatus: () => ({ status: 'idle', detail: '' }) },
+      toolAppOf: () => undefined,
+    }) as unknown as PopupDataDeps;
+
+  it('serves only the caller\'s browser tasks in the popup payload', async () => {
+    const mine = quantyAgentState.recordBrowserTask({
+      title: 'mine', url: 'https://mine.example', userId: 'caller',
+    });
+    quantyAgentState.recordBrowserTask({
+      title: 'theirs', url: 'https://theirs.example', userId: 'other',
+    });
+
+    const data = await buildPopupData(popupDeps('caller'));
+    expect(data.browserTasks.map((t) => t.id)).toEqual([mine.id]);
+
+    const otherData = await buildPopupData(popupDeps('other'));
+    expect(otherData.browserTasks.map((t) => t.id)).not.toContain(mine.id);
+    expect(otherData.browserTasks).toHaveLength(1);
   });
 });
 

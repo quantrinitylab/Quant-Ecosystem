@@ -44,6 +44,9 @@ class QuantyAgentState {
     title: string;
     url: string;
     thumbnailUrl?: string;
+    /** Owning user — required in practice; records without an owner are
+     *  invisible to listBrowserTasks (fail closed, never the global list). */
+    userId?: string;
   }): QuantyBrowserTask {
     const task: QuantyBrowserTask = {
       id: randomUUID(),
@@ -63,8 +66,17 @@ class QuantyAgentState {
     return { ...t };
   }
 
-  listBrowserTasks(limit = 50): QuantyBrowserTask[] {
-    return this.browserTasks.slice(0, limit).map((t) => ({ ...t }));
+  /**
+   * List browser tasks for ONE user. Fail closed: a missing/empty userId
+   * returns [] rather than the process-global list, so one user's browsing
+   * (titles + URLs) can never leak to another user.
+   */
+  listBrowserTasks(userId: string | undefined | null, limit = 50): QuantyBrowserTask[] {
+    if (!userId) return [];
+    return this.browserTasks
+      .filter((t) => t.userId === userId)
+      .slice(0, limit)
+      .map((t) => ({ ...t }));
   }
 
   // -- Identity -------------------------------------------------------------
