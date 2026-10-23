@@ -55,16 +55,22 @@ const audioRoomsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /audio-rooms
+  // QC-F-199 (C5): GETs now carry in-route auth — the route-level gate is
+  // the only fail-closed layer under bare-mount compositions (production
+  // buildApp's global hook does not cover these either way). The caller id
+  // doubles as the viewerId for the private-room admission filter.
   fastify.get('/', async (request, reply) => {
+    const { userId } = requireAuthContext(request);
     const query = request.query as { topic?: string; tag?: string };
-    const rooms = AudioRoomService.listActiveRooms(query);
+    const rooms = AudioRoomService.listActiveRooms(query, userId);
     return reply.send({ success: true, data: rooms });
   });
 
   // GET /audio-rooms/:id
   fastify.get('/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const room = AudioRoomService.getAudioRoom(id);
+    const { userId } = requireAuthContext(request);
+    const room = AudioRoomService.getRoomForViewer(id, userId);
     if (!room) {
       return reply.status(404).send({ success: false, error: 'Audio room not found' });
     }
@@ -85,7 +91,14 @@ const audioRoomsRoutes: FastifyPluginAsync = async (fastify) => {
 
     try {
       const result = AudioRoomService.joinAudioRoom(id, userInfo);
-      return reply.send({ success: true, data: result });
+      // QC-F-199: non-host joiners get the room WITHOUT the invite roster.
+      return reply.send({
+        success: true,
+        data: {
+          room: AudioRoomService.stripForViewer(result.room, userId),
+          participant: result.participant,
+        },
+      });
     } catch (err: any) {
       return reply.status(404).send({ success: false, error: err.message });
     }
@@ -97,7 +110,48 @@ const audioRoomsRoutes: FastifyPluginAsync = async (fastify) => {
     const { userId } = requireAuthContext(request);
 
     const result = AudioRoomService.leaveAudioRoom(id, userId);
-    return reply.send({ success: true, data: result });
+    // QC-F-199 (C6): a non-participant probe gets { room: null } — no leak.
+    // Leavers see the room without the invite roster.
+    return reply.send({
+      success: true,
+      data: {
+        room: result.room ? AudioRoomService.stripForViewer(result.room, userId) : null,
+        hostTransferred: result.hostTransferred,
+      },
+    });
+  });
+
+  // POST /audio-rooms/:id/invite
+  // QC-F-199 — host-only invite (private rooms). 403/404 via err.statusCode;
+  // empty targetUserId is a 400 (no statusCode attached by the service).
+  fastify.post('/:id/invite', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { targetUserId?: string } | undefined;
+    const { userId: actorId } = requireAuthContext(request);
+
+    try {
+      const room = AudioRoomService.inviteToRoom(id, actorId, body?.targetUserId ?? '');
+      return reply.send({ success: true, data: room });
+    } catch (err: any) {
+      const statusCode = err.statusCode || 400;
+      return reply.status(statusCode).send({ success: false, error: err.message });
+    }
+  });
+
+  // DELETE /audio-rooms/:id/invite/:targetUserId
+  // QC-F-199 — host-only revoke. Stops not-yet-joined users; does NOT eject
+  // joined participants (pinned limit).
+  fastify.delete('/:id/invite/:targetUserId', async (request, reply) => {
+    const { id, targetUserId } = request.params as { id: string; targetUserId: string };
+    const { userId: actorId } = requireAuthContext(request);
+
+    try {
+      const room = AudioRoomService.revokeInvite(id, actorId, targetUserId);
+      return reply.send({ success: true, data: room });
+    } catch (err: any) {
+      const statusCode = err.statusCode || 400;
+      return reply.status(statusCode).send({ success: false, error: err.message });
+    }
   });
 
   // POST /audio-rooms/:id/raise-hand
