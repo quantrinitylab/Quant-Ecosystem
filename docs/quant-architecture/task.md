@@ -6055,3 +6055,10 @@ Rotation -> QM-SCREEN-012 (contacts) ROUND 36 regression, queued.
 Status: [x] DONE (R36 regression audit complete 2026-10-24 ~00:35-00:55 IST; 1 window merge (#1447 quantchat-only, 0 drive-path bytes) -> pure re-verification pass, all prior pins byte-verified intact (accountKey count-methodology note recorded), 3 carryovers confirmed open, 0 new findings, origin healthy with full logged-out live verification on both viewports; fixes tracked via their PRs)
 Owner: LANE-1
 Branch: lane1-audit-010r36
+
+## QM-SCREEN-012 R36 — Contacts regression (ROUND 36)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-012r36, started 2026-10-24 ~01:40 IST)
+Owner: LANE-1
+Branch: lane1-audit-012r36
+- Base: R35-012 tip a19fe7ea92b -> origin/main e91cd548a19b (fresh fetch). NOTE: qe-main is a SHALLOW clone in this env — range `git log a..b` fails (no merge-base) — window reviewed via tree `git diff --name-only` instead: 8 files changed total, all quantchat-backend (#1447 fix/qcloop-qc-f-524 websocket+privacy+openapi), 0 contact-path bytes -> pure re-verification + fresh hunt. Ledger worktree HEAD == remote arch tip 0d6b09d1b78b (ls-remote-verified before write); merge-only, no rebase/reset; never touched another lane's [~]; QM-AUTH-001/000/011/014 untouched.
+Audit started: 2026-10-24 ~01:40 IST (lane-1 deep audit loop, ROUND 36)
