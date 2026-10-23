@@ -107,6 +107,9 @@ describe('MessageService', () => {
           replyToId: null,
           isAIGenerated: false,
           metadata: {},
+          // QC-F-231 Slice A: send-anchored expiresAt stamp (null here —
+          // no timed disappearMode on this send).
+          expiresAt: null,
         },
       });
       expect(prisma.conversation.update).toHaveBeenCalledWith({
@@ -152,6 +155,8 @@ describe('MessageService', () => {
           replyToId: 'msg-original',
           isAIGenerated: false,
           metadata: { caption: 'My photo' },
+          // QC-F-231 Slice A: no timed disappearMode → no send-anchored expiry.
+          expiresAt: null,
         },
       });
     });
@@ -206,8 +211,13 @@ describe('MessageService', () => {
 
       await service.getMessages('conv-1', 'user-1');
 
+      // QC-F-231 Slice B (D3 serve-guarantee): expired rows never surface.
       expect(prisma.message.findMany).toHaveBeenCalledWith({
-        where: { conversationId: 'conv-1', isDeleted: false },
+        where: {
+          conversationId: 'conv-1',
+          isDeleted: false,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }],
+        },
         skip: 0,
         take: 50,
         orderBy: { createdAt: 'desc' },
@@ -485,12 +495,14 @@ describe('MessageService', () => {
         where: { userId: 'user-1', leftAt: null },
         select: { conversationId: true },
       });
+      // QC-F-231 Slice B (D3 serve-guarantee): search hides expired rows too.
       expect(prisma.message.findMany).toHaveBeenCalledWith({
         where: {
           conversationId: { in: ['conv-1', 'conv-2'] },
           isDeleted: false,
           content: { contains: 'Hello', mode: 'insensitive' },
           NOT: { content: { startsWith: '{"ciphertext"' } },
+          OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }],
         },
         skip: 0,
         take: 20,
