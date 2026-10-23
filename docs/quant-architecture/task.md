@@ -5938,3 +5938,11 @@ FRESH HUNT (code + live): 0 lorem/coming-soon/dummy/mock-user/fake-user/#FF8C42 
 LIVE HEALTHY, VISUAL VERIFIED: proxy healthy (no restart); /login /register /forgot-password /sso /login?returnTo=%2Fsettings -> 200 (no redirect loop); POST /api/sso/ticket/mint no-auth -> honest 401; bogus ticket resolve -> honest OAuth-style invalid_client; POST /api/auth/2fa/verify no-auth -> 403; POST /api/auth/2fa/recover{,/confirm} -> 404 (live build predates main — deploy-hold staleness, #1243 hold still ACTIVE cat-verified). Desktop 1440x900 + mobile 390x844 (iPhone 14, wait_s=14 hydrated) /login + /register shots REVIEWED: pure black, mail-orange, current clay M-mark, honest tri-cards, zero old-logo flash; /register shows NO phone field (P0 #872 removal live); /forgot-password desktop shot: email-based reset with anti-enumeration copy. Shots deleted; only my chrome dirs removed (zero live chromes; 2 pre-existing 97xx orphans not mine); /tmp 1%. Signed-in flows = needs-auth.
 NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents (protocol P0/P1-only; subagent.list 0 active at start; code-audit subagent corroborated pin 1: emailVerified:false at auth.ts:287). findings.md untouched.
 Rotation -> QM-SCREEN-003 (shell) ROUND 36 regression, queued.
+
+## QM-SCREEN-003 R36 — Workspace shell / navigation / account switcher / command palette (LANE-1)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-003r36
+Audit started: 2026-10-23 ~18:40 IST (lane-1 deep audit loop)
+Base: origin/main e91cd548a19b319900165df8b2d57971fa0c966e (fresh fetch)
+Window vs R36-002 base (401c6b2cae): 1 first-parent merge (#1447 fix/qcloop-qc-f-524)
