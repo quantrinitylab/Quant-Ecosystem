@@ -13,8 +13,10 @@ import { chatSocket } from '../services/chat-socket';
 // It now rides the working `chatSocket` singleton (`/ws/chat`), whose wire
 // protocol matches `backend/routes/websocket.ts`:
 //   client -> server: { type: 'typing', conversationId, isTyping }
-//                      { type: 'chat_message', conversationId, ... }
 //                      { type: 'message:read', messageId, conversationId }
+//   (QC-F-117: the client NO LONGER sends `{ type: 'chat_message', ... }` —
+//   that relay was a phantom-message injection path. Sends go through REST;
+//   live delivery is the persisted `chat.message.created.v1` fan-out.)
 //   server -> client: normalized { type: 'typing_indicator' | 'new_message' |
 //                      'message:read' | 'message:delivered', data, envelope }
 // ============================================================================
@@ -134,17 +136,12 @@ export function useRealtimeChat(conversationId: string) {
     };
   }, [conversationId, markUserTyping, clearTypingUser]);
 
-  const sendRealtimeMessage = useCallback(
-    (content: string) => {
-      chatSocket.send({
-        type: 'chat_message',
-        conversationId,
-        content,
-        timestamp: new Date().toISOString(),
-      });
-    },
-    [conversationId],
-  );
+  // QC-F-117 — there is intentionally NO `sendRealtimeMessage` helper here.
+  // The old `{ type: 'chat_message' }` frame relay was a phantom-message
+  // injection path (no persistence, no schema, no rate-limit) and has been
+  // deleted server-side. Message sends go through REST
+  // (`useSendMessage`); live delivery is the persisted
+  // `chat.message.created.v1` fan-out the backend publishes on send.
 
   const setTyping = useCallback(
     (isTyping: boolean) => {
@@ -169,7 +166,6 @@ export function useRealtimeChat(conversationId: string) {
   );
 
   return {
-    sendRealtimeMessage,
     setTyping,
     markRead,
     typingUsers,
