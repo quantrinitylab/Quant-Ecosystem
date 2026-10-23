@@ -28,6 +28,8 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
+import { useDriveKeyboard } from '../../hooks/useDriveKeyboard';
+import { useKeyboardSurfaces } from '../../components/KeyboardProvider';
 import { useDrive, type ReceivedShare, type SentShareItem, isDocumentDriveId, readErrorInstruction } from '../../hooks/useDrive';
 import { formatBytes } from '../../lib/format-bytes';
 import { showToast } from '../../components/InboxToast';
@@ -334,6 +336,34 @@ function MediaPreviewStatus({ loading, error }: { loading: boolean; error: strin
     );
   }
   return null;
+}
+
+/** Keyboard glyph for the shortcuts-sheet affordance (fix/qm-drive-keyboard-triage-2).
+ * Lucide-style outline, same stroke treatment as the other toolbar icons. */
+function DriveKeyboardIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M6 9h.01" />
+      <path d="M10 9h.01" />
+      <path d="M14 9h.01" />
+      <path d="M18 9h.01" />
+      <path d="M6 13h.01" />
+      <path d="M10 13h.01" />
+      <path d="M14 13h.01" />
+      <path d="M18 13h.01" />
+      <path d="M7 16.5h10" />
+    </svg>
+  );
 }
 
 function DrivePageContent() {
@@ -1071,8 +1101,26 @@ function DrivePageContent() {
     }
   };
 
-  const handleToggleStar = async (item: DriveItem, e?: React.MouseEvent) => {
-    e?.stopPropagation();
+  // fix/qm-drive-keyboard-triage-2: Google-Drive-class create keys. The
+  // j/k/x/enter/escape list triage is registered by DriveHomeSubView, which
+  // owns the visible item order; this hook owns only the page-level create
+  // commands in the same `drive` scope.
+  useDriveKeyboard({
+    onNewFolder: () => {
+      setNewFolderName('');
+      setShowNewFolderModal(true);
+    },
+    onNewDocument: () => {
+      setNewDocName('');
+      setShowNewDocModal(true);
+    },
+  });
+
+  // Opens the `?` shortcuts sheet — the toolbar's keyboard icon affordance.
+  // Inert no-op outside the KeyboardProvider, so isolated renders keep working.
+  const { openHelp } = useKeyboardSurfaces();
+
+  const handleToggleStar = async (item: DriveItem, e?: React.MouseEvent) => {    e?.stopPropagation();
     // Keyed on the file, and both messages name it. Previously the unstar toast
     // read a bare `Removed from starred` while the star toast named the file, so
     // starring and unstarring the same item left two contradictory toasts up with
@@ -1409,6 +1457,21 @@ function DrivePageContent() {
 
           {/* Right cluster */}
           <div className="flex shrink-0 items-center gap-1.5">
+            {/* fix/qm-drive-keyboard-triage-2: the `?` shortcuts sheet was
+                key-only on this surface — nothing in the Drive UI said the
+                j/k/x/Shift+F/Shift+T keys existed. One quiet icon button next
+                to the view switcher opens the sheet. Desktop only; the mobile
+                row is already space-constrained. Safe outside the provider
+                (inert no-op), so isolated renders keep working. */}
+            <button
+              type="button"
+              onClick={openHelp}
+              aria-label="Keyboard shortcuts"
+              title="Keyboard shortcuts (?)"
+              className="hidden md:inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+            >
+              <DriveKeyboardIcon className="size-4" />
+            </button>
             <div className="flex items-center rounded-lg bg-[var(--quant-surface-subtle)] p-0.5 shadow-[inset_0_0_0_1px_var(--quant-border)]">
               {(
                 [
