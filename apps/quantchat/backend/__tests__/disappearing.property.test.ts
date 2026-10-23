@@ -57,7 +57,6 @@ describe('Disappearing timer applies to new messages (Property 38)', () => {
   });
 
   afterEach(() => {
-    service.destroy();
     vi.useRealTimers();
   });
 
@@ -82,8 +81,9 @@ describe('Disappearing timer applies to new messages (Property 38)', () => {
       ).toBe(seconds * 1000);
       expect(result.viewedAt.getTime(), `case #${i} viewedAt == view time`).toBe(viewEpoch);
 
-      // Drain the scheduled deletion timer so it does not leak between cases.
-      await vi.advanceTimersByTimeAsync(seconds * 1000);
+      // QC-F-231 Slice C: no in-memory deletion timer exists any more, so
+      // there is nothing to drain between cases — the DB stamp is the
+      // whole mechanism.
       cases += 1;
     }
 
@@ -107,6 +107,10 @@ type StoredMessage = {
   expiresAt: Date | null;
   isDeleted: boolean;
   content: string;
+  // QC-F-231 Slice B (D4): the purge wipes media URLs and metadata too.
+  mediaUrl: string | null;
+  mediaThumbnailUrl: string | null;
+  metadata: Record<string, unknown>;
 };
 
 function makeStatefulPrisma(messages: StoredMessage[]) {
@@ -114,17 +118,34 @@ function makeStatefulPrisma(messages: StoredMessage[]) {
   return {
     store,
     message: {
+      // QC-F-231 Slice B: the real sweep is batched (take/orderBy/select) —
+      // the fake honours the same pagination so the property test exercises
+      // the batch shape, not a fantasy full-table read.
       findMany: vi.fn(
-        async ({ where }: { where: { expiresAt: { lte: Date }; isDeleted: boolean } }) => {
+        async ({
+          where,
+          take,
+          orderBy,
+        }: {
+          where: { expiresAt: { lte: Date }; isDeleted: boolean };
+          take?: number;
+          orderBy?: { expiresAt: 'asc' | 'desc' };
+        }) => {
           const now = where.expiresAt.lte.getTime();
-          return [...store.values()]
+          const rows = [...store.values()]
             .filter(
               (m) =>
                 m.expiresAt !== null &&
                 m.expiresAt.getTime() <= now &&
                 m.isDeleted === where.isDeleted,
             )
-            .map((m) => ({ ...m }));
+            .sort((a, b) =>
+              orderBy?.expiresAt === 'desc'
+                ? (b.expiresAt as Date).getTime() - (a.expiresAt as Date).getTime()
+                : (a.expiresAt as Date).getTime() - (b.expiresAt as Date).getTime(),
+            );
+          const page = take === undefined ? rows : rows.slice(0, take);
+          return page.map((m) => ({ id: m.id }));
         },
       ),
       updateMany: vi.fn(
@@ -189,7 +210,16 @@ describe('Expired disappearing messages are deleted (Property 39)', () => {
           expiresAt = null;
           purged = false;
         }
-        messages.push({ id, expiresAt, isDeleted: false, content: 'secret' });
+        messages.push({
+          id,
+          expiresAt,
+          isDeleted: false,
+          content: 'secret',
+          // QC-F-231 D4: purge must wipe these too — the fake seeds them.
+          mediaUrl: 'https://media.example/m1.jpg',
+          mediaThumbnailUrl: 'https://media.example/m1-thumb.jpg',
+          metadata: { caption: 'keep-me' },
+        });
         shouldBePurged.set(id, purged);
       }
 
@@ -206,13 +236,17 @@ describe('Expired disappearing messages are deleted (Property 39)', () => {
         if (expectPurged) {
           expect(isRetrievable(m), `iter #${iter} ${id} should be purged`).toBe(false);
           expect(m.content).toBe('[Message expired]');
+          // QC-F-231 D4 (poora mitna): media + metadata wiped, not just content.
+          expect(m.mediaUrl, `iter #${iter} ${id} mediaUrl`).toBeNull();
+          expect(m.mediaThumbnailUrl, `iter #${iter} ${id} mediaThumbnailUrl`).toBeNull();
+          expect(m.metadata, `iter #${iter} ${id} metadata`).toEqual({ expired: true });
         } else {
           expect(isRetrievable(m), `iter #${iter} ${id} should remain`).toBe(true);
           expect(m.content).toBe('secret');
+          expect(m.mediaUrl, `iter #${iter} ${id} mediaUrl kept`).not.toBeNull();
         }
       }
 
-      service.destroy();
       cases += 1;
     }
 
