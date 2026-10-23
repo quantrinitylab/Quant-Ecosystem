@@ -459,26 +459,16 @@ export function slotsWithinGuestDay<T extends { start: Date }>(
   return slots.filter((s) => formatDateToYmdInTz(s.start, timeZone) === dateStr);
 }
 
-// ============================================================================
-// Guest-day slot generation for the client fallback path
-// (fix/qm-booking-guest-day). The fallback claims the same contract as the
-// slots API, so it follows the same rule: the requested day is the GUEST's
-// calendar day in their selected zone; slots are generated from the
-// host-local date(s) the interval spans and filtered to the interval.
-// ============================================================================
-
-export interface GuestDaySlotSpec {
-  /** The requested guest-local calendar day (in guestTimeZone). */
-  year: number;
-  month: number;
-  day: number;
-  guestTimeZone: string;
-  hostTimeZone: string;
-  startHour: number;
-  endHour: number;
-  durationMin: number;
-}
-
+// ----------------------------------------------------------------------------
+// REMOVED (fix/qm-calendar-slot-fallback-no-invent): the client-side slot
+// generator (GuestDaySlotSpec + generateGuestDaySlots) lived here. It marked
+// every future 30-min window "available" purely by time-of-day, with no
+// host-calendar or conflict data — the exact banned pattern. Availability
+// comes from the slots endpoint, or the guest sees an honest error; nothing
+// may reintroduce a client-side generator. hostDatesForGuestDayInterval and
+// zonedYmdParts remain: they serve isGuestDayEnabled / todayInTimeZone
+// (day-grid enablement), not slot fabrication.
+// ----------------------------------------------------------------------------
 /** Calendar-date parts (year/month/day) of a UTC instant in `timeZone`. */
 function zonedYmdParts(d: Date, timeZone: string): { year: number; month: number; day: number } {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -646,54 +636,4 @@ export function defaultSelectedGuestDay(guestTimeZone: string): GuestDayKey {
     key = addDaysToKey(key, 1);
   }
   return key;
-}
-
-/**
- * Pure guest-day slot generation mirroring the backend contract. Labels are
- * rendered in the guest's zone; every slot's guest-local calendar day
- * equals the requested day. Never invents slots for other days.
- *
- * NOT used by the booking page (fix/qm-booking-slots-fallback): availability
- * comes from the server or the guest sees an honest error — this helper
- * must never be re-wired as a slots-fetch fallback. Kept for its unit
- * tests only.
- */
-export function generateGuestDaySlots(spec: GuestDaySlotSpec): BookingSlotItem[] {
-  const { year, month, day, guestTimeZone, hostTimeZone, startHour, endHour, durationMin } = spec;
-  const intervalStart = bookingWallTimeToUtcMs(year, month, day, 0, 0, guestTimeZone);
-  const intervalEnd = bookingWallTimeToUtcMs(year, month, day + 1, 0, 0, guestTimeZone);
-
-  // Walk host midnights (fix/qm-booking-journey-v2) — endpoint sampling
-  // omits the middle host date around DST transitions.
-  const hostDates = hostDatesForGuestDayInterval(intervalStart, intervalEnd, hostTimeZone);
-
-  const now = Date.now();
-  const slots: BookingSlotItem[] = [];
-  for (const hd of hostDates) {
-    const totalMinutes = (endHour - startHour) * 60;
-    for (let offsetMin = 0; offsetMin + durationMin <= totalMinutes; offsetMin += durationMin) {
-      const wallMinutes = startHour * 60 + offsetMin;
-      const slotStart = new Date(
-        bookingWallTimeToUtcMs(
-          hd.year,
-          hd.month,
-          hd.day,
-          Math.floor(wallMinutes / 60),
-          wallMinutes % 60,
-          hostTimeZone,
-        ),
-      );
-      const t = slotStart.getTime();
-      if (t < intervalStart || t >= intervalEnd) continue;
-      const slotEnd = new Date(t + durationMin * 60 * 1000);
-      slots.push({
-        start: slotStart,
-        end: slotEnd,
-        timeLabel: formatSlotTimeLabelInTz(slotStart, guestTimeZone),
-        available: t > now + 15 * 60 * 1000,
-      });
-    }
-  }
-  slots.sort((a, b) => a.start.getTime() - b.start.getTime());
-  return slots;
 }
