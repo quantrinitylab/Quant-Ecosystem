@@ -356,7 +356,9 @@ function stubQuantMailUserinfo(email: string) {
       status: 200,
       json: async () => ({
         success: true,
-        data: { id: 'qm-1', email, username: email.split('@')[0], displayName: 'SSO User' },
+        // QC-F-578: the route requires QuantMail to prove email verification;
+        // this stub represents the verified identity.
+        data: { id: 'qm-1', email, username: email.split('@')[0], displayName: 'SSO User', email_verified: true },
       }),
     }),
   );
