@@ -5982,3 +5982,10 @@ Fresh hunt clean: 0 lorem/coming-soon/dummy/mock-user/fake-user/#FF8C42/?token= 
 R2 P3 divider hairlines (pre-existing, unassigned) not re-filed — still folded into the next mail fix wave.
 NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents (protocol P0/P1-only; subagent.list 0 active at run start and end). findings.md untouched.
 LIVE HEALTHY, VISUAL VERIFIED: proxy 307 via proxy 1.47s (no restart); /thread/test-id-123 -> 307 sign-in gate; POST /api/emails/test-id-123/detect-phishing -> honest 401; GET /api/threads/test-id-123 -> honest 401 — all match R2 baseline. Desktop 1440x900 (9334, 14s hydration) + mobile 390x844 (iPhone 14, MOBILE_CHROME_PORT=9373, 14s hydration) /thread shots REVIEWED: settled sign-in gate both viewports, current clay M-mark, honest hero + tri-cards, ONE IDENTITY footer, (c) 2026, pure black, mail-orange, zero old-logo flash; standing knowns re-seen not re-filed ('Quant Mail' wordmark spacing, white ghost 'AI triage' card). Shots deleted; my chrome dirs removed via exact-compare (2 pre-run 9334 orphans also cleaned; zero live chromes verified); /tmp 1%. Signed-in thread flows = needs-auth. #1243 deploy hold ACTIVE (standing) — nothing to deploy.
+
+## QM-SCREEN-006 R36 — Compose / drafts / schedule / send regression (ROUND 36)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-006r36
+Audit started: 2026-10-23 ~21:40 IST (lane-1 deep audit loop, ROUND 36)
+Base: R36-005 tip e91cd548a -> origin/main e91cd548a (fresh fetch, zero new main merges) -> pure re-verification vs R2 pins + fresh hunt. First per-round 006 section since R2 (2026-10-11); canonical R2 header untouched.
