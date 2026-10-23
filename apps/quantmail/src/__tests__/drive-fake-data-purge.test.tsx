@@ -98,8 +98,11 @@ describe('QM-UIUX-020: Drive fake-data purge (vault / shared / starred / cleaner
 
   describe('DriveCleanerSubView', () => {
     it('renders an honest empty state when no duplicate clusters exist', () => {
+      // No scan has run: the honest state is "No scan yet", never the
+      // false-clean "No duplicates found".
       const html = renderToStaticMarkup(<DriveCleanerSubView />);
-      expect(html).toContain('No duplicates found');
+      expect(html).toContain('No scan yet');
+      expect(html).not.toContain('No duplicates found');
       expect(html).toContain('Duplicate Files (0)');
       assertNoFabrications(html);
     });

@@ -709,6 +709,15 @@ export interface DriveHomeSubViewProps {
   trashItems?: DriveItem[];
   onRestoreTrashItem?: (id: string, name: string, e?: React.MouseEvent) => void;
   onPurgeTrashItem?: (id: string, name: string, e?: React.MouseEvent) => void;
+  /**
+   * QM-FIX-*-desktop-orphans (tab↔panel contract): the tablist declares
+   * aria-controls="drive-panel-<tab>" per tab, so the rendered panel MUST
+   * carry the matching id/aria-labelledby. The Files tab renders this same
+   * file-browsing surface, but under its own panel identity — never as a
+   * second selected tab pointing at drive-panel-home.
+   */
+  panelId?: string;
+  labelledBy?: string;
 }
 
 export function DriveHomeSubView({
@@ -729,6 +738,8 @@ export function DriveHomeSubView({
   trashItems = [],
   onRestoreTrashItem,
   onPurgeTrashItem,
+  panelId = 'drive-panel-home',
+  labelledBy = 'drive-tab-home',
 }: DriveHomeSubViewProps) {
   const [selectedCategory, setSelectedCategory] = useState<DriveCategory | null>(null);
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
@@ -1011,7 +1022,7 @@ export function DriveHomeSubView({
   }, [files]);
 
   return (
-    <div id="drive-panel-home" role="tabpanel" aria-labelledby="drive-tab-home" className="space-y-6">
+    <div id={panelId} role="tabpanel" aria-labelledby={labelledBy} className="space-y-6">
       {/* If category is NOT selected: Render 8 Category Cards + Folders & Files */}
       {selectedCategory === null ? (
         <>
