@@ -13,6 +13,10 @@ const sendMessageSchema = z.object({
   mediaUrl: z.string().optional(),
   replyToId: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
+  // QC-F-573: client-generated idempotency key for the voice-note send
+  // pipeline (the K4 Idempotency-Key header carries the same value end to
+  // end; the body field keeps the key visible on the stored contract).
+  clientMsgId: z.string().uuid().optional(),
   // QC-F-019: view-once intent must survive the HTTP layer. Without this
   // field the client's `disappearMode: 'after_view'` was silently stripped
   // by zod, so snaps were stored as ordinary permanent media and the

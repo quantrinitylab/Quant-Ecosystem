@@ -22,6 +22,13 @@ export async function proxyToBackend(
   const memoriesUnlock = request.headers.get('X-Memories-Unlock');
   if (memoriesUnlock) headers['X-Memories-Unlock'] = memoriesUnlock;
 
+  // QC-F-573: the K4 idempotency key travels end to end. Forward exactly
+  // this header (like QC-F-450 above) so client-generated Idempotency-Key
+  // values reach the backend's idempotency plugin; the backend replays a
+  // stored response instead of double-creating on retry.
+  const idempotencyKey = request.headers.get('Idempotency-Key');
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+
   const url = new URL(backendPath, BACKEND_URL);
   // Forward search params for GET requests
   if (method === 'GET') {

@@ -1,6 +1,5 @@
 // ===========================================================================
 // QC-F-031 — media metadata BOLA regression tests (GET /media/:id)
-// ===========================================================================
 //
 // GET /media/:id returned any media's metadata — including the plain storage
 // URL, which embeds the uploader's userId and the original filename — to ANY
@@ -17,14 +16,21 @@
 // the route extracts request.auth.userId with a fail-closed 401 (the exact
 // pattern of the sibling upload-url handler in the same file). deleteMedia
 // is hardened with the same gate (brief §4.4): it has no route yet, so a
-// future DELETE endpoint is fail-closed by construction.
+// future DELETE endpoint is fail-closed by construction instead of inheriting
+// the old unchecked pattern.
+//
+// QC-F-573 update (2026-10-23): the service is now durable — the in-memory
+// Map and the simulated presign are gone; metadata lives in the Prisma Media
+// table and generateUploadUrl fails closed (503 STORAGE_NOT_CONFIGURED)
+// without real storage. The tests therefore inject a stub object storage
+// (infrastructure test-double, NOT fake app data) and a fake Prisma media
+// table, and seed through the REAL presign -> PUT -> finalize pipeline.
+// The owner/403/404 authorization assertions are unchanged in meaning.
 //
 // Route tests mount the REAL media plugin on a bare Fastify instance. A
 // preHandler hook installs `request.auth` per request exactly the way the
 // real auth plugin does (from a test header standing in for the verified
 // token); a minimal error handler mirrors the server-core AppError mapping.
-// The route plugin owns ONE in-memory MediaService instance, so seeding
-// happens through the real POST /media/upload-url flow on the same app.
 // Identities are stable module-level constants (no fresh-identity mocks).
 //
 // Every authorization test FAILS against the pre-fix code (verified by
@@ -33,8 +39,10 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
+import type { PrismaClient } from '@prisma/client';
 import mediaRoutes from '../routes/media';
 import { MediaService } from '../services/media.service';
+import { createMediaPrismaFake, StubObjectStorage } from './fake-media-stack';
 
 // Stable identities (module-level).
 const OWNER = { userId: 'user_media_owner', username: 'mediaowner' };
@@ -59,17 +67,52 @@ async function expectAppError(
 }
 
 // ---------------------------------------------------------------------------
+// Shared fixture: real MediaService over a fake Prisma media table + stub
+// object storage. Seeding goes through the real presign -> PUT -> finalize
+// pipeline (QC-F-573), exactly like production, minus the network.
+// ---------------------------------------------------------------------------
+
+interface MediaFixture {
+  service: MediaService;
+  storage: StubObjectStorage;
+}
+
+function buildService(): MediaFixture {
+  const { prisma } = createMediaPrismaFake();
+  const storage = new StubObjectStorage();
+  return { service: new MediaService(prisma, storage), storage };
+}
+
+/** Seed one finalized audio object owned by OWNER; returns its mediaId. */
+async function seedFinalized(
+  service: MediaService,
+  storage: StubObjectStorage,
+): Promise<string> {
+  const upload = await service.generateUploadUrl(OWNER.userId, 'photo.jpg', 'image/jpeg');
+  storage.putObject(
+    `${OWNER.userId}/${upload.mediaId}/photo.jpg`,
+    new Uint8Array([1, 2, 3]),
+    'image/jpeg',
+  );
+  const meta = await service.finalizeUpload(upload.mediaId, OWNER.userId, {
+    filename: 'photo.jpg',
+    contentType: 'image/jpeg',
+  });
+  return meta.mediaId;
+}
+
+// ---------------------------------------------------------------------------
 // Service level
 // ---------------------------------------------------------------------------
 
 describe('QC-F-031 MediaService.getMediaMetadata owner gate', () => {
   let service: MediaService;
+  let storage: StubObjectStorage;
   let mediaId: string;
 
   beforeEach(async () => {
-    service = new MediaService();
-    const upload = await service.generateUploadUrl(OWNER.userId, 'photo.jpg', 'image/jpeg');
-    mediaId = upload.mediaId;
+    ({ service, storage } = buildService());
+    mediaId = await seedFinalized(service, storage);
   });
 
   it('owner succeeds and gets the full metadata record', async () => {
@@ -78,7 +121,7 @@ describe('QC-F-031 MediaService.getMediaMetadata owner gate', () => {
     expect(meta.userId).toBe(OWNER.userId);
     expect(meta.filename).toBe('photo.jpg');
     expect(meta.contentType).toBe('image/jpeg');
-    expect(meta.url).toContain(`${OWNER.userId}/${mediaId}/photo.jpg`);
+    expect(meta.url).toContain(encodeURIComponent(`${OWNER.userId}/${mediaId}/photo.jpg`));
   });
 
   it('non-owner is denied 403 NOT_MEDIA_OWNER and the error leaks nothing', async () => {
@@ -129,7 +172,7 @@ describe('QC-F-031 MediaService.getMediaMetadata owner gate', () => {
 // Route level — the real plugin, per-request auth installed by a preHandler
 // ---------------------------------------------------------------------------
 
-async function buildMediaApp(): Promise<FastifyInstance> {
+async function buildMediaApp(): Promise<{ app: FastifyInstance; fixture: MediaFixture }> {
   const app = Fastify({ logger: false });
   // Mirror of server-core error-handler's AppError branch.
   app.setErrorHandler((err, _request, reply) => {
@@ -159,19 +202,29 @@ async function buildMediaApp(): Promise<FastifyInstance> {
       };
     }
   });
-  await app.register(mediaRoutes, { prefix: '/media' });
+  // Inject the fake Prisma table + stub storage via the route plugin's
+  // options seam (production wires the decorated prisma + env S3 storage).
+  const { prisma } = createMediaPrismaFake();
+  const storage = new StubObjectStorage();
+  const fixture: MediaFixture = {
+    service: new MediaService(prisma as PrismaClient, storage),
+    storage,
+  };
+  await app.register(mediaRoutes, { prefix: '/media', prisma, storage });
   await app.ready();
-  return app;
+  return { app, fixture };
 }
 
 describe('QC-F-031 GET /media/:id route gate', () => {
   let app: FastifyInstance;
+  let fixture: MediaFixture;
   let mediaId: string;
 
   beforeEach(async () => {
-    app = await buildMediaApp();
-    // Seed through the real upload-url flow, as the owner, on this same app
-    // (the plugin's MediaService instance is per-app in-memory).
+    ({ app, fixture } = await buildMediaApp());
+    // Seed through the real presign -> PUT -> finalize flow on this same app,
+    // as the owner. The plugin's service instance shares the injected fake
+    // Prisma table via register options.
     const upload = await app.inject({
       method: 'POST',
       url: '/media/upload-url',
@@ -179,8 +232,21 @@ describe('QC-F-031 GET /media/:id route gate', () => {
       payload: { filename: 'photo.jpg', contentType: 'image/jpeg' },
     });
     expect(upload.statusCode).toBe(201);
-    mediaId = upload.json().data.mediaId as string;
+    const presigned = upload.json().data as { mediaId: string };
+    mediaId = presigned.mediaId;
     expect(mediaId).toBeTruthy();
+    fixture.storage.putObject(
+      `${OWNER.userId}/${mediaId}/photo.jpg`,
+      new Uint8Array([4, 5, 6]),
+      'image/jpeg',
+    );
+    const fin = await app.inject({
+      method: 'POST',
+      url: `/media/${mediaId}/finalize`,
+      headers: { 'x-test-user-id': OWNER.userId },
+      payload: { filename: 'photo.jpg', contentType: 'image/jpeg' },
+    });
+    expect(fin.statusCode).toBe(200);
   });
 
   afterEach(async () => {
