@@ -33,40 +33,21 @@ function assertNoFabrications(html: string) {
 
 describe('QM-UIUX-020: Drive fake-data purge (vault / shared / starred / cleaner)', () => {
   describe('DriveVaultSubView', () => {
-    it('renders an honest empty state when the parent passes no items', () => {
+    it('renders the honest "not available yet" placeholder', () => {
       const html = renderToStaticMarkup(<DriveVaultSubView />);
-      expect(html).toContain('No vault items yet');
-      expect(html).toContain('Vault Items (0)');
+      expect(html).toContain('Vault is not available yet');
       // The view must not imply encryption it does not perform.
       expect(html).toContain('Client-side encryption is not available yet');
+      // The old impossible instruction is gone: no lock-to-vault action
+      // exists anywhere, so the copy must not tell users to lock a file.
+      expect(html).not.toContain('Lock a file to add it to your vault');
       assertNoFabrications(html);
     });
 
-    it('never invents vault items from an empty array', () => {
-      const html = renderToStaticMarkup(<DriveVaultSubView items={[]} />);
-      expect(html).toContain('No vault items yet');
+    it('renders no item rows, counts, or checksums on the placeholder surface', () => {
+      const html = renderToStaticMarkup(<DriveVaultSubView />);
+      expect(html).not.toContain('Vault Items (');
       expect(html).not.toContain('SHA-256:');
-      assertNoFabrications(html);
-    });
-
-    it('renders real items verbatim when provided (no invention needed)', () => {
-      const html = renderToStaticMarkup(
-        <DriveVaultSubView
-          items={[
-            {
-              id: 'vault-1',
-              name: 'tax-2025.pdf',
-              cipherSize: 1048576,
-              cipherAlgorithm: 'AES-256-GCM',
-              sha256Checksum: 'abc123def456',
-              encryptedAt: '2026-10-01T00:00:00Z',
-            },
-          ]}
-        />,
-      );
-      expect(html).toContain('Vault Items (1)');
-      expect(html).toContain('tax-2025.pdf');
-      expect(html).toContain('AES-256-GCM');
       assertNoFabrications(html);
     });
   });
