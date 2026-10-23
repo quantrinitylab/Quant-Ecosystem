@@ -179,7 +179,7 @@ export function DriveSharedByMeSubView({
                         <p className="text-xs font-semibold text-[#F8FAFC] truncate max-w-sm">
                           {item.name}
                         </p>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-white/[0.06] text-[#94A3B8] border border-[var(--quant-border)]">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-[var(--quant-surface)] text-[#94A3B8] border border-[var(--quant-border)]">
                           {item.type}
                         </span>
                         {item.linkShare && !isLinkExpired && (
