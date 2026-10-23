@@ -203,7 +203,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       setIsStartingCall(false);
     }
   }, [conversations, id, me?.id, me?.username, isStartingCall, router]);
-  const { typingUsers, incomingMessages, isConnected, sendRealtimeMessage, setTyping, markRead } =
+  const { typingUsers, incomingMessages, isConnected, setTyping, markRead } =
     useRealtimeChat(id);
   const [reactions, setReactions] = useState<Record<string, string[]>>({});
 
@@ -593,7 +593,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       metadata: { snap: { durationSec: snapDuration } },
     });
 
-    sendRealtimeMessage(content);
+    // QC-F-117: no WS `chat_message` frame — the snap goes through REST only;
+    // live delivery is the backend's persisted `chat.message.created.v1`
+    // fan-out.
 
     setShowSnapCamera(false);
     setSnapMediaPreview(null);
@@ -604,7 +606,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     snapType,
     snapDuration,
     sendWithFailureTracking,
-    sendRealtimeMessage,
   ]);
 
   // Wire read receipts: mark latest message from others as read on mount and on new messages
@@ -620,16 +621,16 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
 
   const handleSend = useCallback(
     (content: string) => {
-      // REST POST for persistence (failure-tracked — never loses user text)
+      // REST POST for persistence (failure-tracked — never loses user text).
+      // QC-F-117: no WS `chat_message` frame — live delivery is the backend's
+      // persisted fan-out, not a phantom client relay.
       sendWithFailureTracking({ content, type: 'text' as const });
-      // WS broadcast for real-time delivery
-      sendRealtimeMessage(content);
       // Stop typing indicator on send
       setTyping(false);
       // Clear reply-to
       setReplyTo(null);
     },
-    [sendWithFailureTracking, sendRealtimeMessage, setTyping],
+    [sendWithFailureTracking, setTyping],
   );
 
   const handleVoiceRecording = useCallback(
@@ -650,13 +651,13 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   );
 
   // Posts a system message into the conversation (e.g. final game scores from
-  // the in-chat GameLauncher). Persists via REST and broadcasts over WS.
+  // the in-chat GameLauncher). Persists via REST; live delivery is the
+  // backend's persisted fan-out (QC-F-117 — no WS `chat_message` frame).
   const handlePostSystemMessage = useCallback(
     (text: string) => {
       sendWithFailureTracking({ content: text, type: 'text' as const });
-      sendRealtimeMessage(text);
     },
-    [sendWithFailureTracking, sendRealtimeMessage],
+    [sendWithFailureTracking],
   );
 
   // Recent context handed to the AI reply-suggestion strip (oldest → newest).
