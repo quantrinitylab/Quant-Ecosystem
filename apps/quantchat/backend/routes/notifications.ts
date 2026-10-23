@@ -6,6 +6,12 @@
 //   GET  /notifications/settings   -> read category toggles
 //   PUT  /notifications/settings   -> update category toggles (Req 9.6)
 //
+//   QC-F-101: durable inbox (Prisma `Notification` rows — the same table the
+//   sibling apps write):
+//   GET   /notifications          -> the caller's inbox (newest first)
+//   POST  /notifications/read-all -> mark the caller's unread rows read
+//   PATCH /notifications/:id/read -> mark one of the caller's rows read
+//
 // Subscriptions persist to the Prisma `PushSubscription` model when a Prisma
 // client is decorated on the app; otherwise they fall back to an in-memory
 // store so the endpoints remain functional in dev/test. Delivery uses the
@@ -22,6 +28,7 @@ import {
   type PushSubscriptionRecord,
 } from '../lib/notification-dispatch';
 import { resolveNotificationDeepLink } from '../lib/notification-deeplink';
+import type { NotificationPrismaLike } from '../services/notification.service';
 
 const CATEGORIES: readonly NotificationCategory[] = [
   'MESSAGES',
@@ -65,6 +72,18 @@ const settingsBodySchema = z.object({
   ),
 });
 
+// QC-F-101: inbox list query — QuantMail's listQuerySchema style. No silent
+// clamping: out-of-range `limit` is a 400, not a quiet correction.
+//
+// `unreadOnly` is deliberately NOT `z.coerce.boolean()`: coercion maps the
+// string 'false' to true (non-empty string), which would silently flip
+// `?unreadOnly=false` into an unread-only filter. Only true/'true' counts.
+const inboxQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+  sourceApp: z.string().min(1).optional(),
+  unreadOnly: z.preprocess((v) => v === true || v === 'true', z.boolean()),
+});
+
 // --- Auth helper ----------------------------------------------------------
 
 interface AuthedRequest {
@@ -98,6 +117,24 @@ interface PrismaPushClient {
 function getPrisma(fastify: FastifyInstance): PrismaPushClient | null {
   const prisma = (fastify as unknown as { prisma?: PrismaPushClient }).prisma;
   return prisma && prisma.pushSubscription ? prisma : null;
+}
+
+// --- QC-F-101: durable inbox prisma ----------------------------------------
+// The inbox reads/writes real `Notification` rows. Unlike the push paths
+// above there is NO in-memory fallback here: an empty real inbox and "no
+// database at all" are two different truths, and conflating them would be
+// the old theatre. Delegate missing -> 503 DB_UNAVAILABLE, fail-honest.
+function getNotificationPrisma(fastify: FastifyInstance): NotificationPrismaLike | null {
+  const prisma = (fastify as unknown as { prisma?: NotificationPrismaLike }).prisma;
+  return prisma && prisma.notification ? prisma : null;
+}
+
+function requireNotificationPrisma(fastify: FastifyInstance): NotificationPrismaLike {
+  const prisma = getNotificationPrisma(fastify);
+  if (!prisma) {
+    throw createAppError('Database unavailable', 503, 'DB_UNAVAILABLE');
+  }
+  return prisma;
 }
 
 // --- In-memory fallback stores (dev/test) ---------------------------------
@@ -291,5 +328,79 @@ export default async function notificationsRoutes(fastify: FastifyInstance) {
     }
     memorySettings.set(userId, merged);
     return reply.send({ success: true, data: { categories: merged } });
+  });
+
+  // --- QC-F-101: durable inbox -------------------------------------------
+  // Contract (QuantMail's routes/notifications.ts, verbatim vocabulary):
+  // identity comes ONLY from auth — there is no userId query/body param,
+  // so one caller can never read another's inbox. Expired rows are never
+  // listed. Query errors are 400, never silent clamps.
+
+  // GET /notifications — the caller's inbox, newest first.
+  fastify.get('/', async (request, reply) => {
+    const userId = requireUserId(request);
+    const parsed = inboxQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      throw createAppError('Invalid query parameters', 400, 'VALIDATION_ERROR');
+    }
+    const prisma = requireNotificationPrisma(fastify);
+
+    const now = new Date();
+    const where: Record<string, unknown> = {
+      userId,
+      // Expired rows exist in the table but never reach a listing (QuantMail :41).
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    };
+    if (parsed.data.sourceApp) where['sourceApp'] = parsed.data.sourceApp;
+    if (parsed.data.unreadOnly) where['isRead'] = false;
+
+    const [notifications, total] = await Promise.all([
+      prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: parsed.data.limit,
+      }),
+      prisma.notification.count({ where }),
+    ]);
+    const unreadWhere = { ...where, isRead: false };
+    const unreadCount = await prisma.notification.count({ where: unreadWhere });
+
+    return reply.send({
+      success: true,
+      data: { notifications, unreadCount, total },
+    });
+  });
+
+  // POST /notifications/read-all — mark the caller's unread rows read.
+  fastify.post('/read-all', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = requireNotificationPrisma(fastify);
+
+    const result = await prisma.notification.updateMany({
+      where: { userId, isRead: false },
+      data: { isRead: true, readAt: new Date() },
+    });
+    return reply.send({ success: true, data: { updated: result.count } });
+  });
+
+  // PATCH /notifications/:id/read — mark one row read. Another user's row
+  // is 404, not 403: its existence must not leak (QuantMail :58-68).
+  fastify.patch('/:id/read', async (request, reply) => {
+    const userId = requireUserId(request);
+    const { id } = request.params as { id: string };
+    const prisma = requireNotificationPrisma(fastify);
+
+    const row = await prisma.notification.findUnique({ where: { id } });
+    if (!row || row.userId !== userId) {
+      throw createAppError('Notification not found', 404, 'NOTIFICATION_NOT_FOUND');
+    }
+    if (row.isRead) {
+      return reply.send({ success: true, data: row });
+    }
+    const updated = await prisma.notification.update({
+      where: { id },
+      data: { isRead: true, readAt: new Date() },
+    });
+    return reply.send({ success: true, data: updated });
   });
 }
