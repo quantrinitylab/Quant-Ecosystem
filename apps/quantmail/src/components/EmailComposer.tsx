@@ -20,6 +20,7 @@ import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
 import { ServerDraftRef, saveServerDraft } from '../lib/serverDraft';
+import { SendAsFromRow } from './SendAsFromRow';
 import { DraftBroadcast, draftShareKey } from '../lib/draftBroadcast';
 import { parseEmailString, dedupeRecipientPayload, type RecipientOption } from './RecipientChipInput';
 import { filterValidRecipients, getInvalidRecipientReason } from '../lib/email-validation';
@@ -482,6 +483,10 @@ export function EmailComposer({
   const [closing, setClosing] = useState('Thank you for your time.');
   const [signoff, setSignoff] = useState('Best regards,');
   const [senderName, setSenderName] = useState(authUser?.displayName || '');
+  // fix/qm-accounts-import: verified send-as identity id chosen in the From
+  // row (null = the account's own address). Travels on every compose and
+  // draft-update payload so the stored From follows the picker's choice.
+  const [sendAsId, setSendAsId] = useState<string | null>(null);
   const [customDetails, setCustomDetails] = useState<string[]>([]);
 
   useEffect(() => {
@@ -1279,6 +1284,9 @@ export function EmailComposer({
             messageKind: initialMessageKind,
             // fix/qm-composer-open-tracking-2: per-composer beacon opt-out.
             trackOpens,
+            // fix/qm-accounts-import: verified send-as identity (null = the
+            // account's own address; the backend treats absent/null the same).
+            sendAsId,
           };
           // Reuse the autosaved server draft when one exists instead of
           // orphaning it with a fresh compose (a duplicate draft left in
@@ -1542,6 +1550,9 @@ export function EmailComposer({
           messageKind: initialMessageKind,
           // fix/qm-composer-open-tracking-2: per-composer beacon opt-out.
           trackOpens,
+          // fix/qm-accounts-import: the From picker's choice follows the
+          // draft through autosave so the stored From is what was picked.
+          sendAsId,
         };
         const ref = fallbackDraftRef.current;
         fallbackConflictDuringSaveRef.current = false;
@@ -2181,6 +2192,14 @@ export function EmailComposer({
           <div className="print:hidden flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border flex flex-col">
             {/* Recipient Rows (To, Cc, Bcc) */}
             <div className="pb-2 space-y-2 w-full max-w-full">
+              {/* fix/qm-accounts-import: From row. Renders nothing unless the
+                  user has at least one verified send-as alias. */}
+              <SendAsFromRow
+                value={sendAsId}
+                onChange={setSendAsId}
+                primaryEmail={authUser?.email || ''}
+                primaryName={senderName || authUser?.displayName || ''}
+              />
               {/* To: Row */}
               <ComposerRecipientField
                 id="composer-to"
