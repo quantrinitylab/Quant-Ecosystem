@@ -17,6 +17,8 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1053.0",
+    "@aws-sdk/s3-request-presigner": "^3.1053.0",
     "@quant/api-client": "workspace:*",
     "@quant/auth": "workspace:*",
     "@quant/ai": "workspace:*",
