@@ -6041,3 +6041,7 @@ Rotation -> QM-SCREEN-010/011 (drive) ROUND 36 regression, queued.
 Status: [x] DONE (R36 regression audit complete 2026-10-23 ~23:40-23:55 IST; 1 window merge (#1447 quantchat-only, 0 calendar bytes) -> pure re-verification pass, all prior pins byte-verified intact, 1 carryover corrected-partially-closed with code evidence, remaining carryovers confirmed open, 0 new findings, origin healthy with full logged-out live verification on both viewports; fixes tracked via their PRs)
 Owner: LANE-1
 Branch: lane1-audit-008r36
+
+## QM-SCREEN-010/011 R36 — Drive regression (ROUND 36)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-010r36, started 2026-10-24 ~00:35 IST; R35-010/011 tip a19fe7ea92b -> origin/main e91cd548a19b319900165df8b2d57971fa0c966e (fresh fetch — 1 first-parent merge in window: #1447 fix/qcloop-qc-f-524, 0 drive-path bytes in window -> pure re-verification pass vs R35 pins). Code read from origin/main object tree only via git-archive snapshots /tmp/qsnap010r36 (FE: src/app/drive + src/components/drive, 45 files) + /tmp/qbe010r36 (backend/routes/drive.ts, services/drive-storage.service.ts) at tip (qe-main working tree ignored per stale-tree lesson; ledger worktree merged remote arch tip 268699e23 ls-remote-verified before write; claim commit first, DONE after live verification; merge-only push, no rebase/reset; never touched another lane's [~].)
+Audit started: 2026-10-24 ~00:35 IST (lane-1 deep audit loop, ROUND 36)
