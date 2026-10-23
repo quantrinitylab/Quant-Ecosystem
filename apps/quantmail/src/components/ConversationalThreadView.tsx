@@ -25,6 +25,7 @@ import { useUndoSend } from './UndoSendCountdownBar';
 import { ScheduleSendModal, isPastScheduleTime } from './ScheduleSendModal';
 import { SmartReplySuggestions } from './SmartReplySuggestions';
 import { IdentityAvatar } from './IdentityAvatar';
+import { ContactHoverCard } from './ContactHoverCard';
 import { EmailLetterCard } from './EmailLetterCard';
 import { EmailSafetyBanner } from './EmailSafetyBanner';
 import { MessageKindBadge, ThreadKindBadge } from './MessageKindBadge';
@@ -3105,7 +3106,21 @@ export function ConversationalThreadView({
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-semibold text-[var(--quant-foreground)]">
-                              {msgFromName}
+                              {!isOutbound && msgFromEmail ? (
+                                <ContactHoverCard
+                                  email={msgFromEmail}
+                                  name={msgFromName}
+                                  // Dotted underline = hoverable, like Gmail's
+                                  // sender-name affordance. The click stops
+                                  // inside the card so the header bar's
+                                  // collapse handler does not fire instead.
+                                  className="cursor-pointer underline decoration-dotted decoration-[var(--quant-muted-foreground)]/50 underline-offset-4"
+                                >
+                                  {msgFromName}
+                                </ContactHoverCard>
+                              ) : (
+                                msgFromName
+                              )}
                             </span>
                             {showKindBadges && <MessageKindBadge kind={messageKind} />}
                             <span className="text-xs text-[var(--quant-muted-foreground)] font-mono" title={formatFullDate(message.receivedAt)}>
