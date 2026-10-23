@@ -20,6 +20,8 @@ import { ReactionPicker } from '../../../components/ReactionPicker';
 import { CustomEmojiText } from '../../../components/CustomEmojiText';
 import { EmojiStatusBadge } from '../../../components/EmojiStatusBadge';
 import { VoiceNoteRecorder } from '../../../components/VoiceNoteRecorder';
+import { VoiceNotePlayer } from '../../../components/VoiceNotePlayer';
+import { useVoiceNoteSend } from '../../../hooks/useVoiceNoteSend';
 import { LinkPreviewCard } from '../../../components/LinkPreviewCard';
 import { AIAgentPanel } from '../../../components/chat/AIAgentPanel';
 import { ReplySuggestions } from '../../../components/chat/ReplySuggestions';
@@ -47,7 +49,9 @@ interface EnhancedMessage {
   imageUrl?: string;
   mediaUrl?: string;
   linkPreview?: { url: string } | null;
-  type: 'text' | 'image' | 'voice' | 'snap_photo' | 'snap_video';
+  // QC-F-573: 'audio' is the canonical voice-note type. 'voice' is a
+  // deprecated read-alias only — the normalizer maps it to 'audio'.
+  type: 'text' | 'image' | 'audio' | 'voice' | 'snap_photo' | 'snap_video';
   voiceDurationMs?: number;
   snapDurationSec?: number;
 }
@@ -64,6 +68,22 @@ function extractFirstLink(text: string): { url: string } | null {
   return match ? { url: match[0] } : null;
 }
 
+// QC-F-573: ONE shared type normalizer for the REST list mapper and the
+// realtime incoming mapper (they previously each inlined a divergent
+// allowlist that collapsed the backend's 'AUDIO'/'audio' to 'text').
+// Boundary contract: backend zod accepts 'audio', Prisma stores AUDIO, the
+// wire carries 'AUDIO' — the client lowercases first, then allowlists.
+// Legacy 'voice' is a read-alias only and normalizes to canonical 'audio'
+// (never sent, never stored).
+export type ChatMessageType = 'text' | 'image' | 'audio' | 'voice' | 'snap_photo' | 'snap_video';
+
+function normalizeMessageType(raw: unknown): ChatMessageType {
+  const lowered = typeof raw === 'string' ? raw.toLowerCase() : 'text';
+  if (lowered === 'voice') return 'audio';
+  const allowed: ChatMessageType[] = ['text', 'image', 'audio', 'snap_photo', 'snap_video'];
+  return (allowed as string[]).includes(lowered) ? (lowered as ChatMessageType) : 'text';
+}
+
 // Delivery status ordering so out-of-order receipt events never downgrade a
 // tick (read supersedes delivered supersedes sent).
 const STATUS_RANK: Record<DeliveryStatus, number> = { sent: 1, delivered: 2, read: 3 };
@@ -73,6 +93,14 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   const router = useRouter();
   const { data, isLoading, error, refetch } = useMessages(id);
   const sendMessage = useSendMessage();
+  // QC-F-573: the real voice-note pipeline — recorder blob -> presigned
+  // upload -> finalize -> idempotent send. The blob is retained on failure
+  // and the job retries with the same clientMsgId.
+  const voiceNoteSend = useVoiceNoteSend(id);
+  // Tracks whether the recorder's onRecordingComplete fired without a
+  // following onAudioRecorded (empty recording — no blob to send).
+  const voiceCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [voiceNoteNotice, setVoiceNoteNotice] = useState<string | null>(null);
   const { conversations } = useConversations();
   const { me } = useMe();
 
@@ -248,6 +276,12 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     content: string;
     error: string;
     retrying: boolean;
+    // QC-F-573: a failed voice-note retry must preserve the original
+    // payload instead of degrading to a text message.
+    type?: 'text' | 'audio';
+    mediaUrl?: string;
+    metadata?: Record<string, unknown>;
+    clientMsgId?: string;
   }
   const [failedSends, setFailedSends] = useState<FailedSend[]>([]);
 
@@ -372,11 +406,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           const content = msg.message ?? msg.content ?? '';
           const linkPreview = extractFirstLink(content);
           const rawType = msg.type || 'text';
-          const type = (
-            ['text', 'image', 'voice', 'snap_photo', 'snap_video'].includes(rawType)
-              ? rawType
-              : 'text'
-          ) as 'text' | 'image' | 'voice' | 'snap_photo' | 'snap_video';
+          // QC-F-573: shared normalizer — 'AUDIO'/'audio' -> 'audio',
+          // legacy 'voice' -> 'audio', anything unknown -> 'text'.
+          const type = normalizeMessageType(rawType);
           const snapMeta = (msg.metadata?.snap as { durationSec?: number }) || {};
           const snapDurationSec =
             msg.snapDurationSec ??
@@ -396,7 +428,10 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             mediaUrl: msg.mediaUrl || msg.imageUrl,
             linkPreview,
             type,
-            voiceDurationMs: msg.voiceDurationMs,
+            // QC-F-573: voice notes carry the real recorder duration in
+            // metadata.voiceDurationMs (top-level field is the legacy path).
+            voiceDurationMs:
+              msg.voiceDurationMs ?? (msg.metadata?.voiceDurationMs as number | undefined),
             snapDurationSec,
           };
         },
@@ -404,11 +439,8 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       ...incomingMessages.map((msg: any) => {
         const linkPreview = extractFirstLink(msg.content);
         const rawType = msg.type || 'text';
-        const type = (
-          ['text', 'image', 'voice', 'snap_photo', 'snap_video'].includes(rawType)
-            ? rawType
-            : 'text'
-        ) as 'text' | 'image' | 'voice' | 'snap_photo' | 'snap_video';
+        // QC-F-573: shared normalizer — same contract as the REST mapper.
+        const type = normalizeMessageType(rawType);
         return {
           id: msg.id,
           content: msg.content,
@@ -421,6 +453,10 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           mediaUrl: msg.mediaUrl || msg.imageUrl,
           linkPreview,
           type,
+          // QC-F-573: same metadata duration fallback as the REST mapper.
+          voiceDurationMs:
+            (msg.voiceDurationMs as number | undefined) ??
+            (msg.metadata?.voiceDurationMs as number | undefined),
           snapDurationSec:
             msg.snapDurationSec ??
             (type === 'snap_photo' || type === 'snap_video' ? 10 : undefined),
@@ -543,7 +579,18 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             const message = err instanceof Error ? err.message : 'Failed to send message';
             setFailedSends((prev) => [
               ...prev,
-              { key, content: request.content, error: message, retrying: false },
+              {
+                key,
+                content: request.content,
+                error: message,
+                retrying: false,
+                // QC-F-573: carry the full payload so a retry resends the
+                // same voice note (same clientMsgId -> idempotent).
+                type: request.type === 'audio' ? 'audio' : 'text',
+                mediaUrl: request.mediaUrl,
+                metadata: request.metadata,
+                clientMsgId: request.clientMsgId,
+              },
             ]);
           },
         },
@@ -557,8 +604,17 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       const failed = failedSends.find((f) => f.key === key);
       if (!failed || failed.retrying) return;
       setFailedSends((prev) => prev.map((f) => (f.key === key ? { ...f, retrying: true } : f)));
+      // QC-F-573: carry type/mediaUrl/metadata/clientMsgId through the
+      // retry — a failed voice note must NOT degrade to a text message.
       sendMessage.mutate(
-        { conversationId: id, content: failed.content, type: 'text' as const },
+        {
+          conversationId: id,
+          content: failed.content,
+          type: (failed.type ?? 'text') as 'text' | 'audio',
+          mediaUrl: failed.mediaUrl,
+          metadata: failed.metadata,
+          clientMsgId: failed.clientMsgId,
+        },
         {
           onSuccess: () => {
             setFailedSends((prev) => prev.filter((f) => f.key !== key));
@@ -632,15 +688,37 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     [sendWithFailureTracking, sendRealtimeMessage, setTyping],
   );
 
-  const handleVoiceRecording = useCallback(
-    (durationMs: number) => {
-      sendWithFailureTracking({
-        content: `Voice note (${Math.ceil(durationMs / 1000)}s)`,
-        type: 'text' as const,
-      });
+  // QC-F-573: the REAL voice-note path. The recorder emits the recorded
+  // blob via onAudioRecorded; the blob goes through the upload pipeline
+  // (presign -> PUT -> finalize -> idempotent send) in useVoiceNoteSend.
+  // The old handler persisted `Voice note (Ns)` as type 'text' and dropped
+  // the blob entirely — that fake path is gone.
+  const handleAudioRecorded = useCallback(
+    (audioBlob: Blob, durationMs: number) => {
+      if (voiceCompleteTimerRef.current) {
+        clearTimeout(voiceCompleteTimerRef.current);
+        voiceCompleteTimerRef.current = null;
+      }
+      setVoiceNoteNotice(null);
+      voiceNoteSend.start(audioBlob, durationMs);
     },
-    [sendWithFailureTracking],
+    [voiceNoteSend],
   );
+
+  // onRecordingComplete fires for every stop, including empty recordings
+  // (where the recorder does NOT emit onAudioRecorded). If no blob follows
+  // within 2s, say so honestly instead of sending a fake text message.
+  const handleRecordingComplete = useCallback((_durationMs: number) => {
+    if (voiceCompleteTimerRef.current) clearTimeout(voiceCompleteTimerRef.current);
+    voiceCompleteTimerRef.current = setTimeout(() => {
+      voiceCompleteTimerRef.current = null;
+      setVoiceNoteNotice('Recording captured no audio — nothing was sent.');
+    }, 2000);
+  }, []);
+
+  const handleVoiceRecorderError = useCallback((message: string) => {
+    setVoiceNoteNotice(message);
+  }, []);
 
   const handleTyping = useCallback(
     (isTyping: boolean) => {
@@ -898,37 +976,25 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                   </div>
                 )}
 
-                {/* Voice note */}
-                {msg.type === 'voice' && (
+                {/* QC-F-573: real voice-note player. The old block rendered a
+                    static pill (hardcoded decorative bars, no <audio>, no play
+                    button) for a type that the mappers never even produced. */}
+                {msg.type === 'audio' && (
                   <div
                     className={`flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'} mb-1`}
+                    title="Voice note — stored by the provider; end-to-end encryption for voice notes is not enabled yet"
                   >
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[var(--quant-surface)] border border-[var(--quant-border)]">
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        className="text-emerald-500"
-                      >
-                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                      </svg>
-                      <div className="flex items-center gap-0.5">
-                        {[3, 5, 8, 4, 7, 6, 3, 5, 8, 4].map((h, i) => (
-                          <div
-                            key={i}
-                            className="w-0.5 bg-emerald-500 rounded-full"
-                            style={{ height: `${h * 2}px` }}
-                          />
-                        ))}
+                    {msg.mediaUrl ? (
+                      <VoiceNotePlayer
+                        mediaUrl={msg.mediaUrl}
+                        durationMs={msg.voiceDurationMs}
+                        sender={msg.sender === 'self' ? 'self' : 'other'}
+                      />
+                    ) : (
+                      <div className="px-4 py-2 rounded-2xl bg-[var(--quant-surface)] border border-[var(--quant-border)] text-xs text-[var(--quant-muted-foreground)]">
+                        Voice note unavailable
                       </div>
-                      <span className="text-xs text-[var(--quant-muted-foreground)]">
-                        {msg.voiceDurationMs ? `${Math.ceil(msg.voiceDurationMs / 1000)}s` : ''}
-                      </span>
-                    </div>
+                    )}
                   </div>
                 )}
 
@@ -1146,6 +1212,93 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           </div>
         )}
         <TypingIndicator users={typingUsers} />
+
+        {/* QC-F-573: voice-note job card — the in-flight voice note's honest
+            state. Upload progress is real XHR progress; failures keep the
+            recording and offer an idempotent retry (same clientMsgId).
+            Voice notes are stored by the provider — end-to-end encryption
+            for voice notes is not enabled yet (never claimed otherwise). */}
+        {voiceNoteSend.job && voiceNoteSend.job.stage !== 'sent' && (
+          <div className="mt-3 flex justify-end" role="status" aria-live="polite">
+            <div className="max-w-[75%] rounded-2xl rounded-br-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5">
+              <div className="flex items-center gap-2">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="text-emerald-500 shrink-0"
+                  aria-hidden="true"
+                >
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                </svg>
+                <span className="text-xs font-medium text-[var(--quant-foreground)]">
+                  {voiceNoteSend.job.stage === 'uploading' &&
+                    `Uploading voice note… ${Math.round(voiceNoteSend.job.uploadProgress * 100)}%`}
+                  {voiceNoteSend.job.stage === 'finalizing' && 'Verifying upload…'}
+                  {voiceNoteSend.job.stage === 'sending' && 'Sending voice note…'}
+                  {voiceNoteSend.job.stage === 'recorded' && 'Preparing voice note…'}
+                  {voiceNoteSend.job.stage.startsWith('failed') && 'Voice note not sent'}
+                </span>
+                <span className="text-xs text-[var(--quant-muted-foreground)] tabular-nums">
+                  {Math.ceil(voiceNoteSend.job.durationMs / 1000)}s
+                </span>
+              </div>
+              {voiceNoteSend.job.stage === 'uploading' && (
+                <div className="mt-2 h-1 rounded-full bg-[var(--quant-border)] overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 transition-[width]"
+                    style={{ width: `${Math.round(voiceNoteSend.job.uploadProgress * 100)}%` }}
+                  />
+                </div>
+              )}
+              {voiceNoteSend.job.stage.startsWith('failed') && (
+                <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-red-500 font-medium">
+                    {voiceNoteSend.job.error ?? 'Failed'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => voiceNoteSend.retry()}
+                    className="text-xs font-semibold text-red-400 underline underline-offset-2 hover:text-red-300"
+                    aria-label="Retry sending voice note"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => voiceNoteSend.dismiss()}
+                    className="text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+                    aria-label="Discard voice note"
+                  >
+                    Discard
+                  </button>
+                </div>
+              )}
+              <p className="mt-1 text-[10px] text-[var(--quant-muted-foreground)]">
+                Stored by the provider — end-to-end encryption for voice notes is
+                not enabled yet.
+              </p>
+            </div>
+          </div>
+        )}
+        {voiceNoteNotice && (
+          <div className="mt-3 flex justify-end" role="status" aria-live="polite">
+            <div className="max-w-[75%] rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-2">
+              <p className="text-xs text-[var(--quant-muted-foreground)]">{voiceNoteNotice}</p>
+              <button
+                type="button"
+                onClick={() => setVoiceNoteNotice(null)}
+                className="mt-1 text-xs text-[var(--quant-muted-foreground)] underline underline-offset-2 hover:text-[var(--quant-foreground)]"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Reply-to preview above input */}
@@ -1240,7 +1393,11 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             placeholder={replyTo ? 'Type your reply...' : 'Type a message...'}
           />
         </div>
-        <VoiceNoteRecorder onRecordingComplete={handleVoiceRecording} />
+        <VoiceNoteRecorder
+          onRecordingComplete={handleRecordingComplete}
+          onAudioRecorded={handleAudioRecorded}
+          onError={handleVoiceRecorderError}
+        />
       </div>
 
       {/* Quick Snap Camera Dialog Modal */}
