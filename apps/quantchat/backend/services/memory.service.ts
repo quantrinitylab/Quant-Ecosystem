@@ -16,6 +16,7 @@
 // `prisma generate` has been run for the Memory delegate.
 // ============================================================================
 import { createAppError } from '@quant/server-core';
+import { assertMediaUrlAllowed } from '../lib/media-url';
 
 export type MemoryMediaType = 'PHOTO' | 'VIDEO';
 
@@ -133,6 +134,24 @@ export class MemoryService {
 
   /** Task 13.2 — persist a captured/saved item into the user's vault. */
   async create(input: CreateMemoryInput): Promise<MemoryRecord> {
+    // QC-F-423 — Memories was the one stored-media writer the QC-F-330
+    // shared validator never reached: any external or dangerous-scheme
+    // URL could be persisted here and was later loaded verbatim by the
+    // owner's own client (grid/viewer <img>/<video src>, and the viewer
+    // Download anchor). Gate at this persistence boundary — the route's
+    // only path to the DB — with the stories option set: the vault holds
+    // saved snaps/stories/reels and the shipped capture client sends
+    // `data:image/jpeg` inline, while `data:audio` has no real form here
+    // (mediaType is PHOTO|VIDEO only). Rejection is the validator's own
+    // 400 MEDIA_URL_NOT_ALLOWED, thrown BEFORE any row is written. The
+    // route's QC-F-450 passcode/unlock checks run before create() is
+    // reached, so this gate never answers ahead of them (no oracle).
+    assertMediaUrlAllowed(input.mediaUrl, {
+      ownerId: input.userId,
+      allowData: ['image/', 'video/'],
+      maxDataLength: 12_582_912,
+      maxUrlLength: 4096,
+    });
     return this.prisma.memory.create({
       data: {
         userId: input.userId,

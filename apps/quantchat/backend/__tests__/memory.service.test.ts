@@ -5,7 +5,10 @@ function makeMemory(overrides: Partial<MemoryRecord> = {}): MemoryRecord {
   return {
     id: 'mem-1',
     userId: 'user-1',
-    mediaUrl: 'https://cdn/quantchat/mem-1.jpg',
+    // QC-F-423 fixture migration (declared in build-QC-F-423.md): the old
+    // 'https://cdn/quantchat/mem-1.jpg' is not an own-storage URL and the
+    // create() gate now rejects it; same filename on the caller's own key.
+    mediaUrl: 'https://quantchat-media.s3.amazonaws.com/user-1/media_fixture/mem-1.jpg',
     mediaType: 'PHOTO',
     caption: 'sunset',
     location: 'Tokyo',
