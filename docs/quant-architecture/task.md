@@ -5886,3 +5886,8 @@ Status: [x] DONE (Owner: LANE-1, Branch: lane1-audit-015r35, R35 regression audi
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. NO FIX AGENTS (protocol: P0/P1 only; subagent.list 0 active at run start - capacity fine). findings.md untouched.
 - VERDICT-LIVE: HEALTHY, VISUAL VERIFIED. Proxy 127.0.0.1:8888 healthy (google 200 0.84s, no restart). GET /notifications -> 307 -> /login?returnTo=%2Fnotifications; /api/notifications + /api/notifications/mail-notification-mode -> honest 401 (UNAUTHORIZED 'Missing or invalid authorization header'). Desktop 1440x900 + mobile 390x844 /notifications screenshots (fresh Chrome, 14s hydration, correct type==page target selection): clay M-mark current both viewports, honest sign-in copy, tri-cards, ONE IDENTITY footer, (c) 2026, pure black, mail-orange, zero old-logo flash; white ghost on login 'AI triage' card = standing known issue (not re-filed); P3 'Quant Mail' wordmark spacing fine this round. Signed-in notification center/delivery/push flows = needs-auth (protocol), not faked. #1243 deploy hold ACTIVE (cat-verified) - unchanged. Shots reviewed + deleted; run-created chrome profile dirs cleaned (zero live chromes).
 Rotation -> QM-SCREEN-016 (settings) ROUND 35 regression, queued.
+
+
+## QM-SCREEN-016 R35 — Settings regression (ROUND 35)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-016r35, started 2026-10-23 ~14:35 IST; R34-016 tip a19fe7ea92b -> origin/main 401c6b2cae, fresh fetch)
+Audit started: 2026-10-23 ~14:35 IST (lane-1 deep audit loop, ROUND 35)
