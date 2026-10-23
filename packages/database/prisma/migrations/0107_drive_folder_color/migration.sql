@@ -1,0 +1,11 @@
+-- fix/qm-drive-folder-colors-2 (2026-10-23): folder color coding for QuantDrive.
+--
+-- WR finding: Google Drive's right-click -> Change color gives visual
+-- organization at a glance; QuantMail folders had no color affordance.
+--
+-- New column on the existing drive_folders table:
+--   color  — nullable hex string (e.g. "#F28B82") from the fixed backend
+--             FOLDER_COLOR_PALETTE; NULL = default folder color (no tint).
+--
+-- All additive; no existing rows touched.
+ALTER TABLE "drive_folders" ADD COLUMN "color" TEXT;

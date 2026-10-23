@@ -33,6 +33,9 @@ export interface DriveFile {
   scanStatus?: string | null;
   scanReason?: string | null;
   scannedAt?: string | null;
+  // fix/qm-drive-folder-colors-2: Drive-style folder tint (palette hex) — null
+  // for the default folder color. Files never carry a color.
+  color?: string | null;
 }
 
 export interface ReceivedShare {
@@ -116,6 +119,9 @@ export interface UseDriveReturn {
   unshareFile: (fileId: string, email: string) => Promise<void>;
   starFile: (fileId: string) => Promise<void>;
   unstarFile: (fileId: string) => Promise<void>;
+  // fix/qm-drive-folder-colors-2: Drive-style folder color (palette hex | null).
+  // Resolves true when the backend persisted the change.
+  setFolderColor: (folderId: string, color: string | null) => Promise<boolean>;
   getVersionHistory: (fileId: string) => Promise<void>;
   restoreVersion: (fileId: string, versionId: string) => Promise<void>;
   navigateToFolder: (folderId: string | null, folderName?: string) => void;
@@ -694,6 +700,35 @@ export function useDrive(): UseDriveReturn {
     }
   }, []);
 
+  // fix/qm-drive-folder-colors-2 — Drive-style folder color with optimistic
+  // update + rollback on failure (same pattern as starFile/unstarFile).
+  const setFolderColor = useCallback(async (folderId: string, color: string | null) => {
+    const previous = new Map<string, string | null | undefined>();
+    setFiles((prev) =>
+      prev.map((f) => {
+        if (f.id === folderId && f.type === 'folder') {
+          previous.set(f.id, f.color);
+          return { ...f, color };
+        }
+        return f;
+      }),
+    );
+    try {
+      const response = await apiRequest(`/api/drive/folders/${folderId}/color`, {
+        method: 'PUT',
+        body: JSON.stringify({ color }),
+      });
+      if (!response.ok) throw new Error('Failed to set folder color');
+      return true;
+    } catch (err) {
+      setFiles((prev) =>
+        prev.map((f) => (f.id === folderId ? { ...f, color: previous.get(f.id) ?? null } : f)),
+      );
+      setError(getDriveErrorMessage(err, 'Setting folder color failed'));
+      return false;
+    }
+  }, []);
+
   const getVersionHistory = useCallback(async (fileId: string) => {
     try {
       const response = await apiRequest(`/api/drive/files/${fileId}/versions`);
@@ -973,6 +1008,7 @@ export function useDrive(): UseDriveReturn {
     unshareFile,
     starFile,
     unstarFile,
+    setFolderColor,
     getVersionHistory,
     restoreVersion,
     navigateToFolder,
