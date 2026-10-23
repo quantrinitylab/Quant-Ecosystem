@@ -7,6 +7,13 @@ import { useState, useCallback, useRef } from 'react';
 import { logger } from '@quant/common';
 import { browserApiRequest as apiRequest } from '../services/browser-api-request';
 import { getUploadBatchError } from '../lib/drive-upload-results';
+// QuantDrive offline minimal slice: shared honest error text + cache-hit
+// header the offline worker stamps on cache-served responses.
+import {
+  getDriveErrorMessage,
+  DRIVE_OFFLINE_CACHE_HEADER,
+  DRIVE_OFFLINE_CACHE_HIT,
+} from '../lib/drive-offline';
 
 export interface DriveFile {
   id: string;
@@ -102,6 +109,12 @@ export interface UseDriveReturn {
   files: DriveFile[];
   loading: boolean;
   error: string | null;
+  /**
+   * True when the current listing was served from the offline cache (the
+   * worker stamps cache-served responses with DRIVE_OFFLINE_CACHE_HEADER).
+   * Lets the UI honestly say "showing cached files".
+   */
+  servedFromCache: boolean;
   quota: StorageQuota | null;
   currentFolderId: string | null;
   breadcrumbs: { id: string | null; name: string }[];
@@ -134,25 +147,9 @@ export interface UseDriveReturn {
   purgeFile: (fileId: string) => Promise<void>;
 }
 
-const getDriveErrorMessage = (err: unknown, fallback: string): string => {
-  const message = err instanceof Error ? err.message : '';
-  const normalized = message.toLowerCase();
-
-  if (normalized.includes('401') || normalized.includes('unauthorized')) {
-    return 'Your Drive session expired. Refresh or sign in again, then retry.';
-  }
-
-  if (
-    normalized.includes('failed to fetch') ||
-    normalized.includes('networkerror') ||
-    normalized.includes('load failed') ||
-    normalized.includes('fetch files')
-  ) {
-    return `${fallback} Your files are safe.`;
-  }
-
-  return message || fallback;
-};
+// NOTE: getDriveErrorMessage is imported from ../lib/drive-offline (shared
+// with the offline worker's honest-error contract) — do not reintroduce a
+// local copy here.
 
 // QM-M39-009: read the backend's error instruction (e.g. FILE_QUARANTINED)
 // so quarantine blocks surface an instruction, never a generic error.
@@ -446,6 +443,9 @@ export function useDrive(): UseDriveReturn {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  // QuantDrive offline minimal slice: tracks whether the listing on screen
+  // came from the offline-cache worker (see DRIVE_OFFLINE_CACHE_HEADER).
+  const [servedFromCache, setServedFromCache] = useState<boolean>(false);
   // Quota is unknown until the backend answers: a fabricated 15 GB default
   // used to sit here, presenting invented quota before the first fetch.
   const [quota, setQuota] = useState<StorageQuota | null>(null);
@@ -470,6 +470,11 @@ export function useDrive(): UseDriveReturn {
         if (!response.ok) throw new Error('Failed to fetch files');
         const data = await response.json();
         if (seq === fetchSeqRef.current) {
+          // Honest cache provenance: the offline worker stamps cache-served
+          // responses so the banner can say "showing cached files".
+          setServedFromCache(
+            response.headers.get(DRIVE_OFFLINE_CACHE_HEADER) === DRIVE_OFFLINE_CACHE_HIT,
+          );
           setFiles(data.files || []);
           if (data.quota) setQuota(data.quota);
         }
@@ -959,6 +964,7 @@ export function useDrive(): UseDriveReturn {
     files,
     loading,
     error,
+    servedFromCache,
     quota,
     currentFolderId,
     breadcrumbs,
