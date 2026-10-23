@@ -26,6 +26,8 @@ export interface DriveItem {
   // QM-M39-009: security scan state from the backend (never rendered as safe).
   scanStatus?: string | null;
   scanReason?: string | null;
+  // fix/qm-drive-folder-colors-2: Drive-style folder tint (palette hex).
+  color?: string | null;
 }
 
 export interface DriveFilesSubViewProps {

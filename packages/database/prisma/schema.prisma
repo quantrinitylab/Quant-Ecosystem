@@ -4541,6 +4541,9 @@ model Folder {
   isDeleted   Boolean   @default(false)
   deletedAt   DateTime?
   trashRootId String?
+  // QM folder color coding (2026-10-23): nullable hex like "#F28B82" from the
+  // fixed FOLDER_COLOR_PALETTE; NULL = default folder color (no tint).
+  color       String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

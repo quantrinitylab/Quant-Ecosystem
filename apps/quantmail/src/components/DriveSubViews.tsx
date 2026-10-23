@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { formatBytes } from '../lib/format-bytes';
 import { isDocumentDriveId } from '../lib/drive-ids';
+import { normalizeFolderColor } from '../lib/folder-colors';
 import { useStorageQuota } from '../hooks/useStorageQuota';
 import { FileScanBadge, normalizeScanStatus } from '../app/drive/components/FileScanBadge';
+import { FolderColorPicker } from '../app/drive/components/FolderColorPicker';
 
 // ============================================================================
 // SVG Vector Icons — strictly ZERO raw Unicode emojis
@@ -195,6 +197,28 @@ function PencilIcon({ className = 'size-4' }: { className?: string }) {
     >
       <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
       <path d="m15 5 4 4" />
+    </svg>
+  );
+}
+
+// fix/qm-drive-folder-colors-2: palette swatch icon for the folder color affordance.
+function PaletteIcon({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="8.5" cy="10" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15.5" cy="10" r="1.2" fill="currentColor" stroke="none" />
+      <path d="M12 21a9 9 0 0 1 0-18 9 9 0 0 1 6.74 3.07A2.5 2.5 0 0 1 19.5 8.5h.02" />
     </svg>
   );
 }
@@ -520,6 +544,9 @@ export interface DriveItem {
   // unscanned files — the badge never renders it as safe.
   scanStatus?: string | null;
   scanReason?: string | null;
+  // fix/qm-drive-folder-colors-2: Drive-style folder tint (palette hex) —
+  // null for the default folder color. Files never carry a color.
+  color?: string | null;
 }
 
 export type DriveCategory =
@@ -709,6 +736,8 @@ export interface DriveHomeSubViewProps {
   trashItems?: DriveItem[];
   onRestoreTrashItem?: (id: string, name: string, e?: React.MouseEvent) => void;
   onPurgeTrashItem?: (id: string, name: string, e?: React.MouseEvent) => void;
+  // fix/qm-drive-folder-colors-2: Drive-style folder color (palette hex | null).
+  onSetFolderColor?: (folderId: string, color: string | null) => void;
 }
 
 export function DriveHomeSubView({
@@ -729,6 +758,7 @@ export function DriveHomeSubView({
   trashItems = [],
   onRestoreTrashItem,
   onPurgeTrashItem,
+  onSetFolderColor,
 }: DriveHomeSubViewProps) {
   const [selectedCategory, setSelectedCategory] = useState<DriveCategory | null>(null);
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
@@ -836,6 +866,25 @@ export function DriveHomeSubView({
       trash: { count: trashCount, size: trashSize, formattedSize: formatBytes(trashSize) },
     };
   }, [files, trashItems]);
+
+  // fix/qm-drive-folder-colors-2: right-click context menu for folders —
+  // Drive's right-click → Change color affordance. showPalette=true renders
+  // the palette grid directly (from the hover button or the menu item).
+  const [ctxMenu, setCtxMenu] = useState<{
+    folder: DriveItem;
+    x: number;
+    y: number;
+    showPalette: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!ctxMenu || ctxMenu.showPalette) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCtxMenu(null);
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [ctxMenu]);
 
   // 8 Category Card Definitions
   const categoriesList = useMemo(
@@ -1081,9 +1130,20 @@ export function DriveHomeSubView({
                 </h3>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {folders.map((folder) => (
+                {folders.map((folder) => {
+                  // fix/qm-drive-folder-colors-2: a colored folder renders in
+                  // its Drive-palette tint; NULL keeps the app-accent chip.
+                  const folderColor = normalizeFolderColor(folder.color);
+                  return (
                   <div
                     key={folder.id}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (onSetFolderColor) {
+                        setCtxMenu({ folder, x: e.clientX, y: e.clientY, showPalette: false });
+                      }
+                    }}
                     className="group relative flex items-center gap-1 p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] transition-all"
                   >
                     {/*
@@ -1099,7 +1159,22 @@ export function DriveHomeSubView({
                       title={`Open ${folder.name}`}
                       className="flex flex-1 items-center gap-3 min-w-0 p-1 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                     >
-                      <div className="size-8 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
+                      <div
+                        className={`size-8 rounded-lg border flex items-center justify-center shrink-0 ${
+                          folderColor
+                            ? ''
+                            : 'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] text-[var(--app-accent)]'
+                        }`}
+                        style={
+                          folderColor
+                            ? {
+                                backgroundColor: `${folderColor}26`,
+                                borderColor: `${folderColor}66`,
+                                color: folderColor,
+                              }
+                            : undefined
+                        }
+                      >
                         <FolderIcon className="size-4" />
                       </div>
                       <span className="min-w-0 flex-1">
@@ -1110,6 +1185,21 @@ export function DriveHomeSubView({
                       </span>
                     </button>
                     <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity">
+                      {onSetFolderColor && (
+                        <button
+                          type="button"
+                          aria-label={`Change color of folder ${folder.name}`}
+                          title="Change color"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const r = e.currentTarget.getBoundingClientRect();
+                            setCtxMenu({ folder, x: r.left, y: r.bottom + 4, showPalette: true });
+                          }}
+                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F8FAFC] hover:bg-[#21262D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                        >
+                          <PaletteIcon className="size-3.5" />
+                        </button>
+                      )}
                       {onOpenRename && (
                         <button
                           type="button"
@@ -1134,9 +1224,81 @@ export function DriveHomeSubView({
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                  })}
               </div>
             </div>
+          )}
+
+          {/* fix/qm-drive-folder-colors-2: folder right-click context menu —
+              Drive's Change-color affordance. Either the action menu or the
+              palette grid, positioned at the click/tap point. */}
+          {ctxMenu && !ctxMenu.showPalette && (
+            <>
+              <button
+                type="button"
+                aria-label="Close folder menu"
+                className="fixed inset-0 z-[78] cursor-default bg-transparent"
+                onClick={() => setCtxMenu(null)}
+              />
+              <div
+                role="menu"
+                aria-label={`Folder actions for ${ctxMenu.folder.name}`}
+                className="fixed z-[79] w-52 rounded-xl bg-black border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.6)] p-1.5"
+                style={{
+                  left: Math.max(8, Math.min(ctxMenu.x, window.innerWidth - 216)),
+                  top: Math.max(8, Math.min(ctxMenu.y, window.innerHeight - 140)),
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => setCtxMenu({ ...ctxMenu, showPalette: true })}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-[#F8FAFC] hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                >
+                  <PaletteIcon className="size-4 text-[#94A3B8]" />
+                  Change color
+                </button>
+                {onOpenRename && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(e) => {
+                      setCtxMenu(null);
+                      onOpenRename(ctxMenu.folder, e);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-[#F8FAFC] hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  >
+                    <PencilIcon className="size-4 text-[#94A3B8]" />
+                    Rename
+                  </button>
+                )}
+                {onDeleteItem && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(e) => {
+                      setCtxMenu(null);
+                      onDeleteItem(ctxMenu.folder.id, ctxMenu.folder.name, e);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-rose-300 hover:bg-rose-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                  >
+                    <TrashIcon className="size-4" />
+                    Delete
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+          {ctxMenu && ctxMenu.showPalette && onSetFolderColor && (
+            <FolderColorPicker
+              selected={normalizeFolderColor(ctxMenu.folder.color)}
+              anchor={{ x: ctxMenu.x, y: ctxMenu.y }}
+              label={ctxMenu.folder.name}
+              onSelect={(hex) => onSetFolderColor(ctxMenu.folder.id, hex)}
+              onClose={() => setCtxMenu(null)}
+            />
           )}
 
           {/* Recent Files Quick Strip */}

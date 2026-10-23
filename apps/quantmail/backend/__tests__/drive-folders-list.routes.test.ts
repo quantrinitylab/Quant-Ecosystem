@@ -116,8 +116,8 @@ describe('GET /drive/folders', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.folders).toEqual([
-      { id: 'fld-receipts', name: 'Receipts', parentId: null, path: '/Receipts' },
-      { id: 'fld-2024', name: '2024', parentId: 'fld-receipts', path: '/Receipts/2024' },
+      { id: 'fld-receipts', name: 'Receipts', parentId: null, path: '/Receipts', color: null },
+      { id: 'fld-2024', name: '2024', parentId: 'fld-receipts', path: '/Receipts/2024', color: null },
     ]);
   });
 
