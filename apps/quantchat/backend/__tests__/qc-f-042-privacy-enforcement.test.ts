@@ -1074,6 +1074,17 @@ describe('QC-F-042 settings: PUT invalidates the shared privacy cache', () => {
 
 // ---------------------------------------------------------------------------
 // Presence list: GET /ws/presence filters showOnlineStatus=false users
+//
+// QC-F-524 expansion (declared meaning change, brief §8): the snapshot is
+// now recipient-scoped — the handler requires an authenticated caller,
+// honours the `userIds` parameter, and only returns users the caller is
+// related to. This case therefore installs an auth preHandler (caller =
+// CLOSE_FRIEND), requests both users explicitly via ?userIds=, and makes
+// BOTH of them the caller's DIRECT co-members, so the question this case
+// has always asked is preserved exactly under the new rules: of two
+// related, requested, online users, the one with showOnlineStatus=false
+// is hidden and the default one remains. No assertion was deleted and
+// the expected result is unchanged.
 // ---------------------------------------------------------------------------
 describe('QC-F-042 presence: /ws/presence snapshot hides opted-out users', () => {
   it('filters the hidden user out of the online list; the default user remains', async () => {
@@ -1081,6 +1092,14 @@ describe('QC-F-042 presence: /ws/presence snapshot hides opted-out users', () =>
       [OWNER.userId, prefs({ showOnlineStatus: false })],
       [STRANGER.userId, null],
     ]);
+    // QC-F-524: caller (CLOSE_FRIEND) shares an active DIRECT conversation
+    // with each of OWNER and STRANGER (WHERE-aware, direction-sensitive).
+    const memberRows = [
+      { conversationId: 'conv-f042-owner', userId: CLOSE_FRIEND.userId, leftAt: null },
+      { conversationId: 'conv-f042-owner', userId: OWNER.userId, leftAt: null },
+      { conversationId: 'conv-f042-stranger', userId: CLOSE_FRIEND.userId, leftAt: null },
+      { conversationId: 'conv-f042-stranger', userId: STRANGER.userId, leftAt: null },
+    ];
     const prisma = {
       user: {
         async findUnique(args: unknown) {
@@ -1096,7 +1115,33 @@ describe('QC-F-042 presence: /ws/presence snapshot hides opted-out users', () =>
         },
       },
       closeFriend: { async findMany() { return []; } },
-      conversationMember: { async findMany() { return []; } },
+      conversationMember: {
+        async findMany(args: unknown) {
+          const where = (args as { where?: Record<string, unknown> }).where ?? {};
+          const convCond = where['conversationId'] as
+            | string
+            | { in?: string[] }
+            | undefined;
+          return memberRows.filter((row) => {
+            if (where['userId'] !== undefined && row.userId !== where['userId']) {
+              return false;
+            }
+            if (typeof convCond === 'string' && row.conversationId !== convCond) {
+              return false;
+            }
+            if (
+              convCond &&
+              typeof convCond === 'object' &&
+              Array.isArray(convCond.in) &&
+              !convCond.in.includes(row.conversationId)
+            ) {
+              return false;
+            }
+            if (where['leftAt'] === null && row.leftAt !== null) return false;
+            return true;
+          });
+        },
+      },
       conversation: { async findMany() { return []; } },
     };
     const backplane = {
@@ -1118,11 +1163,19 @@ describe('QC-F-042 presence: /ws/presence snapshot hides opted-out users', () =>
     app.decorate('prisma', prisma as never);
     app.decorate('realtimeBackplane', backplane as never);
     app.decorate('presence', presence as never);
+    // QC-F-524: the snapshot now requires an authenticated caller (the
+    // QC-F-017 preHandler pattern, standing in for the real auth plugin).
+    app.addHook('preHandler', async (request) => {
+      (request as { auth?: { userId: string } }).auth = { userId: CLOSE_FRIEND.userId };
+    });
     await app.register(websocketRoutes, { prefix: '/ws' });
     await app.ready();
     apps.push(app);
 
-    const res = await app.inject({ method: 'GET', url: '/ws/presence' });
+    const res = await app.inject({
+      method: 'GET',
+      url: `/ws/presence?userIds=${OWNER.userId},${STRANGER.userId}`,
+    });
     expect(res.statusCode).toBe(200);
     const body = res.json() as { online: string[] };
     expect(body.online).toEqual([STRANGER.userId]);
