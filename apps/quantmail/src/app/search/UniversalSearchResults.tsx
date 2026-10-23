@@ -156,6 +156,17 @@ export function personDetailHref(person: Contact): string {
   return person.id ? `/contacts?contact=${encodeURIComponent(person.id)}` : '/contacts';
 }
 
+/**
+ * Deep link for a universal-search drive FILE hit. Opens the file in the
+ * drive preview (?file=<id>) instead of the bare /drive root, so the tapped
+ * file is never lost — the same never-lose-the-hit pattern as
+ * personDetailHref (QM 2026-10-19) and the /drive/doc/<id> document rows.
+ * Falls back to the bare list when the hit carries no id.
+ */
+export function filePreviewHref(file: DriveFileHit): string {
+  return file.id ? `/drive?file=${encodeURIComponent(file.id)}` : '/drive';
+}
+
 function PersonRow({ person }: { person: Contact }) {
   const router = useRouter();
   return (
@@ -204,7 +215,7 @@ function EventRow({ event }: { event: CalendarEvent }) {
 function FileRow({ file }: { file: DriveFileHit }) {
   const router = useRouter();
   return (
-    <button type="button" onClick={() => router.push('/drive')} className={rowClass}>
+    <button type="button" onClick={() => router.push(filePreviewHref(file))} className={rowClass}>
       <Icon name="file" className="h-4 w-4 shrink-0 text-[var(--quant-muted-foreground)]" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{file.name}</span>
