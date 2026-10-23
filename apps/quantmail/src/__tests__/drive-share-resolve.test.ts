@@ -12,8 +12,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   downloadUrlFor,
+  fetchShareDownload,
   previewKindFor,
   resolveShareToken,
+  SHARE_PASSWORD_HEADER,
   ShareResolveError,
   TEXT_PREVIEW_MAX_BYTES,
 } from '../app/drive/share/[token]/share-resolve';
@@ -184,10 +186,45 @@ describe('downloadUrlFor', () => {
     expect(downloadUrlFor('abc123')).toBe('/api/drive/public/share/abc123/download');
   });
 
-  it('appends the password as the backend-supported query fallback', () => {
-    expect(downloadUrlFor('abc123', 's3cret & more')).toBe(
-      '/api/drive/public/share/abc123/download?password=s3cret%20%26%20more',
+  // fix/qm-share-pw-query-param: the URL builder takes no password at all, so
+  // no caller can leak the secret into history/logs via the query string.
+  it('accepts only the token — no password argument exists', () => {
+    expect(downloadUrlFor.length).toBe(1);
+  });
+
+  it('URL-encodes tokens in the download path', () => {
+    expect(downloadUrlFor('tok/en?x=1')).toBe(
+      '/api/drive/public/share/tok%2Fen%3Fx%3D1/download',
     );
+  });
+});
+
+describe('fetchShareDownload', () => {
+  function captureFetch(body = 'bytes', status = 200) {
+    const seen: Array<{ input: string; init?: RequestInit }> = [];
+    const fetchImpl: FetchImpl = vi.fn(async (input: string, init?: RequestInit) => {
+      seen.push({ input, init });
+      return new Response(body, { status });
+    });
+    return { seen, fetchImpl };
+  }
+
+  it('sends the password in the x-share-password header, never the URL', async () => {
+    const { seen, fetchImpl } = captureFetch();
+    await fetchShareDownload('abc123', 's3cret', fetchImpl);
+    expect(seen).toHaveLength(1);
+    expect(seen[0].input).toBe('/api/drive/public/share/abc123/download');
+    expect(seen[0].input).not.toContain('s3cret');
+    const headers = seen[0].init?.headers as Record<string, string>;
+    expect(headers[SHARE_PASSWORD_HEADER]).toBe('s3cret');
+    expect(seen[0].init?.credentials).toBe('include');
+  });
+
+  it('omits the password header when no password is given', async () => {
+    const { seen, fetchImpl } = captureFetch();
+    await fetchShareDownload('abc123', undefined, fetchImpl);
+    const headers = seen[0].init?.headers as Record<string, string>;
+    expect(headers[SHARE_PASSWORD_HEADER]).toBeUndefined();
   });
 });
 

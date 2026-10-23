@@ -1867,7 +1867,7 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     },
   );
 
-  fastify.get<{ Params: { token: string }; Querystring: { password?: string } }>(
+  fastify.get<{ Params: { token: string } }>(
     '/drive/public/share/:token/download',
     async (request, reply) => {
       const share = await prisma.driveShare.findUnique({
@@ -1884,17 +1884,18 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       // Enforce the password server-side before any bytes leave the box. The
       // metadata endpoint only advertises `requiresPassword`; the real gate is
       // here. Fail closed: a missing or wrong password never streams the file.
-      // The secret is accepted from the `x-share-password` header (preferred,
-      // kept out of URLs/logs) or a `password` query param as a fallback for
-      // plain-navigation downloads.
+      // fix/qm-share-pw-query-param: the secret travels ONLY in the
+      // `x-share-password` header — it is deliberately NOT accepted from the
+      // query string, where it would land in URLs, browser history, and
+      // server logs. A `?password=` query param is ignored (fail closed).
       if (share.password) {
         const headerValue = request.headers['x-share-password'];
         const supplied =
-          (typeof headerValue === 'string'
+          typeof headerValue === 'string'
             ? headerValue
             : Array.isArray(headerValue)
               ? headerValue[0]
-              : undefined) ?? request.query.password;
+              : undefined;
         if (!supplied) {
           throw createAppError(
             'This share link requires a password',
