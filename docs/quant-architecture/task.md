@@ -5833,3 +5833,8 @@ Branch: lane1-audit-010r35
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents spawned (protocol: P0/P1 only; subagent.list 0 active at run start). findings.md untouched (clean pass).
 - VERDICT-LIVE: HEALTHY, VISUAL VERIFIED. Proxy 127.0.0.1:8888 healthy (google 200, no restart). GET /drive -> 307 https://quantmail.in/login?returnTo=%2Fdrive; /api/drive/{files,quota,trash} -> honest 401 x3 (UNAUTHORIZED bodies byte-verified) — all match R34 baseline. Desktop 1440x900 (port 9334) + mobile 390x844 (iPhone 14, MOBILE_CHROME_PORT=9349, wait_s=14 hydrated) /drive sign-in gate shots REVIEWED: 'Your work, back in focus.' hero + tri-cards ('Mail + chat threads', 'AI triage' w/ standing white ghost, 'Encrypted in transit'), clay M-mark current both viewports, honest sign-in copy, Help/Privacy/Terms, ONE IDENTITY footer, (c) 2026, pure black, mail-orange, zero old-logo flash; standing known issues re-seen not re-filed (white ghost on 'AI triage' card, P3 'Quant Mail' wordmark spacing in mobile header). Shots reviewed + deleted; removed exactly my run-created chrome profile dirs (desktop 9334 + mobile 9349; pgrep --user-data-dir verified zero live chromes at cleanup); /tmp healthy. Signed-in drive flows = needs-auth (protocol), not faked. #1243 deploy hold ACTIVE (cat-verified: hidden_files/orchestrator/deploy-hold.txt, 192B — user decision pending since 2026-10-16) — main unchanged, nothing to deploy.
 Rotation -> QM-SCREEN-012 (contacts) ROUND 35 regression, queued.
+
+## QM-SCREEN-012 R35 — Contacts regression (ROUND 35)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-012r35
