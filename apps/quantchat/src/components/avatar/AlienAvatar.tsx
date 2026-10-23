@@ -2,8 +2,10 @@
 // QuantChat - AlienAvatar (reusable avatar component)
 //
 // Task 5.5: a single reusable component that renders a user's selected alien
-// avatar. Reads the avatar via the shared useAvatar(userId) hook so it stays in
-// sync across the whole app.
+// avatar. Reads the avatar via the shared useAvatar(userId) hook; the profile
+// header is its shipped mount, and a select refreshes this query immediately
+// (Task 5.8). Other surfaces read User.avatarUrl, which select projects
+// server-side (QC-F-564).
 //
 // Task 5.6: usable on every surface via the `surface` prop —
 //   chat_bubble | profile_header | story_ring | reaction_animation |

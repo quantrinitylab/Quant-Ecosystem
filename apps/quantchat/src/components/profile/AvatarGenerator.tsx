@@ -8,8 +8,10 @@
 //   4. Preview the 3 variants and select one to save as the primary avatar
 //
 // On a no-face response the backend's user-facing error is surfaced inline
-// (Task 5.3). Saving invalidates the shared avatar query so the new avatar
-// propagates to every surface (Task 5.8) via useSelectAvatar.
+// (Task 5.3). Saving projects the selection onto the shared profile avatar
+// (User.avatarUrl) server-side (QC-F-564), so chat, stories, search and map
+// show it on their next refresh; useSelectAvatar also refreshes the mounted
+// avatar and profile queries (Task 5.8).
 // ============================================================================
 'use client';
 
