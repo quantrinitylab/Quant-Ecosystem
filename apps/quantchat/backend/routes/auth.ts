@@ -152,6 +152,33 @@ function accountDeletedBody() {
   };
 }
 
+/**
+ * QC-F-537: thrown by upsertSsoUser when TWO live rows match the verified
+ * SSO email case-insensitively — the same legacy case-duplicate corruption
+ * state password login (QC-F-501) pauses on. The handler translates this
+ * into the identical 409 EMAIL_CASE_CONFLICT body login returns (shared
+ * EMAIL_CASE_CONFLICT_MESSAGE); silently picking one row would sign the
+ * user into an arbitrary one of their two split accounts.
+ */
+export class EmailCaseConflictError extends Error {
+  readonly code = 'EMAIL_CASE_CONFLICT';
+  constructor() {
+    super(EMAIL_CASE_CONFLICT_MESSAGE);
+    this.name = 'EmailCaseConflictError';
+  }
+}
+
+function emailCaseConflictBody() {
+  return {
+    success: false,
+    error: {
+      code: 'EMAIL_CASE_CONFLICT',
+      message: EMAIL_CASE_CONFLICT_MESSAGE,
+      statusCode: 409,
+    },
+  };
+}
+
 export default async function authRoutes(fastify: FastifyInstance) {
   const { prisma, otpService, sessionTokens } = decorations(fastify);
   // QC-F-118: stateful refresh redemption (rotation spend + reuse
@@ -577,6 +604,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
       if (err instanceof AccountDeletedError) {
         return reply.status(401).send(accountDeletedBody());
       }
+      // QC-F-537: case-duplicate corruption — the same honest 409 pause
+      // password login gives for this state (QC-F-501), never a silent pick.
+      if (err instanceof EmailCaseConflictError) {
+        return reply.status(409).send(emailCaseConflictBody());
+      }
       throw err;
     }
     const { user, isNewUser } = ssoUpsert;
@@ -956,21 +988,60 @@ async function upsertSsoUser(
   isNewUser: boolean;
 }> {
   const email = identity.email.toLowerCase();
-  // QC-F-041: look the row up WITHOUT the deletedAt filter so a deleted
-  // account is seen and refused explicitly. The old `deletedAt: null`
-  // filter made the deleted row invisible here, after which the create
-  // path below collided with the email unique constraint and the exchange
-  // died as a 500 — fail-closed only by accident.
-  const existing = await prisma.user.findFirst({
-    where: { email },
-    select: { id: true, email: true, username: true, displayName: true, role: true, deletedAt: true },
-  });
-  if (existing?.deletedAt) {
-    throw new AccountDeletedError();
-  }
-  if (existing) {
+
+  type SsoRow = {
+    id: string;
+    email: string;
+    username: string;
+    displayName: string;
+    role: unknown;
+    deletedAt: Date | null;
+  };
+  type Resolution =
+    | { kind: 'found'; row: SsoRow }
+    | { kind: 'conflict' }
+    | { kind: 'deleted' }
+    | { kind: 'none' };
+
+  // QC-F-537: resolve the verified email to at most one account, with the
+  // SAME decision password login makes (QC-F-501 Slice-1C). The old exact
+  // findFirst({ where: { email } }) ran against Postgres' case-sensitive
+  // @unique, so a legacy row stored with mixed case was invisible here:
+  // the create below then succeeded and split the identity into TWO
+  // accounts — after which login's insensitive lookup matched both rows
+  // and paused the user on 409 forever. Two stages, one decision table
+  // (priority: conflict > found > deleted > none):
+  //   1. LIVE resolution — login's exact pattern: insensitive findMany
+  //      with deletedAt: null, take: 2 only to detect the duplicate state.
+  //      >1 live row is the corruption state -> conflict (409); ==1 is
+  //      the account (its stored casing is NEVER rewritten here).
+  //   2. TOMBSTONE check — only when no live row matched. This lookup
+  //      deliberately has NO deletedAt filter (QC-F-041): a deleted row
+  //      must be SEEN so it can be refused with AccountDeletedError
+  //      instead of colliding with the create below as a 500 — and a
+  //      mixed-case tombstone must be seen too, or SSO would resurrect
+  //      it as a duplicate. A live+tombstone case pair therefore resolves
+  //      to the LIVE row in stage 1, exactly like login.
+  const resolveSsoEmail = async (): Promise<Resolution> => {
+    const live = await prisma.user.findMany({
+      where: { email: { equals: email, mode: 'insensitive' }, deletedAt: null },
+      select: { id: true, email: true, username: true, displayName: true, role: true, deletedAt: true },
+      take: 2,
+    });
+    if (live.length > 1) return { kind: 'conflict' };
+    const liveRow = live[0];
+    if (liveRow) return { kind: 'found', row: liveRow };
+    const tombstone = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+      select: { id: true, email: true, username: true, displayName: true, role: true, deletedAt: true },
+    });
+    if (tombstone) return { kind: 'deleted' };
+    return { kind: 'none' };
+  };
+
+  const recordLogin = async (row: SsoRow) => {
     await prisma.user.update({
-      where: { id: existing.id },
+      where: { id: row.id },
       data: {
         lastLoginAt: new Date(),
         loginCount: { increment: 1 },
@@ -978,8 +1049,21 @@ async function upsertSsoUser(
         isVerified: true,
       },
     });
-    return { user: existing, isNewUser: false };
-  }
+    return { user: row, isNewUser: false as const };
+  };
+
+  // A resolution decision is final: found -> that account, conflict ->
+  // the honest 409, deleted -> the QC-F-041 refusal. Only 'none' falls
+  // through to the create path.
+  const settle = async (resolution: Resolution) => {
+    if (resolution.kind === 'found') return recordLogin(resolution.row);
+    if (resolution.kind === 'conflict') throw new EmailCaseConflictError();
+    if (resolution.kind === 'deleted') throw new AccountDeletedError();
+    return null;
+  };
+
+  const settled = await settle(await resolveSsoEmail());
+  if (settled) return settled;
 
   const base = (identity.username || email.split('@')[0] || 'quant_user')
     .toLowerCase()
@@ -1006,7 +1090,20 @@ async function upsertSsoUser(
       });
       return { user: created, isNewUser: true };
     } catch (err) {
-      if (isUniqueConstraintError(err) && attempt < 4) continue;
+      if (isUniqueConstraintError(err)) {
+        // QC-F-537: re-resolve BEFORE any retry (the upsertPhoneUser race
+        // pattern, applied to email). An email-P2002 is deterministic —
+        // the winning row already exists and only the username changes
+        // per attempt, so the old loop re-collided on the same email
+        // five times and surfaced a 500. If the fresh resolution finds
+        // the winner, adopt it honestly (isNewUser: false); conflict and
+        // deleted keep their decisions. Only a 'none' verdict means the
+        // collision really was the username, where the suffix retry is
+        // the correct old behaviour.
+        const raced = await settle(await resolveSsoEmail());
+        if (raced) return raced;
+        if (attempt < 4) continue;
+      }
       throw err;
     }
   }
