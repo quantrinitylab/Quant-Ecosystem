@@ -1,10 +1,15 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { formatBytes } from '../lib/format-bytes';
 import { isDocumentDriveId } from '../lib/drive-ids';
 import { useStorageQuota } from '../hooks/useStorageQuota';
 import { FileScanBadge, normalizeScanStatus } from '../app/drive/components/FileScanBadge';
+import { useKeyboardScope, useRegisterCommands } from '../lib/keyboard/hooks';
+import {
+  driveCommand,
+  type Command,
+} from '../lib/keyboard/command-registry';
 
 // ============================================================================
 // SVG Vector Icons — strictly ZERO raw Unicode emojis
@@ -1010,6 +1015,132 @@ export function DriveHomeSubView({
     });
   }, [files]);
 
+  // ── fix/qm-drive-keyboard-triage-2: Google-Drive-class list triage ─────────
+  // The file list was mouse-only — no keydown handlers anywhere on this
+  // surface. j/k move a highlight across the *visible* item order (folders,
+  // then the recent strip on the home view; the full category list inside a
+  // drilled-down category), x toggles selection of the highlighted item,
+  // Enter enters a folder / previews a file, Escape drops the highlight.
+  //
+  // The page-level `useDriveKeyboard` hook owns only shift+f/shift+t (new
+  // folder / new document) in the same `drive` scope; the list triage lives
+  // here because only this component knows the visible order. Ids, labels
+  // and keys are spread from DRIVE_COMMAND_REFERENCE, never restated, so the
+  // `?` sheet documents exactly what is bound.
+  //
+  // Trash is deliberately excluded: it is a restore/purge zone with its own
+  // row actions, not a selection surface — j/k there would promise batch
+  // behavior that cannot run.
+  const keyboardNavigable = useMemo<DriveItem[]>(() => {
+    if (selectedCategory !== null) {
+      if (selectedCategory === 'trash') return [];
+      return categoryItems;
+    }
+    return [...folders, ...recentOrderedFiles.slice(0, 8)];
+  }, [selectedCategory, categoryItems, folders, recentOrderedFiles]);
+
+  const [keyboardFocusId, setKeyboardFocusId] = useState<string | null>(null);
+
+  // Drop the highlight when the focused item leaves the visible list (e.g.
+  // the user drills into a category or the search filter narrows).
+  useEffect(() => {
+    if (keyboardFocusId && !keyboardNavigable.some((i) => i.id === keyboardFocusId)) {
+      setKeyboardFocusId(null);
+    }
+  }, [keyboardFocusId, keyboardNavigable]);
+
+  // Keep the highlighted card in view while navigating.
+  useEffect(() => {
+    if (!keyboardFocusId) return;
+    const nodes = document.querySelectorAll('[data-drive-item-id]');
+    for (const node of nodes) {
+      if ((node as HTMLElement).dataset.driveItemId === keyboardFocusId) {
+        (node as HTMLElement).scrollIntoView?.({ block: 'nearest' });
+        break;
+      }
+    }
+  }, [keyboardFocusId]);
+
+  const moveKeyboardFocus = useCallback(
+    (delta: 1 | -1) => {
+      setKeyboardFocusId((prev) => {
+        if (keyboardNavigable.length === 0) return null;
+        const idx = keyboardNavigable.findIndex((i) => i.id === prev);
+        if (idx === -1) {
+          // Nothing highlighted yet: j starts at the top, k at the bottom.
+          return keyboardNavigable[delta === 1 ? 0 : keyboardNavigable.length - 1].id;
+        }
+        const next = Math.min(keyboardNavigable.length - 1, Math.max(0, idx + delta));
+        return keyboardNavigable[next].id;
+      });
+    },
+    [keyboardNavigable],
+  );
+
+  const focusedKeyboardItem = useCallback(
+    () => keyboardNavigable.find((i) => i.id === keyboardFocusId) ?? null,
+    [keyboardNavigable, keyboardFocusId],
+  );
+
+  const toggleKeyboardSelection = useCallback(() => {
+    const item = focusedKeyboardItem();
+    if (item) onToggleSelect?.(item.id);
+  }, [focusedKeyboardItem, onToggleSelect]);
+
+  const openKeyboardItem = useCallback(() => {
+    const item = focusedKeyboardItem();
+    if (!item) return;
+    if (item.type === 'folder') onNavigateToFolder?.(item.id, item.name);
+    else onPreviewItem?.(item);
+  }, [focusedKeyboardItem, onNavigateToFolder, onPreviewItem]);
+
+  useKeyboardScope('drive');
+
+  const driveListCommands: Command[] = [
+    {
+      ...driveCommand('drive.nextItem'),
+      scope: 'drive',
+      run: () => moveKeyboardFocus(1),
+      enabled: () => keyboardNavigable.length > 0,
+    },
+    {
+      ...driveCommand('drive.previousItem'),
+      scope: 'drive',
+      run: () => moveKeyboardFocus(-1),
+      enabled: () => keyboardNavigable.length > 0,
+    },
+    {
+      ...driveCommand('drive.toggleSelect'),
+      scope: 'drive',
+      run: toggleKeyboardSelection,
+      enabled: () => focusedKeyboardItem() !== null && !!onToggleSelect,
+    },
+    {
+      ...driveCommand('drive.openItem'),
+      scope: 'drive',
+      run: openKeyboardItem,
+      enabled: () => focusedKeyboardItem() !== null,
+    },
+    {
+      ...driveCommand('drive.clearFocus'),
+      scope: 'drive',
+      run: () => setKeyboardFocusId(null),
+      enabled: () => keyboardFocusId !== null,
+    },
+  ];
+
+  useRegisterCommands(driveListCommands);
+
+  /** Accent focus ring on the keyboard-highlighted card. */
+  const keyboardFocusRing = (id: string): string =>
+    keyboardFocusId === id ? ' outline outline-2 outline-offset-1 outline-[var(--app-accent)]' : '';
+
+  /** Data attributes that the scroll-into-view effect and tests read. */
+  const keyboardFocusData = (id: string): { 'data-drive-item-id': string; 'aria-selected': boolean } => ({
+    'data-drive-item-id': id,
+    'aria-selected': selectedIds.has(id),
+  });
+
   return (
     <div id="drive-panel-home" role="tabpanel" aria-labelledby="drive-tab-home" className="space-y-6">
       {/* If category is NOT selected: Render 8 Category Cards + Folders & Files */}
@@ -1084,7 +1215,8 @@ export function DriveHomeSubView({
                 {folders.map((folder) => (
                   <div
                     key={folder.id}
-                    className="group relative flex items-center gap-1 p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] transition-all"
+                    {...keyboardFocusData(folder.id)}
+                    className={`group relative flex items-center gap-1 p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] transition-all${keyboardFocusRing(folder.id)}`}
                   >
                     {/*
                      * A real <button>: keyboard-focusable, announced as a
@@ -1160,8 +1292,9 @@ export function DriveHomeSubView({
                 {recentOrderedFiles.slice(0, 8).map((file) => (
                   <div
                     key={file.id}
+                    {...keyboardFocusData(file.id)}
                     onClick={() => onPreviewItem?.(file)}
-                    className="group rounded-xl p-3 border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-all flex flex-col justify-between"
+                    className={`group rounded-xl p-3 border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-all flex flex-col justify-between${keyboardFocusRing(file.id)}`}
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="size-8 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
@@ -1360,8 +1493,9 @@ export function DriveHomeSubView({
               {categoryItems.map((item) => (
                 <div
                   key={item.id}
+                  {...keyboardFocusData(item.id)}
                   onClick={() => onPreviewItem?.(item)}
-                  className="group rounded-xl p-3.5 border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-all flex flex-col justify-between"
+                  className={`group rounded-xl p-3.5 border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-all flex flex-col justify-between${keyboardFocusRing(item.id)}`}
                 >
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="size-9 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
