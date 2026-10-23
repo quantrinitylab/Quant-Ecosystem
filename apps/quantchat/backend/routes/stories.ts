@@ -9,6 +9,10 @@
 //   POST   /stories/:storyId/reply  - deliver a reply to the story author
 //                                       as a direct-conversation message
 //                                       (QC-F-078)
+//   GET    /stories/:storyId        - one story by id, audience-gated
+//                                       (QC-F-556: share-card / link target)
+//   POST   /stories/:storyId/share  - share a story into a conversation as
+//                                       a gated reference card (QC-F-556)
 //
 // The feed response shape matches what the web client's useStories hook
 // expects: { groups: [{ userId, userName, userAvatar, stories, hasUnviewed }] }.
@@ -45,6 +49,10 @@ const createStoryBodySchema = z.object({
 
 const replyBodySchema = z.object({
   message: z.string().min(1).max(1000),
+});
+
+const shareBodySchema = z.object({
+  conversationId: z.string().min(1),
 });
 
 function getPrisma(fastify: FastifyInstance): PrismaClient {
@@ -262,6 +270,40 @@ function serializeStory(story: StoryWithAuthor, isViewed: boolean) {
   };
 }
 
+// --- Story share / single-fetch (QC-F-556) ---------------------------------
+//
+// A story share is a REFERENCE, never a copy. The card message's
+// serverMetadata.storyShare snapshot carries only identity + type +
+// expiry — never mediaUrl/text/thumbnail: a photo story's mediaUrl is an
+// inline `data:` URL (QC-F-330), i.e. the content itself, so putting it in
+// the snapshot would hand the content to every member of the target
+// conversation and bypass the audience gate entirely. The real content is
+// only ever served by the gated GET /stories/:storyId below, which applies
+// the exact same loadFriendContext + canViewStory gate as feed/view/reply.
+//
+// Expiry answers 404 (never 410): revealing "this existed but expired" is
+// itself an existence leak — the house pattern from QC-F-021/QC-F-299.
+// The one exception is the OWNER resolving their own story via GET: their
+// own expired story still resolves for them (it is their content; the
+// archive surface is QC-F-368's, this only keeps an author's own shared
+// card from looking broken to its author). Sharing an expired story is
+// 404 for everyone, owner included — a dead card must not be minted.
+
+async function loadStoryWithAuthor(
+  prisma: PrismaClient,
+  storyId: string,
+): Promise<StoryWithAuthor | null> {
+  const story = await prisma.story.findUnique({
+    where: { id: storyId },
+    include: { user: { select: { id: true, displayName: true, avatarUrl: true } } },
+  });
+  return (story as StoryWithAuthor | null) ?? null;
+}
+
+function isExpired(story: { expiresAt: Date }): boolean {
+  return story.expiresAt.getTime() <= Date.now();
+}
+
 // --- Story reply delivery (QC-F-078) --------------------------------------
 //
 // A story reply is an ordinary direct message to the story author. Delivery
@@ -428,6 +470,42 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
     return reply
       .status(201)
       .send({ success: true, story: serializeStory(story as StoryWithAuthor, false) });
+  });
+
+  // GET /stories/:storyId - one story by id (QC-F-556). This is the gated
+  // resolution target for share cards and shareable links: the same
+  // three-layer gate as the feed, an invisible or (for non-owners) expired
+  // story answers 404 so neither its existence nor its expiry leaks. The
+  // read is side-effect free — it never records a StoryView and never
+  // bumps viewCount; the honest count only moves when a receiver opens
+  // the real viewer and the existing /view flow runs.
+  fastify.get('/:storyId', async (request, reply) => {
+    const userId = getUserId(request);
+    const prisma = getPrisma(fastify);
+    const { storyId } = request.params as { storyId: string };
+
+    const story = await loadStoryWithAuthor(prisma, storyId);
+    if (!story) {
+      throw createAppError('Story not found', 404, 'NOT_FOUND');
+    }
+    if (story.userId !== userId) {
+      if (isExpired(story)) {
+        throw createAppError('Story not found', 404, 'NOT_FOUND');
+      }
+      const friendCtx = await loadFriendContext(prisma, userId, [story.userId]);
+      if (!canViewStory(userId, story, friendCtx)) {
+        throw createAppError('Story not found', 404, 'NOT_FOUND');
+      }
+    }
+
+    const view = await prisma.storyView.findUnique({
+      where: { storyId_viewerId: { storyId, viewerId: userId } },
+      select: { storyId: true },
+    });
+    return reply.send({
+      success: true,
+      story: serializeStory(story, Boolean(view)),
+    });
   });
 
   // DELETE /stories/:storyId - delete your own story
@@ -608,5 +686,74 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
     });
 
     return reply.send({ success: true, conversationId, messageId: sentMessage.id });
+  });
+
+  // POST /stories/:storyId/share - share a story into a caller-chosen
+  // conversation as a reference card (QC-F-556). Gate order mirrors the
+  // reply route and never leaks: story-load 404 -> expiry 404 -> audience
+  // gate 404 -> body 400 -> MessageService's own membership/blocked gates.
+  // Only a user who can actually VIEW the story may share it, and the
+  // card grants its receivers nothing — opening it re-runs the same gate
+  // through GET /stories/:storyId. Sharing never records a view and never
+  // bumps viewCount.
+  fastify.post('/:storyId/share', async (request, reply) => {
+    const userId = getUserId(request);
+    const prisma = getPrisma(fastify);
+    const { storyId } = request.params as { storyId: string };
+
+    const story = await loadStoryWithAuthor(prisma, storyId);
+    if (!story) {
+      throw createAppError('Story not found', 404, 'NOT_FOUND');
+    }
+    if (isExpired(story)) {
+      throw createAppError('Story not found', 404, 'NOT_FOUND');
+    }
+    const friendCtx = await loadFriendContext(prisma, userId, [story.userId]);
+    if (!canViewStory(userId, story, friendCtx)) {
+      throw createAppError('Story not found', 404, 'NOT_FOUND');
+    }
+    const parsed = shareBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw createAppError('A target conversation is required', 400, 'BAD_REQUEST');
+    }
+
+    const messages = new MessageService(prisma);
+    const message = await messages.sendMessage({
+      conversationId: parsed.data.conversationId,
+      senderId: userId,
+      content: 'Shared a story',
+      type: 'text',
+      // QC-F-274: `storyShare` is a server-owned metadata key — it goes
+      // through the trusted serverMetadata channel, never client metadata
+      // (client-supplied `storyShare` is stripped by MessageService). The
+      // snapshot is identity + type + expiry ONLY — no mediaUrl, no text,
+      // no thumbnail: content stays behind the gate (see § header note).
+      serverMetadata: {
+        storyShare: {
+          storyId: story.id,
+          authorId: story.userId,
+          authorName: story.user.displayName,
+          authorAvatar: story.user.avatarUrl ?? '',
+          storyType: prismaToClientType[story.type],
+          audience: story.audience ?? 'ALL',
+          createdAt: story.createdAt.toISOString(),
+          expiresAt: story.expiresAt.toISOString(),
+        },
+      },
+    });
+
+    // Realtime fan-out, same contract as the reply route / REST send path.
+    const sentMessage = message as unknown as { id: string; version?: number };
+    void publishConversationEvent(fastify, parsed.data.conversationId, {
+      eventType: 'chat.message.created.v1',
+      resourceRef: sentMessage.id,
+      aggregateVersion:
+        typeof sentMessage.version === 'number' ? sentMessage.version : 1,
+      data: message,
+    });
+
+    return reply
+      .status(201)
+      .send({ success: true, conversationId: parsed.data.conversationId, messageId: sentMessage.id });
   });
 }
