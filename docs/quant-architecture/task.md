@@ -1930,7 +1930,7 @@ VERDICT-LIVE: HEALTHY — proxy 127.0.0.1:8888 healthy (google.com 200, no resta
 Rotation -> QM-SCREEN-017 (admin) ROUND 29 regression, queued.
 
 ## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
-Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-017r33, started 2026-10-22 ~19:40 IST; R32 base a19fe7ea92b -> origin/main a19fe7ea92b)
+Status: [~] IN PROGRESS (Owner: LANE-1, Branch: lane1-audit-017r34, started 2026-10-23 ~05:35 IST; R33 base a19fe7ea92b -> origin/main a19fe7ea92b)
 Status: [x] DONE — LANE-1, branch lane1-audit-017r33 (2026-10-22 ~19:40–20:00 IST). R33 REGRESSION AUDIT COMPLETE.
 
 R33 REGRESSION AUDIT COMPLETE (2026-10-22 ~19:40–20:00 IST) — LANE-1, branch lane1-audit-017r33: base = origin/main a19fe7ea92b (R32-017 tip) -> origin/main a19fe7ea92b (fresh fetch, 0 first-parent merges — main UNCHANGED since 2026-10-22 ~09:40 IST). WINDOW EMPTY -> pure re-verification pass. All code read from origin/main tree only (git archive snapshot /tmp/qsnap017; qe-main working tree ignored per stale-tree lesson; git grep <rev> silently empty in this env — workaround stands).
