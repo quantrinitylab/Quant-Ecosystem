@@ -119,7 +119,9 @@ export type MessageType =
   | 'text'
   | 'image'
   | 'video'
-  | 'voice'
+  | 'voice' // QC-F-573: deprecated read-alias — backend stores AUDIO and the
+  // client normalizes 'voice' to 'audio'. Never sent or stored anymore.
+  | 'audio' // QC-F-573: canonical voice-note type (backend 'audio' -> AUDIO)
   | 'sticker'
   | 'gif'
   | 'location'
@@ -952,6 +954,9 @@ export interface SendMessageRequest {
   disappearMode?: DisappearMode;
   mentions?: string[];
   metadata?: Record<string, unknown>;
+  /** QC-F-573: client-generated idempotency key (uuid). Sent as the
+   * Idempotency-Key header and echoed in the body. */
+  clientMsgId?: string;
 }
 
 /** QC-F-321: a first-contact message request, exactly as the backend stores it. */
