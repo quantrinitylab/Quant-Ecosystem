@@ -108,6 +108,15 @@ export interface ComposeEmailInput {
    */
   priority?: EmailPriority | string;
   /**
+   * fix/qm-accounts-import: verified send-as override. When the caller passes
+   * a From the route already validated (owned + verified send-as identity),
+   * compose stamps it verbatim instead of the account's own address. Omitted
+   * = the account's own address, the behaviour every caller that predates
+   * aliases keeps.
+   */
+  fromAddress?: string;
+  fromName?: string | null;
+  /**
    * QM-BACK-002: correlation id for the whole mutation path. Recorded in the
    * `draftCreated` outbox payload (doc 23 correlationId) so downstream
    * consumers can tie the event back to the originating HTTP request.
@@ -188,8 +197,47 @@ export interface Label {
   color?: string;
 }
 
-export class EmailService {
-  constructor(
+/**
+ * fix/qm-accounts-import: the account's own sender identity (address + display
+ * name) — the From a message carries when no send-as alias is chosen. Factored
+ * out of compose() so the draft-update path (reverting an alias back to the
+ * primary address) computes the identical identity instead of a drifted copy.
+ */
+export async function primarySenderFor(
+  prisma: PrismaClient,
+  userId: string,
+): Promise<{ fromAddress: string; fromName: string }> {
+  const sender = await (
+    prisma as unknown as {
+      user: {
+        findUnique(
+          a: unknown,
+        ): Promise<{ email: string; displayName: string | null; username: string | null } | null>;
+      };
+    }
+  ).user.findUnique({
+    where: { id: userId },
+    select: { email: true, displayName: true, username: true },
+  });
+
+  const hasValidSender = Boolean(sender?.email?.includes('@') || sender?.username);
+  if (!hasValidSender) {
+    throw createAppError(
+      'User has no valid sender identity configured',
+      400,
+      'INVALID_SENDER_IDENTITY',
+    );
+  }
+
+  const fromAddress = sender?.email?.includes('@')
+    ? sender.email
+    : `${sender!.username}@${getSenderDomain()}`;
+  const fromName =
+    sender?.displayName || sender?.username || fromAddress.split('@')[0] || 'QuantMail User';
+  return { fromAddress, fromName };
+}
+
+export class EmailService {  constructor(
     private readonly prisma: PrismaClient,
     private readonly pipeline?: OutboundDeliveryPipeline,
     private readonly suppression?: {
@@ -207,33 +255,20 @@ export class EmailService {
   async compose(input: ComposeEmailInput): Promise<Email> {
     // Stamp the sender's own QuantMail address on the message so the Sent copy
     // (and internal delivery) shows a correct From instead of an empty string.
-    const sender = await (
-      this.prisma as unknown as {
-        user: {
-          findUnique(
-            a: unknown,
-          ): Promise<{ email: string; displayName: string | null; username: string | null } | null>;
-        };
-      }
-    ).user.findUnique({
-      where: { id: input.userId },
-      select: { email: true, displayName: true, username: true },
-    });
+    // fix/qm-accounts-import: shared with the draft-update path via
+    // primarySenderFor so the two cannot drift apart.
+    const { fromAddress: senderEmail, fromName: senderName } = await primarySenderFor(
+      this.prisma,
+      input.userId,
+    );
 
-    const hasValidSender = Boolean(sender?.email?.includes('@') || sender?.username);
-    if (!hasValidSender) {
-      throw createAppError(
-        'User has no valid sender identity configured',
-        400,
-        'INVALID_SENDER_IDENTITY',
-      );
-    }
-
-    const senderEmail = sender?.email?.includes('@')
-      ? sender.email
-      : `${sender!.username}@${getSenderDomain()}`;
-    const senderName =
-      sender?.displayName || sender?.username || senderEmail.split('@')[0] || 'QuantMail User';
+    // fix/qm-accounts-import: a verified send-as identity overrides the From.
+    // The route validated ownership + verification before calling; compose
+    // stamps verbatim. A malformed override falls back to the account's own
+    // address rather than writing a broken From.
+    const hasSendAsOverride = Boolean(input.fromAddress?.includes('@'));
+    const fromAddress = hasSendAsOverride ? (input.fromAddress as string) : senderEmail;
+    const fromName = hasSendAsOverride ? (input.fromName ?? senderName) : senderName;
 
     const hasAttachments = Array.isArray(input.attachments) && input.attachments.length > 0;
     // K1: draft row + outbox row in ONE transaction (doc 05 data-and-event-architecture).
@@ -249,8 +284,9 @@ export class EmailService {
           bodyPlain: input.bodyPlain ?? '',
           // The sender's own row needs its preview too (Sent, Drafts, People).
           snippet: buildSnippet(input.bodyPlain, input.bodyHtml),
-          fromAddress: senderEmail,
-          fromName: senderName,
+          // fix/qm-accounts-import: verified send-as override when present.
+          fromAddress,
+          fromName,
           isDraft: true,
           threadId: input.threadId ?? null,
           inReplyTo: input.inReplyTo ?? null,
