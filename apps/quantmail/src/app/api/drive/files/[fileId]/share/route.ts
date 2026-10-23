@@ -8,7 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ fileId: string }> },
 ) {
   const { fileId } = await params;
-  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${fileId}/share`, {
+  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${encodeURIComponent(fileId)}/share`, {
     headers: { Authorization: request.headers.get('Authorization') || '' },
   });
   const data = await res.json();
@@ -21,7 +21,7 @@ export async function POST(
 ) {
   const { fileId } = await params;
   const body = await request.json();
-  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${fileId}/share`, {
+  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${encodeURIComponent(fileId)}/share`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -39,7 +39,7 @@ export async function DELETE(
 ) {
   const { fileId } = await params;
   const body = await request.json();
-  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${fileId}/share`, {
+  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${encodeURIComponent(fileId)}/share`, {
     method: 'DELETE',
     headers: {
       'Content-Type': 'application/json',

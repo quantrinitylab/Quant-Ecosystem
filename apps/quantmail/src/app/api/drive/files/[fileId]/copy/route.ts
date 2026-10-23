@@ -14,7 +14,7 @@ export async function POST(
   } catch {
     // No body — copy into the file's current folder (backend default).
   }
-  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${fileId}/copy`, {
+  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${encodeURIComponent(fileId)}/copy`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
