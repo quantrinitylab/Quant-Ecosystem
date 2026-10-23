@@ -18,6 +18,7 @@ import {
   applyPersonalization,
   type RankedSpotlightReel,
 } from '../services/spotlight.service';
+import { NotificationService } from '../services/notification.service';
 
 const spotlightQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -69,9 +70,38 @@ export default async function spotlightRoutes(fastify: FastifyInstance) {
     const userId = optionalUserId(request);
 
     const source = await reelService.getRankableReels();
+    // QC-F-101: snapshot the featured set BEFORE this request's ranking
+    // recompute — the newly-featured diff is measured against the previous
+    // set, and getFeatured() after the call below would see the new one.
+    const prevFeatured = new Set(spotlight.getFeatured().map((r) => r.id));
     const ranking = spotlight.getEngagementRanking(source, {
       forceRefresh: parsed.data.refresh ?? false,
     });
+
+    // QC-F-101: real "your reel is featured" inbox rows — the Prisma
+    // Notification path the QM-UIUX-054 comment above points at. Gated
+    // three ways, all required: (1) this request actually recomputed the
+    // ranking (`refreshed` — cache-fresh GETs never write), (2) the reel is
+    // newly featured vs the pre-refresh set, (3) a DB dedupe so a creator
+    // is notified exactly once per reel, ever (replica-safe; in-memory
+    // sets would duplicate across backend instances). Best-effort —
+    // per-reel errors are swallowed so a notification write can never
+    // break the feed, and the response shape/timing is unchanged.
+    if (ranking.refreshed) {
+      const writer = new NotificationService(prisma);
+      for (const reel of ranking.reels) {
+        if (!reel.isFeatured || prevFeatured.has(reel.id)) continue;
+        try {
+          await writer.notifySpotlightFeatured({
+            creatorId: reel.creatorId,
+            reelId: reel.id,
+            thumbnailUrl: reel.thumbnailUrl ?? null,
+          });
+        } catch {
+          // The feed must not die for a notification row.
+        }
+      }
+    }
 
     // QM-UIUX-054: Task 13.7 previously "notified" creators of newly featured
     // reels here via `fastify.notifications.dispatcher.dispatch()` — the

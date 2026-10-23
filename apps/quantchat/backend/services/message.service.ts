@@ -6,6 +6,7 @@ import { assertMediaUrlAllowed } from '../lib/media-url';
 import { PrismaOutboxService, type OutboxService } from './outbox.service';
 import { StreakService } from './streak.service';
 import { getPrivacyService, type PrivacyService } from './privacy.service';
+import { NotificationService } from './notification.service';
 
 /**
  * Extract an object storage key from a media URL or raw path.
@@ -249,6 +250,7 @@ export class MessageService {
   private readonly streaks: StreakService;
   private readonly storage: StorageClient | null;
   private readonly privacy: PrivacyService;
+  private readonly notifications: NotificationService;
 
   /**
    * @param prisma  Prisma client used for all persistence.
@@ -264,6 +266,10 @@ export class MessageService {
    *   Defaults to the shared {@link getPrivacyService} instance bound to
    *   the same Prisma client (the ConversationService pattern), so
    *   existing callers keep working unchanged.
+   * @param notifications Durable-inbox writer (QC-F-101). Defaults to one
+   *   bound to the same Prisma client, so existing callers
+   *   (`new MessageService(prisma)`) keep working unchanged while every
+   *   committed message fans out a generic inbox row to its recipients.
    */
   constructor(
     private readonly prisma: PrismaClient,
@@ -271,10 +277,12 @@ export class MessageService {
     streaks?: StreakService,
     storage?: StorageClient,
     privacy?: PrivacyService,
+    notifications?: NotificationService,
   ) {
     this.outbox = outbox ?? new PrismaOutboxService(prisma);
     this.streaks = streaks ?? new StreakService(prisma as never);
     this.privacy = privacy ?? getPrivacyService(prisma);
+    this.notifications = notifications ?? new NotificationService(prisma);
     if (storage) {
       this.storage = storage;
     } else {
@@ -437,7 +445,9 @@ export class MessageService {
     // two. Sender is filtered out at the recipient-derivation step.
     const activeMembers = await this.prisma.conversationMember.findMany({
       where: { conversationId, leftAt: null },
-      select: { userId: true },
+      // QC-F-101: mute fields ride along on this same single query so the
+      // post-commit notification fan-out can skip muted members.
+      select: { userId: true, isMuted: true, muteUntil: true },
     });
 
     // QC-F-359: blocked-pair gate — immediately after membership,
@@ -567,6 +577,24 @@ export class MessageService {
         await this.streaks.recordMessage(senderId, recipientIds[0] as string);
       } catch {
         // Non-critical: the streak will reconcile on the next message.
+      }
+    }
+
+    // QC-F-101: durable inbox notifications — AFTER commit, best-effort. A
+    // notification failure must never fail message delivery, and the writer
+    // never sees message content (title/body are generic), so this is safe
+    // for plaintext and client-encrypted ciphertext alike.
+    if (recipientIds.length > 0) {
+      try {
+        await this.notifications.notifyMessageSent({
+          senderId,
+          conversationId,
+          messageId: message.id,
+          members: activeMembers,
+        });
+      } catch {
+        // Non-critical: realtime/push already went out; the inbox row is
+        // best-effort-durable, not exactly-once.
       }
     }
 
