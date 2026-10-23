@@ -5922,9 +5922,19 @@ Audit started: 2026-10-23 ~16:35 IST (lane-1 deep audit loop, ROUND 35)
 - STILL-UNVERIFIED: signed-in SSO handoff flow; RPs verifying id_tokens via the advertised jwks_uri (now live-servable — the R9 blocker is gone, RP-side verification out of lane scope).
 Rotation -> QM-SCREEN-002 (login) ROUND 36 regression, queued (018 completes the ROUND 35 cycle).
 
-## QM-SCREEN-002 R36 — login / register / recovery / verification regression
-Status: [~] IN PROGRESS
+## QM-SCREEN-002 R36 — login / register / recovery / verification regression — DONE 2026-10-23 ~17:45 IST
+Status: [x] DONE — claim b2917b106 (lane1-audit-002r36), pushed fast-forward, remote tip verified
 Owner: LANE-1
 Branch: lane1-audit-002r36
-Base: origin/main 401c6b2cae (same as R35-018 base; zero new main merges since)
-Prior: R2 (2026-10-11) was the last dedicated 002 audit (findings: 1 P0 phone-field removed via #872, P1 emailVerified hardcoded, P1 /forgot-email phone-flow, P2 ?token= handoff, P2 'AI triage' copy). R36 = pure re-verification + fresh hunt on /login, /register, /forgot-email, /sso, recovery + 2FA surfaces.
+Base: origin/main 401c6b2cae (fresh fetch; same as R35-018 base, zero new main merges — pure re-verification + fresh hunt)
+Code read: origin/main tree ONLY via git-archive snapshot /tmp/qsnap002r36 (29 files: app/login, register, forgot-password, sso, api/auth, api/sso, backend/routes/auth.ts, backend/lib/auth-session.ts) + git show for components/auth/AuthBrandPanel.tsx. qe-main working tree ignored (stale/diverged, per lesson).
+PIN VERDICT — all 5 R2 (2026-10-11) carryovers now RESOLVED:
+1. P1 emailVerified:true hardcoded -> FIXED: backend/routes/auth.ts:287 now `emailVerified: false` with fix-comment at :285 ("emailVerified: true here was how any address could be claimed"); :359 false; :396 checks user?.emailVerified — real verification contract now exists.
+2. P2 ?token= raw-access-token URL handoff -> FIXED: app/login/sso-handoff.ts documents ticket-only handoff (POST /api/sso/ticket/mint, bearer in Authorization header of that POST only, "no fallback that puts the token back in the URL"); 0 `token=` matches in login/sso/register trees (prod); SsoChooserContent.tsx clean.
+3. P1 /forgot-email phone-based recovery -> FIXED: /forgot-email deleted (R35-018); /forgot-password live-verified EMAIL-based ("link goes to the account's email — and to its recovery email, if one was set in Settings -> Account") with anti-enumeration copy ("without exposing whether an address is registered").
+4. P2 'AI triage' unverified copy -> RESOLVED via copy-honesty: components/auth/AuthBrandPanel.tsx now carries copy-honesty notes (2026-10-12/13) grounding "surfaces what's urgent" (ai-triage.service.ts shipped, PR #1080) and "sums up long threads" (ThreadSummaryCard -> POST /api/ai/summarize-thread); "drafts the reply" REMOVED 2026-10-13 (dead plumbing, not provable); "at rest" encryption NOT claimed (live staging RDS StorageEncrypted=False — honest); auth-copy-honesty.test.tsx exists.
+5. R35-018 pin #1367 -> INTACT: 11==11 'recover' refs in login-form.tsx (2FA recovery codes, honest copy).
+FRESH HUNT (code + live): 0 lorem/coming-soon/dummy/mock-user/fake-user/#FF8C42 in login/register/forgot-password/sso; sole 'phone' hit = honest comment (two-factor-recovery-panel.tsx:9, "lost phone AND lost backup codes" — real scenario, not a flow); 0 ?token= in prod auth trees.
+LIVE HEALTHY, VISUAL VERIFIED: proxy healthy (no restart); /login /register /forgot-password /sso /login?returnTo=%2Fsettings -> 200 (no redirect loop); POST /api/sso/ticket/mint no-auth -> honest 401; bogus ticket resolve -> honest OAuth-style invalid_client; POST /api/auth/2fa/verify no-auth -> 403; POST /api/auth/2fa/recover{,/confirm} -> 404 (live build predates main — deploy-hold staleness, #1243 hold still ACTIVE cat-verified). Desktop 1440x900 + mobile 390x844 (iPhone 14, wait_s=14 hydrated) /login + /register shots REVIEWED: pure black, mail-orange, current clay M-mark, honest tri-cards, zero old-logo flash; /register shows NO phone field (P0 #872 removal live); /forgot-password desktop shot: email-based reset with anti-enumeration copy. Shots deleted; only my chrome dirs removed (zero live chromes; 2 pre-existing 97xx orphans not mine); /tmp 1%. Signed-in flows = needs-auth.
+NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents (protocol P0/P1-only; subagent.list 0 active at start; code-audit subagent corroborated pin 1: emailVerified:false at auth.ts:287). findings.md untouched.
+Rotation -> QM-SCREEN-003 (shell) ROUND 36 regression, queued.
