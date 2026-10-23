@@ -326,8 +326,45 @@ export class QuantChatApiClient {
     return this.get(`/conversations/${conversationId}/messages`, { params: { limit, before } });
   }
 
-  async sendMessage(request: SendMessageRequest): Promise<ApiResponse<Message>> {
-    return this.post(`/conversations/${request.conversationId}/messages`, request);
+  async sendMessage(
+    request: SendMessageRequest,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<Message>> {
+    // QC-F-573: the client-generated clientMsgId travels as the K4
+    // Idempotency-Key header (proxied end to end) so a retried send replays
+    // the stored response instead of double-creating the message.
+    const headers = { ...(options?.headers ?? {}) };
+    if (request.clientMsgId && !headers['Idempotency-Key']) {
+      headers['Idempotency-Key'] = request.clientMsgId;
+    }
+    return this.post(`/conversations/${request.conversationId}/messages`, request, {
+      ...options,
+      headers,
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // Voice-note media pipeline (QC-F-573) — real object-storage upload:
+  // presign -> browser PUT -> finalize (server HEAD-verifies, then persists
+  // the durable Media row). Only a finalized object may be sent as a message.
+  // --------------------------------------------------------------------------
+
+  async createMediaUploadUrl(request: {
+    filename: string;
+    contentType: string;
+  }): Promise<
+    ApiResponse<{ uploadUrl: string; mediaId: string; expiresAt: string; fields: Record<string, string> }>
+  > {
+    return this.post('/media/upload-url', request);
+  }
+
+  async finalizeMediaUpload(
+    mediaId: string,
+    request: { filename: string; contentType: string; durationMs?: number },
+  ): Promise<
+    ApiResponse<{ mediaId: string; url: string; filename: string; contentType: string }>
+  > {
+    return this.post(`/media/finalize?mediaId=${encodeURIComponent(mediaId)}`, request);
   }
 
   // --------------------------------------------------------------------------
