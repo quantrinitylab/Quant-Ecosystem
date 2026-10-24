@@ -3369,7 +3369,7 @@ function InboxPageContent() {
             pill sitting on top of the hero's "New chat" button and
             intercepting its clicks/taps. See components/MailboxViewToggle.tsx.
           */}
-          <div className="mailbox-view-row">
+          <div className="mailbox-view-row hidden md:flex">
             <MailboxViewToggle isInbox />
           </div>
           <header className="inbox-hero">

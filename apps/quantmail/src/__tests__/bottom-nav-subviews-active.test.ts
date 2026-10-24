@@ -131,4 +131,16 @@ describe('QM-BOTTOM-NAV-SUBVIEWS — no dead active tab in real subviews', () =>
       expect(typeof tab.icon).toBe('function');
     }
   });
+
+  it('every pillar ends with the Profile tab (opens /settings, highlighted on /settings and /security)', () => {
+    for (const pillar of ['mail', 'calendar', 'drive', 'contacts', 'quantgit'] as const) {
+      const tabs = PILLAR_SUB_CONFIGS[pillar].tabs;
+      const last = tabs[tabs.length - 1];
+      expect(last.id, `${pillar} last tab`).toBe('profile');
+      expect(last.targetPath).toBe('/settings');
+      expect(last.mobileOverflow).toBeFalsy();
+      expect(resolveActiveTab(pillar, '/settings', null)).toBe('profile');
+      expect(resolveActiveTab(pillar, '/security', null)).toBe('profile');
+    }
+  });
 });

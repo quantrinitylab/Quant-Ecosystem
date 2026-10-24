@@ -709,6 +709,37 @@ function DedupWandIcon({ className }: { className?: string; active?: boolean }) 
   );
 }
 
+/**
+ * Profile tab icon: a plain avatar glyph. It deliberately carries NO status dot:
+ * a permanently green dot would claim an online/synced state that nothing
+ * actually reports.
+ */
+function ProfileAvatarIcon({ active }: { className?: string; active?: boolean }) {
+  return (
+    <span
+      className={`relative inline-flex size-[23px] items-center justify-center rounded-full border transition-all ${
+        active
+          ? 'border-[#FF7A00] bg-gradient-to-br from-[#FF8C33] to-[#FF6B35] text-white shadow-[0_0_8px_rgba(255,107,53,0.45)]'
+          : 'border-[#333A48] bg-gradient-to-br from-[#232938] to-[#161922] text-[#CBD5E1]'
+      }`}
+      aria-hidden="true"
+    >
+      <svg
+        className="size-3.5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    </span>
+  );
+}
+
 // ============================================================================
 // 5 Sovereign Pillar Sub-Navigation Configs
 // ============================================================================
@@ -775,6 +806,7 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
       },
       {
         id: 'archive',
+        mobileOverflow: true,
         label: 'Archive',
         icon: ArchiveIcon,
         targetPath: '/archive',
@@ -793,6 +825,13 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         label: 'Trash',
         icon: TrashIcon,
         targetPath: '/trash',
+      },
+      {
+        id: 'profile',
+        label: 'Profile',
+        ariaLabel: 'Profile & settings',
+        icon: ProfileAvatarIcon,
+        targetPath: '/settings',
       },
     ],
   },
@@ -862,6 +901,13 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         queryParam: { key: 'tab', value: 'schedule' },
         description: 'Meetings, Clock & Reminders',
         mobileOverflow: true,
+      },
+      {
+        id: 'profile',
+        label: 'Profile',
+        ariaLabel: 'Profile & settings',
+        icon: ProfileAvatarIcon,
+        targetPath: '/settings',
       },
     ],
   },
@@ -944,6 +990,13 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         queryParam: { key: 'tab', value: 'cleaner' },
         mobileOverflow: true,
       },
+      {
+        id: 'profile',
+        label: 'Profile',
+        ariaLabel: 'Profile & settings',
+        icon: ProfileAvatarIcon,
+        targetPath: '/settings',
+      },
     ],
   },
   contacts: {
@@ -1001,6 +1054,13 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         queryParam: { key: 'tab', value: 'dedup' },
         mobileOverflow: true,
       },
+      {
+        id: 'profile',
+        label: 'Profile',
+        ariaLabel: 'Profile & settings',
+        icon: ProfileAvatarIcon,
+        targetPath: '/settings',
+      },
     ],
   },
   quantgit: {
@@ -1027,6 +1087,13 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         targetPath: '/quantgit',
         description: 'QuantGit overview',
       },
+      {
+        id: 'profile',
+        label: 'Profile',
+        ariaLabel: 'Profile & settings',
+        icon: ProfileAvatarIcon,
+        targetPath: '/settings',
+      },
     ],
   },
 };
@@ -1051,6 +1118,12 @@ export function resolveActiveTab(
 ): string {
   if (activeTabOverride) return activeTabOverride;
   if (activeTabState) return activeTabState;
+
+  // The Profile tab (last item of every pillar) opens /settings, so account
+  // settings and security are "inside" it for aria-current purposes.
+  if (pathname.startsWith('/settings') || pathname.startsWith('/security')) {
+    return 'profile';
+  }
 
   const tabParam = searchParams?.get('tab');
   const lensParam = searchParams?.get('lens');

@@ -55,6 +55,7 @@ describe('QM-MOBILE-QUANTY-TAB — Quanty in the mobile Mail bottom bar', () => 
       'archive',
       'spam',
       'trash',
+      'profile',
     ]);
     const quanty = tabs[1];
     expect(quanty.logoOnly).toBe(true);
@@ -123,6 +124,19 @@ describe('QM-MOBILE-QUANTY-TAB — Quanty in the mobile Mail bottom bar', () => 
     const quanty = mobile.PILLAR_SUB_CONFIGS.mail.tabs.find((t) => t.id === 'quanty')!;
     expect(quanty.mobileOverflow).toBeFalsy();
     const primary = mobile.PILLAR_SUB_CONFIGS.mail.tabs.filter((t) => !t.mobileOverflow);
-    expect(primary.map((t) => t.id)).toEqual(['inbox', 'quanty', 'sent', 'drafts', 'archive']);
+    // Profile is the LAST primary slot (it opens /settings); Archive moved to
+    // overflow (shown only while active) to keep the bar at five slots.
+    expect(primary.map((t) => t.id)).toEqual(['inbox', 'quanty', 'sent', 'drafts', 'profile']);
+  });
+
+  it('Profile is the last tab, opens /settings, and carries no fake status', () => {
+    const tabs = mobile.PILLAR_SUB_CONFIGS.mail.tabs;
+    const profile = tabs[tabs.length - 1];
+    expect(profile.id).toBe('profile');
+    expect(profile.targetPath).toBe('/settings');
+    expect(profile.ariaLabel).toBe('Profile & settings');
+    expect(profile.badgeCount).toBeUndefined();
+    expect(mobile.resolveActiveTab('mail', '/settings', null)).toBe('profile');
+    expect(mobile.resolveActiveTab('mail', '/security', null)).toBe('profile');
   });
 });
