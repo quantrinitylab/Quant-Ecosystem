@@ -1,5 +1,9 @@
 /**
- * fix/qm-drive-disable-download-4 — public share page honest-copy tests.
+ * fix/qm-drive-disable-download-5 — public share page honest-copy tests.
+ *
+ * DriveFileCard is imported from drive-file-card.tsx, NOT page.tsx: Next.js
+ * rejects named exports from page files, which red-lit `next build` on
+ * PR #1527. The tests below are the -4 suite plus the bottom-note case.
  *
  * When the owner disables downloads on a viewer-role link, the landing page
  * must never tell the viewer to "download it to view" (the download is
@@ -8,16 +12,11 @@
  *
  * No real fixtures: payloads are synthetic and nothing hits the network.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import React from 'react';
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ token: 'tok-1' }),
-  useRouter: () => ({ push: vi.fn() }),
-}));
-
-import { DriveFileCard } from '../app/drive/share/[token]/page';
+import { DriveFileCard } from '../app/drive/share/[token]/drive-file-card';
 import type { DriveFileShareInfo } from '../app/drive/share/[token]/share-resolve';
 
 function fileInfo(overrides: Partial<DriveFileShareInfo> = {}): DriveFileShareInfo {
@@ -72,6 +71,12 @@ describe('share page download-disabled honest copy', () => {
     expect(html).not.toContain('Download file</button>');
     // The preview lane URL (inline), never the bare download endpoint.
     expect(html).toContain('preview=1');
+  });
+
+  it('unpreviewable file + blocked download never promises a preview above', () => {
+    const html = renderCard(fileInfo());
+    expect(html).not.toContain('preview the file above');
+    expect(html).toContain('ask the owner for access');
   });
 
   it('editor-role link never shows the disabled badge', () => {
