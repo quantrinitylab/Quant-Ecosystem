@@ -8,6 +8,9 @@ import 'package:flutter/services.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../../services/quant_auth_controller.dart';
 import '../superapp/superapp_home_screen.dart';
+import 'auth_widgets.dart';
+import 'quant_forgot_password_screen.dart';
+import 'quant_register_screen.dart';
 
 class QuantLoginScreen extends StatefulWidget {
   final VoidCallback? onAuthenticated;
@@ -34,6 +37,7 @@ class _QuantLoginScreenState extends State<QuantLoginScreen>
   bool _showPassword = false;
   bool _isLoading = false;
   String? _errorMessage;
+  String? _noticeMessage;
   String? _emailFieldError;
   String? _passwordFieldError;
 
@@ -207,6 +211,32 @@ class _QuantLoginScreenState extends State<QuantLoginScreen>
         _errorMessage = 'Verification could not be completed. Please try again.';
       });
     }
+  }
+
+  Future<void> _openRegister() async {
+    final address = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const QuantRegisterScreen()),
+    );
+    if (!mounted || address == null) return;
+    setState(() {
+      _emailController.text = address;
+      _passwordController.clear();
+      _errorMessage = null;
+      _noticeMessage = 'Welcome to QuantWorkplace. Sign in as $address';
+    });
+    _passwordFocus.requestFocus();
+  }
+
+  Future<void> _openForgotPassword() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const QuantForgotPasswordScreen()),
+    );
+    if (!mounted || changed != true) return;
+    setState(() {
+      _passwordController.clear();
+      _errorMessage = null;
+      _noticeMessage = 'Password updated. Sign in with your new password.';
+    });
   }
 
   void _onLoginSuccess() {
@@ -395,6 +425,9 @@ class _QuantLoginScreenState extends State<QuantLoginScreen>
 
           const SizedBox(height: 22),
 
+          if (_noticeMessage != null && _errorMessage == null && !_isTwoFactor)
+            AuthBanner(_noticeMessage!, isSuccess: true),
+
           // Error Alert Banner
           if (_errorMessage != null) ...[
             Container(
@@ -453,17 +486,7 @@ class _QuantLoginScreenState extends State<QuantLoginScreen>
                     ),
                   ),
                   GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          backgroundColor: Color(0xFF111420),
-                          content: Text(
-                            'Sovereign registration portal open. Please contact ecosystem administrator.',
-                            style: TextStyle(color: Color(0xFFFF7A00)),
-                          ),
-                        ),
-                      );
-                    },
+                    onTap: _openRegister,
                     child: const Text(
                       'Create an address',
                       style: TextStyle(
@@ -562,17 +585,7 @@ class _QuantLoginScreenState extends State<QuantLoginScreen>
               ),
             ),
             GestureDetector(
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    backgroundColor: Color(0xFF111420),
-                    content: Text(
-                      'Password recovery instructions sent to registered recovery address.',
-                      style: TextStyle(color: Color(0xFFFF7A00)),
-                    ),
-                  ),
-                );
-              },
+              onTap: _openForgotPassword,
               child: const Text(
                 'Forgot password?',
                 style: TextStyle(
