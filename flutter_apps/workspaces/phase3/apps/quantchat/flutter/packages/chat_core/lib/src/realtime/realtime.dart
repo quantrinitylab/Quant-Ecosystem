@@ -8,4 +8,5 @@
 
 export 'chat_socket.dart';
 export 'chat_socket_events.dart';
+export 'presence.dart';
 export 'realtime_providers.dart';
