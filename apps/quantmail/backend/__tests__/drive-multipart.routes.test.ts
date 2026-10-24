@@ -6,6 +6,7 @@ const mockCreateMultipartUpload = vi.fn();
 const mockGetUploadPartPresignedUrl = vi.fn();
 const mockCompleteMultipartUpload = vi.fn();
 const mockAbortMultipartUpload = vi.fn();
+const mockDownload = vi.fn();
 
 vi.mock('@quant/storage', () => ({
   resolveStorageConfigFromEnv: vi.fn(() => ({
@@ -21,6 +22,7 @@ vi.mock('@quant/storage', () => ({
     getUploadPartPresignedUrl = mockGetUploadPartPresignedUrl;
     completeMultipartUpload = mockCompleteMultipartUpload;
     abortMultipartUpload = mockAbortMultipartUpload;
+    download = mockDownload;
   },
 }));
 
@@ -186,6 +188,77 @@ describe('Task DR-1 to DR-5: Drive 5GB S3 Multipart Upload Routes', () => {
     expect(createdFiles).toHaveLength(1);
     expect(createdVersions).toHaveLength(1);
     expect(mockCompleteMultipartUpload).toHaveBeenCalledTimes(1);
+    await app.close();
+  });
+
+  it('DR-5: stores SHA-256 of the completed object as contentHash, never the S3 ETag', async () => {
+    mockCompleteMultipartUpload.mockResolvedValueOnce({
+      key: 'drive/user-1/multipart/test-large.zip',
+      location: 'https://s3.amazonaws.com/test-bucket/large.zip',
+      etag: '"deadbeef-2"',
+    });
+    const { createHash } = await import('node:crypto');
+    const { Readable } = await import('node:stream');
+    const objectBytes = Buffer.from('identical-bytes');
+    mockDownload.mockResolvedValueOnce({
+      body: Readable.from([objectBytes]),
+      contentType: 'application/zip',
+      contentLength: objectBytes.length,
+    });
+
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/drive/upload/multipart/upload-mp-123/complete',
+      payload: {
+        key: 'drive/user-1/multipart/test-large.zip',
+        name: 'test-large.zip',
+        totalSize: objectBytes.length,
+        mimeType: 'application/zip',
+        parts: [
+          { partNumber: 1, etag: '"etag-1"' },
+          { partNumber: 2, etag: '"etag-2"' },
+        ],
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(createdFiles).toHaveLength(1);
+    // Same value the single-path upload stores for identical bytes, so the
+    // duplicate cleaner groups single-path and multipart copies together.
+    expect(createdFiles[0].contentHash).toBe(
+      createHash('sha256').update(objectBytes).digest('hex'),
+    );
+    expect(createdFiles[0].contentHash).not.toContain('deadbeef');
+    expect(mockDownload).toHaveBeenCalledWith('drive/user-1/multipart/test-large.zip');
+    await app.close();
+  });
+
+  it('DR-6: on hash failure the upload still succeeds with an empty contentHash (never the ETag)', async () => {
+    mockCompleteMultipartUpload.mockResolvedValueOnce({
+      key: 'drive/user-1/multipart/test-large.zip',
+      location: 'https://s3.amazonaws.com/test-bucket/large.zip',
+      etag: '"deadbeef-2"',
+    });
+    mockDownload.mockRejectedValueOnce(new Error('storage unavailable'));
+
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/drive/upload/multipart/upload-mp-123/complete',
+      payload: {
+        key: 'drive/user-1/multipart/test-large.zip',
+        name: 'test-large.zip',
+        totalSize: 500 * 1024 * 1024,
+        mimeType: 'application/zip',
+        parts: [{ partNumber: 1, etag: '"etag-1"' }],
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(createdFiles).toHaveLength(1);
+    // Empty hashes are skipped by findDuplicates — no false grouping.
+    expect(createdFiles[0].contentHash).toBe('');
     await app.close();
   });
 

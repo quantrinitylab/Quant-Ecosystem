@@ -2931,6 +2931,29 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
         parts: parsed.data.parts,
       });
 
+      // contentHash contract (all other upload paths): SHA-256 of the stored
+      // bytes. An S3 ETag is NOT that — for multipart uploads it is
+      // `<md5-of-part-md5s>-<part-count>`. Storing the ETag here made the
+      // duplicate cleaner mislabel it "SHA-256:" and made identical files
+      // uploaded via single vs multipart paths never group as duplicates.
+      // Hash the completed object itself (streamed, never buffered whole)
+      // so multipart files group with identical single-path uploads. On a
+      // hash failure the upload still succeeds, but the file is left out of
+      // duplicate detection: an empty hash is skipped by findDuplicates,
+      // while a wrong value would group unrelated files.
+      let contentHash = '';
+      try {
+        const { body } = await storage.download(parsed.data.key);
+        const hash = createHash('sha256');
+        for await (const chunk of body) hash.update(chunk);
+        contentHash = hash.digest('hex');
+      } catch (error) {
+        request.log.warn(
+          { err: error },
+          'Multipart complete: could not hash completed object; storing empty contentHash',
+        );
+      }
+
       let folderId = parsed.data.folderId ?? null;
       if (
         folderId &&
@@ -2950,7 +2973,7 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
           encryptionIV: '',
           encryptionAuthTag: '',
           encryptionKey: '',
-          contentHash: completeRes.etag ?? '',
+          contentHash,
         },
       });
 
