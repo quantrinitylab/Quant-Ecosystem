@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { nextRovingIndex, rovingTabIndex } from '@quant/shared-ui';
 import { Quanty } from './Quanty';
 import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
-import { type QuantyEmailAction } from './QuantyCopilotDrawer';
+import { type QuantyEmailAction, mergeQuantyActionBody } from './QuantyCopilotDrawer';
 import { InsertLinkModal } from './InsertLinkModal';
 import { showToast } from './InboxToast';
 import { formatBytes } from '../lib/format-bytes';
@@ -1797,7 +1797,14 @@ export function EmailComposer({
     }
   };
 
-  // Autonomous Quanty Action Applier
+  // Quanty Action Applier — explicit-Apply only (the drawer no longer
+  // auto-applies on any assistant turn). The body is MERGED, never replaced:
+  // an empty draft takes the action body verbatim, a non-empty draft keeps the
+  // user's own words and gains the action body appended (same non-destructive
+  // pattern as applySavedTemplate below). Structured slots (to/subject/
+  // greeting/closing) are still filled from a draft-shaped answer, because an
+  // explicit Apply tap is the user's own choice for those slots — but the
+  // prose body, where the user's words live, is never silently clobbered.
   const handleApplyQuantyAction = (action: QuantyEmailAction) => {
     if (action.to) {
       const parts = action.to
@@ -1809,7 +1816,7 @@ export function EmailComposer({
     if (action.subject) setSubject(action.subject);
     if (action.greeting) setGreeting(action.greeting);
     if (action.opening) setOpening(action.opening);
-    if (action.body) setBody(action.body);
+    if (action.body) setBody(mergeQuantyActionBody(body, action.body));
     if (action.closing) setClosing(action.closing);
     if (action.signoff) setSignoff(action.signoff);
     if (action.senderName) setSenderName(action.senderName);

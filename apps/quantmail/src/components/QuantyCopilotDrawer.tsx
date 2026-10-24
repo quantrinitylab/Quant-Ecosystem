@@ -503,6 +503,27 @@ export function parseEmailActionFromText(text: string): QuantyEmailAction {
 }
 
 /**
+ * Merge a Quanty action's body into the draft the user already has, without
+ * ever destroying the user's own words (qm-auto finding, compose P1).
+ *
+ * The old composer handler did `setBody(action.body)` unconditionally, and
+ * `parseEmailActionFromText` above ALWAYS returns a body (`cleanBody || text`
+ * is truthy for any non-empty answer — including "Sunny, 28°C" to "what is
+ * the weather?"). Together with the old per-turn auto-apply in `runTurn`,
+ * every assistant turn replaced the draft and toasted success. This merge is
+ * the second half of that fix (the first half is deleting the auto-apply):
+ * an explicit Apply now SETS an empty body and APPENDS to a non-empty one —
+ * the same non-destructive pattern `applySavedTemplate` already uses — so
+ * the user's prose survives even an Apply tapped on the wrong answer. A
+ * blank action body is a no-op, never a wipe.
+ */
+export function mergeQuantyActionBody(currentBody: string, actionBody?: string): string {
+  if (!actionBody?.trim()) return currentBody;
+  if (!currentBody.trim()) return actionBody;
+  return `${currentBody}\n\n${actionBody}`;
+}
+
+/**
  * A drafted email awaiting the user's explicit confirmation. The model emits
  * it as an unfenced `tool_call {"name": "send_email", "arguments": {...}}`
  * envelope (see SYSTEM_PROMPT_SEND_EMAIL); the backend never executes it.
@@ -1066,8 +1087,18 @@ export function QuantyCopilotDrawer({
   /**
    * Send a history and commit whatever comes back — or say plainly that nothing
    * did. There is deliberately no local substitute for an answer: a canned string
-   * that claims to have read the user's mail is worse than an error, and in
-   * compose context the old one wrote itself into the draft and toasted success.
+   * that claims to have read the user's mail is worse than an error.
+   *
+   * An assistant turn NEVER writes the draft. The old code auto-applied
+   * `parseEmailActionFromText` on every compose-context turn and toasted
+   * "Quanty updated your email draft" — but that parser always returns a body
+   * (`cleanBody || text`), so asking "what is the weather?" mid-draft replaced
+   * the user's own words with the weather answer and celebrated it. The ONLY
+   * path from an assistant message into the composer is now the explicit
+   * per-message "Apply to Composer" button below, and even that merges via
+   * `mergeQuantyActionBody` (append, never replace, on a non-empty draft).
+   * The send_email confirmation card is untouched: it still requires the
+   * explicit Send tap and never touches the composer body.
    */
   const runTurn = async (turns: ChatTurn[], isRetry = false) => {
     setFailure(null);
@@ -1115,10 +1146,9 @@ export function QuantyCopilotDrawer({
     quantyReact('ai:answered');
     saveCurrentConversation(finalMsgs);
 
-    if (isComposeContext && onApplyAction) {
-      onApplyAction(parseEmailActionFromText(unwrapToolCallResponse(result.message)));
-      showToast({ text: 'Quanty updated your email draft', type: 'success' });
-    }
+    // No auto-apply here by design (see the runTurn contract above): an
+    // assistant turn must never write the draft or toast about it. The user
+    // applies a message explicitly via its "Apply to Composer" button.
   };
 
   const handleSend = async (userPrompt?: string) => {
@@ -1614,28 +1644,13 @@ export function QuantyCopilotDrawer({
                         <button
                           type="button"
                           onClick={() => {
-                            const text = m.text;
-                            const emailMatch = text.match(
-                              /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/,
-                            );
-                            const subjectMatch = text.match(/Subject:\s*([^\n]+)/i);
-                            const greetingMatch = text.match(
-                              /^(Dear\s+[^,\n]+,|Hi\s+[^,\n]+,|Hello\s+[^,\n]+,)/im,
-                            );
-
-                            onApplyAction({
-                              to: emailMatch ? emailMatch[1] : undefined,
-                              subject: subjectMatch ? subjectMatch[1].trim() : undefined,
-                              greeting: greetingMatch ? greetingMatch[1].trim() : undefined,
-                              body: text
-                                .replace(/^Subject:.*$/im, '')
-                                .replace(/^(Dear|Hi|Hello)[^\n]+,\s*/im, '')
-                                .replace(
-                                  /(Best regards|Sincerely|Thanks|Warm regards)[,\s\S]*$/im,
-                                  '',
-                                )
-                                .trim(),
-                            });
+                            // The ONLY path from an assistant message into the
+                            // composer: an explicit tap. Uses the shared parser
+                            // (previously this button duplicated its regexes
+                            // inline and silently dropped the closing) and the
+                            // composer's merge, so a tap on a non-draft answer
+                            // appends instead of replacing the user's words.
+                            onApplyAction(parseEmailActionFromText(m.text));
                             onClose();
                             showToast({ text: 'Applied draft into composer', type: 'success' });
                           }}
