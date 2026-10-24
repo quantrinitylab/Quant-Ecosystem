@@ -47,6 +47,13 @@ export async function createApp(config: AppConfig) {
           },
     genReqId: () => randomUUID(),
     disableRequestLogging: config.env === 'test',
+    // QC-F-581: resolve request.ip from X-Forwarded-For ONLY when the socket
+    // peer is a trusted proxy (ingress/frontend pod). Without this every
+    // rate-limit bucket (global + per-route, e.g. /ws/chat) keys on the proxy
+    // pod IP, so one heavy client can 429 the whole user base and per-IP
+    // abuse control is void. proxy-addr semantics: a blind `true` would let
+    // any client spoof XFF and pick its own bucket — hence the explicit list.
+    trustProxy: config.trustedProxies ?? ['127.0.0.1', '::1'],
   });
 
   // Register WebDAV / CalDAV / CardDAV HTTP methods (RFC 4791 / RFC 6350)
