@@ -287,7 +287,14 @@ export function buildRawMimeMessage(input: RawMimeMessageInput): Buffer {
   const mime = buildMultipartBody(input);
   const headers: string[] = [
     `From: ${encodeMailbox(input.from)}`,
-    `To: ${input.to.map((a) => encodeMailbox(a)).join(', ')}`,
+    // A Bcc-only send has no visible To. An empty `To:` header is malformed;
+    // the RFC 5322 empty group keeps the message well-formed without ever
+    // naming a Bcc recipient.
+    `To: ${
+      input.to.length > 0
+        ? input.to.map((a) => encodeMailbox(a)).join(', ')
+        : 'undisclosed-recipients:;'
+    }`,
     `Subject: ${encodeHeaderWord(input.subject)}`,
     `Date: ${(input.date ?? new Date()).toUTCString()}`,
     'MIME-Version: 1.0',
@@ -373,6 +380,33 @@ export async function sendViaSes(opts: SesSendOptions): Promise<string> {
   // policy so a hung SES endpoint fails fast with a typed RemoteCallTimeoutError
   // (label 'ses') instead of stalling the delivery worker. The error message
   // carries the label and is recorded in the delivery attempt log by callers.
+  const response = await withDependencyTimeout('ses', () => ses.send(command));
+  return response.MessageId ?? 'unknown';
+}
+
+/**
+ * Send an already-built RFC 5322 message through SES `Raw` content. The
+ * recipients are the explicit envelope (SES does not read them from the
+ * headers), so Bcc recipients are routed without ever appearing in the MIME.
+ * Used by the `MailTransport` interface (lib/mail-transport.ts); the
+ * high-level `sendViaSes` above is unchanged.
+ */
+export async function sendRawViaSes(raw: Buffer, envelope: { from: string; to: string[] }): Promise<string> {
+  const ses = getClient();
+  const configurationSet = process.env['SES_CONFIGURATION_SET'] ?? 'quantmail-sending';
+  if (raw.byteLength > SES_RAW_MESSAGE_LIMIT_BYTES) {
+    throw createAppError(
+      `Message is ${(raw.byteLength / 1024 / 1024).toFixed(1)}MB, over the 10 MB SES raw-message limit.`,
+      413,
+      'ATTACHMENT_PAYLOAD_TOO_LARGE',
+    );
+  }
+  const command = new SendEmailCommand({
+    FromEmailAddress: envelope.from,
+    ConfigurationSetName: configurationSet,
+    Destination: { ToAddresses: envelope.to },
+    Content: { Raw: { Data: raw } },
+  });
   const response = await withDependencyTimeout('ses', () => ses.send(command));
   return response.MessageId ?? 'unknown';
 }
