@@ -99,6 +99,9 @@ interface PaginatedResponse<T> extends ApiResponse<T[]> {
   totalPages?: number;
   totalCount?: number;
   nextCursor?: string | null;
+  // The mail search backends also report keyset-style continuation.
+  hasNext?: boolean;
+  hasPrev?: boolean;
 }
 
 interface RequestOptions {

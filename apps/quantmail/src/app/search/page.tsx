@@ -140,6 +140,17 @@ export default function SearchPage() {
     setRecentSearches(getRecentSearches(store, accountKey));
   }, [accountKey]);
 
+  // Mail-scope pagination: page 1 is the default and Load more advances it.
+  // A new query or filter set is a new result set, so it restarts at 1.
+  // (Typing re-searches live on this page — the input is bound to `query`
+  // and searchParams already follows it — so a query edit restarting the
+  // pages is the existing behaviour, not a new one.)
+  const [searchPage, setSearchPage] = useState(1);
+  const searchIdentity = JSON.stringify([query, activeFilters]);
+  useEffect(() => {
+    setSearchPage(1);
+  }, [searchIdentity]);
+
   const searchParams: Partial<SearchEmailRequest> | null =
     hasSearched && query.trim()
       ? {
@@ -149,10 +160,21 @@ export default function SearchPage() {
           hasAttachment: activeFilters.some((f) => f.type === 'has') ? true : undefined,
           label: activeFilters.find((f) => f.type === 'in')?.value,
           dateFrom: activeFilters.find((f) => f.type === 'date')?.value,
+          page: searchPage,
         }
       : null;
 
-  const { data: results, isLoading, error, localHits, refetch } = useSearchEmails(searchParams);
+  const {
+    data: results,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    localHits,
+    refetch,
+    totalCount,
+    hasMore,
+  } = useSearchEmails(searchParams);
 
   // Universal search fans out to the real per-source backends; the mail scope
   // keeps the dedicated Gmail-style search above (with its filters) untouched.
@@ -168,7 +190,32 @@ export default function SearchPage() {
   // local hits those hits render honestly labeled as offline/partial.
   const mailSearchOffline = scope === 'mail' && hasSearched && !!error;
   const offlineHits = mailSearchOffline ? (localHits ?? []) : [];
-  const visibleResults = mailSearchOffline ? offlineHits : results;
+  // Always an array: the hook's `data` is undefined before the first page
+  // resolves, and every count/branch below reads .length unguarded.
+  const visibleResults = mailSearchOffline ? offlineHits : (results ?? []);
+
+  // The count line must never present the loaded length as the total — that
+  // was the bug ("50 results" for a 200-hit query). With a backend total,
+  // show "Showing X of N" until every page is loaded, then the plain total.
+  // With no total (offline, or a backend that reports none) fall back to the
+  // loaded count with no total claim at all.
+  const resultCountLine = mailSearchOffline
+    ? `${visibleResults.length} offline result${visibleResults.length !== 1 ? 's' : ''} for “${query}”`
+    : totalCount !== null && totalCount !== undefined
+      ? visibleResults.length < totalCount
+        ? `Showing ${visibleResults.length} of ${totalCount} results for “${query}”`
+        : `${totalCount} result${totalCount !== 1 ? 's' : ''} for “${query}”`
+      : `${visibleResults.length} result${visibleResults.length !== 1 ? 's' : ''} for “${query}”`;
+
+  // Load more appends the next page; if the last page fetch failed, the same
+  // button retries it instead of advancing past the failed page.
+  const handleLoadMore = useCallback(() => {
+    if (isError) {
+      void refetch();
+      return;
+    }
+    setSearchPage((p) => p + 1);
+  }, [isError, refetch]);
 
   const runSearchString = useCallback(
     (search: string) => {
@@ -610,8 +657,10 @@ export default function SearchPage() {
             />
           )}
 
-          {/* Mail scope: the dedicated Gmail-style search */}
-          {scope === 'mail' && hasSearched && isLoading && (
+          {/* Mail scope: the dedicated Gmail-style search. The skeleton only
+              shows when nothing is on screen yet — during a Load more fetch
+              the accumulated list stays visible instead of flashing away. */}
+          {scope === 'mail' && hasSearched && isLoading && visibleResults.length === 0 && (
             <div className="space-y-2 p-4">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} variant="rect" width="100%" height="72px" />
@@ -622,7 +671,7 @@ export default function SearchPage() {
           {/* Backend search failed with an empty local index: surface the
               failure instead of the false "No results" claim. This branch was
               dead code while the hook's queryFn never threw. */}
-          {scope === 'mail' && hasSearched && !isLoading && error && offlineHits.length === 0 && (
+          {scope === 'mail' && hasSearched && !isLoading && error && offlineHits.length === 0 && visibleResults.length === 0 && (
             <ErrorState
               title="Search unavailable"
               message={error.message}
@@ -651,7 +700,7 @@ export default function SearchPage() {
             </div>
           )}
 
-          {scope === 'mail' && hasSearched && !isLoading && !error && (!results || results.length === 0) && (
+          {scope === 'mail' && hasSearched && !isLoading && !error && visibleResults.length === 0 && (
             <EmptyState
               title="No results"
               description={`Nothing matched “${query}”. Try a broader phrase, remove filters, or search by sender or subject.`}
@@ -660,8 +709,9 @@ export default function SearchPage() {
             />
           )}
 
-          {/* Results */}
-          {scope === 'mail' && hasSearched && !isLoading && visibleResults && visibleResults.length > 0 && (
+          {/* Results — kept on screen during a Load more fetch (the list is
+              the accumulated pages, not just the page in flight). */}
+          {scope === 'mail' && hasSearched && visibleResults && visibleResults.length > 0 && (
             <motion.div
               variants={listContainerVariants}
               initial="hidden"
@@ -669,7 +719,7 @@ export default function SearchPage() {
               className="p-4"
             >
               <p className="mb-2 px-1 text-xs text-[var(--quant-muted-foreground)]">
-                {visibleResults.length}{' '}{mailSearchOffline ? 'offline ' : ''}result{visibleResults.length !== 1 ? 's' : ''}{' '}for “{query}”
+                {resultCountLine}
               </p>
               <div className="overflow-hidden rounded-xl border border-[var(--quant-border)]">
                 {visibleResults.map((email) => {
@@ -729,6 +779,17 @@ export default function SearchPage() {
                   );
                 })}
               </div>
+              {hasMore && !mailSearchOffline && (
+                <div className="mt-3 flex justify-center">
+                  <Button
+                    variant="secondary"
+                    onClick={handleLoadMore}
+                    disabled={isFetching}
+                  >
+                    {isError ? 'Try loading more again' : isFetching ? 'Loading…' : 'Load more'}
+                  </Button>
+                </div>
+              )}
             </motion.div>
           )}
         </div>
