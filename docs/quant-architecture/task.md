@@ -6145,7 +6145,19 @@ Audit started: 2026-10-24 ~07:40 IST (lane-1 deep audit loop, ROUND 36)
 - STILL-UNVERIFIED: signed-in SSO handoff flow; RPs verifying id_tokens via the advertised jwks_uri.
 Rotation -> QM-SCREEN-002 (login) ROUND 37 regression, queued (018 completes the ROUND 36 cycle).
 
-## QM-SCREEN-002 R37 — login / register / recovery / verification regression (LANE-1)
-Status: [~] IN_PROGRESS — (Owner: LANE-1, Branch: lane1-audit-002r37, started 2026-10-24 ~08:35 IST)
-Audit started: 2026-10-24 ~08:35 IST (lane-1 deep audit loop, ROUND 37)
-Base: R36-002 tip 401c6b2cae -> origin/main e91cd548a19b (fresh fetch)
+## QM-SCREEN-002 R37 — login / register / recovery / verification regression — DONE 2026-10-24 ~08:40 IST
+Status: [x] DONE — claim 824f975d3 (Owner: LANE-1, Branch: lane1-audit-002r37, regression audit complete 2026-10-24 ~08:35-08:40 IST), pushed fast-forward, remote tip verified
+Owner: LANE-1
+Branch: lane1-audit-002r37
+Base: R36-002 tip 401c6b2cae -> origin/main e91cd548a19b (fresh fetch; exactly 1 first-parent merge #1447 fix/qcloop-qc-f-524 = apps/quantchat/backend websocket/privacy only, 0 login/auth-path bytes -> pure re-verification + fresh hunt)
+Code read: origin/main tree ONLY via git-archive snapshot /tmp/qsnap002r37 (50 files: app/login, register, forgot-password, sso, api/auth, api/sso, components/auth, backend/routes/auth.ts, backend/lib/auth-session.ts). qe-main working tree ignored (stale/diverged, per lesson).
+PIN VERDICT — all 5 R36 pins BYTE-VERIFIED INTACT @ e91cd548a19b (zero drift):
+1. emailVerified:false hardcoded -> still FIXED: auth.ts:287 `emailVerified: false` with fix-comment :285 ("emailVerified: true here was how any address could be claimed"); :359 false; :396 checks user?.emailVerified — real verification contract holds.
+2. ?token= URL handoff -> still FIXED: 0 `token=<redacted> matches in login/sso/register trees (prod); sso-handoff.ts ticket-only posture unchanged.
+3. /forgot-email phone recovery -> still FIXED: /forgot-email absent from tree; forgot-password-form.tsx:68-69 email-based copy + :81 anti-enumeration ("We do not confirm whether an account exists") — byte-identical.
+4. 'AI triage' copy -> still RESOLVED via copy-honesty: AuthBrandPanel.tsx:70-95 copy-honesty comment intact (ai-triage.service.ts grounded, ThreadSummaryCard grounded, "drafts the reply" removal note 2026-10-13 intact — sole grep hit is the comment itself, not user-facing copy); at-rest NOT claimed.
+5. R35-018 pin #1367 -> INTACT: 11==11 'recover' refs in login-form.tsx (2FA recovery codes, honest copy).
+FRESH HUNT CLEAN: 0 lorem/coming-soon/dummy/mock-user/fake-user/dummy-data/#FF8C42 in login/register/forgot-password/sso/auth scopes; 0 ?token= in prod auth trees; sole 'phone' hits = 2 honesty comments (two-factor-recovery-panel.tsx:9 real lockout scenario; SsoChooserContent.tsx:304 "no phone-KYC gate") — benign, not re-filed.
+LIVE HEALTHY, VISUAL VERIFIED: proxy 127.0.0.1:8888 healthy (204 0.58s, no restart); /login /register /forgot-password /sso /login?returnTo=%2Fsettings -> 200 x5 (no redirect loop); POST /api/sso/ticket/mint -> honest 401; POST /api/auth/2fa/verify -> honest 403 — all match R36 baseline. Desktop 1440x900 (9334) /login + /register shots REVIEWED + mobile 390x844 (iPhone 14, port 9401) /login shot REVIEWED: pure black, mail-orange, current clay M-mark, honest tri-cards (no "drafts the reply"), Help/Privacy/Terms footer, (c) 2026, zero old-logo flash; /register shows NO phone field (P0 #872 removal holds live). Shots + snapshot deleted; tools cleaned their own chrome dirs (zero live chromes verified via pgrep before/after); /tmp healthy. Signed-in flows = needs-auth. #1243 deploy hold ACTIVE (cat-verified hidden_files/orchestrator/deploy-hold.txt) — nothing to deploy.
+NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents (protocol P0/P1-only; subagent.list 0 active at start and end). findings.md untouched.
+Rotation -> QM-SCREEN-003 (shell) ROUND 37 regression, queued.
