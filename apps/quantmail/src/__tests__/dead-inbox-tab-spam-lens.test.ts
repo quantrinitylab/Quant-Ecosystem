@@ -16,6 +16,13 @@
  * tab → `/` with no queryParam) and desktop (`desktopContextTabs`, Inbox tab
  * → `/?lens=all`), so desktop re-taps of the already-active Inbox now also
  * take the scroll + refresh branch instead of re-pushing the same URL.
+ *
+ * QM-INBOX-NAV-VIEW (2026-10-24, P1 [inbox-nav]) supersedes both targets:
+ * RootPage renders PeopleHome unless `?view=inbox` is present, so BOTH
+ * Inbox tabs now target `/?view=inbox&lens=all` (via the new `queryParams`
+ * array — a single `queryParam` cannot carry both params). The helper below
+ * builds the tab URL from `queryParams` first, so these tests pin the new
+ * target rather than the old broken ones.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -55,7 +62,15 @@ describe.each([['mobile', mobile], ['desktop', desktop]] as const)(
     const tabTargetUrl = (id: string) => {
       const t = tabById(id);
       const base = t.targetPath || '/';
-      return t.queryParam ? `${base}?${t.queryParam.key}=${t.queryParam.value}` : base;
+      // QM-INBOX-NAV-VIEW: tabs may carry `queryParams` (Inbox needs two).
+      const params = t.queryParams?.length
+        ? t.queryParams
+        : t.queryParam
+          ? [t.queryParam]
+          : [];
+      return params.length
+        ? `${base}?${params.map((p: { key: string; value: string }) => `${p.key}=${p.value}`).join('&')}`
+        : base;
     };
     const inboxTarget = () => tabTargetUrl('inbox');
     const inboxSearch = () => {
@@ -131,13 +146,9 @@ describe.each([['mobile', mobile], ['desktop', desktop]] as const)(
 
       push.mockClear();
       mod.executeContextTabClick(tabById('inbox'), 'mail', { pathname: '/', router: { push } });
-      if (inboxTarget() === '/') {
-        // Mobile: Inbox has no queryParam — plain '/' is already the Inbox view.
-        expect(push).not.toHaveBeenCalled();
-      } else {
-        // Desktop: Inbox targets '/?lens=all', so legacy `|| tab.queryParam` pushed.
-        expect(push).toHaveBeenCalledWith(inboxTarget());
-      }
+      // QM-INBOX-NAV-VIEW: Inbox now targets `/?view=inbox&lens=all` on
+      // BOTH viewports, so a bare `/` (People view) always pushes.
+      expect(push).toHaveBeenCalledWith(inboxTarget());
     });
   },
 );
