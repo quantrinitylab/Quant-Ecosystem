@@ -1,179 +1,74 @@
 'use client';
 
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useShellChrome } from './ShellChromeContext';
 import { useChromeVisible } from './useScrollChrome';
 
 /**
  * The one mobile create button.
  *
- * There were two of these. `AppShell` shipped a 48px flat-orange circle whose
- * glyph changed per route — upload arrow on Drive, person-plus on Contacts, a
- * bare `+` on CodeHub, a pencil everywhere else — and `calendar/page.tsx`
- * shipped a 56px gradient circle that opened a labelled column of four. Same
- * corner, same z-index, two different sizes, two different finishes, and a
- * route-prefix suppression list in the shell to stop them stacking.
+ * History: there were two of these. `AppShell` shipped a 48px flat-orange
+ * circle whose glyph changed per route, and `calendar/page.tsx` once shipped
+ * a 56px gradient circle that opened a labelled column of four. Same corner,
+ * same z-index, two different sizes, two different finishes, and a
+ * route-prefix suppression list in the shell to stop them stacking. The
+ * calendar copy is gone (no second `QuantFab` mount exists on origin/main),
+ * so the finish, the geometry and the offset above `MobileBottomNav` live
+ * here, once, and the glyph is always `+`.
  *
- * So the finish, the geometry, the offset above `MobileBottomNav` and the
- * open/close behaviour live here, once, and the glyph is always `+`. What a tap
- * *means* is carried by the accessible name and by the dial, not by a shape the
+ * Single action, direct tap — by design, not by omission (2026-10-24):
+ * `AppShell`'s fab table returns at most one action on every route (empty
+ * on `/calendar`, `/compose`, `/thread`, `/quantgit` and settings screens;
+ * exactly one elsewhere), and no other caller exists. The multi-action dial
+ * branch this file used to carry (menu-role rows, arrow-key nav,
+ * Escape/outside-press close, focus restore) therefore had zero callers:
+ * dial mode needed `actions.length > 1`, which nothing ever passed, so it
+ * shipped unexercised. It was deleted rather than left as dead code, along
+ * with the dial-only `icon`/`tone` action fields. A mail app that made
+ * Compose two taps to look symmetrical with a calendar dial would be
+ * trading the most frequent action in the product for tidiness.
+ *
+ * If a real multi-action caller ever arrives, it must bring the dial back
+ * WITH a test that renders it open (see `QuantFabDialRemoved.test.tsx`,
+ * which pins that no dial markup exists today) — never re-add the branch
+ * on the strength of a comment alone. That is exactly how the dead branch
+ * survived: a stale AppShell comment kept claiming `/calendar` mounted its
+ * own four-entry `QuantFab` long after that mount was gone.
+ *
+ * What a tap *means* is carried by the accessible name, not by a shape the
  * thumb has to identify at speed.
- *
- * One action collapses to a direct tap: a mail app that made Compose two taps
- * to look symmetrical with the calendar would be trading the most frequent
- * action in the product for tidiness. Two or more open the dial.
  */
-
-export type FabTone = 'ember' | 'emerald' | 'rose';
 
 export interface FabAction {
-  /** Stable key. Also the `data-fab-action` hook QA drives the dial by. */
+  /** Stable key. */
   id: string;
-  /** Row text, and the trigger's accessible name when this is the only action. */
+  /** Row text, and the trigger's accessible name. */
   label: string;
-  /**
-   * Inline SVG, sized by the caller. No emoji, no icon font. Only dial rows draw
-   * one — a single action taps straight through the `+`, so it needs none.
-   */
-  icon?: ReactNode;
-  tone?: FabTone;
   onSelect: () => void;
 }
-
-/*
- * Two ember rows arrived here with two different fills — `#2B1A11` on Task and
- * an off-palette `#2a1b10` on Event — which is a difference no one chose. Both
- * now use the Brand Soft token, and the hotter `#FFB875` type sits on it with
- * more value separation than `var(--app-accent)` did.
- */
-const TONE: Record<FabTone, string> = {
-  ember:
-    'bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] shadow-[0_0_16px_color-mix(in_srgb,var(--app-accent)_15%,transparent)]',
-  emerald: 'bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 border-emerald-500/50',
-  rose: 'bg-rose-950/90 hover:bg-rose-900 text-rose-200 border-rose-500/50',
-};
-
-const ROW_CLASS =
-  'flex w-max items-center gap-2.5 rounded-2xl border px-4 py-2.5 min-h-touch text-xs font-extrabold backdrop-blur-xl transition-all active:scale-95 shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]';
 
 export interface QuantFabProps {
   /** Empty renders nothing — that is how a route opts out. */
   actions: FabAction[];
-  /** Trigger name in dial mode. Ignored when there is a single action. */
+  /**
+   * Fallback trigger name when the single action has no label. Kept for
+   * call-site compatibility; `AppShell` always passes a labelled action.
+   */
   label?: string;
 }
 
 export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
-  const reduceMotion = useReducedMotion();
   const { isDrawerPresented } = useShellChrome();
-  const [isOpen, setIsOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const rowsRef = useRef<Array<HTMLButtonElement | null>>([]);
-  const menuId = `${useId()}-fab-menu`;
-
-  const isDial = actions.length > 1;
-
-  const close = useCallback((restoreFocus: boolean) => {
-    setIsOpen(false);
-    if (restoreFocus) triggerRef.current?.focus();
-  }, []);
-
-  /*
-   * Neither predecessor could be dismissed without hitting the trigger again:
-   * no Escape, no outside press. On a phone that meant an open dial covered the
-   * list it was floating over and the only way out was a 56px target.
-   *
-   * `isDrawerPresented` is in the guard as well as in the early return below,
-   * because these listeners are `document`-level: leaving them mounted for the
-   * frame between the drawer appearing and the reset effect flushing would let
-   * the FAB's own Escape handler pull focus onto a trigger inside a subtree that
-   * is `aria-hidden`, out of the drawer's `aria-modal` region.
-   */
-  useEffect(() => {
-    if (!isOpen || isDrawerPresented) return;
-
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) close(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close(true);
-    };
-
-    document.addEventListener('pointerdown', onPointerDown, true);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [isOpen, isDrawerPresented, close]);
-
-  /*
-   * Returning `null` below does not unmount this component, so an open dial
-   * would come back open once the drawer closed — with `rotate-45` still on a
-   * trigger nobody had touched. Collapse it instead. `setIsOpen` rather than
-   * `close(true)`: restoring focus here would drag it out of the drawer that
-   * just took over.
-   */
-  useEffect(() => {
-    if (isDrawerPresented) setIsOpen(false);
-  }, [isDrawerPresented]);
-
-  /*
-   * Scroll-hide, in lockstep with the bottom nav (same `useChromeVisible`
-   * store, so the two never drift). Slides down + shrinks + fades on
-   * scroll-down; springs back on scroll-up. `pointer-events: none` and
-   * `aria-hidden` while hidden so a phantom button can't eat taps — and
-   * `inert` so the trigger + dial rows leave the tab order too: `aria-hidden`
-   * alone would leave them focusable to TalkBack/VoiceOver while invisible.
-   * An open dial collapses the moment the chrome hides.
-   */
   const chromeVisible = useChromeVisible();
-  useEffect(() => {
-    if (!chromeVisible) setIsOpen(false);
-  }, [chromeVisible]);
-
-  // WAI-ARIA menu button: opening moves focus in, so Escape has somewhere to send it back from.
-  useEffect(() => {
-    if (isOpen) rowsRef.current[0]?.focus();
-  }, [isOpen]);
 
   /*
    * Two ways out, and both belong here rather than at the call sites. Empty
-   * actions is how a route opts out. A presented drawer is modal: `AppShell`
-   * used to guard only its own instance, so `/calendar`'s copy stayed hittable
-   * over the backdrop — measured at 375x812 as `visibility: visible`,
-   * `pointer-events: auto`, and `elementFromPoint(331, 704)` landing on the FAB
-   * rather than on the drawer covering it.
+   * actions is how a route opts out. A presented drawer is modal: the FAB
+   * must not stay hittable over the backdrop.
    */
   if (actions.length === 0 || isDrawerPresented) return null;
 
-  /*
-   * The column is reversed so `actions[0]` lands nearest the thumb: the entry a
-   * caller writes first is the one it most expects to be tapped, and on a phone
-   * "most expected" and "closest to the trigger" have to be the same row.
-   * Arrows therefore follow what the eye sees, not the array — Up climbs away
-   * from the trigger, which is one index forward.
-   */
-  const focusRow = (index: number) => {
-    const wrapped = (index + actions.length) % actions.length;
-    rowsRef.current[wrapped]?.focus();
-  };
-
-  const onRowKeyDown = (event: React.KeyboardEvent, index: number) => {
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      focusRow(index + 1);
-    } else if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      focusRow(index - 1);
-    }
-  };
-
   return (
     <div
-      ref={rootRef}
       // Marker for the toast stack (globals.css): while a FAB owns the
       // bottom-right corner, toasts keep out of it.
       data-quant-fab=""
@@ -181,9 +76,9 @@ export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
       // QM-A11Y-CHROME-HIDDEN-INERT (2026-10-19): a scroll-hidden trigger that
       // stays in the tab order is a focus trap for screen-reader users —
       // TalkBack/VoiceOver can land on an invisible control. `inert` pulls the
-      // whole subtree (trigger + dial rows) out of the tab order and the
-      // accessibility tree while the chrome is collapsed. Mirrors the drawer
-      // + mobile search row pattern in AppShell (`inert={!isDrawerPresented}`).
+      // whole subtree out of the tab order and the accessibility tree while
+      // the chrome is collapsed. Mirrors the drawer + mobile search row
+      // pattern in AppShell (`inert={!isDrawerPresented}`).
       inert={!chromeVisible}
       // Sits above the bottom bar when the chrome is visible; drops to the
       // screen edge when the bar collapses (the bar is in-flow now, so the
@@ -203,57 +98,15 @@ export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
         transition: 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.25s ease-out',
       }}
     >
-      <AnimatePresence>
-        {isDial && isOpen && (
-          <motion.div
-            id={menuId}
-            role="menu"
-            aria-label={label}
-            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 15, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 15, scale: 0.9 }}
-            transition={{ duration: reduceMotion ? 0 : 0.18 }}
-            className="mb-1 flex flex-col-reverse items-end gap-2.5"
-          >
-            {actions.map((action, index) => (
-              <button
-                key={action.id}
-                ref={(node) => {
-                  rowsRef.current[index] = node;
-                }}
-                type="button"
-                role="menuitem"
-                data-fab-action={action.id}
-                onClick={() => {
-                  close(false);
-                  action.onSelect();
-                }}
-                onKeyDown={(event) => onRowKeyDown(event, index)}
-                className={`${ROW_CLASS} ${TONE[action.tone ?? 'ember']}`}
-              >
-                {action.icon}
-                <span>{action.label}</span>
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <button
-        ref={triggerRef}
         type="button"
-        onClick={() => (isDial ? setIsOpen((open) => !open) : actions[0]?.onSelect())}
+        onClick={() => actions[0]?.onSelect()}
         style={{
           background: 'linear-gradient(135deg, var(--app-accent-hover) 0%, var(--app-accent) 55%, var(--app-accent-pressed) 100%)',
           boxShadow: '0 4px 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.18)',
         }}
-        className={`flex size-14 items-center justify-center rounded-full font-black text-[#111111] transition-transform duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] ${
-          isOpen ? 'rotate-45' : ''
-        }`}
-        aria-label={isDial ? label : (actions[0]?.label ?? label)}
-        aria-haspopup={isDial ? 'menu' : undefined}
-        aria-expanded={isDial ? isOpen : undefined}
-        aria-controls={isDial && isOpen ? menuId : undefined}
+        className="flex size-14 items-center justify-center rounded-full font-black text-[#111111] transition-transform duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)]"
+        aria-label={actions[0]?.label ?? label}
       >
         <svg
           className="size-6"

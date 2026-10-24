@@ -571,16 +571,22 @@ export function AppShell({
    * What the shell's create button does, per route. `QuantFab` renders nothing
    * for an empty list, so this table is also the opt-out list:
    *
-   *  - `/calendar` mounts its own `QuantFab` with four entries. Two of these in
-   *    the same corner at the same z-index is the stacking bug that used to make
-   *    a 48px circle sit on top of a 56px one, so the shell stays out of its way.
+   *  - `/calendar` returns an empty list: it has its own create entry in the
+   *    calendar header (`NewEntrySplitButton`, "New event") plus week-view
+   *    quick-create, so no FAB is wanted there. (CORRECTED 2026-10-24: this
+   *    comment used to claim `/calendar` mounted its own four-entry
+   *    `QuantFab` — no second `QuantFab` mount exists; the shell's single
+   *    mount below is the only one. That stale claim is what let the
+   *    dial branch in `QuantFab` survive with zero callers.)
    *  - `/compose`, `/thread` and any nested `settings` screen have nothing to create.
    *  - `/codehub` dispatched `quant:codehub:create`, which nothing in the repo
    *    has ever listened for. That button rendered a `+` and did nothing at all,
    *    so it is gone rather than left there lying.
    *  - Everything else has exactly one create action, so the `+` fires it on the
-   *    first tap. Drive's New Folder already has a mobile home in the toolbar and
-   *    group creation lives in the inbox's Groups lens; neither needs a dial.
+   *    first tap. No route passes two or more actions, so `QuantFab` carries
+   *    no dial path (deleted 2026-10-24): Drive's New Folder already has a
+   *    mobile home in the toolbar and group creation lives in the inbox's
+   *    Groups lens; neither needs a dial.
    */
   const fabActions: FabAction[] = useMemo(() => {
     if (
@@ -732,8 +738,9 @@ export function AppShell({
         Everything modal about the drawer hangs off `isDrawerPresented`, and the
         floating create button is modal-adjacent: it must not be hittable over a
         backdrop. Publishing the flag here rather than guarding `<QuantFab>`
-        inline is what makes that true for the copy `/calendar` mounts inside
-        `{children}` as well as for the shell's own.
+        inline is what makes that true for the shell's own FAB (CORRECTED
+        2026-10-24: no second `/calendar` copy is mounted inside `{children}`
+        — the shell's single `<QuantFab>` below is the only mount).
       */}
         <ShellChromeProvider isDrawerPresented={isDrawerPresented}>
           {sidebar && (
