@@ -296,8 +296,8 @@ class QuantAuthController {
       'id': userId,
       'email': accountEmail,
       'name': userJson['displayName'] ?? userJson['username'] ?? _extractNameFromEmail(accountEmail),
-      'role': userJson['role'] ?? 'Executive Operator',
-      'tier': 'Sovereign Enterprise',
+      // Only what the server sent. The backend has no plan or tier field.
+      if (userJson['role'] is String) 'role': userJson['role'],
     });
 
     try {

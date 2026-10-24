@@ -36,8 +36,8 @@ class QuantUserProfile {
     this.avatarUrl,
     this.isPhoneVerified = false,
     this.phoneNumber,
-    this.role = 'member',
-    this.tier = 'enterprise',
+    this.role = '',
+    this.tier = '',
     this.createdAt,
   });
 
@@ -102,8 +102,8 @@ class QuantUserProfile {
       avatarUrl: json['avatarUrl'] as String? ?? json['avatar'] as String?,
       isPhoneVerified: json['isPhoneVerified'] as bool? ?? json['phoneVerified'] as bool? ?? false,
       phoneNumber: json['phoneNumber'] as String? ?? json['phone'] as String?,
-      role: json['role'] as String? ?? 'member',
-      tier: json['tier'] as String? ?? 'enterprise',
+      role: json['role'] as String? ?? '',
+      tier: json['tier'] as String? ?? '',
       createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'] as String) : null,
     );
   }
@@ -236,18 +236,25 @@ class QuantAuthService {
       final profileRaw = await _secureStorage.read(key: _keyUserProfile);
       final expiresAtRaw = await _secureStorage.read(key: _keyTokenExpiresAt);
 
-      if (accessToken != null && accessToken.isNotEmpty && refreshToken != null && refreshToken.isNotEmpty) {
-        QuantUserProfile profile;
-        if (profileRaw != null) {
-          try {
-            final json = jsonDecode(profileRaw) as Map<String, dynamic>;
-            profile = QuantUserProfile.fromJson(json);
-          } catch (_) {
-            profile = _defaultFallbackProfile();
-          }
-        } else {
-          profile = _defaultFallbackProfile();
+      // A stored session without a readable account is not restored: the app
+      // never invents an identity.
+      QuantUserProfile? storedProfile;
+      if (profileRaw != null) {
+        try {
+          final json = jsonDecode(profileRaw) as Map<String, dynamic>;
+          final parsed = QuantUserProfile.fromJson(json);
+          if (parsed.id.isNotEmpty) storedProfile = parsed;
+        } catch (_) {
+          storedProfile = null;
         }
+      }
+
+      if (accessToken != null &&
+          accessToken.isNotEmpty &&
+          refreshToken != null &&
+          refreshToken.isNotEmpty &&
+          storedProfile != null) {
+        final QuantUserProfile profile = storedProfile;
 
         DateTime? expiresAt;
         if (expiresAtRaw != null) {
@@ -434,16 +441,6 @@ class QuantAuthService {
       sessionNotifier.value = null;
       authStateNotifier.value = QuantAuthState.unauthenticated;
     }
-  }
-
-  QuantUserProfile _defaultFallbackProfile() {
-    return const QuantUserProfile(
-      id: 'usr_default',
-      email: 'user@quantmail.in',
-      name: 'Quant Operator',
-      role: 'member',
-      tier: 'enterprise',
-    );
   }
 
   void dispose() {
