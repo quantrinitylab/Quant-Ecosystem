@@ -205,10 +205,11 @@ export class AISummaryManager {
       const result: AISummaryResult = {
         summary,
         keyPoints,
-        actionItems:
-          actionItems.length > 0
-            ? Array.from(new Set(actionItems))
-            : ['Review document findings with team', 'Verify relevant dates and terms'],
+        // Honest empty state: never invent follow-ups when neither the backend
+        // nor the keypoint heuristic extracted any. The actions tab already
+        // renders "No explicit action items detected" for an empty list, the
+        // tab badge hides, and copy output omits the Action Items section.
+        actionItems: Array.from(new Set(actionItems)),
         entities,
         tokenCount,
       };
