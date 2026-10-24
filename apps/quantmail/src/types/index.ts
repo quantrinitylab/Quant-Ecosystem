@@ -110,6 +110,13 @@ export interface Email extends BaseEntity {
    * tabs/devices. Absent on rows written before the column existed.
    */
   version?: number;
+  /**
+   * fix/qm-accounts-import-corrective-3 (migration 0110): the AUTHORITATIVE
+   * send-as identity id persisted on the row. The backend re-authorizes it
+   * at send time (fail-closed); the /compose page restores the From picker
+   * from it when reopening a draft. Null/absent = the account's own address.
+   */
+  sendAsIdentityId?: string | null;
 }
 
 export interface EmailAttachment extends BaseEntity {

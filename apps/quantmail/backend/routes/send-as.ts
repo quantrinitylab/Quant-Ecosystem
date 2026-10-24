@@ -111,27 +111,13 @@ const publicShape = (row: {
  * Resolve a send-as identity for the compose path. Throws the app error the
  * caller converts to the HTTP response — the composer may stamp the address
  * as From only when the row exists, belongs to the caller, and is verified.
+ *
+ * fix/qm-accounts-import-corrective-3: the implementation moved to
+ * services/send-as-identity.service.ts (services must never import from
+ * routes/, and EmailService.send() re-authorizes at send time from there).
+ * This re-export keeps the existing './send-as' import sites working.
  */
-export async function resolveSendAsIdentity(
-  prisma: PrismaClient,
-  userId: string,
-  sendAsId: string,
-): Promise<{ email: string; displayName: string | null }> {
-  const identity = await (prisma as any).sendAsIdentity.findUnique({
-    where: { id: sendAsId },
-  });
-  if (!identity || identity.userId !== userId) {
-    throw createAppError('Send-as address not found', 404, 'SEND_AS_NOT_FOUND');
-  }
-  if (!identity.verifiedAt) {
-    throw createAppError(
-      'This address is not verified yet — confirm the code sent to it first',
-      403,
-      'SEND_AS_UNVERIFIED',
-    );
-  }
-  return { email: identity.email, displayName: identity.displayName };
-}
+export { resolveSendAsIdentity } from '../services/send-as-identity.service';
 
 export async function sendAsRoutes(fastify: FastifyInstance) {
   // ─── List the caller's identities ─────────────────────────────────────────

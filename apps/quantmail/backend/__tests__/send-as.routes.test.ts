@@ -425,6 +425,13 @@ describe('resolveSendAsIdentity (compose path gate)', () => {
     mocks.prisma.sendAsIdentity.findUnique.mockResolvedValue(verifiedRow());
     await expect(
       resolveSendAsIdentity(mocks.prisma as never, 'user-1', 'sa-1'),
-    ).resolves.toEqual({ email: 'kundan@other-domain.com', displayName: 'Kundan Other' });
+    ).resolves.toEqual({
+      // fix/qm-accounts-import-corrective-3: the resolver returns the row id
+      // too — the compose/update routes persist it as the authoritative
+      // sendAsIdentityId that send() re-authorizes.
+      id: 'sa-1',
+      email: 'kundan@other-domain.com',
+      displayName: 'Kundan Other',
+    });
   });
 });

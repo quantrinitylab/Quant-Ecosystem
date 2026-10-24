@@ -24,9 +24,19 @@
  *     changes nothing.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import React from 'react';
+
+// fix/qm-accounts-import-corrective-3: `next/link` does not resolve under the
+// worktree's pnpm-symlinked node_modules in the vitest worker (environment
+// quirk, not product code) — SSR-render with a stub, like the sibling
+// suites mock next/navigation and next/dynamic.
+vi.mock('next/link', () => ({
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
+}));
 
 import {
   AccountsImportSettings,

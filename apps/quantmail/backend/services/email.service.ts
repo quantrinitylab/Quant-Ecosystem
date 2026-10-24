@@ -15,6 +15,10 @@ import {
   RecipientAttachmentCopier,
   type RecipientAttachmentStore,
 } from './internal-attachments.service';
+// fix/qm-accounts-import-corrective-3: send-time re-authorization of the
+// persisted send-as identity (fail-closed). Kept in services/ — services
+// must never import from routes/.
+import { reauthorizeSendAsIdentity } from './send-as-identity.service';
 
 export type { MutationOptions };
 
@@ -116,6 +120,13 @@ export interface ComposeEmailInput {
    */
   fromAddress?: string;
   fromName?: string | null;
+  /**
+   * fix/qm-accounts-import-corrective-3 (CODEX-REVIEW 6377798303): the
+   * AUTHORITATIVE send-as identity id, persisted on the row so send() can
+   * re-authorize it at send time. The fromAddress/fromName strings above are
+   * only the display copy. Null/omitted = the account's own address.
+   */
+  sendAsId?: string | null;
   /**
    * QM-BACK-002: correlation id for the whole mutation path. Recorded in the
    * `draftCreated` outbox payload (doc 23 correlationId) so downstream
@@ -287,6 +298,10 @@ export class EmailService {  constructor(
           // fix/qm-accounts-import: verified send-as override when present.
           fromAddress,
           fromName,
+          // fix/qm-accounts-import-corrective-3: the authoritative identity
+          // id — send() re-authorizes it at send time (fail-closed), so a
+          // revoke/delete between draft and send can never send stale From.
+          sendAsIdentityId: input.sendAsId ?? null,
           isDraft: true,
           threadId: input.threadId ?? null,
           inReplyTo: input.inReplyTo ?? null,
@@ -347,6 +362,15 @@ export class EmailService {  constructor(
      * badged as a letter in the recipient's inbox.
      */
     messageKind?: MessageKind;
+    /**
+     * fix/qm-accounts-import-corrective-3: the AUTHORITATIVE From for this
+     * delivery (re-authorized at send time). When provided, the recipient
+     * copies carry it verbatim — internal recipients see the identical From
+     * the external envelope carries. When omitted, the sender's own address
+     * is stamped, the behaviour every caller that predates aliases keeps.
+     */
+    fromAddress?: string;
+    fromName?: string | null;
   }): Promise<number> {
     const recipients = Array.from(
       new Set(
@@ -417,6 +441,17 @@ export class EmailService {  constructor(
     const senderName =
       sender?.displayName || sender?.username || senderEmail.split('@')[0] || 'QuantMail User';
 
+    // fix/qm-accounts-import-corrective-3: the authoritative From (a live
+    // send-as identity, re-authorized at send time) overrides the sender's
+    // own address on recipient copies — internal delivery carries the
+    // identical From the external envelope carries. A malformed override
+    // falls back to the sender's own address rather than writing broken From.
+    const copyFromAddress =
+      input.fromAddress && input.fromAddress.includes('@') ? input.fromAddress : senderEmail;
+    const copyFromName = input.fromAddress?.includes('@')
+      ? (input.fromName ?? senderName)
+      : senderName;
+
     const hasAttachments = Array.isArray(input.attachments) && input.attachments.length > 0;
     // A QuantDrive pick is a reference only its owner can open; each recipient gets a copy.
     const attachmentCopies = new RecipientAttachmentCopier({
@@ -448,7 +483,7 @@ export class EmailService {  constructor(
           userId: recipient.id,
           subject: input.subject,
           inReplyTo: input.inReplyTo,
-          participants: [senderEmail, ...input.toAddresses],
+          participants: [copyFromAddress, ...input.toAddresses],
           at: new Date(),
         });
       } catch {
@@ -461,8 +496,8 @@ export class EmailService {  constructor(
           data: {
             userId: recipient.id,
             folderId: inboxFolder?.id ?? null,
-            fromAddress: senderEmail,
-            fromName: senderName,
+            fromAddress: copyFromAddress,
+            fromName: copyFromName,
             toAddresses: input.toAddresses,
             ccAddresses: input.ccAddresses ?? [],
             bccAddresses: [],
@@ -506,7 +541,7 @@ export class EmailService {  constructor(
       // inbound path, so a QuantMail-to-QuantMail message — including a
       // self-send — never got starred/labeled/moved automatically.
       await this.applyRecipientFilters(recipient.id, created.id, {
-        fromAddress: senderEmail,
+        fromAddress: copyFromAddress,
         toAddresses: input.toAddresses,
         subject: input.subject,
         bodyPlain: input.bodyPlain ?? null,
@@ -608,6 +643,22 @@ export class EmailService {  constructor(
 
     if (email.userId !== userId) {
       throw createAppError('Not authorized to send this email', 403, 'FORBIDDEN');
+    }
+
+    // fix/qm-accounts-import-corrective-3 (CODEX-REVIEW 6377798303): the
+    // authoritative identity id persisted at compose/update time is
+    // re-authorized HERE, before any flip or transmit. A revoke/delete of the
+    // identity between draft creation and send is denied fail-closed (403
+    // SEND_AS_REVOKED) — the draft stays a draft and nothing is sent. The
+    // returned email/displayName are the identity's CURRENT values, so the
+    // effective From below can never drift from the live identity row.
+    let effectiveFromAddress = email.fromAddress;
+    let effectiveFromName = email.fromName;
+    const persistedSendAsId = (email as { sendAsIdentityId?: string | null }).sendAsIdentityId;
+    if (persistedSendAsId) {
+      const identity = await reauthorizeSendAsIdentity(this.prisma, userId, persistedSendAsId);
+      effectiveFromAddress = identity.email;
+      effectiveFromName = identity.displayName ?? effectiveFromName;
     }
 
     const sender = await (
@@ -798,6 +849,14 @@ export class EmailService {  constructor(
           folderId: sentFolderId,
           sentAt,
           messageId,
+          // fix/qm-accounts-import-corrective-3: the flip stamps the
+          // AUTHORITATIVE From — the re-authorized identity's current
+          // values, or the row's own strings when no identity is in play.
+          // Internal copies (deliverInternally), the worker's SES transmit,
+          // and every reader of the sent row therefore see identical From
+          // semantics on the internal and external paths.
+          fromAddress: effectiveFromAddress,
+          fromName: effectiveFromName,
           /*
            * A sent copy needs a timeline position, not just a send time.
            *
@@ -866,11 +925,15 @@ export class EmailService {  constructor(
       if (!enqueued && !options?.delayMs && isSesConfigured()) {
         try {
           const fromDomain = process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.in';
-          let fromAddress = email.fromAddress;
+          // fix/qm-accounts-import-corrective-3: the REAL transport binding —
+          // the alias address goes on the SES envelope verbatim. If SES has no
+          // verified identity for it (e.g. an unverified external domain),
+          // SES rejects and the catch below defers honestly: no fake send.
+          let fromAddress = effectiveFromAddress;
           if (!fromAddress || !fromAddress.includes('@')) {
             fromAddress = `${fromAddress || 'noreply'}@${fromDomain}`;
           }
-          const from = email.fromName ? `${email.fromName} <${fromAddress}>` : fromAddress;
+          const from = effectiveFromName ? `${effectiveFromName} <${fromAddress}>` : fromAddress;
 
           const bodyHtmlClean =
             email.bodyHtml && email.bodyHtml.trim().length > 0 ? email.bodyHtml : undefined;
@@ -913,7 +976,16 @@ export class EmailService {  constructor(
           });
           updated = await this.finalizeSendDelivery(emailId, userId, flipped, 'delivered', sentAt, messageId, sendRequestId);
         } catch (error) {
-          deliveryError = error instanceof Error ? error.message : String(error);
+          // fix/qm-accounts-import-corrective-3: the honest fail for the
+          // send-as transport binding. An SES rejection here is typically the
+          // alias not being a verified SES identity (unverified domain) —
+          // the message is NOT claimed delivered; it defers with the real
+          // reason, and the alias that caused it is named so the user can fix
+          // the actual problem instead of retrying blindly.
+          const sendAsNote = persistedSendAsId
+            ? ` (send-as alias ${effectiveFromAddress} not deliverable via SES)`
+            : '';
+          deliveryError = (error instanceof Error ? error.message : String(error)) + sendAsNote;
           /*
            * 'deferred', not 'failed': 'failed' is not a member of the
            * EmailDeliveryStatus enum (draft | queued | sent | deferred |

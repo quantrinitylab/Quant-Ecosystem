@@ -470,6 +470,11 @@ export class DeliveryWorker {
           attachments: ((email as { attachments?: unknown }).attachments as unknown[]) ?? [],
           messageId,
           messageKind: (email as { messageKind?: string }).messageKind as 'MAIL' | 'CHAT' | undefined,
+          // fix/qm-accounts-import-corrective-3: the row carries the send-time
+          // re-authorized From — internal copies see the identical From the
+          // external envelope carries.
+          fromAddress: (email as { fromAddress?: string }).fromAddress,
+          fromName: (email as { fromName?: string | null }).fromName ?? null,
         });
         for (const r of internalAddrs) {
           const persisted = await this.recordAttempt(

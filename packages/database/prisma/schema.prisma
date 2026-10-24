@@ -748,6 +748,18 @@ model Email {
   folderId       String?
   fromAddress    String
   fromName       String?
+  /**
+   * fix/qm-accounts-import-corrective-3 (migration 0110): the AUTHORITATIVE
+   * send-as identity id the composer stamped this message with. The
+   * fromAddress/fromName strings on the row are the display copy; this id is
+   * what EmailService.send() re-authorizes at send time, so a revoke/delete
+   * between draft creation and send is caught (fail-closed) instead of
+   * sending from a stale address string. NULL = the account's own address.
+   * No DB-level foreign key on purpose: deleting an identity must never
+   * cascade to mail, and drafts pointing at a deleted identity must be
+   * denied at send (revoked), not silently re-addressed.
+   */
+  sendAsIdentityId String?
   toAddresses    Json          @default("[]")
   ccAddresses    Json          @default("[]")
   bccAddresses   Json          @default("[]")
