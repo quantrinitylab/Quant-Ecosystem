@@ -2427,7 +2427,9 @@ Required: migrate all consumers to the same one-time server handoff contract; ke
 Dependencies: QM-AUTH-014.
 
 ## QM-PLAT-006 — QuantMail web/mobile implementation divergence audit
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-plat-006-web-mobile-divergence
 Finding: repository contains a Next.js QuantMail surface and a separate Flutter QuantMail workspace. Their screen contracts must be reconciled before claiming all-platform completion.
 Required: shared domain contracts + platform-specific presentation, no duplicate business logic that can drift.
 
