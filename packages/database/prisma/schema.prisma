@@ -5192,6 +5192,13 @@ model DataExportRequest {
   status      DataExportStatus @default(requested)
   artifactRef String?
   error       String?
+  // Durable copy of the v1 inventory manifest produced at completion time
+  // (QM fix for the session-only manifest: before this column, a completed
+  // export's manifest existed only in the build response, so reopening the
+  // settings page after the tab closed showed a dead artifactRef note).
+  // NULL for exports completed before this column existed — those manifests
+  // are genuinely unrecoverable and the UI says so instead of inventing one.
+  manifest    Json?
   requestedAt DateTime         @default(now()) @map("requested_at")
   completedAt DateTime?        @map("completed_at")
 

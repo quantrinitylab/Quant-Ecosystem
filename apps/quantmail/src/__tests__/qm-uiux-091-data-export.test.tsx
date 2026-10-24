@@ -37,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   listDataExports: vi.fn(),
   requestDataExport: vi.fn(),
   buildDataExport: vi.fn(),
+  getDataExport: vi.fn(),
 }));
 
 vi.mock('../services/api-client', () => ({
@@ -44,6 +45,7 @@ vi.mock('../services/api-client', () => ({
     listDataExports: mocks.listDataExports,
     requestDataExport: mocks.requestDataExport,
     buildDataExport: mocks.buildDataExport,
+    getDataExport: mocks.getDataExport,
   },
 }));
 
@@ -70,6 +72,7 @@ const row = (overrides?: Partial<DataExportRequestRecord>): DataExportRequestRec
   status: 'requested',
   artifactRef: null,
   error: null,
+  manifest: null,
   requestedAt: '2026-10-09T10:00:00.000Z',
   completedAt: null,
   ...overrides,
@@ -269,5 +272,90 @@ describe('QM-UIUX-091 DataExportSettings', () => {
 
     expect(mocks.listDataExports).toHaveBeenCalledTimes(2);
     expect(text()).toContain('No exports yet');
+  });
+
+  it('re-shows a stored manifest in a fresh session without any build step', async () => {
+    mocks.listDataExports.mockResolvedValue(
+      ok([
+        row({
+          id: 'exp-done',
+          status: 'completed',
+          artifactRef: 'inline-manifest:exp-done',
+          completedAt: '2026-10-09T10:05:00.000Z',
+          manifest: MANIFEST,
+        }),
+      ]),
+    );
+
+    await renderSection();
+
+    // The counts come from the stored manifest on the list row itself —
+    // this is the tab-closed-and-reopened case the old session-only UI lost.
+    expect(text()).toContain('Completed');
+    expect(text()).toContain('Emails');
+    expect(text()).toContain('12');
+    expect(text()).toContain('Counts only.');
+    expect(mocks.buildDataExport).not.toHaveBeenCalled();
+    expect(mocks.getDataExport).not.toHaveBeenCalled();
+  });
+
+  it('recovers a completed manifest through getDataExport when the list row lacks it', async () => {
+    mocks.listDataExports.mockResolvedValue(
+      ok([
+        row({
+          id: 'exp-done',
+          status: 'completed',
+          artifactRef: 'inline-manifest:exp-done',
+          completedAt: '2026-10-09T10:05:00.000Z',
+        }),
+      ]),
+    );
+    mocks.getDataExport.mockResolvedValue(
+      ok(
+        row({
+          id: 'exp-done',
+          status: 'completed',
+          artifactRef: 'inline-manifest:exp-done',
+          completedAt: '2026-10-09T10:05:00.000Z',
+          manifest: MANIFEST,
+        }),
+      ),
+    );
+
+    await renderSection();
+
+    expect(mocks.getDataExport).toHaveBeenCalledWith('exp-done');
+    expect(text()).toContain('Emails');
+    expect(text()).toContain('12');
+  });
+
+  it('says honestly when a pre-durable completed export has no recoverable manifest', async () => {
+    mocks.listDataExports.mockResolvedValue(
+      ok([
+        row({
+          id: 'exp-old',
+          status: 'completed',
+          artifactRef: 'inline-manifest:exp-old',
+          completedAt: '2026-10-09T10:05:00.000Z',
+        }),
+      ]),
+    );
+    mocks.getDataExport.mockResolvedValue(
+      ok(
+        row({
+          id: 'exp-old',
+          status: 'completed',
+          artifactRef: 'inline-manifest:exp-old',
+          completedAt: '2026-10-09T10:05:00.000Z',
+        }),
+      ),
+    );
+
+    await renderSection();
+
+    expect(text()).toContain('Completed');
+    expect(text()).toContain('inline-manifest:exp-old');
+    expect(text()).toContain('no longer available');
+    expect(text()).toContain('request a new export');
   });
 });

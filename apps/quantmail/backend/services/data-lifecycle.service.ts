@@ -316,13 +316,19 @@ export async function generateInventoryManifest(
 
 /**
  * Mark an export complete — ONLY after the artifact was actually produced.
- * Emits `data.export.completed.v1` with the artifact pointer.
+ * Emits `data.export.completed.v1` with the artifact pointer. When the build's
+ * inventory manifest is passed, it is stored on the request row in the same
+ * transaction, so the manifest survives the generating session: any later
+ * GET /exports or GET /exports/:id returns it. The parameter stays optional
+ * so older call sites (and exports completed before the manifest column
+ * existed) keep working — they simply have no stored manifest to re-show.
  */
 export async function completeDataExport(
   db: LifecycleDb,
   exportId: string,
   actor: string,
   artifactRef: string,
+  manifest?: Record<string, unknown>,
 ): Promise<void> {
   await db.$transaction(async (tx) => {
     const req = await tx.dataExportRequest.findUnique({ where: { id: exportId } });
@@ -332,7 +338,12 @@ export async function completeDataExport(
     }
     await tx.dataExportRequest.update({
       where: { id: exportId },
-      data: { status: 'completed', artifactRef, completedAt: new Date() },
+      data: {
+        status: 'completed',
+        artifactRef,
+        completedAt: new Date(),
+        ...(manifest !== undefined ? { manifest } : {}),
+      },
     });
     const operation = await tx.lifecycleOperation.create({
       data: {

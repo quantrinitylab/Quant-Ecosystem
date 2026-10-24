@@ -409,12 +409,29 @@ describe('QM-BACK-006 data-lifecycle events', () => {
     expect((manifest.classes as Row).contacts).toMatchObject({ count: 7 });
     expect((manifest.classes as Row).driveFiles).toMatchObject({ count: 11 });
 
-    await completeDataExport(db as never, exportId, 'user-1', `inline-manifest:${exportId}`);
+    await completeDataExport(
+      db as never,
+      exportId,
+      'user-1',
+      `inline-manifest:${exportId}`,
+      manifest,
+    );
     const types = db.outbox.map((e) => e.eventType);
     expect(types).toEqual([LifecycleEvents.exportRequested, LifecycleEvents.exportCompleted]);
     expect((db.outbox[1].payload as Row).artifactRef).toBe(`inline-manifest:${exportId}`);
     const req = db.exportRequests.get(exportId);
     expect(req?.status).toBe('completed');
+    // Durable manifest: completion persists the manifest on the row, so a
+    // later session can re-show it instead of only the generating session.
+    expect(req?.manifest).toEqual(manifest);
+  });
+
+  it('export: completing without a manifest leaves the row without one (back-compat)', async () => {
+    const { exportId } = await requestDataExport(db as never, 'user-1');
+    await completeDataExport(db as never, exportId, 'user-1', `inline-manifest:${exportId}`);
+    const req = db.exportRequests.get(exportId);
+    expect(req?.status).toBe('completed');
+    expect(req?.manifest).toBeUndefined();
   });
 
   it('export: build failure is recorded as failed, never silent', async () => {

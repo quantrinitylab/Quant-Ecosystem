@@ -80,7 +80,9 @@ export default async function dataLifecycleRoutes(fastify: FastifyInstance) {
 
   // POST /data-lifecycle/exports/:id/build — generate the artifact and complete.
   // v1 artifact: a data-inventory manifest from live DB counts (M15 "what data
-  // exists"). Delivered inline; artifactRef records the delivery.
+  // exists"). Delivered inline AND persisted on the request row via
+  // completeDataExport, so GET /exports and GET /exports/:id re-serve the same
+  // manifest in any later session — it is no longer session-only.
   fastify.post<{ Params: { id: string } }>('/exports/:id/build', async (request, reply) => {
     const userId = requireUserId(request);
     const prisma = requirePrisma(fastify);
@@ -106,7 +108,7 @@ export default async function dataLifecycleRoutes(fastify: FastifyInstance) {
         ),
       );
       const artifactRef = `inline-manifest:${exportId}`;
-      await completeDataExport(prisma, exportId, userId, artifactRef);
+      await completeDataExport(prisma, exportId, userId, artifactRef, manifest);
       return reply.send({ success: true, data: { exportId, status: 'completed', artifactRef, manifest } });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Export build failed';
