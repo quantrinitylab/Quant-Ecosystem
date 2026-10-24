@@ -30,6 +30,45 @@ export const refreshCookieOptions = () => ({
   maxAge: REFRESH_TOKEN_TTL_SECONDS,
 });
 
+// The short-lived access credential as an HttpOnly cookie.
+// fix/qm-quantgit-repos-401-cookie-3: the global auth hook
+// (packages/server-core/src/plugins/auth.ts) already accepts a
+// `quant_access_token` cookie, but NO session issuance ever wrote one — the
+// browser's only durable credential was the refresh cookie, so every
+// cookie-only request (a raw fetch with credentials, a deep link after a
+// full reload, any cookie-only client) 401'd with "Missing or invalid
+// authorization header" despite holding a valid session, and signed-in
+// /quantgit rendered "0 ACTIVE / No repositories yet". Issuing the SAME
+// access token the JSON body already carries (15-minute lifetime, HttpOnly,
+// SameSite=Strict, Path=/) completes that path: no new credential, no new
+// privilege — the cookie is strictly safer than the in-memory bearer
+// (JavaScript cannot read it), and SameSite=Strict keeps cross-site
+// mutation CSRF out (cross-site requests never carry it). The cookie's
+// Max-Age tracks the token's own expiresIn so a stale cookie never
+// outlives the token it carries. A refresh credential must still never act
+// as an access credential — only the access token goes in this cookie.
+export const ACCESS_COOKIE_NAME = 'quant_access_token';
+export const ACCESS_COOKIE_PATH = '/';
+
+export const accessCookieOptions = (maxAgeSeconds: number) => ({
+  httpOnly: true,
+  secure: process.env['NODE_ENV'] === 'production',
+  sameSite: 'strict' as const,
+  path: ACCESS_COOKIE_PATH,
+  maxAge: maxAgeSeconds,
+});
+
+export const setAccessCookie = (reply: any, token: string, maxAgeSeconds: number) =>
+  reply.setCookie(ACCESS_COOKIE_NAME, token, accessCookieOptions(maxAgeSeconds));
+
+export const clearAccessCookie = (reply: any) =>
+  reply.clearCookie(ACCESS_COOKIE_NAME, {
+    path: ACCESS_COOKIE_PATH,
+    httpOnly: true,
+    secure: process.env['NODE_ENV'] === 'production',
+    sameSite: 'strict',
+  });
+
 export const configuredOrigins = (): Set<string> =>
   new Set(
     (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000')
@@ -151,6 +190,12 @@ export async function issueBrowserSession(
   );
 
   setRefreshCookie(reply, tokens.refreshToken);
+  // fix/qm-quantgit-repos-401-cookie-3: also park the access token in the
+  // HttpOnly cookie the global auth hook already reads, so a browser session
+  // stays authenticated for cookie-only requests (deep links, full reloads)
+  // instead of 401ing until a refresh round trip re-mints the in-memory
+  // bearer. Same token as the JSON body — no new credential.
+  setAccessCookie(reply, tokens.accessToken, tokens.expiresIn);
 
   return {
     success: true,
