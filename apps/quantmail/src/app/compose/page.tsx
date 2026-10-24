@@ -6,7 +6,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { EmailComposer } from '../../components/EmailComposer';
-import type { ComposerMessageData } from '../../components/EmailComposer';
+import type { Attachment, ComposerMessageData } from '../../components/EmailComposer';
+import {
+  carryForwardAttachments,
+  type ForwardDroppedAttachment,
+} from '../../lib/forward-attachments';
+import { loadAttachmentBytes } from '../../lib/mail-attachments';
 import { showToast } from '../../components/InboxToast';
 import { buildReplyQuote, stripTrailingSignature } from '../../lib/email-body';
 import { filterValidRecipients } from '../../lib/email-validation';
@@ -399,6 +404,88 @@ export default function ComposePage() {
     }
   }, [router]);
 
+  // Forward attachment carryover (fix/qm-forward-attachments-carryover):
+  // `?forward=<id>` used to send with zero attachments and no warning —
+  // nothing ever read the original's attachments. Fetch the original (same
+  // message-first, thread-latest fallback as the reply loader above, so a
+  // thread id from the thread view's forward action works too) and carry
+  // its files into the composer as data-URL attachments, exactly like fresh
+  // local picks, so the existing draft/save/send path persists and delivers
+  // them. A reply always wins over a forward, and a restored draft owns its
+  // own attachments, so both skip the carryover.
+  //
+  // Deliberately NOT held behind the page loading gate: the composer's
+  // `initialAttachments` applies exactly once by appending, so a carryover
+  // landing after the user started typing or attaching cannot clobber
+  // anything. Files that cannot be carried over are NOT silent: they land
+  // in `forwardAttachmentWarnings` and render persistently inside the
+  // composer body, naming each file and why — the sender decides whether to
+  // send without them or re-attach from the original.
+  const [forwardAttachments, setForwardAttachments] = useState<Attachment[] | null>(null);
+  const [forwardAttachmentWarnings, setForwardAttachmentWarnings] = useState<
+    ForwardDroppedAttachment[] | null
+  >(null);
+
+  useEffect(() => {
+    if (!forwardId || replyTo || draftId || draftData) {
+      return;
+    }
+    let active = true;
+    const loadForwardAttachments = async () => {
+      const resolveOriginal = async (): Promise<{
+        attachments?: unknown;
+      } | null> => {
+        try {
+          const one = await apiClient.getEmail(forwardId);
+          if (one.success && one.data) return one.data;
+        } catch {
+          // Fall through to the thread lookup below.
+        }
+        try {
+          const thread = await apiClient.getThread(forwardId);
+          if (!thread.success || !thread.data?.messages?.length) return null;
+          const latest = [...thread.data.messages].sort(
+            (a, b) =>
+              new Date(b.receivedAt ?? b.createdAt ?? 0).getTime() -
+              new Date(a.receivedAt ?? a.createdAt ?? 0).getTime(),
+          )[0];
+          return latest ?? null;
+        } catch {
+          return null;
+        }
+      };
+      const original = await resolveOriginal();
+      if (!active) return;
+      if (!original) {
+        // The original itself could not be loaded, so its attachments
+        // cannot be verified either — say so instead of sending bare.
+        setForwardAttachmentWarnings([
+          {
+            filename: 'Original message',
+            reason:
+              'it could not be loaded, so its attachments could not be carried over',
+          },
+        ]);
+        return;
+      }
+      const raw = Array.isArray(original.attachments)
+        ? original.attachments
+        : [];
+      if (raw.length === 0) return;
+      const { carried, dropped } = await carryForwardAttachments(
+        raw,
+        (source) => loadAttachmentBytes(source),
+      );
+      if (!active) return;
+      if (carried.length > 0) setForwardAttachments(carried);
+      if (dropped.length > 0) setForwardAttachmentWarnings(dropped);
+    };
+    void loadForwardAttachments();
+    return () => {
+      active = false;
+    };
+  }, [forwardId, replyTo, draftId, draftData]);
+
   // No page-level edge swipe: it used to call handleDiscard, so a stray swipe
   // from the left edge DELETED the draft with no prompt. The composer owns the
   // gesture now and treats it as Back — save the draft, then leave.
@@ -445,6 +532,11 @@ export default function ComposePage() {
           // `?draftId=`) wins, then an explicit `?body=`, then the fetched
           // reply quote; a failed quote load honestly stays blank.
           initialBody={draftData?.body ?? prefillBody ?? quoteBody ?? undefined}
+          // Carried-over forwarded attachments (null until loaded, or when
+          // the original had none) — the composer appends them exactly once.
+          // Warnings render persistently inside the composer body.
+          initialAttachments={forwardAttachments ?? undefined}
+          initialAttachmentWarnings={forwardAttachmentWarnings ?? undefined}
           inReplyTo={replyTo || undefined}
           onSend={handleSend}
           onSaveDraft={handleSaveDraft}
