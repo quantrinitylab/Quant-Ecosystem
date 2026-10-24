@@ -336,6 +336,26 @@ export interface OAuthGrant {
 }
 
 /**
+ * fix/qm-accounts-import — a send-mail-as identity.
+ *
+ * `verified` is the only activation signal the composer honours: an
+ * unverified row can never become a message's From. `pendingVerification`
+ * and `codeDelivered` appear only on the POST (add) response — a resend
+ * answer that says "sent" when SES never accepted it would be the same lie
+ * the recovery flow refuses to tell.
+ */
+export interface SendAsIdentity {
+  id: string;
+  email: string;
+  displayName: string | null;
+  verified: boolean;
+  verifiedAt: string | null;
+  createdAt: string;
+  pendingVerification?: boolean;
+  codeDelivered?: boolean;
+}
+
+/**
  * A personal access token row. The token VALUE is never returned here — the
  * backend only hands it out once, inside the POST /settings/tokens response.
  */
@@ -868,6 +888,40 @@ export class QuantMailApiClient {
    */
   async revokeOAuthGrant(clientId: string): Promise<ApiResponse<{ revoked: boolean }>> {
     return this.delete(`/oauth/grants/${encodeURIComponent(clientId)}`);
+  }
+
+  // --------------------------------------------------------------------------
+  // Send-mail-as identities (fix/qm-accounts-import)
+  //
+  // Backs Settings → Account → "Accounts and Import". The composer stamps a
+  // verified identity as the message's From; unverified rows are inert.
+  // --------------------------------------------------------------------------
+
+  async getSendAsIdentities(): Promise<ApiResponse<SendAsIdentity[]>> {
+    return this.get('/settings/send-as');
+  }
+
+  /**
+   * Add an address. It starts UNVERIFIED — a 6-digit code is mailed to the
+   * address itself, and only `verifySendAsIdentity` with that code activates
+   * it. The response carries `codeDelivered` so the UI can say "not sent"
+   * honestly when SES never accepted the message.
+   */
+  async addSendAsIdentity(
+    email: string,
+    displayName?: string,
+  ): Promise<ApiResponse<SendAsIdentity>> {
+    return this.post('/settings/send-as', { email, displayName });
+  }
+
+  /** Consume the code mailed to the address and activate it as a From. */
+  async verifySendAsIdentity(id: string, code: string): Promise<ApiResponse<SendAsIdentity>> {
+    return this.post(`/settings/send-as/${encodeURIComponent(id)}/verify`, { code });
+  }
+
+  /** Remove an identity (ownership-checked server-side). */
+  async deleteSendAsIdentity(id: string): Promise<ApiResponse<{ removed: boolean }>> {
+    return this.delete(`/settings/send-as/${encodeURIComponent(id)}`);
   }
 
   // --------------------------------------------------------------------------

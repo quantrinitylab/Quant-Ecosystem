@@ -110,6 +110,13 @@ export interface Email extends BaseEntity {
    * tabs/devices. Absent on rows written before the column existed.
    */
   version?: number;
+  /**
+   * fix/qm-accounts-import-corrective-3 (migration 0110): the AUTHORITATIVE
+   * send-as identity id persisted on the row. The backend re-authorizes it
+   * at send time (fail-closed); the /compose page restores the From picker
+   * from it when reopening a draft. Null/absent = the account's own address.
+   */
+  sendAsIdentityId?: string | null;
 }
 
 export interface EmailAttachment extends BaseEntity {
@@ -197,6 +204,12 @@ export interface ComposeEmailRequest {
    * still sends tracked mail; pass false only from an explicit user toggle.
    */
   trackOpens?: boolean;
+  /**
+   * fix/qm-accounts-import: verified send-as identity id to stamp as the
+   * message's From. Omitted = the account's own address. An explicit null on
+   * a draft update reverts the From back to the account's own address.
+   */
+  sendAsId?: string | null;
 }
 
 export interface SearchEmailRequest {

@@ -20,6 +20,7 @@ import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
 import { ServerDraftRef, saveServerDraft } from '../lib/serverDraft';
+import { SendAsFromRow } from './SendAsFromRow';
 import { DraftBroadcast, draftShareKey } from '../lib/draftBroadcast';
 import { parseEmailString, dedupeRecipientPayload, type RecipientOption } from './RecipientChipInput';
 import { filterValidRecipients, getInvalidRecipientReason } from '../lib/email-validation';
@@ -129,6 +130,14 @@ export interface ComposerMessageData {
   priority?: 'low' | 'normal' | 'high';
   scheduledAt?: string;
   attachments?: Attachment[];
+  /**
+   * fix/qm-accounts-import-corrective-3 (CODEX-REVIEW 6377798303): the
+   * verified send-as identity id the composer picked in the From row (null =
+   * the account's own address). Carried on BOTH the host-callback payloads
+   * (onSend/onSaveDraft) and the composer's own compose/autosave payloads —
+   * the principal /compose journey previously dropped it on the host path.
+   */
+  sendAsId?: string | null;
 }
 
 /**
@@ -217,6 +226,14 @@ export interface EmailComposerProps {
   initialSubject?: string;
   initialBody?: string;
   initialReplyToId?: string;
+  /**
+   * fix/qm-accounts-import-corrective-3: the send-as identity id a reopened
+   * draft was saved with (the row's authoritative sendAsIdentityId). The
+   * composer restores the From picker's choice from it so
+   * save → reopen → send keeps the alias instead of silently reverting to
+   * the account's own address.
+   */
+  initialSendAsId?: string | null;
   inReplyTo?: string;
   onSend?: (data: any) => Promise<void>;
   onSaveDraft?: (data: any) => Promise<void>;
@@ -434,6 +451,7 @@ export function EmailComposer({
   initialSubject = '',
   initialBody = '',
   initialReplyToId,
+  initialSendAsId = null,
   inReplyTo,
   onSend,
   onSaveDraft,
@@ -482,6 +500,22 @@ export function EmailComposer({
   const [closing, setClosing] = useState('Thank you for your time.');
   const [signoff, setSignoff] = useState('Best regards,');
   const [senderName, setSenderName] = useState(authUser?.displayName || '');
+  // fix/qm-accounts-import: verified send-as identity id chosen in the From
+  // row (null = the account's own address). Travels on every compose and
+  // draft-update payload so the stored From follows the picker's choice.
+  // fix/qm-accounts-import-corrective-3: initialized from initialSendAsId so
+  // a reopened draft restores the picker's choice (save → reopen → send).
+  const [sendAsId, setSendAsId] = useState<string | null>(initialSendAsId ?? null);
+
+  // A draft arriving late (the page fetches ?draftId= after mount) restores
+  // the From picker the same way initialSubject restores the subject: the
+  // server row's authoritative identity id is the source of truth, so a
+  // reopened alias draft keeps sending as the alias.
+  useEffect(() => {
+    if (initialSendAsId !== undefined) {
+      setSendAsId(initialSendAsId ?? null);
+    }
+  }, [initialSendAsId]);
   const [customDetails, setCustomDetails] = useState<string[]>([]);
 
   useEffect(() => {
@@ -1153,6 +1187,10 @@ export function EmailComposer({
       attachments: [...attachments],
       scheduledAt,
       replyToId: inReplyTo || initialReplyToId,
+      // fix/qm-accounts-import-corrective-3: the undo-restore snapshot carries
+      // the From picker's choice — undoing a send then resending must not
+      // silently revert the alias.
+      sendAsId,
     };
 
     // QM-SCREEN-012 R2: dedupe by address — the recipient rows can hold a
@@ -1259,6 +1297,11 @@ export function EmailComposer({
             // fix/qm-composer-open-tracking-2: the host page sends through its
             // own path — carry the composer's tracking choice along.
             trackOpens,
+            // fix/qm-accounts-import-corrective-3 (CODEX-REVIEW 6377798303):
+            // the principal /compose journey dropped the selected identity on
+            // the host path — the From picker's choice now travels to the
+            // host so compose/update persist the authoritative identity id.
+            sendAsId,
           });
         } else {
           // A chat message is a thread start, not a letter: the backend
@@ -1279,6 +1322,9 @@ export function EmailComposer({
             messageKind: initialMessageKind,
             // fix/qm-composer-open-tracking-2: per-composer beacon opt-out.
             trackOpens,
+            // fix/qm-accounts-import: verified send-as identity (null = the
+            // account's own address; the backend treats absent/null the same).
+            sendAsId,
           };
           // Reuse the autosaved server draft when one exists instead of
           // orphaning it with a fresh compose (a duplicate draft left in
@@ -1526,6 +1572,11 @@ export function EmailComposer({
           // fix/qm-composer-open-tracking-2: persist the tracking choice with
           // the draft so send() honors it without extra plumbing.
           trackOpens,
+          // fix/qm-accounts-import-corrective-3 (CODEX-REVIEW 6377798303):
+          // the host path (the /compose page's onSaveDraft adapter) dropped
+          // the From picker's choice — autosave/update now carry sendAsId so
+          // the stored row keeps the authoritative identity id.
+          sendAsId,
         });
       } else {
         // A recipient is the only hard requirement (subject optional, #1126).
@@ -1542,6 +1593,9 @@ export function EmailComposer({
           messageKind: initialMessageKind,
           // fix/qm-composer-open-tracking-2: per-composer beacon opt-out.
           trackOpens,
+          // fix/qm-accounts-import: the From picker's choice follows the
+          // draft through autosave so the stored From is what was picked.
+          sendAsId,
         };
         const ref = fallbackDraftRef.current;
         fallbackConflictDuringSaveRef.current = false;
@@ -1596,6 +1650,10 @@ export function EmailComposer({
         signoff,
         senderName,
         customDetails,
+        // fix/qm-accounts-import-corrective-3: the From picker's choice marks
+        // the draft dirty, so selecting an alias autosaves it — otherwise the
+        // pick would never reach the server before a host-path send.
+        sendAsId,
         attachments: attachments.map((a) => a.id ?? a.filename),
       }),
     [
@@ -1610,6 +1668,7 @@ export function EmailComposer({
       signoff,
       senderName,
       customDetails,
+      sendAsId,
       attachments,
     ],
   );
@@ -2181,6 +2240,14 @@ export function EmailComposer({
           <div className="print:hidden flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border flex flex-col">
             {/* Recipient Rows (To, Cc, Bcc) */}
             <div className="pb-2 space-y-2 w-full max-w-full">
+              {/* fix/qm-accounts-import: From row. Renders nothing unless the
+                  user has at least one verified send-as alias. */}
+              <SendAsFromRow
+                value={sendAsId}
+                onChange={setSendAsId}
+                primaryEmail={authUser?.email || ''}
+                primaryName={senderName || authUser?.displayName || ''}
+              />
               {/* To: Row */}
               <ComposerRecipientField
                 id="composer-to"
