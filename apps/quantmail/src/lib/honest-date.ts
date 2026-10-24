@@ -58,6 +58,19 @@ export function formatDetailDate(message: DatedMessage, fallback = 'Unknown date
  * phone that number sat in the action cluster and squeezed the subject into
  * a column that wrapped over three lines.
  */
+/**
+ * Machine-readable ISO-8601 for a `<time dateTime={...}>` attribute.
+ * `Date.prototype.toISOString()` THROWS a RangeError on an invalid date
+ * (unlike `getTime()`, which merely returns NaN), so an unguarded
+ * `new Date(thread.receivedAt).toISOString()` crashed the whole inbox row
+ * render for a thread with a bad timestamp. Returns undefined for missing
+ * or unparseable input — React then omits the attribute — never throws.
+ */
+export function safeISODateTime(value: DateLike): string | undefined {
+  const date = toValidDate(value);
+  return date ? date.toISOString() : undefined;
+}
+
 export function formatListDate(value: DateLike, now: Date = new Date()): string {
   const date = toValidDate(value);
   if (!date) return '';

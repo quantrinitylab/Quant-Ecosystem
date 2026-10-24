@@ -63,6 +63,7 @@ import {
   threadMessageIds,
   type ConversationThread,
 } from '../lib/threading';
+import { safeISODateTime } from '../lib/honest-date';
 import { useAuth } from '../providers/auth-provider';
 import { useContactDirectory } from '../hooks/useContacts';
 import {
@@ -228,6 +229,9 @@ const INBOX_FILTERS: Array<{ key: InboxFilter; label: string }> = [
 function formatReceivedAt(value?: string | Date) {
   if (!value) return '';
   const date = new Date(value);
+  // Same family as formatMessageTime: an unparseable receivedAt degrades to
+  // an empty string — never the literal "Invalid Date" under the row.
+  if (Number.isNaN(date.getTime())) return '';
   const today = new Date();
   if (date.toDateString() === today.toDateString()) {
     // `numeric`, not `2-digit`: "1:53 PM", the way Gmail and the clock write it.
@@ -741,7 +745,10 @@ function EmailRow({
             {!thread.isRead && <UnreadCountPill count={thread.unreadCount} />}
             {/* P2-3: badge renders for all three mixes (mail/chat/mixed). */}
             {<ThreadKindBadge mix={thread.kindMix} />}
-            <time dateTime={new Date(thread.receivedAt).toISOString()}>
+            {/* P1 [thread-people]: dateTime uses the guarded helper — a raw
+                toISOString() THROWS on an unparseable receivedAt and took the
+                whole row down; undefined omits the attribute instead. */}
+            <time dateTime={safeISODateTime(thread.receivedAt)}>
               {formatReceivedAt(thread.receivedAt)}
             </time>
           </div>
@@ -4090,9 +4097,9 @@ function InboxPageContent() {
                                   {matchingThread && (
                                     <time
                                       className="shrink-0 text-[10px] text-[var(--quant-muted-foreground)]"
-                                      dateTime={new Date(
+                                      dateTime={safeISODateTime(
                                         matchingThread.receivedAt,
-                                      ).toISOString()}
+                                      )}
                                     >
                                       {formatReceivedAt(matchingThread.receivedAt)}
                                     </time>
