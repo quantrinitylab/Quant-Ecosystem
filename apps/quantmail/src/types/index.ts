@@ -197,6 +197,12 @@ export interface ComposeEmailRequest {
    * still sends tracked mail; pass false only from an explicit user toggle.
    */
   trackOpens?: boolean;
+  /**
+   * fix/qm-accounts-import: verified send-as identity id to stamp as the
+   * message's From. Omitted = the account's own address. An explicit null on
+   * a draft update reverts the From back to the account's own address.
+   */
+  sendAsId?: string | null;
 }
 
 export interface SearchEmailRequest {
