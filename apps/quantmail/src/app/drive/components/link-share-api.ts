@@ -32,8 +32,12 @@ export interface LinkFormValues {
   role: LinkRole;
   /** YYYY-MM-DD from the date picker, or null for "no expiry". */
   expiresDate: string | null;
-  /** QM-M39-006 (disable-download): applies to viewer-role links only. */
-  disableDownload: boolean;
+  /**
+   * QM-M39-006 (disable-download): applies to viewer-role links only.
+   * Optional — callers that never set it get the backend default (false),
+   * so compose-time link creation stays download-enabled.
+   */
+  disableDownload?: boolean;
 }
 
 async function readError(res: Response, fallback: string): Promise<Error> {

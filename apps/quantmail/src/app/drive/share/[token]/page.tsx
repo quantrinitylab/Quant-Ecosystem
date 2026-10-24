@@ -51,7 +51,8 @@ function formatDate(iso: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleString();
 }
 
-function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive-file' }; token: string }) {
+/** Exported for unit tests (honest-copy checks via renderToStaticMarkup). */
+export function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive-file' }; token: string }) {
   const { file } = share;
   const [password, setPassword] = useState('');
   const [passwordHint, setPasswordHint] = useState<string | null>(null);
@@ -183,12 +184,16 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
           {textPreviewState === 'loading' && <Skeleton variant="rect" width="100%" height="120px" />}
           {textPreviewState === 'error' && (
             <p className="text-xs text-[var(--quant-muted-foreground)]">
-              Preview failed to load — download the file to read it.
+              {downloadBlocked
+                ? 'Preview failed to load — ask the owner to share the file another way.'
+                : 'Preview failed to load — download the file to read it.'}
             </p>
           )}
           {textPreviewState === 'too-large' && (
             <p className="text-xs text-[var(--quant-muted-foreground)]">
-              This file is too large to preview here — download it to read it.
+              {downloadBlocked
+                ? 'This file is too large to preview here — ask the owner for another way to read it.'
+                : 'This file is too large to preview here — download it to read it.'}
             </p>
           )}
           {textPreviewState === 'idle' && textPreview !== null && (
@@ -200,7 +205,9 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
       )}
       {previewKind === null && (
         <p className="mt-5 text-center text-xs text-[var(--quant-muted-foreground)]">
-          Preview isn&apos;t available for this file type — download it to view.
+          {downloadBlocked
+            ? 'Preview isn\u2019t available for this file type, and the owner disabled downloading — ask the owner for access.'
+            : 'Preview isn\u2019t available for this file type — download it to view.'}
         </p>
       )}
 
