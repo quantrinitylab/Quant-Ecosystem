@@ -34,6 +34,17 @@ export interface ContextSubTab {
   badgeText?: string;
   targetPath?: string;
   queryParam?: { key: string; value: string };
+  /**
+   * QM-INBOX-NAV-VIEW (2026-10-24, P1 [inbox-nav]): a tab may need MORE
+   * than one query param. The root route renders PeopleHome unless
+   * `?view=inbox` is present (app/page.tsx RootPage), so the Inbox tab
+   * must carry BOTH `view=inbox` AND `lens=all` — a single `queryParam`
+   * can only express one of them, which is exactly how the desktop tab
+   * ended up as `/?lens=all` (People view) and the mobile tab as `/`
+   * (also People view). `queryParams` wins over `queryParam` when both
+   * are set; single-param tabs keep using `queryParam` unchanged.
+   */
+  queryParams?: Array<{ key: string; value: string }>;
   ariaLabel?: string;
   description?: string;
   /** When true, tapping opens the Quanty AI cockpit instead of navigating. */
@@ -779,7 +790,16 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         label: 'Inbox',
         icon: InboxIcon,
         targetPath: '/',
-        queryParam: { key: 'lens', value: 'all' },
+        // QM-INBOX-NAV-VIEW (2026-10-24, P1 [inbox-nav]): this tab used
+        // to carry ONLY `lens=all` (`/?lens=all`), and RootPage renders
+        // PeopleHome unless `?view=inbox` is present — so "Inbox" opened
+        // the People view and the classic inbox had no click path. It now
+        // carries both params: `/?view=inbox&lens=all` (lens=all resets
+        // any spam/other lens, exactly as the old single param did).
+        queryParams: [
+          { key: 'view', value: 'inbox' },
+          { key: 'lens', value: 'all' },
+        ],
       },
       {
         // QM-UIUX-082: the Sent folder was unreachable from this left nav —
@@ -1143,9 +1163,12 @@ export function executeContextTabClick(
 
   const targetBase = tab.targetPath || (pillar === 'mail' ? '/' : `/${pillar}`);
   let targetUrl = targetBase;
-  if (tab.queryParam) {
+  // QM-INBOX-NAV-VIEW: a tab may carry several params (Inbox needs
+  // `view=inbox&lens=all`); `queryParams` wins over the single `queryParam`.
+  const allParams = tab.queryParams?.length ? tab.queryParams : tab.queryParam ? [tab.queryParam] : [];
+  for (const param of allParams) {
     const sep = targetUrl.includes('?') ? '&' : '?';
-    targetUrl = `${targetUrl}${sep}${tab.queryParam.key}=${tab.queryParam.value}`;
+    targetUrl = `${targetUrl}${sep}${param.key}=${param.value}`;
   }
 
   // QM-DEAD-INBOX-TAB-SPAM-LENS (2026-10-16): compare the FULL current URL
