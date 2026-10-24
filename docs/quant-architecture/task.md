@@ -6161,3 +6161,9 @@ FRESH HUNT CLEAN: 0 lorem/coming-soon/dummy/mock-user/fake-user/dummy-data/#FF8C
 LIVE HEALTHY, VISUAL VERIFIED: proxy 127.0.0.1:8888 healthy (204 0.58s, no restart); /login /register /forgot-password /sso /login?returnTo=%2Fsettings -> 200 x5 (no redirect loop); POST /api/sso/ticket/mint -> honest 401; POST /api/auth/2fa/verify -> honest 403 — all match R36 baseline. Desktop 1440x900 (9334) /login + /register shots REVIEWED + mobile 390x844 (iPhone 14, port 9401) /login shot REVIEWED: pure black, mail-orange, current clay M-mark, honest tri-cards (no "drafts the reply"), Help/Privacy/Terms footer, (c) 2026, zero old-logo flash; /register shows NO phone field (P0 #872 removal holds live). Shots + snapshot deleted; tools cleaned their own chrome dirs (zero live chromes verified via pgrep before/after); /tmp healthy. Signed-in flows = needs-auth. #1243 deploy hold ACTIVE (cat-verified hidden_files/orchestrator/deploy-hold.txt) — nothing to deploy.
 NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents (protocol P0/P1-only; subagent.list 0 active at start and end). findings.md untouched.
 Rotation -> QM-SCREEN-003 (shell) ROUND 37 regression, queued.
+
+## QM-SCREEN-003 R37 - Workspace shell / navigation / account switcher / command palette (LANE-1)
+Status: [~] IN PROGRESS - claim 2026-10-24 ~09:36 IST
+Owner: LANE-1
+Branch: lane1-audit-003r37
+Base: origin/main e91cd548a19b (fresh fetch; zero new main merges vs R36 base - pure re-verification + fresh hunt)
