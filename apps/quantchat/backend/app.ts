@@ -1,283 +1,257 @@
-import { createApp, requiresRealSecret } from '@quant/server-core';
-import type { AppConfig } from '@quant/server-core';
-import type { PrismaClient } from '@prisma/client';
-import messagesRoutes from './routes/messages';
-import conversationsRoutes from './routes/conversations';
-import searchRoutes from './routes/search';
-import encryptionRoutes from './routes/encryption';
-import e2eeRoutes from './routes/e2ee';
-import e2eePreKeyRoutes from './routes/e2ee-prekeys';
-import prekeysRoutes from './routes/prekeys';
-import federationRoutes, { createFederationService } from './routes/federation';
-import arLensesRoutes, { createArLensesService } from './routes/ar-lenses';
-import mediaRoutes from './routes/media';
-import callsRoutes from './routes/calls';
-import aiRoutes from './routes/ai';
-import aiAgentRoutes from './routes/ai-agent';
-import receiptsRoutes from './routes/receipts';
-import pollsRoutes from './routes/polls';
-import reelsRoutes from './routes/reels';
-import avatarRoutes from './routes/avatar';
-import bitmojiRoutes from './routes/bitmoji';
-import memoriesRoutes from './routes/memories';
-import spotlightRoutes from './routes/spotlight';
-import storiesRoutes from './routes/stories';
-import notificationsRoutes from './routes/notifications';
-import usersRoutes from './routes/users';
-import settingsRoutes from './routes/settings';
-import messageRequestsRoutes from './routes/message-requests';
-import themesRoutes from './routes/themes';
-import ephemeralRoutes from './routes/ephemeral';
-import gamesRoutes from './routes/games';
-import channelsRoutes from './routes/channels';
-import discoverRoutes from './routes/discover';
-import voiceNoteRoutes from './routes/voice-notes';
-import mapRoutes from './routes/map';
-import meetingsRoutes from './routes/meetings';
-import audioRoomsRoutes from './routes/audio-rooms';
-import voiceBotRoutes, { createVoiceBotServices } from './routes/voice-bot';
-import { ProactiveCallWorker } from './services/proactive-call-worker.service';
-import { websocketRoutes } from './routes/websocket';
-import { createE2EERelay } from './services/e2ee-relay-factory';
-import { AutoReplyManager } from './lib/auto-reply-manager';
-import { ScheduledMessageWorker } from './services/scheduled-message-worker';
-import { createRealtimeContext } from './lib/realtime-context';
-import { PrismaOutboxService } from './services/outbox.service';
-import { DeliveryWorker } from './services/delivery-worker';
-import {
-  createPushDispatcher,
-  type PrismaPushSubscriptionClient,
-} from './services/push-dispatcher';
-import authRoutes from './routes/auth';
-import { OtpService, Msg91SmsSender } from './lib/otp-service';
-import { SessionTokenIssuer } from './lib/session-tokens';
-import { createAccountStatusGate } from './lib/account-status';
+import Fastify from 'fastify';
+import { randomUUID } from 'node:crypto';
+import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
+import type { AppConfig, PublicPathEntry } from './types';
+import { assertProductionSecret, requiresRealSecret } from './secrets';
+import errorHandler from './plugins/error-handler';
+import healthPlugin from './plugins/health';
+import authPlugin from './plugins/auth';
+import prismaPlugin from './plugins/prisma';
+import metricsPlugin from './plugins/metrics';
+import requestIdPlugin from './plugins/request-id';
+import requestLoggerPlugin from './plugins/request-logger';
+import gracefulShutdownPlugin from './plugins/graceful-shutdown';
+import observabilityPlugin from './plugins/observability';
+import performancePlugin from './plugins/performance';
+import errorMonitoringPlugin from './plugins/error-monitoring';
+import featureFlagsPlugin from './plugins/feature-flags';
+import auditPlugin from './plugins/audit';
+import organizationsPlugin from './plugins/organizations';
+import identityPermissionsPlugin from './plugins/identity-permissions';
+import teamsPlugin from './plugins/teams';
+import idempotencyPlugin, { DbIdempotencyStore } from './plugins/idempotency';
+import type { IdempotencyOperationTable } from './plugins/idempotency';
+import rateLimitPlugin from '@fastify/rate-limit';
 
-export function getConfig(): AppConfig {
-  const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
-
-  // QC-F-080: every deployed (non-local) env needs a real JWT_SECRET, not
-  // only the exact name 'production' — staging previously fell through to
-  // the public fallback below. Presence is checked here; the VALUE is
-  // checked by createApp's assertProductionSecret under the same predicate.
-  if (requiresRealSecret(env) && !process.env['JWT_SECRET']) {
-    throw new Error(`JWT_SECRET environment variable is required in ${env}`);
+export async function createApp(config: AppConfig) {
+  // Deployed-environment security validation (QC-F-080: every non-local env,
+  // not only the exact name 'production' — a staging boot on the committed
+  // fallback made every token forgeable). The length check this replaced
+  // passed any 32-character string, so a longer placeholder would have
+  // booted; the value itself is now checked against the placeholders
+  // committed to this repo.
+  if (requiresRealSecret(config.env)) {
+    assertProductionSecret(config.jwtSecret, {
+      name: 'JWT_SECRET',
+      provisionedBy: 'External Secrets (AWS Secrets Manager key quant/jwt)',
+    });
   }
 
-  if (
-    (env === 'production' || env === 'staging') &&
-    !process.env['VOICE_BOT_SECRET'] &&
-    !process.env['LIVEKIT_API_SECRET']
-  ) {
-    throw new Error(
-      'VOICE_BOT_SECRET or LIVEKIT_API_SECRET environment variable is required in production and staging',
-    );
-  }
-
-  return {
-    port: Number(process.env['PORT'] ?? 3002),
-    host: process.env['HOST'] ?? '0.0.0.0',
-    logLevel: process.env['LOG_LEVEL'] ?? 'info',
-    corsOrigins: (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000').split(','),
-    rateLimitMax: Number(process.env['RATE_LIMIT_MAX'] ?? 100),
-    rateLimitWindow: process.env['RATE_LIMIT_WINDOW'] ?? '1 minute',
-    redisUrl: process.env['REDIS_URL'],
-    jwtSecret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',
-    jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantchat',
-    // Scoped to quantchat so QuantChat-minted tokens cannot bypass QuantMail 2FA on sibling backends (W32-3)
-    jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quantchat',
-    env,
-    publicPaths: [
-      '/auth/login',
-      '/auth/refresh',
-      '/auth/otp/request',
-      '/auth/otp/verify',
-      '/auth/sso/exchange',
-      '/meetings/webhooks/livekit',
-      '/voice-bot/alert',
-      // QC-F-197: /ws/chat ka ekmatra auth gate backend/routes/websocket.ts ka
-      // ConnectionAuth hai (single iss/aud + QC-F-030 kind gate + QC-F-037
-      // membership) — browser WebSocket Authorization header laga NAHI sakta,
-      // isiliye shipped client token ko Sec-WebSocket-Protocol se bhejta hai,
-      // jo global hook padhta hi NAHI aur har subprotocol-only upgrade ko
-      // handler se pehle 401 se kaat deta tha. Exemption EXACT path + GET
-      // only hai: isi plugin ki /ws/presence hook par hi nirbhar hai (uske
-      // paas handler-level auth NAHI hai), isiliye '/ws' ya '/ws/*' KABHI
-      // NAHI — sirf ye ek route, sirf GET.
-      { path: '/ws/chat', methods: ['GET'], exact: true },
-    ],
-  };
-}
-
-export async function buildApp(config?: AppConfig) {
-  const appConfig = config ?? getConfig();
-
-  // QC-F-041: account-status gate. The gate's resolver is handed to
-  // createApp() as part of the config, but it reads through the prisma
-  // decoration that createApp() itself installs — so the gate is built
-  // around a provider that only dereferences the app once it exists
-  // (the resolver runs at request time, never during boot).
-  let appRef: Awaited<ReturnType<typeof createApp>> | undefined;
-  const accountStatusGate = createAccountStatusGate(
-    () => (appRef as unknown as { prisma?: PrismaClient } | undefined)?.prisma,
-  );
-
-  // Enablement: an explicit config.accountStatus always wins (route/unit
-  // tests inject their own resolver). Otherwise the prisma-backed gate is
-  // on for every real deployment (development / staging / production) and
-  // off in env 'test', whose harness runs without a database — a gate
-  // there could only ever answer 'unavailable' and 503 the whole suite;
-  // the gate's own behaviour is pinned by its dedicated suites instead.
-  const effectiveConfig: AppConfig = {
-    ...appConfig,
-    accountStatus:
-      appConfig.accountStatus ??
-      (appConfig.env === 'test' ? undefined : accountStatusGate.resolver),
-  };
-
-  const app = await createApp(effectiveConfig);
-  appRef = app;
-  // Shared with routes/websocket.ts (verifier) and routes/settings.ts
-  // (DELETE /account invalidates its own user's cached verdict).
-  app.decorate('accountStatusGate', accountStatusGate);
-
-  app.decorate(
-    'otpService',
-    new OtpService(new Msg91SmsSender((message) => app.log.info(message))),
-  );
-  app.decorate(
-    'sessionTokens',
-    new SessionTokenIssuer({
-      jwtSecret: appConfig.jwtSecret,
-      jwtIssuer: appConfig.jwtIssuer,
-      jwtAudience: appConfig.jwtAudience,
-    }),
-  );
-  await app.register(authRoutes, { prefix: '/auth' });
-
-  const realtime = createRealtimeContext({
-    error: (object, message) => app.log.error(object as object, message),
-    warn: (message) => app.log.warn(message),
-    info: (message) => app.log.info(message),
-  });
-  app.decorate('realtimeBackplane', realtime.backplane);
-  app.decorate('presence', realtime.presence);
-
-  await app.register(websocketRoutes, { prefix: '/ws' });
-  await app.register(messagesRoutes, { prefix: '/conversations' });
-  await app.register(conversationsRoutes, { prefix: '/conversations' });
-  await app.register(searchRoutes, { prefix: '/search' });
-  await app.register(themesRoutes, { prefix: '/conversations' });
-  await app.register(ephemeralRoutes, { prefix: '/conversations' });
-  await app.register(encryptionRoutes, { prefix: '/encryption' });
-  await app.register(mediaRoutes, { prefix: '/media' });
-  await app.register(callsRoutes, { prefix: '/calls' });
-  await app.register(voiceBotRoutes, { prefix: '/voice-bot' });
-  await app.register(aiRoutes, { prefix: '/ai' });
-  await app.register(meetingsRoutes, { prefix: '/meetings' });
-  await app.register(receiptsRoutes, { prefix: '/receipts' });
-  await app.register(pollsRoutes, { prefix: '/polls' });
-
-  const voiceBotServices = createVoiceBotServices(app);
-  // QC-F-076: without LiveKit configuration the factory builds no ring
-  // generator, so the proactive caller stays off instead of holding a
-  // dependency that could only mint tokens with a fallback secret.
-  const proactiveRingGenerator = voiceBotServices.ringGenerator;
-  const proactiveCallWorker = proactiveRingGenerator
-    ? new ProactiveCallWorker({
-        redisUrl: appConfig.redisUrl,
-        ringGenerator: proactiveRingGenerator,
-        onError: (err) => app.log.error({ err }, 'proactive call worker error'),
-      })
-    : null;
-  if (!proactiveCallWorker) {
-    app.log.warn('Proactive voice-bot calls disabled: LiveKit is not configured');
-  }
-  if (proactiveCallWorker && appConfig.env !== 'test') {
-    proactiveCallWorker.start();
-  }
-  app.addHook('onClose', async () => {
-    await proactiveCallWorker?.stop();
+  const fastify = Fastify({
+    logger:
+      config.env === 'test'
+        ? false
+        : {
+            level: config.logLevel,
+            ...(config.env === 'development' ? { transport: { target: 'pino-pretty' } } : {}),
+          },
+    genReqId: () => randomUUID(),
+    disableRequestLogging: config.env === 'test',
+    // QC-F-581: resolve request.ip from X-Forwarded-For ONLY when the socket
+    // peer is a trusted proxy (ingress/frontend pod). Without this every
+    // rate-limit bucket (global + per-route, e.g. /ws/chat) keys on the proxy
+    // pod IP, so one heavy client can 429 the whole user base and per-IP
+    // abuse control is void. proxy-addr semantics: a blind `true` would let
+    // any client spoof XFF and pick its own bucket — hence the explicit list.
+    trustProxy: config.trustedProxies ?? ['127.0.0.1', '::1'],
   });
 
-  const autoReplyManager = new AutoReplyManager();
-  app.decorate('autoReplyManager', autoReplyManager);
-  await app.register(aiAgentRoutes, { prefix: '/ai' });
-
-  const scheduledWorker = new ScheduledMessageWorker(
-    (app as unknown as { prisma: ConstructorParameters<typeof ScheduledMessageWorker>[0] }).prisma,
-    {
-      onError: (error) => {
-        app.log.error({ err: error }, 'scheduled message delivery failed');
-      },
-    },
-  );
-  scheduledWorker.start();
-  app.addHook('onClose', async () => {
-    scheduledWorker.stop();
-  });
-
-  await app.register(reelsRoutes, { prefix: '/reels' });
-  await app.register(avatarRoutes, { prefix: '/avatar' });
-  await app.register(bitmojiRoutes, { prefix: '/bitmoji' });
-  await app.register(gamesRoutes, { prefix: '/games' });
-  await app.register(channelsRoutes, { prefix: '/channels' });
-  await app.register(voiceNoteRoutes, { prefix: '/voice-notes' });
-  await app.register(memoriesRoutes, { prefix: '/memories' });
-  await app.register(spotlightRoutes, { prefix: '/spotlight' });
-  await app.register(discoverRoutes, { prefix: '/discover' });
-  await app.register(storiesRoutes, { prefix: '/stories' });
-  await app.register(mapRoutes, { prefix: '/map' });
-  await app.register(notificationsRoutes, { prefix: '/notifications' });
-  await app.register(usersRoutes, { prefix: '/users' });
-  await app.register(settingsRoutes, { prefix: '/settings' });
-  // QC-F-321: first-contact message requests (consent surface beside the gate)
-  await app.register(messageRequestsRoutes, { prefix: '/message-requests' });
-  await app.register(audioRoomsRoutes, { prefix: '/audio-rooms' });
-  await app.register(audioRoomsRoutes, { prefix: '/api/audio-rooms' });
-
-  // K27: durable zero-knowledge relay by default (E2EE_RELAY=memory only for
-  // local dev/tests). Published bundles + relayed ciphertext survive restarts.
-  const e2eeRelay = createE2EERelay(
-    (app as unknown as { prisma: PrismaClient }).prisma,
-  );
-  app.decorate('e2ee', e2eeRelay);
-  app.addHook('onClose', async () => {
-    await e2eeRelay.shutdown();
-  });
-  await app.register(e2eeRoutes, { prefix: '/e2ee' });
-  await app.register(e2eePreKeyRoutes, { prefix: '/e2ee' });
-  await app.register(prekeysRoutes);
-
-  app.decorate('federation', createFederationService());
-  await app.register(federationRoutes, { prefix: '/federation' });
-
-  app.decorate('arLenses', createArLensesService());
-  await app.register(arLensesRoutes, { prefix: '/ar-lenses' });
-
-  const prisma = (app as unknown as { prisma: PrismaClient }).prisma;
-  const deliveryWorker = new DeliveryWorker(
-    {
-      outbox: new PrismaOutboxService(prisma),
-      backplane: realtime.backplane,
-      presence: realtime.presence,
-      pushDispatcher: createPushDispatcher(prisma as unknown as PrismaPushSubscriptionClient),
-    },
-    {
-      onError: (error) => app.log.error({ err: error }, 'message delivery drain failed'),
-    },
-  );
-  if (appConfig.env !== 'test') {
-    deliveryWorker.start();
-  }
-
-  app.addHook('onClose', async () => {
-    deliveryWorker.stop();
-    await realtime.backplane.shutdown();
-    if (realtime.redis) {
-      realtime.redis.disconnect();
+  // Register WebDAV / CalDAV / CardDAV HTTP methods (RFC 4791 / RFC 6350)
+  for (const method of ['PROPFIND', 'REPORT', 'MKCALENDAR']) {
+    try {
+      fastify.addHttpMethod(method, { hasBody: true });
+    } catch {
+      // already registered
     }
+  }
+
+  // Set Zod as the schema validator/serializer
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
+
+  // Register helmet for security headers
+  const helmet = await import('@fastify/helmet');
+  await fastify.register(helmet.default, { global: true });
+
+  // Register CORS
+  const cors = await import('@fastify/cors');
+  await fastify.register(cors.default, {
+    origin: config.corsOrigins,
+    credentials: true,
   });
 
-  return app;
+  // Register rate limiting with Redis or in-memory fallback
+  const rateLimitOpts: Record<string, unknown> = {
+    max: config.rateLimitMax,
+    timeWindow: config.rateLimitWindow,
+  };
+
+  let redisClient: import('ioredis').Redis | undefined;
+
+  if (config.redisUrl) {
+    try {
+      const { default: Redis } = await import('ioredis');
+      redisClient = new Redis(config.redisUrl);
+      rateLimitOpts['redis'] = redisClient;
+    } catch {
+      // Fall back to in-memory if Redis connection fails
+    }
+  }
+
+  await fastify.register(rateLimitPlugin, rateLimitOpts);
+
+  // Register cookie support
+  const cookie = await import('@fastify/cookie');
+  await fastify.register(cookie.default as any);
+
+  // Register error handler
+  await fastify.register(errorHandler);
+
+  // Register request-id propagation
+  await fastify.register(requestIdPlugin);
+
+  // Register idempotency-key handling (K4). Global hooks, but strictly opt-in:
+  // a route file calls `fastify.idempotency()` once to mark its mutating
+  // routes. The durable operation ledger lives in Postgres
+  // (DbIdempotencyStore over @quant/database's idempotency_operations) — the
+  // claim is a PK insert so concurrent replicas serialize in the database,
+  // and handlers that need the outcome atomic with the mutation use
+  // runIdempotentOperation(). durableStoreRequired fails readiness rather
+  // than silently running required-key routes on the per-instance memory
+  // fallback (fix/qm-idempotency-outbox-r4, CODEX-REVIEW P0 on PR #1124).
+  // The prisma singleton is imported lazily: the prisma plugin registers
+  // below, and a static import here would couple module-eval order to it.
+  const { prisma: idempotencyPrisma } = await import('@quant/database');
+  const idempotencyTable = (
+    idempotencyPrisma as unknown as { idempotencyOperation: IdempotencyOperationTable }
+  ).idempotencyOperation;
+  await fastify.register(idempotencyPlugin, {
+    store: new DbIdempotencyStore(idempotencyTable),
+    ttlSeconds: 24 * 3600,
+    durableStoreRequired: true,
+  });
+
+  // Register request logger (after error handler so errors are logged)
+  await fastify.register(requestLoggerPlugin);
+
+  // Register metrics collection
+  await fastify.register(metricsPlugin);
+
+  // Register Prisma client
+  await fastify.register(prismaPlugin);
+
+  // Register auth plugin
+  await fastify.register(authPlugin, {
+    jwtSecret: config.jwtSecret,
+    jwtIssuer: config.jwtIssuer,
+    jwtAudience: config.jwtAudience,
+    // QC-F-041: opt-in account-status gate (undefined = legacy stateless
+    // behaviour for every app that does not supply a resolver).
+    accountStatus: config.accountStatus,
+  });
+
+  // Register cross-cutting engine plugins (Category A — wired once, inherited by
+  // every app via createApp()). Registered AFTER prisma + auth so each plugin's
+  // construction/runtime can rely on `fastify.prisma` and `request.auth`.
+  // - observability: import-gated behind OTEL_EXPORTER_OTLP_ENDPOINT (no-op when unset)
+  // - performance: request timing + opt-in per-route SLO budget hook (no-op when
+  //   no budget is defined); decorates `fastify.performance`
+  // - feature-flags: decorates `fastify.flags`
+  // - audit: decorates `fastify.audit`, reads `request.auth` in onResponse
+  // - organizations: decorates `fastify.org` + org-context middleware
+  // - error-monitoring: captures/forwards errors via an `onError` hook,
+  //   correlated by `x-request-id`; decorates `fastify.errorMonitoring`. Depends
+  //   on `error-handler` (which owns the envelope) + `request-id` (correlation),
+  //   both registered above — the envelope/status are left untouched.
+  await fastify.register(observabilityPlugin);
+  await fastify.register(performancePlugin);
+  await fastify.register(errorMonitoringPlugin);
+  await fastify.register(featureFlagsPlugin);
+  await fastify.register(auditPlugin);
+  await fastify.register(organizationsPlugin);
+
+  // Register the RBAC auth substrate (Category A — cross-cutting). Registered
+  // AFTER `auth` (declares `dependencies: ['auth']`) so `requireAuth({ scopes })`
+  // scope evaluation is backed by `@quant/identity-permissions`, and BEFORE any
+  // per-app route that declares fine-grained scopes (Requirement 4.3). `teams`
+  // depends on `identity-permissions` and provides multi-actor team context.
+  await fastify.register(identityPermissionsPlugin);
+  await fastify.register(teamsPlugin);
+
+  // Public paths that bypass auth (health/metrics are GET-only exact matches by default)
+  const PUBLIC_PATHS: PublicPathEntry[] = [
+    { path: '/health', methods: ['GET'], exact: true },
+    { path: '/healthz', methods: ['GET'], exact: true },
+    { path: '/ready', methods: ['GET'], exact: true },
+    { path: '/readyz', methods: ['GET'], exact: true },
+    { path: '/live', methods: ['GET'], exact: true },
+    { path: '/livez', methods: ['GET'], exact: true },
+    { path: '/metrics', methods: ['GET'], exact: true },
+    // Caller-supplied pre-authentication endpoints (e.g. login/OTP) or public read paths.
+    ...(config.publicPaths ?? []),
+  ];
+
+  function matchesPublicPath(entry: PublicPathEntry, path: string, method: string): boolean {
+    let pattern: string;
+    let allowedMethods: string[] | undefined;
+    let exact = true;
+
+    if (typeof entry === 'string') {
+      if (entry.endsWith('/*')) {
+        pattern = entry.slice(0, -2);
+        exact = false;
+      } else {
+        pattern = entry;
+        exact = false;
+      }
+    } else {
+      pattern = entry.path;
+      allowedMethods = entry.methods;
+      exact = entry.exact ?? true;
+    }
+
+    if (allowedMethods && allowedMethods.length > 0 && !allowedMethods.includes(method)) {
+      return false;
+    }
+
+    if (pattern.includes(':')) {
+      const patternSegments = pattern.split('/').filter(Boolean);
+      const pathSegments = path.split('/').filter(Boolean);
+      if (patternSegments.length === pathSegments.length) {
+        return patternSegments.every((seg, i) => seg.startsWith(':') || seg === pathSegments[i]);
+      }
+      return false;
+    }
+
+    if (exact) {
+      return path === pattern;
+    }
+
+    // Wildcard prefix matching ONLY when explicitly declared (e.g. pattern ends with /*)
+    return path === pattern || path.startsWith(pattern + '/');
+  }
+
+  // Enforce auth on all routes except health/metrics and caller-configured public paths
+  fastify.addHook('onRequest', async (request, reply) => {
+    const path = request.url.split('?')[0] ?? '';
+    const method = request.method;
+    if (PUBLIC_PATHS.some((p) => matchesPublicPath(p, path, method))) {
+      await fastify.optionalAuth()(request);
+      return;
+    }
+    await fastify.requireAuth()(request, reply);
+    if (reply.sent) return;
+  });
+
+  // Register health endpoints
+  await fastify.register(healthPlugin, {
+    redisClient,
+  });
+
+  // Register graceful shutdown
+  await fastify.register(gracefulShutdownPlugin, { timeoutMs: 30000 });
+
+  return fastify;
 }
+
+// Security: CodeQL #170: @fastify/rate-limit registered globally (static import).
