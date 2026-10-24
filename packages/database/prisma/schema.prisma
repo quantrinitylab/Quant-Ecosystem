@@ -4580,6 +4580,10 @@ model DriveShare {
   // `audience` (JSON array). Expiry is enforced on resolve/download.
   scope       String    @default("anyone")
   audience    String?
+  // QM-M39-006 (disable-download): owner can block downloads for viewer-role
+  // links (Google Drive parity — viewers get preview only). Enforced on the
+  // public download path; editor-role links always need the bytes to edit.
+  disableDownload Boolean @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
