@@ -6222,3 +6222,9 @@ Audit started: 2026-10-24 ~12:40 IST (lane-1 deep audit loop, ROUND 37)
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents (protocol P0/P1-only; subagent.list 0 active at run start and end). findings.md untouched.
 - LIVE HEALTHY, VISUAL VERIFIED: proxy 127.0.0.1:8888 healthy (google 200 0.64s, no restart); /compose -> 307 /login?returnTo=%2Fcompose (no ?token=); POST /api/emails/compose (no auth) -> honest 401; /api/emails/search -> honest 401; /scheduled -> 307 gate — all match R36 baseline. Desktop 1440x900 (9334) + mobile 390x844 (iPhone 14, MOBILE_CHROME_PORT=9415, wait_s=14 hydrated) /compose shots REVIEWED: settled sign-in gate both viewports, current clay M-mark, honest tri-cards (desktop), Help/Privacy/Terms footer, ONE IDENTITY footer, (c) 2026, pure black, mail-orange, zero old-logo flash; standing knowns re-seen not re-filed (P3 'Quant Mail' wordmark spacing, white ghost 'AI triage' card). Shots + snapshot deleted; exactly my 2 run-created chrome dirs + 5 pre-existing dead orphans removed (pgrep-verified zero live chromes before rm); /tmp 5%. Signed-in compose/autosave/scheduled-send/undo/attachments flows = needs-auth. #1243 deploy hold ACTIVE (cat-verified) — nothing to deploy.
 Rotation -> QM-SCREEN-007 (search) ROUND 37 regression, queued.
+
+## QM-SCREEN-007 R37 — Search regression (ROUND 37)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-007r37
+Audit started: 2026-10-24 ~13:35 IST (lane-1 deep audit loop, ROUND 37)
