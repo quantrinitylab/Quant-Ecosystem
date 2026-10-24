@@ -527,6 +527,28 @@ export function AppShell({
     setIsMobileSearchOpen(false);
   }, [pathname]);
 
+  /*
+   * Any navigation closes the drawer. The capture gate on the drawer element
+   * below only knows the classes of the links it was written for; the brand
+   * header (router.push('/')) and the footer links (/privacy, /settings)
+   * carry none of them, so the modal drawer — backdrop, locked scroll, focus
+   * trap — used to stay on screen over the navigated page until the user
+   * tapped the backdrop. A pathname effect covers every in-drawer navigation,
+   * present and future, without enumerating link classes. It deliberately does
+   * NOT restore focus to the menu trigger: a route change owns focus, and the
+   * trigger belongs to the old page (same reason the focus-trap hook below
+   * runs with restoreFocus: false). Same-pathname taps (brand while already
+   * on '/', a footer link to the current route) are covered by the widened
+   * capture gate below, which matches the brand header and any anchor.
+   */
+  const prevPathnameRef = useRef(pathname);
+  useEffect(() => {
+    if (prevPathnameRef.current !== pathname) {
+      prevPathnameRef.current = pathname;
+      setIsSidebarOpen(false);
+    }
+  }, [pathname]);
+
   /**
    * Focus containment for the drawer.
    *
@@ -794,7 +816,9 @@ export function AppShell({
                 inert={!isDrawerPresented}
                 onClickCapture={(event) => {
                   if (
-                    (event.target as HTMLElement).closest('.sidebar-nav-item, .sidebar-compose')
+                    (event.target as HTMLElement).closest(
+                      '.sidebar-nav-item, .sidebar-compose, .sidebar-brand, a[href]',
+                    )
                   ) {
                     closeSidebar(false);
                   }
