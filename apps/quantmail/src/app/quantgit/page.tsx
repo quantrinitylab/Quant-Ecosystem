@@ -792,7 +792,8 @@ function QuantGitContent() {  const router = useRouter();
           }
         }
       } catch {
-        // Fallback to mock files
+        // Tree fetch failed: no fallback data exists, so the previous
+        // file list is left untouched rather than replaced with mock files.
       }
     },
     [apiFetch],
