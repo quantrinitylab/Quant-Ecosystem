@@ -1219,6 +1219,245 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       })),
     });
   });
+  // ==========================================================================
+  // Shared Drives, slice 1 (fix/qm-drive-shared-drives-6): team-owned
+  // containers. Google Drive parity, deliberately scoped: this slice is the
+  // container + its membership + the five permission levels. It does NOT yet
+  // move files/folders inside a shared drive, does NOT add external
+  // (non-QuantMail-account) collaborators, and does NOT add limited-access
+  // folders — those are follow-up slices, and the API must not claim them.
+  //
+  // Ownership model: a Shared Drive has NO owner column. Membership rows
+  // ARE the ownership, so the drive survives any single member's departure.
+  // `createdById` is audit-only. The one invariant that keeps a drive from
+  // ever being orphaned: the last manager cannot be demoted or removed
+  // before another manager exists — a sole manager must appoint a successor
+  // first (via POST .../members with role 'manager'). Role levels mirror
+  // Google's: manager > contentManager > contributor > commenter > viewer.
+  // Membership management is manager-only; content-level enforcement of the
+  // lower roles lands with the follow-up slice that puts files in drives.
+  // ==========================================================================
+  const SHARED_DRIVE_ROLES = [
+    'manager',
+    'contentManager',
+    'contributor',
+    'commenter',
+    'viewer',
+  ] as const;
+  const SHARED_DRIVE_ROLE_SCHEMA = z.enum(SHARED_DRIVE_ROLES);
+  const SHARED_DRIVE_CREATE_SCHEMA = z.object({
+    name: z.string().trim().min(1).max(200),
+    description: z.string().trim().max(2000).optional(),
+  });
+  const SHARED_DRIVE_UPDATE_SCHEMA = z.object({
+    name: z.string().trim().min(1).max(200).optional(),
+    description: z.string().trim().max(2000).nullable().optional(),
+  });
+  const SHARED_DRIVE_ADD_MEMBER_SCHEMA = z.object({
+    email: z.string().trim().email().max(320),
+    role: SHARED_DRIVE_ROLE_SCHEMA,
+  });
+  function sharedDriveDto(
+    drive: any,
+    myRole: string,
+    memberCount: number,
+    members?: any[],
+  ) {
+    return {
+      id: drive.id,
+      name: drive.name,
+      description: drive.description ?? null,
+      createdById: drive.createdById,
+      createdAt: drive.createdAt,
+      updatedAt: drive.updatedAt,
+      myRole,
+      memberCount,
+      ...(members ? { members } : {}),
+    };
+  }
+  async function sharedDriveMembership(prisma: any, driveId: string, userId: string) {
+    return prisma.sharedDriveMember.findFirst({ where: { sharedDriveId: driveId, userId } });
+  }
+  async function sharedDriveForMember(prisma: any, driveId: string, userId: string) {
+    const drive = await prisma.sharedDrive.findUnique({ where: { id: driveId } });
+    if (!drive) throw createAppError('Shared drive not found', 404, 'NOT_FOUND');
+    const membership = await sharedDriveMembership(prisma, driveId, userId);
+    if (!membership) throw createAppError('Shared drive not found', 404, 'NOT_FOUND');
+    return { drive, membership };
+  }
+  async function isLastManager(prisma: any, driveId: string, userId: string) {
+    const managers = await prisma.sharedDriveMember.findMany({
+      where: { sharedDriveId: driveId, role: 'manager' },
+    });
+    return managers.length === 1 && managers[0].userId === userId;
+  }
+  async function sharedDriveMemberProfiles(prisma: any, driveId: string) {
+    const members = await prisma.sharedDriveMember.findMany({
+      where: { sharedDriveId: driveId },
+      orderBy: { createdAt: 'asc' },
+    });
+    const users = members.length
+      ? await prisma.user.findMany({
+          where: { id: { in: members.map((m: any) => m.userId) } },
+          select: { id: true, email: true, displayName: true },
+        })
+      : [];
+    const byId = new Map(users.map((u: any) => [u.id, u]));
+    return members.map((m: any) => {
+      const u = byId.get(m.userId) as any;
+      return {
+        userId: m.userId,
+        email: u?.email ?? '',
+        name: u?.displayName || (u?.email ? u.email.split('@')[0] : ''),
+        role: m.role,
+        addedById: m.addedById,
+        createdAt: m.createdAt,
+      };
+    });
+  }
+  fastify.post('/drive/shared-drives', async (request, reply) => {
+    const parsed = SHARED_DRIVE_CREATE_SCHEMA.safeParse(request.body);
+    if (!parsed.success) throw createAppError('Invalid shared drive request', 400, 'VALIDATION_ERROR');
+    const userId = requireUserId(request);
+    const drive = await prisma.sharedDrive.create({
+      data: {
+        name: parsed.data.name,
+        description: parsed.data.description ?? null,
+        createdById: userId,
+      },
+    });
+    await prisma.sharedDriveMember.create({
+      data: { sharedDriveId: drive.id, userId, role: 'manager', addedById: userId },
+    });
+    return reply
+      .status(201)
+      .send({ sharedDrive: sharedDriveDto(drive, 'manager', 1) });
+  });
+  fastify.get('/drive/shared-drives', async (request, reply) => {
+    const userId = requireUserId(request);
+    const memberships = await prisma.sharedDriveMember.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!memberships.length) return reply.send({ sharedDrives: [] });
+    const driveIds = memberships.map((m: any) => m.sharedDriveId);
+    const [drives, allMembers] = await Promise.all([
+      prisma.sharedDrive.findMany({ where: { id: { in: driveIds } } }),
+      prisma.sharedDriveMember.findMany({ where: { sharedDriveId: { in: driveIds } } }),
+    ]);
+    const driveMap = new Map(drives.map((d: any) => [d.id, d]));
+    const countMap = new Map<string, number>();
+    for (const m of allMembers) {
+      countMap.set(m.sharedDriveId, (countMap.get(m.sharedDriveId) ?? 0) + 1);
+    }
+    return reply.send({
+      sharedDrives: memberships
+        .map((m: any) => {
+          const drive = driveMap.get(m.sharedDriveId);
+          return drive
+            ? sharedDriveDto(drive, m.role, countMap.get(m.sharedDriveId) ?? 0)
+            : null;
+        })
+        .filter(Boolean),
+    });
+  });
+  fastify.get<{ Params: { id: string } }>('/drive/shared-drives/:id', async (request, reply) => {
+    const userId = requireUserId(request);
+    const { drive, membership } = await sharedDriveForMember(prisma, request.params.id, userId);
+    const members = await sharedDriveMemberProfiles(prisma, drive.id);
+    return reply.send({
+      sharedDrive: sharedDriveDto(drive, membership.role, members.length, members),
+    });
+  });
+  fastify.patch<{ Params: { id: string } }>('/drive/shared-drives/:id', async (request, reply) => {
+    const parsed = SHARED_DRIVE_UPDATE_SCHEMA.safeParse(request.body);
+    if (!parsed.success) throw createAppError('Invalid shared drive request', 400, 'VALIDATION_ERROR');
+    const userId = requireUserId(request);
+    const { drive, membership } = await sharedDriveForMember(prisma, request.params.id, userId);
+    if (membership.role !== 'manager')
+      throw createAppError('Only a manager can change shared drive settings', 403, 'FORBIDDEN');
+    const data: Record<string, unknown> = {};
+    if (parsed.data.name !== undefined) data.name = parsed.data.name;
+    if (parsed.data.description !== undefined) data.description = parsed.data.description;
+    if (Object.keys(data).length === 0)
+      throw createAppError('Nothing to update', 400, 'VALIDATION_ERROR');
+    const updated = await prisma.sharedDrive.update({ where: { id: drive.id }, data });
+    const members = await sharedDriveMemberProfiles(prisma, drive.id);
+    return reply.send({
+      sharedDrive: sharedDriveDto(updated, 'manager', members.length, members),
+    });
+  });
+  fastify.post<{ Params: { id: string } }>('/drive/shared-drives/:id/members', async (request, reply) => {
+    const parsed = SHARED_DRIVE_ADD_MEMBER_SCHEMA.safeParse(request.body);
+    if (!parsed.success) throw createAppError('Invalid shared drive request', 400, 'VALIDATION_ERROR');
+    const userId = requireUserId(request);
+    const { drive, membership } = await sharedDriveForMember(prisma, request.params.id, userId);
+    if (membership.role !== 'manager')
+      throw createAppError('Only a manager can add members', 403, 'FORBIDDEN');
+    const recipient = await prisma.user.findFirst({
+      where: { email: { equals: parsed.data.email, mode: 'insensitive' } },
+      select: { id: true, email: true },
+    });
+    if (!recipient) throw createAppError('Recipient user not found', 404, 'USER_NOT_FOUND');
+    // Existing members go through the update path below (so a manager can
+    // change their own role, subject to the last-manager rule); only a
+    // brand-new self-add is rejected here.
+    const existing = await sharedDriveMembership(prisma, drive.id, recipient.id);
+    if (!existing && recipient.id === userId)
+      throw createAppError('You are already a member of this shared drive', 400, 'INVALID_RECIPIENT');
+    if (existing) {
+      if (
+        existing.role === 'manager' &&
+        parsed.data.role !== 'manager' &&
+        (await isLastManager(prisma, drive.id, recipient.id))
+      ) {
+        throw createAppError(
+          'Cannot demote the last manager — appoint another manager first',
+          400,
+          'LAST_MANAGER',
+        );
+      }
+      const updated = await prisma.sharedDriveMember.update({
+        where: { id: existing.id },
+        data: { role: parsed.data.role },
+      });
+      return reply.send({ member: { userId: updated.userId, role: updated.role } });
+    }
+    const created = await prisma.sharedDriveMember.create({
+      data: {
+        sharedDriveId: drive.id,
+        userId: recipient.id,
+        role: parsed.data.role,
+        addedById: userId,
+      },
+    });
+    return reply.status(201).send({ member: { userId: created.userId, role: created.role } });
+  });
+  fastify.delete<{ Params: { id: string; memberUserId: string } }>(
+    '/drive/shared-drives/:id/members/:memberUserId',
+    async (request, reply) => {
+      const userId = requireUserId(request);
+      const { drive, membership } = await sharedDriveForMember(
+        prisma,
+        request.params.id,
+        userId,
+      );
+      const targetId = request.params.memberUserId;
+      if (membership.role !== 'manager' && targetId !== userId)
+        throw createAppError('Only a manager can remove members', 403, 'FORBIDDEN');
+      const target = await sharedDriveMembership(prisma, drive.id, targetId);
+      if (!target) throw createAppError('Member not found', 404, 'NOT_FOUND');
+      if (target.role === 'manager' && (await isLastManager(prisma, drive.id, targetId))) {
+        throw createAppError(
+          'Cannot remove the last manager — appoint another manager first',
+          400,
+          'LAST_MANAGER',
+        );
+      }
+      await prisma.sharedDriveMember.delete({ where: { id: target.id } });
+      return reply.send({ removed: true, userId: targetId });
+    },
+  );
   fastify.put<{ Params: { id: string }; Body: { name?: string } }>(
     '/drive/files/:id',
     async (request, reply) => {
