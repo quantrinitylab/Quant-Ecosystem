@@ -310,16 +310,24 @@ export class AISummaryManager {
       if (raw.vendor) vendors.push(raw.vendor);
       if (raw.date) dates.push(raw.date);
       if (raw.dueDate) dates.push(`Due: ${raw.dueDate}`);
+      // Never invent a currency: the backend/AI payload may omit it, and
+      // defaulting to '$' would falsely attribute USD to amounts that were
+      // never tagged as USD. Show the reported currency when present;
+      // otherwise show the bare number marked as currency unknown.
+      const currency =
+        typeof raw.currency === 'string' && raw.currency.trim()
+          ? raw.currency.trim()
+          : null;
+      const formatAmount = (label: string, value: number): string =>
+        currency ? `${label}${currency}${value}` : `${label}${value} (currency unknown)`;
       if (typeof raw.total === 'number') {
-        const curr = raw.currency || '$';
-        amounts.push(`${curr}${raw.total}`);
+        amounts.push(formatAmount('', raw.total));
       }
       if (typeof raw.subtotal === 'number') {
-        const curr = raw.currency || '$';
-        amounts.push(`Subtotal: ${curr}${raw.subtotal}`);
+        amounts.push(formatAmount('Subtotal: ', raw.subtotal));
       }
       if (typeof raw.taxAmount === 'number' && raw.taxAmount > 0) {
-        amounts.push(`Tax: $${raw.taxAmount}`);
+        amounts.push(formatAmount('Tax: ', raw.taxAmount));
       }
       if (raw.invoiceNumber) {
         contacts.push(`Invoice #${raw.invoiceNumber}`);
