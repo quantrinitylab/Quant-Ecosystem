@@ -21,6 +21,7 @@ import {
   SHARE_ERROR_COPY,
   ShareResolveError,
   downloadUrlFor,
+  previewUrlFor,
   previewKindFor,
   resolveShareToken,
   TEXT_PREVIEW_MAX_BYTES,
@@ -63,6 +64,11 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
   const expiresLabel = formatDate(file.expiresAt);
   const sizeTooLargeForText = typeof file.size === 'number' && file.size > TEXT_PREVIEW_MAX_BYTES;
 
+  // QM-M39-006 (disable-download): the owner blocked downloads for this
+  // viewer-role link. The button is never shown — the backend 403s downloads
+  // anyway; previews use the read-only preview lane.
+  const downloadBlocked = file.role !== 'editor' && file.disableDownload === true;
+
   const handleDownload = useCallback(() => {
     if (file.requiresPassword && !password) {
       setPasswordHint('Enter the link password to download this file.');
@@ -80,7 +86,9 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
     }
     let cancelled = false;
     setTextPreviewState('loading');
-    fetch(downloadUrlFor(token, password || undefined), { credentials: 'include' })
+    // QM-M39-006 (disable-download): text previews read through the backend's
+    // preview lane, never the download endpoint — the flag stays enforced.
+    fetch(previewUrlFor(token, password || undefined), { credentials: 'include' })
       .then(async (res) => {
         if (!res.ok) throw new Error('preview failed');
         const text = await res.text();
@@ -101,7 +109,7 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
     };
   }, [previewKind, textPreviewState, sizeTooLargeForText, token, password]);
 
-  const previewUrl = downloadUrlFor(token, password || undefined);
+  const previewUrl = previewUrlFor(token, password || undefined);
 
   return (
     <Card padding="none" className="p-6">
@@ -120,6 +128,7 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
           <Badge variant="default">{file.role === 'editor' ? 'Can edit' : 'View only'}</Badge>
           {file.requiresSignIn && <Badge variant="default">Restricted link</Badge>}
           {file.requiresPassword && <Badge variant="default">Password protected</Badge>}
+          {downloadBlocked && <Badge variant="default">Download disabled by owner</Badge>}
         </div>
         {expiresLabel && (
           <p className="mt-2 text-[11px] text-[var(--quant-muted-foreground)]">
@@ -196,14 +205,20 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
       )}
 
       <div className="mt-5">
-        <Button
-          variant="primary"
-          fullWidth
-          onClick={handleDownload}
-          className="bg-[var(--app-accent,var(--quant-success))] border-[var(--app-accent,var(--quant-success))] text-black"
-        >
-          Download file
-        </Button>
+        {downloadBlocked ? (
+          <p className="text-center text-xs text-[var(--quant-muted-foreground)]">
+            The owner disabled downloading for this link — you can preview the file above.
+          </p>
+        ) : (
+          <Button
+            variant="primary"
+            fullWidth
+            onClick={handleDownload}
+            className="bg-[var(--app-accent,var(--quant-success))] border-[var(--app-accent,var(--quant-success))] text-black"
+          >
+            Download file
+          </Button>
+        )}
       </div>
     </Card>
   );
