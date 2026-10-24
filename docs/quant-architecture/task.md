@@ -6207,3 +6207,11 @@ ROUND RECORD (2026-10-24 ~11:35-12:05 IST, LANE-1; code: origin/main tree only v
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents (protocol P0/P1-only; subagent.list 0 active at run start and end). findings.md untouched.
 - LIVE HEALTHY, VISUAL VERIFIED: proxy 127.0.0.1:8888 healthy (quantmail.in 307 1.58s, no restart); /thread/test-id-123 -> 307 (sign-in gate); GET /api/threads/test-id-123 -> honest 401; POST /api/emails/test-id-123/detect-phishing -> honest 401 — all match R36 baseline. Desktop 1440x900 (9334) + mobile 390x844 (iPhone 14, MOBILE_CHROME_PORT=9411) /thread/test-id-123 sign-in shots REVIEWED: settled sign-in both viewports, current clay M-mark, honest tri-cards (desktop), Help/Privacy/Terms footer, (c) 2026, pure black, mail-orange, zero old-logo flash; standing knowns re-seen not re-filed (P3 'Quant Mail' wordmark spacing, white ghost 'AI triage' card on desktop). Shots + snapshot deleted; exactly my 2 run-created chrome dirs + 3 dead orphans removed (pgrep-verified zero live chromes before rm; sibling dirs untouched — none live); /tmp 1%. Signed-in thread flows = needs-auth (protocol), not faked. #1243 deploy hold ACTIVE (cat-verified: hidden_files/orchestrator/deploy-hold.txt non-empty) — nothing to deploy.
 Rotation -> QM-SCREEN-006 (compose) ROUND 37 regression, queued.
+
+
+## QM-SCREEN-006 R37 — Compose / drafts / schedule / send regression (ROUND 37)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-006r37, started 2026-10-24 ~12:40 IST; R36-006 tip e91cd548a19b319900165df8b2d57971fa0c966e -> origin/main e91cd548a19b319900165df8b2d57971fa0c966e (fresh fetch, zero new main merges) -> pure re-verification pass vs R36 pins + fresh hunt)
+Audit started: 2026-10-24 ~12:40 IST (lane-1 deep audit loop, ROUND 37)
+- Base: fresh fetch, zero new main merges -> pure re-verification vs R36 pins (10 fixed-in-main items, 2 carryovers, 1 NEW P2 dead EmailScheduleTimeline.tsx) + fresh hunt. Code read from origin/main tree only via git-archive snapshot /tmp/qsnap006r37 (qe-main working tree ignored per stale-tree lesson). Ledger worktree HEAD == remote arch tip ls-remote-verified before write; merge-only, no rebase/reset; never touched another lane's [~].
+- (audit bullets pending — will complete before DONE)
+Rotation -> QM-SCREEN-007 (search) ROUND 37 regression, queued.
