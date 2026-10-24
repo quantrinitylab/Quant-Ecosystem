@@ -40,6 +40,19 @@ export function resolveMessageDate(message: DatedMessage): Date | null {
 }
 
 /**
+ * Machine-readable ISO-8601 for a `<time dateTime={...}>` attribute.
+ * `Date.prototype.toISOString()` THROWS a RangeError on an invalid date
+ * (unlike `getTime()`, which merely returns NaN), so an unguarded
+ * `new Date(thread.receivedAt).toISOString()` crashed the whole inbox row
+ * render for a thread with a bad timestamp. Returns undefined for missing
+ * or unparseable input — React then omits the attribute — never throws.
+ */
+export function safeISODateTime(value: DateLike): string | undefined {
+  const date = toValidDate(value);
+  return date ? date.toISOString() : undefined;
+}
+
+/**
  * Value for a "Date:"-style field: the locale date-time of the best real
  * date, or the honest `fallback` when none exists. Never "Invalid Date",
  * never the raw input.
