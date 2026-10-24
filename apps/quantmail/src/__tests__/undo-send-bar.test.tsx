@@ -471,6 +471,126 @@ describe('10-Second Undo-Send Countdown Bar Test Suite', () => {
       manager.destroy();
     });
 
+    it('flush-previous failure runs the flushed item onSendFailed and leaves the new item counting', async () => {
+      const manager = new UndoSendManager();
+      const failure = new Error('flush send failed');
+      const onSendNow1 = vi.fn(async () => {
+        throw failure;
+      });
+      const onSendFailed1 = vi.fn();
+      const onUndo1 = vi.fn();
+      const onSendNow2 = vi.fn(async () => {});
+
+      manager.queueSend({
+        emailId: 'mail-1',
+        to: 'first@quantmail.in',
+        onSendNow: onSendNow1,
+        onSendFailed: onSendFailed1,
+        onUndo: onUndo1,
+      });
+      manager.queueSend({
+        emailId: 'mail-2',
+        to: 'second@quantmail.in',
+        onSendNow: onSendNow2,
+      });
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(onSendNow1).toHaveBeenCalledTimes(1);
+      // The rejection is routed to the flushed item's failure hook — never
+      // swallowed, and never misrouted to its undo path when a dedicated
+      // failure hook exists.
+      expect(onSendFailed1).toHaveBeenCalledTimes(1);
+      expect(onSendFailed1).toHaveBeenCalledWith(failure);
+      expect(onUndo1).not.toHaveBeenCalled();
+      // The new item owns the bar untouched: still counting, still pending.
+      expect(manager.getState().status).toBe('counting');
+      expect(manager.getState().pendingItem?.to).toBe('second@quantmail.in');
+      expect(onSendNow2).not.toHaveBeenCalled();
+
+      manager.destroy();
+    });
+
+    it('flush-previous failure falls back to onUndo when the flushed item has no onSendFailed', async () => {
+      const manager = new UndoSendManager();
+      const onSendNow1 = vi.fn(async () => {
+        throw new Error('flush send failed');
+      });
+      const onUndo1 = vi.fn();
+      const onSendNow2 = vi.fn(async () => {});
+
+      manager.queueSend({
+        emailId: 'mail-1',
+        to: 'first@quantmail.in',
+        onSendNow: onSendNow1,
+        onUndo: onUndo1,
+      });
+      manager.queueSend({
+        emailId: 'mail-2',
+        to: 'second@quantmail.in',
+        onSendNow: onSendNow2,
+      });
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(onUndo1).toHaveBeenCalledTimes(1);
+      expect(manager.getState().pendingItem?.to).toBe('second@quantmail.in');
+
+      manager.destroy();
+    });
+
+    it('flush-previous synchronous throw also routes to onSendFailed', async () => {
+      const manager = new UndoSendManager();
+      const failure = new Error('sync flush failure');
+      const onSendNow1 = vi.fn(() => {
+        throw failure;
+      });
+      const onSendFailed1 = vi.fn();
+      const onSendNow2 = vi.fn(async () => {});
+
+      manager.queueSend({
+        emailId: 'mail-1',
+        to: 'first@quantmail.in',
+        onSendNow: onSendNow1,
+        onSendFailed: onSendFailed1,
+      });
+      manager.queueSend({
+        emailId: 'mail-2',
+        to: 'second@quantmail.in',
+        onSendNow: onSendNow2,
+      });
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(onSendFailed1).toHaveBeenCalledTimes(1);
+      expect(onSendFailed1).toHaveBeenCalledWith(failure);
+      expect(manager.getState().pendingItem?.to).toBe('second@quantmail.in');
+
+      manager.destroy();
+    });
+
+    it('flush-previous success never calls onSendFailed', async () => {
+      const manager = new UndoSendManager();
+      const onSendNow1 = vi.fn(async () => {});
+      const onSendFailed1 = vi.fn();
+      const onSendNow2 = vi.fn(async () => {});
+
+      manager.queueSend({
+        emailId: 'mail-1',
+        to: 'first@quantmail.in',
+        onSendNow: onSendNow1,
+        onSendFailed: onSendFailed1,
+      });
+      manager.queueSend({
+        emailId: 'mail-2',
+        to: 'second@quantmail.in',
+        onSendNow: onSendNow2,
+      });
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(onSendNow1).toHaveBeenCalledTimes(1);
+      expect(onSendFailed1).not.toHaveBeenCalled();
+
+      manager.destroy();
+    });
+
     it('notifies subscribers on state updates and supports unsubscription', () => {
       const manager = new UndoSendManager();
       const listener = vi.fn();

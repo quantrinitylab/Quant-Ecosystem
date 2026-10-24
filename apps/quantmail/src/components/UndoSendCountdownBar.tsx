@@ -155,17 +155,27 @@ export class UndoSendManager {
     }
 
     // If a previous email was already in queue, flush it immediately before replacing.
-    // Synchronous invocation, like before; the returned promise is only
-    // observed so a rejection never goes unhandled. The bar is being replaced,
-    // so there is nothing to celebrate or restore for the previous item.
+    // A flushed send that FAILS must run the flushed item's failure hook
+    // (onSendFailed, else its onUndo restore) — swallowing the rejection
+    // here used to leave the caller's optimistic "Sending…" bubble lingering
+    // forever and the words never restored to the box, because no other
+    // path ever ran the hook for a replaced item. The hook runs WITHOUT
+    // touching manager state: the new item owns the bar from here, and the
+    // callers' restore paths are guarded against clobbering a newer draft
+    // (ThreadComposer.restoreDraft only fills an empty box). This is
+    // deliberately NOT handleSendFailure: that method early-returns when
+    // the item is no longer the pending item, which is exactly the state
+    // a flushed-then-replaced item is in.
     if (this.state.pendingItem && this.state.status === 'counting') {
       const previous = this.state.pendingItem;
       try {
-        Promise.resolve(previous.onSendNow?.()).catch(() => {
-          // Silently ignore flush errors on previous message
+        Promise.resolve(previous.onSendNow?.()).catch((error: unknown) => {
+          void this.handleFlushedSendFailure(previous, error);
         });
-      } catch {
-        // Silently ignore flush errors on previous message
+      } catch (err) {
+        // A synchronous throw from onSendNow is a send failure too — it
+        // takes the same failure-hook path as an async rejection.
+        void this.handleFlushedSendFailure(previous, err);
       }
     }
 
@@ -277,6 +287,30 @@ export class UndoSendManager {
       };
       this.notify();
     }, this.sentDisplayDurationMs);
+  };
+
+  /**
+   * Failure path for a send flushed by a newer queueSend. Unlike
+   * handleSendFailure this must NOT check (or mutate) manager state: the
+   * flushed item is no longer pending — the new item is — so a state
+   * guard would skip the hook entirely, which was the original bug. The
+   * hook itself (withdraw the optimistic bubble, restore the words) is
+   * the whole point; a restore-path error must never mask the original
+   * send failure, so it is swallowed here, not the failure itself.
+   */
+  private handleFlushedSendFailure = async (
+    item: PendingSendItem,
+    error: unknown,
+  ): Promise<void> => {
+    try {
+      if (item.onSendFailed) {
+        await item.onSendFailed(error);
+      } else {
+        await item.onUndo?.();
+      }
+    } catch {
+      // A restore-path error must never mask the original send failure.
+    }
   };
 
   private handleSendFailure = async (item: PendingSendItem, error: unknown): Promise<void> => {
