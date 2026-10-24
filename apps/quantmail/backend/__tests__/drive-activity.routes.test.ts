@@ -129,7 +129,17 @@ function createFakePrisma() {
     user: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         users.get(where.id) ?? null,
-      findMany: async () => [],
+      // Mirrors the route's case-insensitive recipient lookup: the share route
+      // resolves recipients via user.findMany({ email: { equals, mode:
+      // 'insensitive' } }) and fails closed on ambiguity, so the mock must
+      // implement the same equals filter (a bare `async () => []` would make
+      // every share 404 USER_NOT_FOUND).
+      findMany: async ({ where }: { where?: { email?: { equals?: string; mode?: string } } }) => {
+        const eq = where?.email?.equals;
+        if (typeof eq !== 'string') return [];
+        const target = eq.toLowerCase();
+        return [...users.values()].filter((u) => u.email.toLowerCase() === target);
+      },
       findFirst: async ({ where }: { where: { email?: { equals: string; mode?: string } } }) => {
         const target = where.email?.equals?.toLowerCase();
         for (const u of users.values()) if (u.email.toLowerCase() === target) return u;
