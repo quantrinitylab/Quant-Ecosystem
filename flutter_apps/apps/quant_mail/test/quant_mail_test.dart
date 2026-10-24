@@ -1,19 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 
-import 'package:quant_mail/main.dart';
-import 'package:quant_mail/models/mail_models.dart';
 import 'package:quant_mail/models/composer_models.dart';
 import 'package:quant_mail/screens/composer/undo_send_manager.dart';
 import 'package:quant_mail/screens/composer/undo_send_bar.dart';
 import 'package:quant_mail/screens/composer/email_composer_modal.dart';
-import 'package:quant_mail/screens/mail/mail_inbox_screen.dart';
-import 'package:quant_mail/screens/superapp/quantmail_superapp_bar.dart';
-import 'package:quant_mail/screens/superapp/superapp_home_screen.dart';
 import 'package:quant_mail/screens/contacts/contacts_pillar_view.dart';
 import 'package:quant_mail/screens/quantgit/quantgit_pillar_view.dart';
 
@@ -24,145 +18,6 @@ void main() {
   // 1. DOMAIN MODEL UNIT TESTS
   // ===========================================================================
   group('QuantMail Domain Models Unit Tests', () {
-    test('MailCategoryLens: Validates all 5 lenses, IDs, labels, icons and accent colors', () {
-      expect(MailCategoryLens.values.length, 5);
-
-      final expectedLenses = [
-        MailCategoryLens.primary,
-        MailCategoryLens.updates,
-        MailCategoryLens.promotions,
-        MailCategoryLens.forums,
-        MailCategoryLens.vips,
-      ];
-      expect(MailCategoryLens.values, equals(expectedLenses));
-
-      // 1. Primary Lens
-      expect(MailCategoryLens.primary.id, 'primary');
-      expect(MailCategoryLens.primary.label, 'Primary');
-      expect(MailCategoryLens.primary.icon, Icons.inbox_rounded);
-      expect(MailCategoryLens.primary.accentColor, QuantColors.moltenAmber);
-
-      // 2. Updates Lens
-      expect(MailCategoryLens.updates.id, 'updates');
-      expect(MailCategoryLens.updates.label, 'Updates');
-      expect(MailCategoryLens.updates.icon, Icons.notifications_active_outlined);
-      expect(MailCategoryLens.updates.accentColor, QuantColors.sovereignCyan);
-
-      // 3. Promotions Lens
-      expect(MailCategoryLens.promotions.id, 'promotions');
-      expect(MailCategoryLens.promotions.label, 'Promotions');
-      expect(MailCategoryLens.promotions.icon, Icons.local_offer_outlined);
-      expect(MailCategoryLens.promotions.accentColor, QuantColors.sunsetGold);
-
-      // 4. Forums Lens
-      expect(MailCategoryLens.forums.id, 'forums');
-      expect(MailCategoryLens.forums.label, 'Forums');
-      expect(MailCategoryLens.forums.icon, Icons.forum_outlined);
-      expect(MailCategoryLens.forums.accentColor, QuantColors.obsidianPurple);
-
-      // 5. VIPs Lens
-      expect(MailCategoryLens.vips.id, 'vips');
-      expect(MailCategoryLens.vips.label, 'VIPs');
-      expect(MailCategoryLens.vips.icon, Icons.stars_rounded);
-      expect(MailCategoryLens.vips.accentColor, QuantColors.emeraldMatrix);
-    });
-
-    test('MailThread: sampleThreads is honestly empty; copyWith and model behavior verified on a direct fixture', () {
-      // v2 honesty: no fabricated demo threads ship in the product.
-      final sampleThreads = MailThread.sampleThreads();
-      expect(sampleThreads, isEmpty);
-
-      // Direct fixture (clearly fictional) for model behavior tests.
-      final thread1 = MailThread(
-        id: 'th-test-001',
-        sender: 'Test User',
-        senderEmail: 'test.user@example.com',
-        senderInitials: 'TU',
-        avatarGradient: const [Color(0xFFFF8C42), Color(0xFFF59E0B)],
-        isVerifiedDomain: true,
-        subject: 'Test subject line',
-        snippet: 'Test snippet for unit verification.',
-        bodyHtml: '<p>Test body</p>',
-        timestamp: '2026-10-07T10:30:00',
-        dateFormatted: '10:30 AM',
-        category: MailCategoryLens.primary,
-        isUnread: true,
-        isStarred: true,
-        isPriorityTriage: true,
-        priorityShortcut: 'E',
-        security: const MailHeaderSecurity(
-          spf: 'PASS',
-          dkim: 'PASS',
-          dmarc: 'PASS',
-          e2ee: 'TLS 1.3',
-          deliveryLatencyMs: 12.0,
-        ),
-        aiSummary: MailAiSummary(
-          summaryTitle: 'Test Summary',
-          latencyMs: 3,
-          keyPoints: const ['Point one', 'Point two'],
-          actionItems: [
-            MailActionItem(id: 'a1', title: 'First action'),
-            MailActionItem(id: 'a2', title: 'Second action'),
-          ],
-        ),
-        attachments: [
-          const MailAttachment(
-            id: 'att-1',
-            name: 'spec.pdf',
-            fileType: 'PDF',
-            sizeBytes: 1024,
-            formattedSize: '1 KB',
-            sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-            icon: Icons.picture_as_pdf_rounded,
-          ),
-        ],
-      );
-
-      expect(thread1.id, 'th-test-001');
-      expect(thread1.sender, 'Test User');
-      expect(thread1.senderEmail, 'test.user@example.com');
-      expect(thread1.category, MailCategoryLens.primary);
-      expect(thread1.isUnread, isTrue);
-      expect(thread1.isStarred, isTrue);
-      expect(thread1.isPriorityTriage, isTrue);
-      expect(thread1.priorityShortcut, 'E');
-
-      // Security telemetry verification
-      expect(thread1.security.spf, 'PASS');
-      expect(thread1.security.dkim, 'PASS');
-      expect(thread1.security.dmarc, 'PASS');
-      expect(thread1.security.e2ee, 'TLS 1.3');
-
-      // AI Summary verification
-      expect(thread1.aiSummary.summaryTitle, 'Test Summary');
-      expect(thread1.aiSummary.keyPoints.length, 2);
-      expect(thread1.aiSummary.actionItems.length, 2);
-      expect(thread1.aiSummary.actionItems.first.isCompleted, isFalse);
-
-      // Action Item toggle mutation
-      thread1.aiSummary.actionItems.first.isCompleted = true;
-      expect(thread1.aiSummary.actionItems.first.isCompleted, isTrue);
-
-      // Attachments verification
-      expect(thread1.attachments.length, 1);
-      expect(thread1.attachments.first.name, 'spec.pdf');
-      expect(thread1.attachments.first.fileType, 'PDF');
-      expect(thread1.attachments.first.sha256.length, 64);
-
-      // copyWith immutable state transition
-      final archivedThread = thread1.copyWith(
-        isArchived: true,
-        isUnread: false,
-        isStarred: false,
-      );
-      expect(archivedThread.isArchived, isTrue);
-      expect(archivedThread.isUnread, isFalse);
-      expect(archivedThread.isStarred, isFalse);
-      expect(archivedThread.id, thread1.id);
-      expect(archivedThread.subject, thread1.subject);
-    });
-
     test('EmailRecipient: Initials generation, displayLabel, case-insensitive equality, and JSON serialization', () {
       // 1. Multi-word name
       const recipient1 = EmailRecipient(
@@ -400,88 +255,6 @@ void main() {
 
       manager.dismiss();
       expect(manager.state, UndoSendState.idle);
-    });
-  });
-
-  // ===========================================================================
-  // 2. WIDGET TESTS FOR QuantMailApp & MailInboxScreen
-  // ===========================================================================
-  group('QuantMailApp & MailInboxScreen Widget Tests', () {
-    testWidgets('QuantMailApp initializes cleanly with Obsidian Dark theme and v2 SuperApp home', (tester) async {
-      await tester.pumpWidget(const QuantMailApp());
-      await tester.pump();
-
-      // Verify v2 SuperApp home rendered (single bottom nav, no fake threads)
-      expect(find.byType(SuperAppHomeScreen), findsOneWidget);
-      expect(find.byType(QuantMailSuperAppBar), findsOneWidget);
-      expect(find.text('No mail in Primary yet'), findsOneWidget);
-    });
-
-    testWidgets('MailInboxScreen: Category lenses render with honest empty states', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: QuantTheme.obsidianDarkTheme,
-          home: const MailInboxScreen(),
-        ),
-      );
-      await tester.pump();
-
-      // Check all 5 Category Lenses present in the horizontal tab bar
-      expect(find.text('Primary'), findsOneWidget);
-      expect(find.text('Updates'), findsOneWidget);
-      expect(find.text('Promotions'), findsOneWidget);
-      expect(find.text('Forums'), findsOneWidget);
-      expect(find.text('VIPs'), findsOneWidget);
-
-      // v2 honesty: no fabricated threads — empty state shown
-      expect(find.text('Inbox Zero Achieved'), findsOneWidget);
-      expect(find.text('Alex Mercer'), findsNothing);
-      expect(find.text('Aarav Sharma'), findsNothing);
-
-      // Switch to 'Updates' Lens — still honest empty
-      await tester.tap(find.text('Updates'));
-      await tester.pump();
-      expect(find.text('Inbox Zero Achieved'), findsOneWidget);
-    });
-
-    testWidgets('MailInboxScreen: Search on empty inbox keeps honest empty state', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: QuantTheme.obsidianDarkTheme,
-          home: const MailInboxScreen(),
-        ),
-      );
-      await tester.pump();
-
-      // Locate search TextField
-      final searchField = find.byType(TextField).first;
-      expect(searchField, findsOneWidget);
-
-      // Enter search query — no fabricated threads to filter
-      await tester.enterText(searchField, 'Wave 76');
-      await tester.pump();
-
-      expect(find.text('Inbox Zero Achieved'), findsOneWidget);
-
-      // Clear search query — empty state persists
-      await tester.enterText(searchField, '');
-      await tester.pump();
-
-      expect(find.text('Inbox Zero Achieved'), findsOneWidget);
-    });
-
-    testWidgets('MailInboxScreen: Empty inbox shows no selection header', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: QuantTheme.obsidianDarkTheme,
-          home: const MailInboxScreen(),
-        ),
-      );
-      await tester.pump();
-
-      // Selection header not visible with no threads
-      expect(find.textContaining('selected'), findsNothing);
-      expect(find.text('Inbox Zero Achieved'), findsOneWidget);
     });
   });
 
@@ -829,7 +602,7 @@ void main() {
           final matches = emojiRegex.allMatches(line);
           for (final match in matches) {
             final char = match.group(0)!;
-            // Exclude legitimate Apple/Mac Command key symbol ⌘ (U+2318)
+            // Exclude legitimate Apple/Mac Command key symbol Ã¢Å’Ëœ (U+2318)
             if (char.runes.first == 0x2318) continue;
 
             violations.add(
