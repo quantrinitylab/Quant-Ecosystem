@@ -30,6 +30,8 @@ import {
 } from './composeValidation';
 import { ContactAutocomplete, type ContactSuggestion } from './ContactAutocomplete';
 import { useContactSuggestions } from '../hooks/useContactSuggestions';
+import { usePlusMention } from '../hooks/usePlusMention';
+import { PlusMentionDropdown } from './PlusMentionDropdown';
 import {
   IconArrowRight,
   IconChevronDown,
@@ -502,6 +504,35 @@ export function EmailComposer({
     }
   }, [initialBody]);
 
+  // Inline "+" mentions in the body (Gmail parity): typing "+name" opens
+  // the contact picker; picking one inserts "@Name" into the body AND adds
+  // the contact to To, so the user never leaves the body to address the
+  // mail. Already-addressed contacts are hidden from the picker.
+  const plusMention = usePlusMention({
+    body,
+    contacts: frequentSuggestions,
+    excludedEmails: [
+      ...toRecipients.map((r) => r.email),
+      ...ccRecipients.map((r) => r.email),
+      ...bccRecipients.map((r) => r.email),
+    ],
+    onSelect: (contact, nextBody, nextCaret) => {
+      setBody(nextBody);
+      setToRecipients((prev) =>
+        prev.some((r) => r.email.toLowerCase() === contact.email.toLowerCase())
+          ? prev
+          : [...prev, { email: contact.email, name: contact.name, avatarUrl: contact.avatar }],
+      );
+      requestAnimationFrame(() => {
+        const el = bodyTextareaRef.current;
+        if (el) {
+          el.focus();
+          el.setSelectionRange(nextCaret, nextCaret);
+        }
+      });
+    },
+  });
+
   useEffect(() => {
     if (isOpen) {
       setIsDismissed(false);
@@ -526,6 +557,9 @@ export function EmailComposer({
   }, [activeCompletion]);
 
   const handleBodyKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // An open mention picker owns Arrow/Enter/Tab/Escape first — Enter with
+    // a picker open picks a contact, it never falls through to anything else.
+    if (plusMention.handleKeyDown(e)) return;
     if (e.key === 'Tab' && activeCompletion) {
       e.preventDefault();
       acceptCompletion();
@@ -2365,12 +2399,19 @@ export function EmailComposer({
                 scroll region (parent is now flex-col), so no black void sits
                 between the editor and the Send toolbar. */}
             <div className="flex flex-col gap-1.5 w-full max-w-full box-border flex-1 min-h-[220px]">
+              <div className="relative flex w-full flex-1 flex-col">
               <textarea
                 id="composer-body"
                 name="body"
                 ref={bodyTextareaRef}
                 value={body}
-                onChange={(e) => setBody(e.target.value)}
+                onChange={(e) => {
+                  setBody(e.target.value);
+                  plusMention.updateFromEdit(
+                    e.target.value,
+                    e.target.selectionStart ?? e.target.value.length,
+                  );
+                }}
                 onKeyDown={handleBodyKeyDown}
                 placeholder={
                   isTemplateMode
@@ -2389,6 +2430,15 @@ export function EmailComposer({
                 }}
                 className={`flex-1 w-full max-w-full box-border bg-[var(--quant-background)]/40 border border-[var(--quant-surface-elevated)]/80 rounded-2xl p-4 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--quant-primary)]/50 resize-none leading-relaxed shadow-inner min-h-[200px]`}
               />
+              {plusMention.isOpen && (
+                <PlusMentionDropdown
+                  suggestions={plusMention.suggestions}
+                  activeIndex={plusMention.activeIndex}
+                  onSelect={plusMention.select}
+                  onHover={plusMention.setActiveIndex}
+                />
+              )}
+              </div>
 
               {/* Quick completions chip (static phrase lookup, not ML) */}
               {activeCompletion && (

@@ -4,6 +4,9 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { apiClient } from '../services/api-client';
 import { showToast } from '../components/InboxToast';
+import { useContactSuggestions } from '../hooks/useContactSuggestions';
+import { usePlusMention } from '../hooks/usePlusMention';
+import { PlusMentionDropdown } from './PlusMentionDropdown';
 import { UndoSendContext } from './UndoSendCountdownBar';
 import { ScheduleSendModal, isPastScheduleTime } from './ScheduleSendModal';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
@@ -293,6 +296,28 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
   const [customSubject, setCustomSubject] = useState(restoredDraft?.customSubject ?? '');
   const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Inline "+" mentions in the body (Gmail parity, same trigger contract
+  // as EmailComposer/DockedComposer). A thread reply has NO To field — it
+  // addresses the thread person — so a pick here is text-only: "@Name" is
+  // inserted into the body and no recipient is added, because the thread
+  // send path has no recipient list to add to. Claiming otherwise would
+  // be a fake recipient.
+  const { contacts: frequentSuggestions } = useContactSuggestions();
+  const plusMention = usePlusMention({
+    body,
+    contacts: frequentSuggestions,
+    onSelect: (_contact, nextBody, nextCaret) => {
+      setBody(nextBody);
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (el) {
+          el.focus();
+          el.setSelectionRange(nextCaret, nextCaret);
+        }
+      });
+    },
+  });
 
   // Saved email templates (backend /email-templates CRUD, via the
   // EmailTemplates picker) — the same backend-backed surface the docked
@@ -585,6 +610,8 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // An open mention picker owns Enter (pick, never send) and Arrow/Escape.
+    if (plusMention.handleKeyDown(event)) return;
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       void handleSend();
@@ -616,11 +643,18 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
         >
           {newTopic ? 'Re:' : 'New topic'}
         </button>
+        <div className="relative flex min-w-0 flex-1">
         <textarea
           id="people-reply-input"
           ref={textareaRef}
           value={body}
-          onChange={(event) => setBody(event.target.value)}
+          onChange={(event) => {
+            setBody(event.target.value);
+            plusMention.updateFromEdit(
+              event.target.value,
+              event.target.selectionStart ?? event.target.value.length,
+            );
+          }}
           onKeyDown={handleKeyDown}
           // P1-1 (mobile): when the iOS keyboard opens, make sure the box
           // is scrolled into the resized visible area.
@@ -633,6 +667,16 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
           disabled={isSending}
           className="max-h-40 min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-sm text-white placeholder-[#6B6E76] focus:outline-none disabled:opacity-60"
         />
+        {plusMention.isOpen && (
+          <PlusMentionDropdown
+            placement="above"
+            suggestions={plusMention.suggestions}
+            activeIndex={plusMention.activeIndex}
+            onSelect={plusMention.select}
+            onHover={plusMention.setActiveIndex}
+          />
+        )}
+        </div>
         {/* Saved email templates — the real backend-backed picker
             (EmailTemplates.tsx, /email-templates CRUD), the same surface the
             docked composer wires. Anchored above the chat bar via the portaled
