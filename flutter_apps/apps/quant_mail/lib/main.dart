@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'screens/superapp/superapp_home_screen.dart';
 import 'screens/superapp/quant_workplace_splash_screen.dart';
-import 'screens/auth/quant_login_screen.dart';
 import 'screens/mail/mail_inbox_screen.dart';
+import 'design/quant_mail_theme.dart';
 import 'services/quant_auth_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await QuantAuthController.instance.init();
-  runApp(const QuantMailApp());
+  runApp(const ProviderScope(child: QuantMailApp()));
 }
 
 /// Sovereign QuantWorkplace Flutter Application (by Quantrinity)
@@ -26,12 +27,12 @@ class QuantMailApp extends StatelessWidget {
     return MaterialApp(
       title: 'QuantWorkplace',
       debugShowCheckedModeBanner: false,
-      theme: QuantTheme.obsidianDarkTheme.copyWith(
+      theme: buildQuantMailTheme(QuantTheme.obsidianDarkTheme.copyWith(
         primaryColor: QuantColors.moltenAmber,
         colorScheme: QuantTheme.obsidianDarkTheme.colorScheme.copyWith(
           primary: QuantColors.moltenAmber,
         ),
-      ),
+      )),
       home: const QuantWorkplaceSplashScreen(
         initialSplashDuration: Duration(milliseconds: 3200),
       ),
