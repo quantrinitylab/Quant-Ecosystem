@@ -6163,7 +6163,15 @@ NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents (protocol P0/P1-only; sub
 Rotation -> QM-SCREEN-003 (shell) ROUND 37 regression, queued.
 
 ## QM-SCREEN-003 R37 - Workspace shell / navigation / account switcher / command palette (LANE-1)
-Status: [~] IN PROGRESS - claim 2026-10-24 ~09:36 IST
+Status: [x] DONE - regression audit complete 2026-10-24 ~09:36-10:05 IST (0 P0/P1/P2/P3; no fix agents - protocol P0/P1-only)
 Owner: LANE-1
 Branch: lane1-audit-003r37
 Base: origin/main e91cd548a19b (fresh fetch; zero new main merges vs R36 base - pure re-verification + fresh hunt)
+Code read: origin/main tree ONLY via git-archive snapshot /tmp/qsnap003r37 (13 files: AppShell, DesktopContextSidebar, QuantPillarTopBar, DesktopAppRail, QuantFab, AccountBadge, CommandPalette, ContextBottomNavBar, KeyboardSurfaces, KeyboardShortcutsHelp, QuantyLauncher + app/layout.tsx + app/sso/SsoChooserContent.tsx); qe-main working tree ignored per stale-tree lesson; snapshot cleaned.
+Prior R2 pins ALL BYTE-VERIFIED INTACT @ e91cd548a19b (line numbers IDENTICAL to R36, tip-to-tip zero drift): (1) ONE desktop left sidebar - DesktopContextSidebar import AppShell.tsx:29, comment :303, render :762; (2) QuantPillarTopBar mobile-only - mounted inside md:hidden wrapper AppShell.tsx:984; (3) right DesktopAppRail kept - AppShell.tsx:1047; (4) QuantFab mobile-only - md:hidden QuantFab.tsx:191; (5) AccountBadge real identity - displayName/email from user object (AccountBadge.tsx:88-93, :243-244).
+Also verified intact: unread badge counts real conversations (:183-205); quant:drive:upload + quant:contacts:create listeners (:603/:612); route prefetch every pillar shell on mount (:621/:627/:629); 0 toast( in shell components; 0 ?token= in shell trees; 0 #FF8C42.
+R36-NEW-1 P3 hairlines CONFIRMED PRESENT (not re-filed): AppShell.tsx:849 (mobile collapsible search panel), AccountBadge.tsx:358 (account-menu section separator), CommandPalette.tsx:190 (palette input header) - same overlay/menu chrome, same lines as R36.
+Fresh hunt clean: 0 lorem/coming-soon/dummy-user/mock-user/fake-user/dummy-data; 0 invented marketing claims; 0 bad hex colors (#FF8C42/#A855F7); keyboard-shortcut surfaces contain no fake/dead bindings.
+NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents (protocol P0/P1-only; subagent.list 0 active). findings.md untouched.
+LIVE HEALTHY, VISUAL VERIFIED: proxy 127.0.0.1:8888 healthy (google 200 1.27s, no restart); / -> 307 /login (0.64s); /api/emails -> honest 401 UNAUTHORIZED (byte-verified) - match R36 baseline. Desktop 1440x900 (9334) + mobile 390x844 (iPhone 14, MOBILE_CHROME_PORT=9403, wait_s=14 hydrated) / shots REVIEWED: settled sign-in both viewports, current clay M-mark, honest tri-cards (mail+chat threads / AI triage copy-honesty / encrypted in transit), ONE IDENTITY footer, (c) 2026, pure black, mail-orange, zero old-logo flash; standing knowns re-seen not re-filed (white ghost on AI triage card, P3 Quant Mail wordmark spacing). Shots reviewed + deleted; exactly my 2 run-created chrome dirs + 4 pre-existing dead orphans removed (pgrep-verified zero live chromes before removal; sibling 9333 dirs were also orphaned - zero live PIDs); /tmp 1%. Signed-in shell flows = needs-auth (protocol), not faked. #1243 deploy hold ACTIVE (cat-verified) - nothing to deploy.
+Rotation -> QM-SCREEN-004 (inbox) ROUND 37 regression, queued.
