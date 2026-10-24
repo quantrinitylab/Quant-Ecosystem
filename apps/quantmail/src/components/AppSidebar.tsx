@@ -437,7 +437,7 @@ export function SidebarStorage() {
   }
   return (
     <section
-      className="mt-4 px-2.5 py-3 border-t border-[var(--quant-border-subtle)]"
+      className="mt-4 px-2.5 py-3"
       aria-label="Storage status"
     >
       <div className="flex items-center justify-between text-[11px] text-[var(--quant-muted-foreground)]">
@@ -452,7 +452,7 @@ export function SidebarStorage() {
         </span>
       </div>
       <div
-        className="mt-2 h-1.5 w-full rounded-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] overflow-hidden"
+        className="mt-2 h-1.5 w-full rounded-full bg-[var(--quant-surface-elevated)] overflow-hidden"
         role="progressbar"
         aria-label="Cloud storage used"
         aria-valuemin={0}
@@ -478,7 +478,7 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
 
   return (
     <nav className="quant-sidebar" aria-label="QuantMail navigation">
-      <header className="sidebar-brand flex items-center justify-between px-3.5 py-3 border-b border-[var(--quant-border-subtle)]">
+      <header className="sidebar-brand flex items-center justify-between px-3.5 py-3">
         <div
           className="flex items-center gap-2.5 cursor-pointer select-none group"
           onClick={() => router.push('/')}
