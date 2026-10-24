@@ -238,6 +238,38 @@ async function resolveLinkAudience(prisma: any, scope: LinkScope, emails?: strin
   return ids;
 }
 
+/**
+ * Resolve the direct-share recipient for POST /drive/files/:id/share.
+ * Case-colliding legacy rows (person@example.com vs Person@example.com —
+ * distinct users under the case-sensitive unique index) fail closed with
+ * RECIPIENT_AMBIGUOUS: the lookup stays case-insensitive, but a findFirst
+ * would grant file access AND send the notification email to whichever row
+ * the DB returns first — a non-deterministic wrong-person share (worse than
+ * the link-audience variant: a direct share, not a link). Same collision
+ * class as resolveLinkAudience: exactly one subject per normalized email,
+ * or 409, never findFirst-and-hope.
+ */
+async function resolveShareRecipient(
+  prisma: any,
+  email: string,
+): Promise<{ id: string; email: string }> {
+  const normalized = email.trim().toLowerCase();
+  const matches: { id: string; email: string }[] = await prisma.user.findMany({
+    where: { email: { equals: normalized, mode: 'insensitive' } },
+    select: { id: true, email: true },
+  });
+  if (matches.length === 0)
+    throw createAppError('Recipient user not found', 404, 'USER_NOT_FOUND');
+  if (matches.length > 1)
+    throw createAppError(
+      `Ambiguous account for: ${normalized} — more than one account matches ` +
+        'this address. Ask the person for their exact sign-in email and try again.',
+      409,
+      'RECIPIENT_AMBIGUOUS',
+    );
+  return matches[0];
+}
+
 /** Org IDs the user belongs to (for scope='org' enforcement). */
 async function userOrgIds(prisma: any, userId: string): Promise<string[]> {
   const memberships = await prisma.organizationMember.findMany({
@@ -1392,11 +1424,7 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     const file = await fileAccess(prisma, request.params.id, userId);
     if (file.userId !== userId)
       throw createAppError('Only the owner can share this file', 403, 'FORBIDDEN');
-    const recipient = await prisma.user.findFirst({
-      where: { email: { equals: parsed.data.email, mode: 'insensitive' } },
-      select: { id: true, email: true },
-    });
-    if (!recipient) throw createAppError('Recipient user not found', 404, 'USER_NOT_FOUND');
+    const recipient = await resolveShareRecipient(prisma, parsed.data.email);
     if (recipient.id === userId)
       throw createAppError('Cannot share a file with yourself', 400, 'INVALID_RECIPIENT');
     const existing = await prisma.share.findFirst({

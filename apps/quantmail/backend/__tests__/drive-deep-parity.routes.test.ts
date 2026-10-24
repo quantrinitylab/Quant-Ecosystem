@@ -1091,6 +1091,99 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
     });
   });
 
+  // ==========================================================================
+  // Direct-share recipient resolution — fail closed on case-colliding rows.
+  // ==========================================================================
+  describe('direct share recipient resolution (fail closed on collision)', () => {
+    it('creates a direct share and notifies the resolved recipient', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/files/file_spec_1/share',
+        headers: { 'content-type': 'application/json' },
+        payload: { email: 'bob@quantmail.in', permission: 'view' },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.share.email).toBe('bob@quantmail.in');
+      expect(body.share.permission).toBe('view');
+      // The share and the notification email both target the resolved user.
+      expect(shares.length).toBe(1);
+      expect(shares[0].sharedWithUserId).toBe('user_bob');
+      expect(shares[0].permission).toBe('read');
+      expect(emails.length).toBe(1);
+      expect(emails[0].userId).toBe('user_bob');
+      expect(emails[0].toAddresses).toContain('bob@quantmail.in');
+    });
+
+    it('still resolves a single legacy mixed-case row case-insensitively', async () => {
+      users.push({ id: 'user_mixed', email: 'MixedCase@quantmail.in', displayName: 'Mixed' });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/files/file_spec_1/share',
+        headers: { 'content-type': 'application/json' },
+        payload: { email: 'mixedcase@quantmail.in', permission: 'edit' },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      // The response carries the RESOLVED stored email, not the raw input.
+      expect(body.share.email).toBe('MixedCase@quantmail.in');
+      expect(shares[0].sharedWithUserId).toBe('user_mixed');
+      expect(emails[0].userId).toBe('user_mixed');
+    });
+
+    it('fails closed with 409 RECIPIENT_AMBIGUOUS on case-colliding rows', async () => {
+      // Two DISTINCT users whose stored emails differ only by case (possible
+      // under the case-sensitive unique index). The old findFirst handed the
+      // file — and the notification email — to whichever row the DB returned
+      // first: a non-deterministic wrong-person share. The fixed route must
+      // refuse instead of guessing.
+      users.push({ id: 'user_dup_a', email: 'dup@example.com', displayName: 'DupA' });
+      users.push({ id: 'user_dup_b', email: 'Dup@example.com', displayName: 'DupB' });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/files/file_spec_1/share',
+        headers: { 'content-type': 'application/json' },
+        payload: { email: 'dup@example.com', permission: 'view' },
+      });
+      expect(res.statusCode).toBe(409);
+      expect(JSON.parse(res.body).error.code).toBe('RECIPIENT_AMBIGUOUS');
+      // No share row and no notification email were created for either row.
+      expect(shares.length).toBe(0);
+      expect(emails.length).toBe(0);
+    });
+
+    it('still returns 404 USER_NOT_FOUND for unknown emails', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/files/file_spec_1/share',
+        headers: { 'content-type': 'application/json' },
+        payload: { email: 'ghost@example.com', permission: 'view' },
+      });
+      expect(res.statusCode).toBe(404);
+      expect(JSON.parse(res.body).error.code).toBe('USER_NOT_FOUND');
+    });
+
+    it('rejects sharing with yourself and sharing by a non-owner', async () => {
+      const self = await app.inject({
+        method: 'POST',
+        url: '/drive/files/file_spec_1/share',
+        headers: { 'content-type': 'application/json' },
+        payload: { email: 'alice@quantmail.in', permission: 'view' },
+      });
+      expect(self.statusCode).toBe(400);
+      expect(JSON.parse(self.body).error.code).toBe('INVALID_RECIPIENT');
+
+      const nonOwner = await app.inject({
+        method: 'POST',
+        url: '/drive/files/file_spec_1/share',
+        headers: { 'content-type': 'application/json', 'x-user-id': 'user_bob' },
+        payload: { email: 'alice@quantmail.in', permission: 'view' },
+      });
+      expect(nonOwner.statusCode).toBe(403);
+      expect(shares.length).toBe(0);
+    });
+  });
+
   it('executes trash retention auto-purge cleanup sweeper', async () => {
     const fortyDaysAgo = new Date(Date.now() - 40 * 86_400_000);
     const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000);
