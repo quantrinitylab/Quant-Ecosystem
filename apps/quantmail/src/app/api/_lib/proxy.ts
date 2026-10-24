@@ -127,10 +127,26 @@ export async function proxyToBackend(
       status: res.status,
       headers: { 'cache-control': cacheControl },
     });
-    // Forward Set-Cookie headers from backend (for auth refresh tokens)
-    const setCookie = res.headers.get('set-cookie');
-    if (setCookie) {
-      response.headers.set('Set-Cookie', setCookie);
+    // Forward ALL Set-Cookie headers from the backend (login/refresh now
+    // set two: the refresh credential AND the short-lived access cookie).
+    // fix/qm-quantgit-repos-401-cookie-3: `headers.get('set-cookie')`
+    // collapses multiples into one comma-joined value, which browsers
+    // misparse — only the first cookie would survive the proxy, silently
+    // dropping the access cookie this fix relies on. getSetCookie() keeps
+    // each cookie intact; fall back to the single value on runtimes
+    // without it.
+    const headersWithCookies = res.headers as Headers & {
+      getSetCookie?: () => string[];
+    };
+    const setCookies =
+      typeof headersWithCookies.getSetCookie === 'function'
+        ? headersWithCookies.getSetCookie()
+        : (() => {
+            const single = res.headers.get('set-cookie');
+            return single ? [single] : [];
+          })();
+    for (const cookie of setCookies) {
+      response.headers.append('Set-Cookie', cookie);
     }
     return response;
   } catch {
