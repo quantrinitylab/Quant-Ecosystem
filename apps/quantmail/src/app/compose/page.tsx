@@ -8,7 +8,12 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { EmailComposer } from '../../components/EmailComposer';
 import type { ComposerMessageData } from '../../components/EmailComposer';
 import { showToast } from '../../components/InboxToast';
-import { buildReplyQuote, stripTrailingSignature } from '../../lib/email-body';
+import {
+  buildForwardQuote,
+  buildReplyQuote,
+  normalizeForwardSubject,
+  stripTrailingSignature,
+} from '../../lib/email-body';
 import { filterValidRecipients } from '../../lib/email-validation';
 import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
@@ -175,6 +180,69 @@ export default function ComposePage() {
       active = false;
     };
   }, [replyTo, prefillBody, draftId, draftData?.body]);
+
+  // Forward prefill: `?forward=<id>` used to open a BLANK composer — the
+  // param was parsed (forwardId above) and never used, so every forward
+  // entry point (thread view's `f` key, the inbox/people keyboards, the
+  // person view) behaved like fresh compose and the original was never
+  // fetched. Fetch it and prefill a Gmail-class forwarded subject + body.
+  //
+  // The id may be a message id (people/inbox keyboards, person view) or a
+  // thread id (thread view's forward action passes its threadId) — try the
+  // message endpoint first, then fall back to the thread's latest message,
+  // exactly like the reply loader above. A reply (`?replyTo=`) always wins
+  // over a forward when both are present; an explicit `?body=` or a restored
+  // draft always wins over the forwarded body, and an explicit `?subject=`
+  // always wins over the forwarded subject (applied at render, below).
+  // The composer is held behind the load for the same reason as the reply
+  // quote: a prefill arriving after the user started typing would clobber
+  // their words. If the original cannot be loaded the composer honestly
+  // stays blank; nothing is invented.
+  const [forwardBody, setForwardBody] = useState<string | null>(null);
+  const [forwardSubject, setForwardSubject] = useState<string | null>(null);
+  const [forwardLoading, setForwardLoading] = useState(
+    () => Boolean(forwardId && !replyTo && !prefillBody && !draftId),
+  );
+
+  useEffect(() => {
+    if (!forwardId || replyTo || prefillBody || draftId || draftData?.body) {
+      setForwardLoading(false);
+      return;
+    }
+    let active = true;
+    const loadForward = async () => {
+      try {
+        const one = await apiClient.getEmail(forwardId);
+        if (!active) return;
+        if (one.success && one.data) {
+          setForwardBody(buildForwardQuote(one.data));
+          setForwardSubject(normalizeForwardSubject(one.data.subject ?? ''));
+          return;
+        }
+        const thread = await apiClient.getThread(forwardId);
+        if (!active || !thread.success || !thread.data?.messages?.length) return;
+        const latest = [...thread.data.messages].sort(
+          (a, b) =>
+            new Date(b.receivedAt ?? b.createdAt ?? 0).getTime() -
+            new Date(a.receivedAt ?? a.createdAt ?? 0).getTime(),
+        )[0];
+        if (latest) {
+          setForwardBody(buildForwardQuote(latest));
+          setForwardSubject(
+            normalizeForwardSubject(latest.subject ?? thread.data.subject ?? ''),
+          );
+        }
+      } catch {
+        // No forwarded original — the composer stays honestly blank.
+      } finally {
+        if (active) setForwardLoading(false);
+      }
+    };
+    void loadForward();
+    return () => {
+      active = false;
+    };
+  }, [forwardId, replyTo, prefillBody, draftId, draftData?.body]);
 
   // `?kind=chat` (from the inbox's "New chat" button) starts a chat thread
   // instead of a letter; the kind travels to the backend compose call and to
@@ -420,10 +488,16 @@ export default function ComposePage() {
     [],
   );
 
-  if (draftLoading || quoteLoading) {
+  if (draftLoading || quoteLoading || forwardLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[var(--quant-surface-subtle)] text-[var(--quant-muted-foreground)] text-sm">
-        <p>{draftLoading ? 'Loading draft…' : 'Loading quoted message…'}</p>
+        <p>
+          {draftLoading
+            ? 'Loading draft…'
+            : quoteLoading
+              ? 'Loading quoted message…'
+              : 'Loading forwarded message…'}
+        </p>
       </div>
     );
   }
@@ -439,12 +513,17 @@ export default function ComposePage() {
           initialTo={draftData?.to ?? prefillTo ?? undefined}
           initialSubject={
             draftData?.subject ??
-            (prefillSubject ? normalizeReplySubject(prefillSubject) : '')
+            (prefillSubject
+              ? normalizeReplySubject(prefillSubject)
+              : (forwardSubject ?? ''))
           }
           // `initialBody` precedence: a restored draft (undo-draft or
           // `?draftId=`) wins, then an explicit `?body=`, then the fetched
-          // reply quote; a failed quote load honestly stays blank.
-          initialBody={draftData?.body ?? prefillBody ?? quoteBody ?? undefined}
+          // reply quote, then the fetched forwarded original; a failed
+          // quote/forward load honestly stays blank.
+          initialBody={
+            draftData?.body ?? prefillBody ?? quoteBody ?? forwardBody ?? undefined
+          }
           inReplyTo={replyTo || undefined}
           onSend={handleSend}
           onSaveDraft={handleSaveDraft}
