@@ -6380,3 +6380,9 @@ FRESH HUNT CLEAN: 0 lorem/coming-soon/dummy-user/mock-user/fake-user/dummy-data/
 LIVE HEALTHY, VISUAL VERIFIED: proxy 127.0.0.1:8888 healthy (no restart); /login /register /forgot-password /sso /login?returnTo=%2Fsettings -> 200 x5 (no redirect loop); POST /api/sso/ticket/mint -> honest 401 UNAUTHORIZED 'Missing or invalid authorization header'; POST /api/auth/2fa/verify -> honest 403 UNTRUSTED_ORIGIN — all match R37 baseline. Desktop 1440x900 (9334) /login + /register shots REVIEWED + mobile 390x844 (iPhone 14, port 9471, wait_s=14 hydrated) /login shot REVIEWED: pure black, mail-orange, current clay M-mark, honest tri-cards (no "drafts the reply"), Help/Privacy/Terms footer, ONE IDENTITY footer, (c) 2026, zero old-logo flash; /register shows NO phone field (P0 #872 removal holds live). Shots + snapshot deleted; exactly my 3 run-created chrome dirs removed (2x 9334 desktop + 1x 9471 mobile; pgrep-verified zero live chromes referencing them before rm; pre-existing 9334 orphan + sibling live 9480 continuous-qa chrome untouched); /tmp 2%. Signed-in flows = needs-auth. #1243 deploy hold ACTIVE (cat-verified hidden_files/orchestrator/deploy-hold.txt) — nothing to deploy.
 NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents (protocol P0/P1-only; subagent.list 0 active at start and end). findings.md untouched.
 Rotation -> QM-SCREEN-003 (shell) ROUND 38 regression, queued.
+
+## QM-SCREEN-003 R38 — shell regression — CLAIMED
+Status: [~] IN PROGRESS — claim (Owner: LANE-1, Branch: lane1-audit-003r38, regression audit 2026-10-25 ~00:35 IST)
+Owner: LANE-1
+Branch: lane1-audit-003r38
+Base: R37-003 tip e91cd548a19b -> origin/main e91cd548a19b (fresh fetch; zero new main merges) -> pure re-verification pass vs R37 pins + fresh hunt. Audit in progress; DONE section follows on completion.
