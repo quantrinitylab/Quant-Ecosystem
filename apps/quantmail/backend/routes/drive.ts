@@ -347,6 +347,10 @@ function linkDto(
     audienceEmails,
     audienceOrgs: scope === 'org' ? orgNames : [],
     requiresPassword: Boolean(link.password),
+    // QM-M39-006 (disable-download): owner-set flag; enforced on the public
+    // download path for viewer-role links. Honest state — a link without the
+    // flag reads false, never null.
+    disableDownload: Boolean(link.disableDownload),
     expiresAt: link.expiresAt,
     expired: expiresAt ? expiresAt.getTime() < Date.now() : false,
     createdAt: link.createdAt,
@@ -833,6 +837,11 @@ const publicShareLinkSchema = z.object({
   // Null/omitted = no expiry.
   expiresAt: z.string().min(1).max(40).nullable().optional(),
   password: z.string().max(100).optional(),
+  // QM-M39-006 (disable-download): owner can block downloads for viewer-role
+  // links (Google Drive parity — viewers get preview only, editors always
+  // need the bytes to edit). Defaults false; enforced on the public
+  // download path, never trusted from the client side at serve time.
+  disableDownload: z.boolean().optional().default(false),
 });
 const initiateChunkedSchema = z.object({
   name: z.string().min(1).max(255),
@@ -1797,6 +1806,7 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
         expiresAt,
         scope,
         audience: audienceIds.length > 0 ? JSON.stringify(audienceIds) : null,
+        disableDownload: parsed.data.disableDownload ?? false,
       },
     });
 
@@ -1818,6 +1828,7 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
         scope,
         audience: linkAudienceLabel(scope, audienceEmails, await userOrgNames(prisma, userId)),
         audienceEmails,
+        disableDownload: Boolean(share.disableDownload),
         expiresAt: share.expiresAt,
       },
     });
@@ -1862,12 +1873,16 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
           expiresAt: share.expiresAt,
           scope,
           requiresSignIn: scope !== 'anyone',
+          // QM-M39-006 (disable-download): the public page hides its download
+          // button from viewers when this is true, and switches its previews
+          // to the preview-only path.
+          disableDownload: Boolean(share.disableDownload),
         },
       });
     },
   );
 
-  fastify.get<{ Params: { token: string }; Querystring: { password?: string } }>(
+  fastify.get<{ Params: { token: string }; Querystring: { password?: string; preview?: string } }>(
     '/drive/public/share/:token/download',
     async (request, reply) => {
       const share = await prisma.driveShare.findUnique({
@@ -1908,6 +1923,20 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
         }
       }
 
+      // QM-M39-006 (disable-download): the owner's flag applies to viewer-role
+      // links only — editors always need the bytes to edit, same as Google
+      // Drive. Fail closed with an honest 403 BEFORE any byte is read.
+      // ?preview=1 is the viewer's read-only preview lane (img/iframe/text
+      // preview on the public page): it stays available so the file remains
+      // viewable, but it streams inline instead of as an attachment.
+      if (share.role === 'viewer' && share.disableDownload && request.query.preview !== '1') {
+        throw createAppError(
+          'The owner of this file has disabled downloading for this link',
+          403,
+          'SHARE_DOWNLOAD_DISABLED',
+        );
+      }
+
       const file = await prisma.file.findFirst({
         where: { id: share.fileId, isDeleted: false },
       });
@@ -1928,9 +1957,16 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       const bytes = await checkedPlaintext(file);
       const filename = safeFileName(file.name);
 
+      // ?preview=1 (disable-download lane) streams inline so the viewer can
+      // preview the file in their browser; everything else forces a download.
+      const disposition =
+        request.query.preview === '1'
+          ? `inline; filename="${filename}"`
+          : `attachment; filename="${filename}"`;
+
       return reply
         .header('Content-Type', file.mimeType || 'application/octet-stream')
-        .header('Content-Disposition', `attachment; filename="${filename}"`)
+        .header('Content-Disposition', disposition)
         .header('Content-Length', bytes.length)
         .send(bytes);
     },
@@ -1962,6 +1998,8 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     expiresAt: z.string().min(1).max(40).nullable().optional(),
     // password: null removes the password; undefined leaves it unchanged.
     password: z.string().max(100).nullable().optional(),
+    // QM-M39-006 (disable-download): toggling the flag on an existing link.
+    disableDownload: z.boolean().optional(),
   });
 
   fastify.patch<{ Params: { id: string } }>('/drive/shares/link/:id', async (request, reply) => {
@@ -1999,6 +2037,9 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       data.expiresAt = parsed.data.expiresAt === null ? null : parseLinkExpiry(parsed.data.expiresAt);
     if (parsed.data.password !== undefined)
       data.password = parsed.data.password === null ? null : await argon2.hash(parsed.data.password);
+    // QM-M39-006 (disable-download): explicit toggles only — undefined leaves
+    // the stored flag untouched, like password above.
+    if (parsed.data.disableDownload !== undefined) data.disableDownload = parsed.data.disableDownload;
 
     const updated = await prisma.driveShare.update({ where: { id: share.id }, data });
     const finalScope = (updated.scope ?? 'anyone') as LinkScope;

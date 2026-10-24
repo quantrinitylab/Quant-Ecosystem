@@ -27,6 +27,8 @@ export interface DriveFileShareInfo {
   expiresAt: string | null;
   scope: string;
   requiresSignIn: boolean;
+  /** QM-M39-006 (disable-download): owner blocked downloads for viewer-role links. */
+  disableDownload: boolean;
 }
 
 export interface DocumentShareInfo {
@@ -189,10 +191,21 @@ export async function resolveShareToken(
  * bytes from object storage; a link password travels as the `password` query
  * param — the backend's own documented fallback for plain-navigation downloads
  * (preferred `x-share-password` header is unavailable to a navigation).
+ *
+ * QM-M39-006 (disable-download): when the owner blocks downloads for a
+ * viewer-role link, the backend's download endpoint 403s. Previews must go
+ * through `previewUrlFor` instead: the `?preview=1` lane streams the same
+ * bytes inline so the file stays viewable without ever allowing a download.
  */
 export function downloadUrlFor(token: string, password?: string): string {
   const base = `/api/drive/public/share/${encodeURIComponent(token)}/download`;
   return password ? `${base}?password=${encodeURIComponent(password)}` : base;
+}
+
+/** Preview URL for a share token: the backend's read-only preview lane. */
+export function previewUrlFor(token: string, password?: string): string {
+  const base = `/api/drive/public/share/${encodeURIComponent(token)}/download?preview=1`;
+  return password ? `${base}&password=${encodeURIComponent(password)}` : base;
 }
 
 const IMAGE_MIME = /^image\//;
