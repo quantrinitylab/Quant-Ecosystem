@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, isValidElement, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
-import { PageTransition, useFocusTrap } from '@quant/shared-ui';
+import { PageTransition } from '@quant/shared-ui';
 import { quantMailDarkSemanticTheme, quantMailDarkSemanticThemeName } from '../brand/theme';
-import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
+import { useShortcut } from '../lib/keyboard/hooks';
 import { appDisplayName } from './BrandWordmark';
 // Type only: the shell renders per-app SVG marks itself.
 import { type LogoAppType } from './Interactive3DLogo';
@@ -89,9 +89,6 @@ export interface AppShellProps {
   'aria-label'?: string;
 }
 
-const focusableSelector =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
 const PIN_STORAGE_KEY = 'quant.shell.sidebarPinned';
 
 /* Mobile bottom navigation: exactly ONE bottom bar — <ContextBottomNavBar />,
@@ -117,10 +114,7 @@ export function AppShell({
   onQuantyOpenChange,
   'aria-label': ariaLabel = 'Application shell',
 }: AppShellProps) {
-  const drawerId = useId();
   const mobileSearchId = useId();
-  const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
 
   // QM-SCREEN-015: the desktop-notification firing path behind the Settings
@@ -302,9 +296,9 @@ export function AppShell({
   /*
    * The pinned desktop rail renders DesktopContextSidebar — the ONE desktop
    * left sidebar (2026-10-10: logo+name, search, per-app compose + contextual
-   * tabs, Quanty, storage, profile). The `sidebar` prop still feeds the
-   * mobile drawer untouched — only its `extra` slot is forwarded so routes
-   * like Contacts keep their A–Z index on desktop too.
+   * tabs, Quanty, storage, profile). Of the `sidebar` prop only its `extra`
+   * slot is forwarded, so routes like Contacts keep their A–Z index on desktop
+   * too.
    */
   const desktopSidebarExtra = isValidElement(sidebar)
     ? (sidebar.props as { extra?: ReactNode }).extra
@@ -336,24 +330,23 @@ export function AppShell({
   const pillarSearchVisible = topBar === undefined && isMainSuiteRoute && !customHeader;
 
   /*
-   * Mobile drawer dead-end fix (mobile-inbox P1 follow-up, 2026-10-18).
+   * Mobile back affordance (mobile-inbox P1 follow-up, 2026-10-18).
    *
-   * The pillar top bar below is the mobile drawer's only touch opener, but it
-   * renders solely on main suite routes (`isMainSuiteRoute && !customHeader`).
-   * Every other route that mounts the drawer (`sidebar` prop — /labels, /sent,
-   * /drafts, /trash, /scheduled, /archive, /search, /settings, /notifications,
-   * /pipelines, /security, /workspaces, /admin/*, /people/*) left a touch user
-   * with the drawer in the DOM and zero ways to open it: tapping "Labels" in
-   * the drawer closed it onto /labels with no hamburger, no bottom bar, and
-   * no back affordance in the page's own header — a nav dead-end (browser-back
-   * was the only escape, and in the installed PWA there is none).
+   * The pillar top bar below renders solely on main suite routes
+   * (`isMainSuiteRoute && !customHeader`). Every other route that mounts a
+   * `sidebar` (/labels, /sent, /drafts, /trash, /scheduled, /archive, /search,
+   * /settings, /notifications, /pipelines, /security, /workspaces, /admin/*,
+   * /people/*) has no bottom bar and no back link in the page's own header, so
+   * a touch user landing there had no way out: browser-back was the only
+   * escape, and in the installed PWA there is none.
    *
-   * This slim mobile-only header covers exactly those routes: a hamburger that
-   * dispatches the same `quant:sidebar:toggle` the pillar bar uses (sharing
-   * `menuTriggerRef`, so the drawer's focus-return keeps working on every
-   * route), plus a back chevron for secondary pages that have no back link of
-   * their own. Pages keep their own headers — this bar carries no title, so
+   * This slim mobile-only header covers exactly those routes with a back
+   * chevron. Pages keep their own headers — this bar carries no title, so
    * nothing duplicates. Desktop is untouched (`md:hidden`).
+   *
+   * There is no mobile navigation drawer any more: the `sidebar` prop only
+   * feeds the desktop pinned rail (its `extra` slot), and phones navigate with
+   * the pillar bar and the contextual bottom bar.
    */
   const showMobileSecondaryHeader =
     Boolean(sidebar) && topBar === undefined && !(isMainSuiteRoute && !customHeader);
@@ -366,21 +359,9 @@ export function AppShell({
     }
   }, []);
 
-  useEffect(() => {
-    const handleClose = () => setIsSidebarOpen(false);
-    window.addEventListener('quant:sidebar:close', handleClose);
-    return () => window.removeEventListener('quant:sidebar:close', handleClose);
-  }, []);
-
-  const closeSidebar = useCallback((restoreFocus = true) => {
-    setIsSidebarOpen(false);
-    if (restoreFocus) menuTriggerRef.current?.focus();
-  }, []);
-
   /**
-   * Tracks Tailwind's `md` breakpoint, because whether the drawer is the primary
-   * navigation or a redundant copy of a pinned rail is a purely visual fact that
-   * the keyboard and focus code still has to know about.
+   * Tracks Tailwind's `md` breakpoint, which decides whether the desktop
+   * context rail is rendered.
    *
    * Starts `false` so the server render and the first client render agree; the
    * subscription corrects it before paint.
@@ -393,58 +374,6 @@ export function AppShell({
     query.addEventListener('change', sync);
     return () => query.removeEventListener('change', sync);
   }, []);
-
-  /**
-   * The `[` command's other half.
-   *
-   * `KeyboardProvider` dispatches `quant:sidebar:toggle`, but until now only
-   * `quant:sidebar:close` was ever listened for — so the shortcut was advertised
-   * in the palette and the help sheet while doing nothing at all.
-   */
-  useEffect(() => {
-    const handleToggle = () => {
-      // The desktop rail is always pinned now — toggling there would hide the
-      // rail with no way back, so ignore it on wide screens. The mobile drawer
-      // still toggles below `md`. On mobile the trigger is the hamburger in the
-      // pillar top bar (2026-10-11: wired via `onMenuClick` below); the `[`
-      // keyboard shortcut remains the keyboard path.
-      if (isWide) return;
-      setIsSidebarOpen((open) => {
-        // Leaving focus on a node inside a drawer that is about to go
-        // `aria-hidden` strands the screen reader, so hand it back to the trigger.
-        if (open) menuTriggerRef.current?.focus();
-        return !open;
-      });
-    };
-    window.addEventListener('quant:sidebar:toggle', handleToggle);
-    return () => window.removeEventListener('quant:sidebar:toggle', handleToggle);
-  }, [isWide]);
-
-  /**
-   * Whether the drawer is actually on screen.
-   *
-   * `isSidebarOpen` alone is not enough: the drawer is `md:hidden` while the rail
-   * is pinned, yet the hamburger stays clickable there, so the open state can be
-   * true for a drawer nobody can see. Everything modal about the drawer — the
-   * scroll lock, the focus trap, the keyboard mask — has to hang off this instead,
-   * or a stray click locks the page with no visible cause.
-   */
-  const isDrawerPresented = isSidebarOpen && !(isPinned || isWide);
-
-  /**
-   * The drawer is modal — backdrop, locked body scroll, focus trap — so while it
-   * is open it masks every shallower binding. That is what stops `j`/`k`/`e` from
-   * walking the conversation list the user cannot see behind it.
-   */
-  useKeyboardScope('sidebar-drawer', { active: isDrawerPresented, exclusive: true });
-
-  useShortcut('escape', () => closeSidebar(), {
-    scope: 'sidebar-drawer',
-    label: 'Close navigation',
-    // Escape has to work from the search field inside the drawer too, which is
-    // exactly where a user who opened the wrong panel is likely to be.
-    allowInInput: true,
-  });
 
   /*
    * `/` focuses the search field on a route that has one.
@@ -526,46 +455,6 @@ export function AppShell({
   useEffect(() => {
     setIsMobileSearchOpen(false);
   }, [pathname]);
-
-  /**
-   * Focus containment for the drawer.
-   *
-   * The trap itself is the shared `useFocusTrap` — this file used to carry its own
-   * copy, one of four in the repo, and its selector took `button`/`input` without
-   * filtering on visibility, so a control hidden inside the collapsed drawer could
-   * become the wrap target. Two options are deliberately off:
-   *
-   * - `autoFocus`, because the drawer animates in and the effect below waits a
-   *   frame before focusing; taking focus on the same tick lands it on an element
-   *   that is still off-screen.
-   * - `restoreFocus`, because `closeSidebar(restoreFocus?)` already owns the
-   *   return target and distinguishes the two cases the hook cannot: Escape goes
-   *   back to the menu trigger, a route change does not.
-   *
-   * Escape is the keyboard engine's, registered above.
-   */
-  const drawerRef = useFocusTrap<HTMLElement>({
-    active: isDrawerPresented,
-    autoFocus: false,
-    restoreFocus: false,
-  });
-
-  // Body scroll lock and initial focus. Not the trap's job: the lock is this
-  // shell's, and the frame's delay exists because the drawer slides in.
-  useEffect(() => {
-    if (!isDrawerPresented) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const focusFrame = window.requestAnimationFrame(() => {
-      drawerRef.current?.querySelector<HTMLElement>(focusableSelector)?.focus();
-    });
-
-    return () => {
-      window.cancelAnimationFrame(focusFrame);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isDrawerPresented, drawerRef]);
 
   /*
    * What the shell's create button does, per route. `QuantFab` renders nothing
@@ -729,31 +618,18 @@ export function AppShell({
           }}
         />
         {/*
-        Everything modal about the drawer hangs off `isDrawerPresented`, and the
-        floating create button is modal-adjacent: it must not be hittable over a
-        backdrop. Publishing the flag here rather than guarding `<QuantFab>`
-        inline is what makes that true for the copy `/calendar` mounts inside
-        `{children}` as well as for the shell's own.
+        The shell no longer has a modal navigation drawer, so nothing here ever
+        hides the floating create button behind a backdrop: `isDrawerPresented`
+        is a constant `false`. The provider stays because `QuantFab` (the shell's
+        copy and the one `/calendar` mounts inside `{children}`) reads the flag
+        from it.
       */}
-        <ShellChromeProvider isDrawerPresented={isDrawerPresented}>
+        <ShellChromeProvider isDrawerPresented={false}>
           {sidebar && (
             <>
-              {/* Backdrop for overlay drawer */}
-              <button
-                type="button"
-                className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
-                  isDrawerPresented
-                    ? 'visible opacity-100'
-                    : 'invisible opacity-0 pointer-events-none'
-                }`}
-                aria-label="Close navigation menu"
-                onClick={() => closeSidebar()}
-              />
-
               {/* Desktop Pinned Sidebar — the ONE desktop left sidebar
                   (2026-10-10 redesign): logo+name, search, per-app compose +
-                  contextual tabs, Quanty, storage, profile.
-                  The mobile drawer below keeps rendering the old sidebar untouched. */}
+                  contextual tabs, Quanty, storage, profile. */}
               {(isPinned || isWide) && (
                 <aside
                   className="hidden md:relative md:flex flex-none bg-[var(--surface)] border-r border-[var(--border)]"
@@ -777,31 +653,6 @@ export function AppShell({
                 </aside>
               )}
 
-              {/* Mobile & Unpinned Overlay Drawer */}
-              <aside
-                ref={drawerRef}
-                id={drawerId}
-                className={`fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-3rem)] flex-none bg-[var(--surface)] shadow-2xl transition-transform duration-200 ease-out motion-reduce:transition-none ${
-                  isSidebarOpen ? 'visible translate-x-0' : 'invisible -translate-x-full'
-                } ${isPinned || isWide ? 'md:hidden' : ''}`}
-                // A backdrop, a locked page and a focus trap already make this a modal
-                // dialog; saying so lets a screen reader announce the boundary instead
-                // of presenting it as one more complementary region on the page.
-                role="dialog"
-                aria-modal={isDrawerPresented || undefined}
-                aria-label="Navigation"
-                aria-hidden={!isDrawerPresented}
-                inert={!isDrawerPresented}
-                onClickCapture={(event) => {
-                  if (
-                    (event.target as HTMLElement).closest('.sidebar-nav-item, .sidebar-compose')
-                  ) {
-                    closeSidebar(false);
-                  }
-                }}
-              >
-                {sidebar}
-              </aside>
             </>
           )}
 
@@ -870,8 +721,8 @@ export function AppShell({
                         onChange={(e) => onSearchChange(e.target.value)}
                         onKeyDown={(event) => {
                           // Escape closes the row from inside the field, which is
-                          // where the user is. The engine's Escape binding is scoped
-                          // to the drawer, so it never sees this.
+                          // where the user is. stopPropagation keeps the keyboard
+                          // engine's own Escape handling from also firing.
                           if (event.key === 'Escape') {
                             event.stopPropagation();
                             onSearchChange('');
@@ -917,37 +768,6 @@ export function AppShell({
                   className="flex items-center gap-1 bg-black px-2 py-1"
                 >
                   {/*
-                    Drawer opener for routes the pillar bar doesn't cover. Same
-                    toggle event the pillar hamburger and the `[` shortcut use;
-                    `menuTriggerRef` shared so the drawer's focus-return works.
-                  */}
-                  <button
-                    type="button"
-                    ref={menuTriggerRef}
-                    onClick={() =>
-                      window.dispatchEvent(new CustomEvent('quant:sidebar:toggle'))
-                    }
-                    aria-label="Open navigation menu"
-                    aria-expanded={isSidebarOpen}
-                    title="Open navigation menu"
-                    data-testid="shell-mobile-menu-button"
-                    className="flex size-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border border-[#232938] bg-[#16181F] text-[#CBD5E1] outline-none transition active:scale-95 hover:border-[var(--quant-primary)]/60 hover:text-white focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
-                  >
-                    <svg
-                      className="size-5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      aria-hidden="true"
-                    >
-                      <line x1="4" y1="7" x2="20" y2="7" />
-                      <line x1="4" y1="12" x2="20" y2="12" />
-                      <line x1="4" y1="17" x2="20" y2="17" />
-                    </svg>
-                  </button>
-                  {/*
                     Back affordance for secondary pages (/labels, /settings, …)
                     whose own headers carry no back link. Honest history-back —
                     identical to the browser back gesture, and the only escape
@@ -988,17 +808,6 @@ export function AppShell({
                   onQuantyClick={openQuanty}
                   unreadCounts={{ mail: unreadCount }}
                   lensCounts={{ mail: mailLensCounts }}
-                  // The mobile drawer is otherwise unreachable on touch
-                  // (the `[` shortcut needs a physical keyboard), so the
-                  // hamburger renders here — left of the pinned search row —
-                  // and dispatches the same toggle the keyboard path uses.
-                  // `menuTriggerRef` finally gives the drawer's focus-return
-                  // logic a real DOM node (previously unattached).
-                  onMenuClick={() =>
-                    window.dispatchEvent(new CustomEvent('quant:sidebar:toggle'))
-                  }
-                  menuTriggerRef={menuTriggerRef}
-                  menuExpanded={isSidebarOpen}
                 />
               </div>
             ) : null}
@@ -1007,8 +816,8 @@ export function AppShell({
           The app's only `<main>`, and the target of the root layout's skip link.
           `tabIndex={-1}` is what makes that link work: without it the fragment
           jump scrolls but leaves `document.activeElement` on `BODY`, so the next
-          Tab starts from the top of the page again — the header and the drawer
-          the link was meant to skip. A programmatic focus on a `tabindex="-1"`
+          Tab starts from the top of the page again — the header and the
+          sidebar the link was meant to skip. A programmatic focus on a `tabindex="-1"`
           element does not match `:focus-visible`, so this draws no ring.
         */}
             <main
