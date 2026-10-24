@@ -6336,3 +6336,9 @@ Status: [x] DONE (Owner: LANE-1, Branch: lane1-audit-016r37, R37 settings regres
 - FILING NOTE: next run with working git writes commits this R37-016 claim+DONE section first (merge-only, no rebase/reset; worktree HEAD still 3574bf787 == remote arch tip at this run's start, no other lane's [~] touched), fast-forward push, ls-remote-verify.
 Rotation -> QM-SCREEN-017 (admin) ROUND 37 regression, queued.
 - FILING NOTE RESOLVED (same run): the EPERM window cleared before the run ended, so this R37-016 claim+DONE section was committed + pushed as 17f35dd0c in this same run (remote tip ls-remote-verified == HEAD); no filing action carries forward.
+
+## QM-SCREEN-017 R37 — Admin regression (ROUND 37)
+Status: [~] IN PROGRESS (2026-10-24 ~21:35 IST, LANE-1, Branch: lane1-audit-017r37)
+Owner: LANE-1
+Branch: lane1-audit-017r37
+Audit started: 2026-10-24 ~21:35 IST (lane-1 deep audit loop, ROUND 37)
