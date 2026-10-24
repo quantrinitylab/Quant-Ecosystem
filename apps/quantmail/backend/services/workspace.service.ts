@@ -4,7 +4,7 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import { createAppError } from '@quant/server-core';
-import { sendViaSes } from '../lib/ses-sender';
+import { sendMail } from '../lib/mail-transport';
 
 export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
 
@@ -317,7 +317,7 @@ export class WorkspaceService {
   }
   private async sendInviteEmail(opts: { to: string; workspaceName: string; inviterName: string; role: WorkspaceRole; message: string | null; url: string; expiresAt: Date }): Promise<boolean> {
     try {
-      await sendViaSes({ from: inviteFrom(), to: [opts.to], subject: `${opts.inviterName} invited you to ${opts.workspaceName} on QuantMail`, bodyText: `${opts.inviterName} invited you to join the ${opts.workspaceName} workspace as ${opts.role.toLowerCase()}.\n\nAccept: ${opts.url}\n\nThis link expires on ${opts.expiresAt.toUTCString()}.`, bodyHtml: inviteEmailHtml(opts) });
+      await sendMail({ from: inviteFrom(), to: [opts.to], subject: `${opts.inviterName} invited you to ${opts.workspaceName} on QuantMail`, bodyText: `${opts.inviterName} invited you to join the ${opts.workspaceName} workspace as ${opts.role.toLowerCase()}.\n\nAccept: ${opts.url}\n\nThis link expires on ${opts.expiresAt.toUTCString()}.`, bodyHtml: inviteEmailHtml(opts) });
       return true;
     } catch (error) {
       // eslint-disable-next-line no-console

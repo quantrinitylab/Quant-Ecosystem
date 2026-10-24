@@ -54,7 +54,7 @@ import {
   verificationCodeExpiry,
   verificationCodeMatches,
 } from '../lib/email-verification';
-import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
+import { isMailTransportConfigured, sendMail } from '../lib/mail-transport';
 
 /** Short enough to be an address, long enough for the longest real ones. */
 const MAX_RECOVERY_EMAIL_LENGTH = 254;
@@ -104,12 +104,12 @@ const recoveryVerifyHtml = (code: string): string =>
  * instructions sent" was before SES production access went live.
  */
 const sendRecoveryVerificationEmail = async (to: string, code: string): Promise<boolean> => {
-  if (!isSesConfigured()) {
+  if (!isMailTransportConfigured()) {
     console.error('[account-recovery] SES is not configured; no verification code was sent to', to);
     return false;
   }
   try {
-    await sendViaSes({
+    await sendMail({
       from: process.env['VERIFICATION_EMAIL_FROM'] ?? 'QuantMail <no-reply@quantmail.in>',
       to: [to],
       subject: RECOVERY_VERIFY_SUBJECT,

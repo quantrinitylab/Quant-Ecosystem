@@ -11,7 +11,7 @@
  */
 
 import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
-import { isSesConfigured, sendViaSes } from './ses-sender';
+import { isMailTransportConfigured, sendMail } from './mail-transport';
 
 /** Long enough to walk to another device and copy six digits. */
 export const VERIFICATION_CODE_TTL_SECONDS = 15 * 60;
@@ -84,14 +84,14 @@ export const sendVerificationEmail = async (opts: {
   code: string;
   name?: string | null;
 }): Promise<boolean> => {
-  if (!isSesConfigured()) {
+  if (!isMailTransportConfigured()) {
     // eslint-disable-next-line no-console
     console.error('[email-verification] SES is not configured; no code was sent to', opts.to);
     return false;
   }
 
   try {
-    await sendViaSes({
+    await sendMail({
       from: verificationFrom(),
       to: [opts.to],
       subject: VERIFICATION_EMAIL_SUBJECT,

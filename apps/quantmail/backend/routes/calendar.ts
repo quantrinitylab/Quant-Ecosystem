@@ -6,7 +6,7 @@ import { persistDueCallReminders } from '../services/call-reminder-notify.servic
 import { BookingLinkService } from '../services/booking-link.service';
 import { RecurringService, type CalendarEvent } from '../services/recurring.service';
 import { CalendarCallAlertService } from '../services/calendar-call-alert.service';
-import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
+import { isMailTransportConfigured, sendMail } from '../lib/mail-transport';
 
 const MAX_EVENT_WINDOW_MS = 365 * 86_400_000;
 
@@ -1818,7 +1818,7 @@ export default async function calendarRoutes(
     if (guests.length === 0) {
       return { notified: false, count: 0, reason: 'no-guests' };
     }
-    if (!organizer?.email || !isSesConfigured()) {
+    if (!organizer?.email || !isMailTransportConfigured()) {
       return { notified: false, count: 0, reason: 'mail-not-configured' };
     }
     const method = kind === 'cancellation' ? 'CANCEL' : 'REQUEST';
@@ -1863,7 +1863,7 @@ export default async function calendarRoutes(
             `<p>When: ${escapeHtml(when)}${event.location ? `<br>Where: ${escapeHtml(event.location)}` : ''}</p>` +
             `<p>The updated invitation is attached as an .ics file — add it to your calendar to stay in sync.</p>`;
     try {
-      await sendViaSes({
+      await sendMail({
         from: `${organizerName} <${organizer.email}>`,
         to: guests,
         replyTo: organizer.email,
@@ -1942,7 +1942,7 @@ export default async function calendarRoutes(
     if (!organizer?.email || !isEmailShaped(organizer.email)) {
       return { notified: false, count: 0, reason: 'no-organizer-email' };
     }
-    if (!isSesConfigured()) {
+    if (!isMailTransportConfigured()) {
       return { notified: false, count: 0, reason: 'mail-not-configured' };
     }
     const guestName =
@@ -1968,7 +1968,7 @@ export default async function calendarRoutes(
       // Sent from the product identity (never impersonate the guest — their
       // address is not a verified SES identity); replyTo routes the
       // organizer's reply straight to the guest.
-      await sendViaSes({
+      await sendMail({
         from:
           process.env['CALENDAR_RSVP_NOTIFY_FROM'] ?? 'QuantMail Calendar <no-reply@quantmail.in>',
         to: [organizer.email],
@@ -2023,7 +2023,7 @@ export default async function calendarRoutes(
     if (!hostEmail || !isEmailShaped(hostEmail)) {
       return { notified: false, count: 0, reason: 'no-host-email' };
     }
-    if (!isSesConfigured()) {
+    if (!isMailTransportConfigured()) {
       return { notified: false, count: 0, reason: 'mail-not-configured' };
     }
     const event = confirmation.event as EventRow;
@@ -2056,7 +2056,7 @@ export default async function calendarRoutes(
       // Sent from the product identity (never impersonate the booker — their
       // address is not a verified SES identity); replyTo routes the host's
       // reply straight to the booker.
-      await sendViaSes({
+      await sendMail({
         from:
           process.env['CALENDAR_BOOKING_NOTIFY_FROM'] ??
           'QuantMail Calendar <no-reply@quantmail.in>',

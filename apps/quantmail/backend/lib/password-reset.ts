@@ -11,7 +11,7 @@
  */
 
 import { createHash, randomBytes } from 'node:crypto';
-import { isSesConfigured, sendViaSes } from './ses-sender';
+import { isMailTransportConfigured, sendMail } from './mail-transport';
 
 /** Long enough to walk to another device, short enough that a leaked mailbox
  *  is not a standing key to the account. */
@@ -204,14 +204,14 @@ export const sendPasswordResetEmail = async (opts: {
   url: string;
   name?: string | null;
 }): Promise<boolean> => {
-  if (!isSesConfigured()) {
+  if (!isMailTransportConfigured()) {
     // eslint-disable-next-line no-console
     console.error('[password-reset] SES is not configured; no mail was sent to', opts.to);
     return false;
   }
 
   try {
-    await sendViaSes({
+    await sendMail({
       from: resetFrom(),
       to: [opts.to],
       subject: RESET_EMAIL_SUBJECT,

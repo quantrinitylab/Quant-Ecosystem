@@ -1,7 +1,7 @@
 import type { PrismaClient, Email } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import type { OutboundDeliveryPipeline } from './outbound-delivery.service';
-import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
+import { isMailTransportConfigured, sendMail } from '../lib/mail-transport';
 import { resolveOutboundAttachments, type OutboundAttachmentDb } from '../lib/outbound-attachments';
 import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
 import { suppressionService, SuppressionService } from './suppression.service';
@@ -697,7 +697,7 @@ export class EmailService {
     // deliver (no pipeline, and the send is delayed or SES is unconfigured),
     // fail honestly with 503 here — the draft stays a draft, exactly like the
     // old pre-flip CUST-P0-2 throw.
-    if (needsTransmit && !this.pipeline && (options?.delayMs || !isSesConfigured())) {
+    if (needsTransmit && !this.pipeline && (options?.delayMs || !isMailTransportConfigured())) {
       const reason = 'No outbound transport configured (queue unavailable, SES env missing)';
       // eslint-disable-next-line no-console
       console.error(
@@ -827,7 +827,7 @@ export class EmailService {
       }
 
       // Direct SES fallback ONLY when no queue pipeline is running and NOT delayed
-      if (!enqueued && !options?.delayMs && isSesConfigured()) {
+      if (!enqueued && !options?.delayMs && isMailTransportConfigured()) {
         try {
           const fromDomain = process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.in';
           let fromAddress = email.fromAddress;
@@ -851,7 +851,7 @@ export class EmailService {
             userId,
             this.prisma as unknown as OutboundAttachmentDb,
           );
-          await sendViaSes({
+          await sendMail({
             from,
             /*
              * SESv2 SendEmail takes real addresses in Destination.ToAddresses.
@@ -874,6 +874,8 @@ export class EmailService {
             ...(bodyPlainClean ? { bodyText: bodyPlainClean } : {}),
             replyTo: fromAddress,
             attachments,
+            // Stable id so an SMTP relay stamps the same Message-ID the row stores.
+            messageId,
           });
           updated = await this.finalizeSendDelivery(emailId, userId, flipped, 'delivered', sentAt, messageId, sendRequestId);
         } catch (error) {
