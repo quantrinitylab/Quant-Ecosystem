@@ -245,20 +245,19 @@ export class LiquidBar {
   private geom() {
     const s = this.seg;
     const T = this.cfg.thickness;
-    const ht = s * this.cfg.top; // half the tab's top
-    const rt = Math.min(ht * 0.6, T * 0.28); // top corner radius
-    const f = Math.min(s * this.cfg.flare, this.cfg.flareMax); // how far the feet flare past the top corners
-    const rf = Math.min(f * 0.78, T * 0.34); // fillet into the far edge
+    const ht = s * Math.min(this.cfg.top, 0.27); // half the tab's top (unclipped at edges)
+    const rt = Math.min(ht * 0.58, T * 0.26); // top corner radius
+    const f = Math.min(s * Math.min(this.cfg.flare, 0.21), this.cfg.flareMax); // S-curve flare stays inside segment
+    const rf = Math.min(f * 0.76, T * 0.32); // fillet into the far edge
     const sl = Math.max(0, f - rf); // slant of the straight part of the side
     return { ht, rt, f, rf, sl };
   }
 
-  /** Edge targets for segment i. The end tabs swallow the bar's rounded end. */
+  /** Edge targets for segment i. Never overshoot past bar ends so S-curves never clip in half. */
   private targets(i: number): [number, number] {
     const c = this.center(i);
-    const { ht, rt, f } = this.geom();
-    const ext = rt + f + 6;
-    return [i === 0 ? -ext : c - ht, i === this.count - 1 ? this.L + ext : c + ht];
+    const { ht } = this.geom();
+    return [c - ht, c + ht];
   }
 
   setIndex(i: number, animate = true): void {
@@ -335,11 +334,12 @@ export class LiquidBar {
       const dt = this.last < 0 ? 1 / 60 : clamp((now - this.last) / 1000, 0, 1 / 30);
       this.last = now;
       const dir = Math.sign(this.a.t - this.a.x + this.b.t - this.b.x);
-      // the edge in the direction of travel leads; the other one is dragged along
+      // the edge in the direction of travel leads; the other one is dragged along.
+      // Both springs are stiff and well damped so the glide stays cohesive instead of rubbery.
       const lead = dir >= 0 ? this.b : this.a;
       const trail = dir >= 0 ? this.a : this.b;
-      lead.step(dt, 330, 0.8);
-      trail.step(dt, 150, 0.86);
+      lead.step(dt, 460, 0.88);
+      trail.step(dt, 380, 0.90);
       this.draw();
       const moving =
         Math.abs(this.a.t - this.a.x) > 0.05 || Math.abs(this.b.t - this.b.x) > 0.05 || Math.abs(this.a.v) > 0.5 || Math.abs(this.b.v) > 0.5;
@@ -361,9 +361,10 @@ export class LiquidBar {
     const s = this.seg;
     const { rt, rf, sl } = this.geom();
     const speed = Math.abs((this.a.v + this.b.v) / 2);
-    const stretch = clamp(speed / 1100, 0, 1);
+    const stretch = clamp(speed / 2400, 0, 0.35);
     // the tab flattens a little while it travels, and stands up again when it lands
-    const lift = this.cfg.lift * (1 - 0.45 * stretch);
+    // (less than before, so it keeps its dome shape while gliding)
+    const lift = this.cfg.lift * (1 - 0.22 * stretch);
     const ta = this.a.x;
     const tb = Math.max(this.b.x, ta + 2 * rt + 2);
     const top = -lift;
