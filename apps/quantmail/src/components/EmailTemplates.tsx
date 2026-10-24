@@ -80,9 +80,16 @@ export function EmailTemplates({ isOpen, onClose, onSelectTemplate, variant = 'd
 
   const handleSelect = useCallback((template: EmailTemplate) => { onSelectTemplate(template); onClose(); }, [onClose, onSelectTemplate]);
 
+  // Motion follows the variant's anchor, not one shared slide: the popover
+  // sits above the composer toolbar (like the send-options dropup), so it
+  // rises (opacity + y); the drawer docks at the right edge, so it keeps the
+  // slide-from-right (opacity + x). A single x:20 for both made the popover
+  // slide in sideways instead of rising.
   return <AnimatePresence>{isOpen && <motion.div
     className={variant === 'popover' ? 'templates-panel templates-panel--popover' : 'templates-panel'}
-    initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
+    initial={variant === 'popover' ? { opacity: 0, y: 12 } : { opacity: 0, x: 20 }}
+    animate={variant === 'popover' ? { opacity: 1, y: 0 } : { opacity: 1, x: 0 }}
+    exit={variant === 'popover' ? { opacity: 0, y: 12 } : { opacity: 0, x: 20 }}
   >
     <header className="templates-header"><h3>Templates</h3><button type="button" onClick={onClose} aria-label="Close templates">×</button></header>
     <div className="templates-search quant-filter-field"><input type="search" placeholder="Search templates…" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} />{searchQuery && <SearchClearButton onClear={() => setSearchQuery('')} />}</div>
