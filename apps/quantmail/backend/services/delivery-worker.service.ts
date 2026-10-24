@@ -12,7 +12,15 @@ import {
 } from '@quant/queue';
 import { OUTBOUND_DELIVERY_QUEUE } from './outbound-delivery.service';
 import type { DeliverabilityAuthService, DkimSigner } from './deliverability-auth.service';
-import { sendViaSes, isSesConfigured, buildMultipartBody, buildAlternativeBody } from '../lib/ses-sender';
+import { buildMultipartBody, buildAlternativeBody } from '../lib/ses-sender';
+import {
+  extractAddress,
+  getMailTransport,
+  isMailTransportConfigured,
+  isPermanentMailError,
+  isRelayDkimSigningEnabled,
+  sendMailDetailed,
+} from '../lib/mail-transport';
 import { resolveOutboundAttachments, type OutboundAttachmentDb } from '../lib/outbound-attachments';
 import { QUANT_INTERNAL_DOMAINS } from '../lib/domains';
 import { EmailService } from './email.service';
@@ -516,10 +524,17 @@ export class DeliveryWorker {
     );
 
     // NOTE: external recipients only — internal ones are already delivered above.
-    if (extRecipients.length > 0 && isSesConfigured()) {
+    // MAIL_TRANSPORT selects SES (default) or the SMTP relay. A relay that
+    // signs DKIM itself must not be double-signed, so the worker's own signer
+    // only runs for the relay when SMTP_DKIM_SIGN=true (relayDkim below).
+    const transportReady = isMailTransportConfigured();
+    const relayDkim = transportReady && isRelayDkimSigningEnabled();
+    if (extRecipients.length > 0 && transportReady && !relayDkim) {
       const from = email.fromName ? `${email.fromName} <${fromAddress}>` : fromAddress;
+      const transportLabel = getMailTransport().name === 'smtp' ? 'SMTP relay' : 'AWS SES';
       let status: AttemptStatus = 'sent';
-      let response = '250 2.0.0 OK (AWS SES)';
+      let response = `250 2.0.0 OK (${transportLabel})`;
+      const rejected = new Set<string>();
       try {
         // QM-SCREEN-006 R2: resolve attachments to real bytes so external
         // recipients actually receive them (raw MIME envelope). Unresolvable
@@ -529,7 +544,7 @@ export class DeliveryWorker {
           senderUserId,
           this.prisma as unknown as OutboundAttachmentDb,
         );
-        await sendViaSes({
+        const result = await sendMailDetailed({
           from,
           to: extTo,
           cc: extCc.length > 0 ? extCc : undefined,
@@ -540,25 +555,15 @@ export class DeliveryWorker {
             email.bodyPlain && email.bodyPlain.trim().length > 0 ? email.bodyPlain : undefined,
           replyTo: fromAddress,
           attachments,
+          messageId,
         });
-      } catch (sesErr) {
-        status = 'deferred';
-        response = `451 AWS SES delivery error: ${(sesErr as Error).message}`;
+        for (const addr of result.rejected) rejected.add(extractAddress(addr).toLowerCase());
+      } catch (sendErr) {
+        ({ status, response } = this.classifyTransportFailure(sendErr, transportLabel));
       }
-      for (const recipient of extRecipients) {
-        const persisted = await this.recordAttempt(
-          email.id,
-          recipient,
-          status,
-          response,
-          status === 'deferred',
-        );
-        receipts.push({
-          recipient,
-          status: persisted.status,
-          smtpResponse: persisted.smtpResponse ?? response,
-        });
-      }
+      receipts.push(
+        ...(await this.recordExternalAttempts(email.id, extRecipients, status, response, rejected)),
+      );
     } else if (extRecipients.length > 0) {
       // DKIM-sign once: the signed header set (From/To/Subject/Date/Message-ID) is
       // identical for every recipient of this message.
@@ -639,7 +644,30 @@ export class DeliveryWorker {
         }
       }
 
-      if (rawMessage !== undefined) {
+      if (rawMessage !== undefined && relayDkim) {
+        // SMTP_DKIM_SIGN=true: the DKIM-signed message goes to the relay as-is.
+        // Headers carry To/Cc only; every recipient, Bcc included, is in the
+        // envelope.
+        const transportLabel = 'SMTP relay';
+        let status: AttemptStatus = 'sent';
+        let response = `250 2.0.0 OK (${transportLabel})`;
+        const rejected = new Set<string>();
+        try {
+          const result = await getMailTransport().sendRaw({
+            raw: Buffer.from(rawMessage, 'utf8'),
+            envelope: {
+              from: extractAddress(fromAddress),
+              to: extRecipients.map((r) => extractAddress(r)),
+            },
+          });
+          for (const addr of result.rejected) rejected.add(extractAddress(addr).toLowerCase());
+        } catch (sendErr) {
+          ({ status, response } = this.classifyTransportFailure(sendErr, transportLabel));
+        }
+        receipts.push(
+          ...(await this.recordExternalAttempts(email.id, extRecipients, status, response, rejected)),
+        );
+      } else if (rawMessage !== undefined) {
         for (const recipient of extRecipients) {
           const { outcome, response } = await this.attemptRecipient(recipient, fromAddress, rawMessage);
           const status: AttemptStatus =
@@ -666,6 +694,57 @@ export class DeliveryWorker {
     );
 
     return { emailId: email.id, deliveryStatus, recipients: receipts };
+  }
+
+  /**
+   * Map a transport failure to a per-recipient attempt state. A classified
+   * permanent failure (5xx from the SMTP relay) is a bounce; everything else
+   * (4xx, network, SES errors, unclassified) stays deferred so the send is
+   * retried, which is the pre-existing behaviour for SES.
+   */
+  private classifyTransportFailure(
+    err: unknown,
+    label: string,
+  ): { status: AttemptStatus; response: string } {
+    const message = (err as Error).message;
+    if (isPermanentMailError(err)) {
+      const code = err.smtpCode && err.smtpCode >= 500 ? err.smtpCode : 550;
+      return { status: 'bounced', response: `${code} ${label} rejected: ${message}` };
+    }
+    return { status: 'deferred', response: `451 ${label} delivery error: ${message}` };
+  }
+
+  /**
+   * Record one attempt per external recipient with the shared outcome. A
+   * recipient the relay rejected individually (partial acceptance) is a
+   * bounce even when the rest of the message was accepted.
+   */
+  private async recordExternalAttempts(
+    emailId: string,
+    recipients: string[],
+    status: AttemptStatus,
+    response: string,
+    rejected: Set<string>,
+  ): Promise<RecipientReceipt[]> {
+    const out: RecipientReceipt[] = [];
+    for (const recipient of recipients) {
+      const refused = rejected.has(extractAddress(recipient).toLowerCase());
+      const recipientStatus: AttemptStatus = refused ? 'bounced' : status;
+      const recipientResponse = refused ? '550 recipient rejected by relay' : response;
+      const persisted = await this.recordAttempt(
+        emailId,
+        recipient,
+        recipientStatus,
+        recipientResponse,
+        recipientStatus === 'deferred',
+      );
+      out.push({
+        recipient,
+        status: persisted.status,
+        smtpResponse: persisted.smtpResponse ?? recipientResponse,
+      });
+    }
+    return out;
   }
 
   /**

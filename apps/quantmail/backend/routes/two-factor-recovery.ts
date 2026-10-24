@@ -51,7 +51,7 @@ import {
   verificationCodeExpiry,
   verificationCodeMatches,
 } from '../lib/email-verification';
-import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
+import { isMailTransportConfigured, sendMail } from '../lib/mail-transport';
 import { looksLikeEmail, normalizeEmail } from './account-recovery';
 
 /** The one answer the request endpoint ever gives — it says nothing about
@@ -186,12 +186,12 @@ const latestPendingChallenge = async (userId: string): Promise<RecoveryChallenge
 };
 
 const sendRecoveryCodeEmail = async (to: string, code: string): Promise<boolean> => {
-  if (!isSesConfigured()) {
+  if (!isMailTransportConfigured()) {
     console.error('[two-factor-recovery] SES is not configured; no recovery code was sent to', to);
     return false;
   }
   try {
-    await sendViaSes({
+    await sendMail({
       from: process.env['VERIFICATION_EMAIL_FROM'] ?? 'QuantMail <no-reply@quantmail.in>',
       to: [to],
       subject: RECOVERY_CODE_SUBJECT,
@@ -211,7 +211,7 @@ const sendRecoveryCodeEmail = async (to: string, code: string): Promise<boolean>
  * record an account-takeover victim needs: the honest Gmail-style signal.
  */
 const notifyPrimaryInbox = async (to: string): Promise<boolean> => {
-  if (!isSesConfigured()) {
+  if (!isMailTransportConfigured()) {
     console.error(
       '[two-factor-recovery] SES is not configured; no reset notification was sent to',
       to,
@@ -219,7 +219,7 @@ const notifyPrimaryInbox = async (to: string): Promise<boolean> => {
     return false;
   }
   try {
-    await sendViaSes({
+    await sendMail({
       from: process.env['VERIFICATION_EMAIL_FROM'] ?? 'QuantMail <no-reply@quantmail.in>',
       to: [to],
       subject: RESET_NOTIFICATION_SUBJECT,
