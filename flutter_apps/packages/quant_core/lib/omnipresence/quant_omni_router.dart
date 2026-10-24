@@ -228,21 +228,12 @@ class QuantOmniRouter {
     final canLaunchNative = await launcherDelegate.canLaunch(nativeUri);
 
     if (canLaunchNative) {
-      // Prepare route with SSO handoff token if available
-      Uri finalLaunchUri = nativeUri;
-      final sharedSession = await ssoVault.acquireSharedSession();
-      if (sharedSession != null && sharedSession.isValid) {
-        final handoffToken = ssoVault.generateHandoffToken(
-          session: sharedSession,
-          targetAppPackage: route.targetApp.packageName,
-        );
-        final routeWithSso = route.copyWith(ssoHandoffToken: handoffToken);
-        finalLaunchUri = routeWithSso.toNativeUri();
-      }
-
-      final launched = await launcherDelegate.launch(finalLaunchUri);
+      // QC-F-307: unsigned SSO handoff tokens are disabled (forgeable), so the
+      // deep link is launched WITHOUT any SSO token. The target app performs
+      // its own session check from the shared secure vault on arrival.
+      final launched = await launcherDelegate.launch(nativeUri);
       if (launched) {
-        return QuantOmniNavigationResult.nativeLaunched(route, finalLaunchUri);
+        return QuantOmniNavigationResult.nativeLaunched(route, nativeUri);
       }
     }
 
@@ -251,16 +242,12 @@ class QuantOmniRouter {
       '[QuantOmniRouter] Native app ${route.targetApp.displayName} not available. Falling back to sovereign web companion.',
     );
 
-    String? ssoToken;
-    final sharedSession = await ssoVault.acquireSharedSession();
-    if (sharedSession != null && sharedSession.isValid) {
-      ssoToken = sharedSession.accessToken;
-    }
-
+    // QC-F-307: raw access/refresh tokens are NEVER placed in URLs (browser
+    // history, proxy and server logs, referrers). The web companion receives no
+    // sso_token until a signed / exchange-first handoff design lands.
     final webResolution = webResolver.resolve(
       route,
-      overrideSsoToken: ssoToken,
-      attachSsoToken: true,
+      attachSsoToken: false,
     );
 
     final webSuccess = await launcherDelegate.launch(webResolution.webUri);
