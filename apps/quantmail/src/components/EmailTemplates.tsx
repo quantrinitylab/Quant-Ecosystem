@@ -41,6 +41,23 @@ interface EmailTemplatesProps {
   variant?: 'drawer' | 'popover';
 }
 
+/**
+ * Picker search predicate. A query matches a template when it appears in the
+ * name, the subject, or the display-only shortcut badge (e.g. ":intro") shown
+ * on the row — previously the shortcut was not searched, so typing ":intro"
+ * in the picker search never matched the ":intro" badge on the row.
+ * Substring matching means "intro" also matches ":intro"; the shortcut is
+ * display-only (typing it in the composer does nothing), this only affects
+ * picker search.
+ */
+export function matchesTemplateSearch(template: EmailTemplate, searchQuery: string): boolean {
+  const query = searchQuery.trim().toLowerCase();
+  if (!query) return true;
+  return template.name.toLowerCase().includes(query)
+    || template.subject.toLowerCase().includes(query)
+    || (template.shortcut ?? '').toLowerCase().includes(query);
+}
+
 function bodyText(bodyHtml: string): string {
   if (typeof window === 'undefined' || !bodyHtml.includes('<')) return bodyHtml;
   const documentValue = new DOMParser().parseFromString(bodyHtml, 'text/html');
@@ -73,10 +90,7 @@ export function EmailTemplates({ isOpen, onClose, onSelectTemplate, variant = 'd
   }, []);
 
   useEffect(() => { if (isOpen) void loadTemplates(); }, [isOpen, loadTemplates]);
-  const filteredTemplates = templates.filter((template) => {
-    const query = searchQuery.trim().toLowerCase();
-    return !query || template.name.toLowerCase().includes(query) || template.subject.toLowerCase().includes(query);
-  });
+  const filteredTemplates = templates.filter((template) => matchesTemplateSearch(template, searchQuery));
 
   const handleSelect = useCallback((template: EmailTemplate) => { onSelectTemplate(template); onClose(); }, [onClose, onSelectTemplate]);
 
