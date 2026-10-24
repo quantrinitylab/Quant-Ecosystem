@@ -28,6 +28,20 @@ export interface AppConfig {
   corsOrigins: string[];
   rateLimitMax: number;
   rateLimitWindow: string;
+  /**
+   * QC-F-581: trusted reverse-proxy addresses (IPs or CIDR ranges) used to
+   * resolve the real client IP from X-Forwarded-For. Passed to Fastify's
+   * `trustProxy`, so `request.ip` — and therefore the global + per-route
+   * rate-limit keys — reflects the actual client instead of the
+   * ingress/proxy pod IP. A blind `true` is NEVER used: X-Forwarded-For
+   * from an untrusted socket peer is ignored, so a client cannot spoof its
+   * rate-limit key to dodge (or poison) a bucket. When omitted the default
+   * is loopback only (`127.0.0.1`, `::1`), which keeps single-node
+   * development/test behaviour byte-identical; deployed environments must
+   * supply the ingress + frontend pod CIDRs (QuantChat reads
+   * `TRUSTED_PROXY_IPS` in its getConfig).
+   */
+  trustedProxies?: string[];
   redisUrl?: string;
   jwtSecret: string;
   jwtIssuer: string;
