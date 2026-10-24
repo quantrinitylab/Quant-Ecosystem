@@ -1,0 +1,2 @@
+{"@type":"update","object":"Authentication","value":{"directoryId":null}}
+{"@type":"upsert","object":"Account","matchOn":["name","domainId"],"value":{"usr-alice":{"@type":"User","name":"alice","domainId":"#dom-lab","description":"Alice (lab test account)","credentials":{"0":{"@type":"Password","secret":"${LAB_ALICE_PASSWORD}"}}},"usr-bob":{"@type":"User","name":"bob","domainId":"#dom-lab","description":"Bob (lab test account)","credentials":{"0":{"@type":"Password","secret":"${LAB_BOB_PASSWORD}"}}}}}

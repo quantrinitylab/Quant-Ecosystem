@@ -1,0 +1,2 @@
+{"@type":"upsert","object":"MtaRoute","matchOn":["name"],"value":{"route-relay":{"@type":"Relay","name":"relay","address":"${RELAY_HOST}","port":${RELAY_PORT},"protocol":"smtp","implicitTls":false,"allowInvalidCerts":false,"authUsername":"${RELAY_USER}","authSecret":{"@type":"EnvironmentVariable","variableName":"RELAY_PASS"}}}}
+{"@type":"update","object":"MtaOutboundStrategy","value":{"route":{"else":"'${OUTBOUND_ROUTE}'","match":{"0":{"if":"is_local_domain(rcpt_domain)","then":"'local'"}}}}}
