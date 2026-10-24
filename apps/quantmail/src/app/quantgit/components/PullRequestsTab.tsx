@@ -134,6 +134,19 @@ export function MergeConflictStatus({ check }: { check: MergeConflictCheckState 
   );
 }
 
+/**
+ * Reviewer identity from a backend review record. Never substitutes the
+ * viewer's identity for an unknown reviewer: an unknown reviewer degrades
+ * to '' and the render site shows 'Unknown' (the PR #1417 convention for
+ * commit authors). The old fallback `|| currentUsername` misattributed
+ * every reviewer-less review to whoever happened to be viewing the PR.
+ */
+export function reviewReviewerName(
+  reviewer: { username?: string | null; displayName?: string | null } | null | undefined,
+): string {
+  return reviewer?.username || reviewer?.displayName || '';
+}
+
 export function PullRequestsTab({
   pullSearchQuery,
   setPullSearchQuery,
@@ -251,8 +264,7 @@ export function PullRequestsTab({
           setReviews(
             json.data.map((r: any) => ({
               id: String(r.id),
-              author:
-                r.reviewer?.username || r.reviewer?.displayName || currentUsername || 'Unknown',
+              author: reviewReviewerName(r.reviewer),
               state: r.status as PRReviewItem['state'],
               body: r.body ?? '',
               createdAt: r.createdAt ? new Date(r.createdAt).toLocaleString() : '',
@@ -266,7 +278,7 @@ export function PullRequestsTab({
     return () => {
       cancelled = true;
     };
-  }, [selectedPR, repoId, currentUsername]);
+  }, [selectedPR, repoId]);
 
   // Load REAL diff stats from GET /:id/pulls/:number (computed server-side via
   // git numstat) whenever the selected PR changes. The list endpoint never
@@ -759,7 +771,7 @@ export function PullRequestsTab({
               {selectedPR.state === 'merged' ? (
                 <span data-testid="pr-merged-info">
                   Merged by{' '}
-                  <strong className="text-[#E6EDF3]">{selectedPR.author || currentUsername}</strong>{' '}
+                  <strong className="text-[#E6EDF3]">{selectedPR.author || 'Unknown'}</strong>{' '}
                   into{' '}
                   <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchTarget || 'main'}
@@ -807,7 +819,7 @@ export function PullRequestsTab({
                   >
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-[#E6EDF3]">{rev.author}</span>
+                      <span className="font-semibold text-[#E6EDF3]">{rev.author || 'Unknown'}</span>
                       <span
                         className={`px-1.5 py-0.2 rounded text-[10px] font-bold flex items-center gap-1 ${
                           rev.state === 'APPROVED'
@@ -1085,7 +1097,7 @@ export function PullRequestsTab({
                   <QuantGitCheckIcon size={16} />
                   <span className="font-semibold text-xs">
                     Pull request #{(selectedPR as any).number || selectedPR.id} was successfully
-                    merged and closed. Merged by {selectedPR.author || currentUsername} into{' '}
+                    merged and closed. Merged by {selectedPR.author || 'Unknown'} into{' '}
                     {selectedPR.branchTarget || 'main'}.
                   </span>
                 </div>
