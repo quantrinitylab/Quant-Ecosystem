@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:quant_theme/quant_theme.dart';
-import 'screens/superapp/superapp_home_screen.dart';
 import 'screens/superapp/quant_workplace_splash_screen.dart';
-import 'screens/mail/mail_inbox_screen.dart';
 import 'design/quant_mail_theme.dart';
 import 'services/quant_auth_controller.dart';
 
@@ -39,7 +37,3 @@ class QuantMailApp extends StatelessWidget {
     );
   }
 }
-
-// Backward compatibility aliases
-typedef QuantMailInboxScreen = MailInboxScreen;
-typedef QuantSuperAppHomeScreen = SuperAppHomeScreen;

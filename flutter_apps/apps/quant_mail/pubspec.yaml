@@ -25,6 +25,7 @@ dependencies:
   cookie_jar: 4.0.9
   connectivity_plus: 7.3.2
   flutter_widget_from_html_core: 0.17.4
+  html: 0.15.7
 
 dev_dependencies:
   flutter_test:

@@ -357,7 +357,7 @@ class QuantAuthController {
 
   static String _extractNameFromEmail(String email) {
     final prefix = email.split('@').first;
-    if (prefix.isEmpty) return 'Quant Operator';
+    if (prefix.isEmpty) return email;
     final parts = prefix.split(RegExp(r'[\._\-]'));
     return parts.map((p) => p.isEmpty ? '' : '${p[0].toUpperCase()}${p.substring(1)}').join(' ').trim();
   }

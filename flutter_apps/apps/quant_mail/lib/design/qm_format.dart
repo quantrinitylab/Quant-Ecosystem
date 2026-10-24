@@ -52,6 +52,13 @@ String qmRowTime(DateTime date, DateTime now) {
   return '${local.day} $month ${local.year}';
 }
 
+/// "23 Oct 2026, 14:02" for the message detail disclosure.
+String qmFullDate(DateTime date) {
+  final DateTime local = date.toLocal();
+  final String month = _months[local.month - 1].substring(0, 3);
+  return '${local.day} $month ${local.year}, ${_two(local.hour)}:${_two(local.minute)}';
+}
+
 /// "1.4 MB" style size text.
 String qmFormatBytes(int bytes) {
   if (bytes < 1024) return '$bytes B';

@@ -6,7 +6,7 @@ import 'package:quant_ui/quant_ui.dart';
 import 'quantmail_superapp_bar.dart';
 import '../../services/quant_auth_controller.dart';
 import '../auth/quant_login_screen.dart';
-import 'superapp_home_screen.dart';
+import '../../features/shell/mail_shell.dart';
 
 // ============================================================================
 // QUANTWORKPLACE — REVOLVING 5-APP CONNECTED LOADING & BEFORE-LOGIN SCREEN
@@ -108,7 +108,7 @@ class _QuantWorkplaceSplashScreenState extends State<QuantWorkplaceSplashScreen>
         setState(() => _showSplash = false);
       } else {
         final destination = QuantAuthController.instance.isAuthenticated
-            ? const SuperAppHomeScreen()
+            ? const MailShell()
             : const QuantLoginScreen();
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(

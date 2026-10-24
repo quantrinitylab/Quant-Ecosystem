@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app_providers.dart';
 import '../../data/mail_exception.dart';
 import '../../data/models/mail_models.dart';
+import '../../data/network/dio_mail_repository.dart' show newIdempotencyKey;
 import '../../data/repositories/repositories.dart';
 
 /// State of one mail list. The in-memory copy of the last successful fetch
@@ -119,7 +120,7 @@ class MailListController extends Notifier<MailListState> {
       state = MailListState(
         items: page.items,
         nextCursor: page.nextCursor,
-        lastSyncedAt: DateTime.now(),
+        lastSyncedAt: ref.read(clockProvider)(),
         unreadCount: page.unreadCount,
         totalCount: page.totalCount,
       );
@@ -146,7 +147,7 @@ class MailListController extends Notifier<MailListState> {
         nextCursor: page.nextCursor,
         clearCursor: page.nextCursor == null,
         isLoadingMore: false,
-        lastSyncedAt: DateTime.now(),
+        lastSyncedAt: ref.read(clockProvider)(),
         unreadCount: page.unreadCount ?? state.unreadCount,
         totalCount: page.totalCount ?? state.totalCount,
       );
@@ -158,6 +159,125 @@ class MailListController extends Notifier<MailListState> {
         return;
       }
       state = state.copyWith(isLoadingMore: false, loadMoreError: e);
+    }
+  }
+
+  /// Optimistic bulk action: the list changes at once, the server call follows
+  /// with one Idempotency-Key, and a failure rolls the rows back. Returns null
+  /// on success, otherwise the failure (already rolled back).
+  Future<MailException?> applyAction(MailBatchAction action, List<String> ids) async {
+    if (ids.isEmpty) return null;
+    final Set<String> idSet = ids.toSet();
+    // Rows of this list that are affected. Ids that are not loaded here (the
+    // other messages of an opened thread) still go to the server.
+    final Map<String, MailMessage> before = <String, MailMessage>{
+      for (final MailMessage m in state.items)
+        if (idSet.contains(m.id)) m.id: m,
+    };
+    final int unreadDelta = _unreadDelta(action, before.values);
+    state = state.copyWith(
+      items: _optimistic(action, state.items, idSet),
+      unreadCount: state.unreadCount == null ? null : (state.unreadCount! + unreadDelta).clamp(0, 1 << 30),
+    );
+    final MailRepository repo = _repo;
+    try {
+      await repo.applyBatch(action, ids, idempotencyKey: newIdempotencyKey());
+      return null;
+    } on MailException catch (e) {
+      if (!ref.mounted || !identical(repo, _repo)) return e;
+      final Map<String, MailMessage> current = <String, MailMessage>{
+        for (final MailMessage m in state.items) m.id: m,
+      };
+      current.addAll(before);
+      final List<MailMessage> restored = current.values.toList()
+        ..sort((MailMessage a, MailMessage b) => b.sortDate.compareTo(a.sortDate));
+      state = state.copyWith(
+        items: restored,
+        unreadCount: state.unreadCount == null ? null : (state.unreadCount! - unreadDelta).clamp(0, 1 << 30),
+      );
+      return e;
+    }
+  }
+
+  /// Undo of an archive or delete: asks the server to bring the mail back,
+  /// then reloads the first page. Returns null on success.
+  Future<MailException?> undoRemoval(MailBatchAction action, List<String> ids) async {
+    final MailRepository repo = _repo;
+    try {
+      for (final String id in ids) {
+        if (action == MailBatchAction.archive) {
+          await repo.unarchive(id, idempotencyKey: newIdempotencyKey());
+        } else {
+          await repo.restore(id, idempotencyKey: newIdempotencyKey());
+        }
+      }
+    } on MailException catch (e) {
+      return e;
+    }
+    if (ref.mounted) await load();
+    return null;
+  }
+
+  /// Marks the rows of a conversation read in the local copy (the server call
+  /// is `markThreadRead`).
+  void markConversationReadLocally(String threadOrEmailId) {
+    bool changed = false;
+    int newlyRead = 0;
+    final List<MailMessage> items = <MailMessage>[
+      for (final MailMessage m in state.items)
+        if ((m.id == threadOrEmailId || m.threadId == threadOrEmailId) && !m.isRead)
+          () {
+            changed = true;
+            newlyRead++;
+            return m.copyWith(isRead: true);
+          }()
+        else
+          m,
+    ];
+    if (!changed) return;
+    state = state.copyWith(
+      items: items,
+      unreadCount: state.unreadCount == null ? null : (state.unreadCount! - newlyRead).clamp(0, 1 << 30),
+    );
+  }
+
+  List<MailMessage> _optimistic(MailBatchAction action, List<MailMessage> items, Set<String> ids) {
+    final List<MailMessage> result = <MailMessage>[];
+    for (final MailMessage m in items) {
+      if (!ids.contains(m.id)) {
+        result.add(m);
+        continue;
+      }
+      switch (action) {
+        case MailBatchAction.archive:
+        case MailBatchAction.delete:
+          break; // leaves this view
+        case MailBatchAction.markRead:
+          result.add(m.copyWith(isRead: true));
+        case MailBatchAction.markUnread:
+          result.add(m.copyWith(isRead: false));
+        case MailBatchAction.star:
+          result.add(m.copyWith(isStarred: true));
+        case MailBatchAction.unstar:
+          if (view.kind != MailFolderKind.starred) result.add(m.copyWith(isStarred: false));
+      }
+    }
+    return result;
+  }
+
+  int _unreadDelta(MailBatchAction action, Iterable<MailMessage> affected) {
+    final int unread = affected.where((MailMessage m) => !m.isRead).length;
+    final int read = affected.length - unread;
+    switch (action) {
+      case MailBatchAction.archive:
+      case MailBatchAction.delete:
+      case MailBatchAction.markRead:
+        return -unread;
+      case MailBatchAction.markUnread:
+        return read;
+      case MailBatchAction.star:
+      case MailBatchAction.unstar:
+        return 0;
     }
   }
 }

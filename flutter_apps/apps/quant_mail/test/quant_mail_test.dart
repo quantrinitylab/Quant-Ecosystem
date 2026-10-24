@@ -427,7 +427,7 @@ void main() {
       final heavyDraft = EmailDraft(
         id: 'draft-comp-heavy',
         to: const [
-          EmailRecipient(name: 'Dev Sentinel', email: 'sentinel@quantrinity.lab'),
+          EmailRecipient(name: 'Test Recipient', email: 'sentinel@quantrinity.lab'),
         ],
         subject: 'Heavy Dataset Transfer',
         body: 'Check attached large archive.',

@@ -20,6 +20,9 @@ import '../services/quant_auth_service.dart';
 /// True in debug builds only. Overridable in tests to prove the guard.
 final Provider<bool> debugModeProvider = Provider<bool>((Ref ref) => kDebugMode);
 
+/// Current time. Overridable so day headers and row times are deterministic in tests.
+final Provider<DateTime Function()> clockProvider = Provider<DateTime Function()>((Ref ref) => DateTime.now);
+
 /// Runtime switch for sample data. Default OFF on every launch (not
 /// persisted). It cannot be turned on outside debug builds.
 class SampleDataSwitch extends Notifier<bool> {
