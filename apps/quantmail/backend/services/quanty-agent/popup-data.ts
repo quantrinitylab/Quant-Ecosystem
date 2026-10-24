@@ -114,7 +114,7 @@ async function popupApprovals(prisma: unknown, userId: string): Promise<QuantyAp
 export async function buildPopupData(deps: PopupDataDeps): Promise<QuantyPopupBackendData> {
   const tasks = await deps.store.listByUser(deps.userId, 100);
   return {
-    status: deps.executor.liveStatus(),
+    status: deps.executor.liveStatus(deps.userId),
     activity: buildActivityFeed(tasks, deps.toolAppOf),
     approvals: await popupApprovals(deps.prisma, deps.userId),
     browserTasks: quantyAgentState.listBrowserTasks(50),

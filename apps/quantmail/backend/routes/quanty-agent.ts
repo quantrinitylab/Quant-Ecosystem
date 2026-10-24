@@ -451,9 +451,11 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
   });
 
   // GET /api/quanty/status — live status text for the popup header.
+  // Scoped to the caller: liveStatus() takes the caller's userId so another
+  // user's in-flight task can never surface in this user's popup header.
   fastify.get('/api/quanty/status', async (request, reply) => {
-    reqUserId(request);
-    const live = executor.liveStatus();
+    const userId = reqUserId(request);
+    const live = executor.liveStatus(userId);
     // A running browser task also counts as active ("browsing").
     const browsing = quantyAgentState.listBrowserTasks(5).some((t) => t.status === 'running');
     const status: QuantyLiveStatus =

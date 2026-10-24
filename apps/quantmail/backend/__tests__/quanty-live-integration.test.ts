@@ -14,6 +14,7 @@ import {
   clearTools,
   getTool,
   registerRealTools,
+  registerTool,
 } from '../services/quanty-agent/tool-registry';
 import { undoTaskSteps } from '../services/quanty-agent/undo';
 import { buildPopupData, buildActivityFeed } from '../services/quanty-agent/popup-data';
@@ -241,6 +242,48 @@ describe('quanty popup data', () => {
     expect(data.schedule.daily.length).toBeGreaterThan(0); // real seeded crons
     expect(data.identity.soul.title).toBeTruthy();
     expect(data.status.status).toBe('idle');
+  });
+
+  it('buildPopupData never shows another user\'s live run in your popup status', async () => {
+    clearTools();
+    registerTool({
+      name: 'test.slow',
+      app: 'core',
+      description: 'slow work',
+      parameters: {},
+      destructive: false,
+      reversible: false,
+      handler: async () => {
+        await new Promise((r) => setTimeout(r, 400));
+        return { ok: true, summary: 'worked' };
+      },
+    });
+    const store = new InMemoryTaskStore();
+    const executor = new QuantyExecutor({ store });
+    const other = createTask('other-user', 'secret work', 'Other user plan summary', [
+      { id: 's1', toolName: 'test.slow', label: 'Other user step label', args: {}, status: 'pending' },
+    ]);
+    const runPromise = executor.run(other, null, { onEvent: () => {}, onAudit: () => {} });
+    await vi.waitFor(() => expect(executor.liveStatus('other-user').status).toBe('is working'));
+    // The owner still sees their own run; the caller sees honest idle.
+    // (Poll: the run registers before its step label is set.)
+    await vi.waitFor(() => expect(executor.liveStatus('other-user').detail).toBe('Other user step label'));
+    const ownerData = await buildPopupData({
+      userId: 'other-user',
+      store,
+      executor,
+      toolAppOf: () => undefined,
+    });
+    expect(ownerData.status.status).toBe('is working');
+    expect(ownerData.status.detail).toBe('Other user step label');
+    const data = await buildPopupData({
+      userId: USER_ID,
+      store,
+      executor,
+      toolAppOf: () => undefined,
+    });
+    expect(data.status).toEqual({ status: 'idle', detail: 'Waiting for your command' });
+    await runPromise;
   });
 
   it('buildPopupData surfaces real task history after a task runs', async () => {

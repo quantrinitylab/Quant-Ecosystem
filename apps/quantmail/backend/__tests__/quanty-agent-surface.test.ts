@@ -122,7 +122,7 @@ describe('quanty-agent executor live surface', () => {
 
   it('liveStatus reports idle when nothing runs', () => {
     const ex = new QuantyExecutor({ store: new InMemoryTaskStore() });
-    expect(ex.liveStatus()).toEqual({ status: 'idle', detail: 'Waiting for your command' });
+    expect(ex.liveStatus('u1')).toEqual({ status: 'idle', detail: 'Waiting for your command' });
   });
 
   it('liveStatus reports the current step while working', async () => {
@@ -132,10 +132,35 @@ describe('quanty-agent executor live surface', () => {
       { id: 's1', toolName: 'test.work', label: 'Doing the work', args: {}, status: 'pending' },
     ]);
     const runPromise = ex.run(task, null, callbacks);
-    await vi.waitFor(() => expect(ex.liveStatus().status).toBe('is working'));
-    await vi.waitFor(() => expect(ex.liveStatus().detail).toBe('Doing the work'));
+    await vi.waitFor(() => expect(ex.liveStatus('u1').status).toBe('is working'));
+    await vi.waitFor(() => expect(ex.liveStatus('u1').detail).toBe('Doing the work'));
     await runPromise;
-    expect(ex.liveStatus().status).toBe('idle');
+    expect(ex.liveStatus('u1').status).toBe('idle');
+  });
+
+  it('liveStatus is scoped per user: another user\'s run never leaks into your popup', async () => {
+    const ex = new QuantyExecutor({ store: new InMemoryTaskStore() });
+    const { callbacks } = cb();
+    const alice = createTask('alice', 'work', 'Alice plan summary', [
+      { id: 's1', toolName: 'test.work', label: 'Alice step label', args: {}, status: 'pending' },
+    ]);
+    const bob = createTask('bob', 'work', 'Bob plan summary', [
+      { id: 's1', toolName: 'test.work', label: 'Bob step label', args: {}, status: 'pending' },
+    ]);
+    const aliceRun = ex.run(alice, null, callbacks);
+    const bobRun = ex.run(bob, null, callbacks);
+    await vi.waitFor(() => expect(ex.liveStatus('alice').status).toBe('is working'));
+    await vi.waitFor(() => expect(ex.liveStatus('bob').status).toBe('is working'));
+    // Each caller sees ONLY their own run's step label — never the other's.
+    // (Poll: the run registers before its step label is set, like the
+    // existing 'current step while working' test.)
+    await vi.waitFor(() => expect(ex.liveStatus('alice').detail).toBe('Alice step label'));
+    await vi.waitFor(() => expect(ex.liveStatus('bob').detail).toBe('Bob step label'));
+    // A third user with no run gets honest idle, even while both run.
+    expect(ex.liveStatus('carol')).toEqual({ status: 'idle', detail: 'Waiting for your command' });
+    await Promise.all([aliceRun, bobRun]);
+    expect(ex.liveStatus('alice').status).toBe('idle');
+    expect(ex.liveStatus('bob').status).toBe('idle');
   });
 
   it('confirm(true) logs an approval entry', async () => {
