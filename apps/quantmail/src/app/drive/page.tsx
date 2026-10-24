@@ -1448,7 +1448,7 @@ function DrivePageContent() {
               aria-haspopup="menu"
               aria-expanded={isNewMenuOpen}
               aria-label="New: upload files, create a document or a folder"
-              className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--app-accent)] px-2 text-xs font-semibold text-[#111111] transition-colors hover:bg-[var(--app-accent-hover)] active:bg-[var(--quant-primary-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] md:px-3"
+              className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--app-accent)] px-2 text-xs font-semibold text-[#111111] transition-colors hover:bg-[var(--app-accent-hover)] active:bg-[var(--app-accent-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] md:px-3"
             >
               <IconUpload size={14} />
               <span className="hidden md:inline">New</span>

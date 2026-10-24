@@ -218,6 +218,31 @@ describe('qm-drive-orange-accent: DriveSharedByMeSubView folder icon uses the gr
   });
 });
 
+describe('qm-drive-pressed-accent: New button pressed state uses the per-app token', () => {
+  // 2026-10-25 (fix/qm-drive-accent-pressed): the Drive "New" split-button
+  // used bg/hover from var(--app-accent) but active:bg from
+  // var(--quant-primary-pressed) — the Mail-orange pressed token — so every
+  // press flashed orange on the green Drive surface. AppShell defines
+  // --app-accent-pressed per app (color-mix of that app's accent), so the
+  // pressed state must resolve through it, like Calendar's primary buttons.
+  // Note the existing "no var(--quant-primary)" check above does NOT catch
+  // this: var(--quant-primary-pressed) lacks the closing paren after
+  // "primary", so it slipped past the substring pin.
+  it('drive/page.tsx does not contain var(--quant-primary-pressed)', () => {
+    expect(PAGE).not.toContain('var(--quant-primary-pressed)');
+  });
+
+  it('the New button pressed state resolves through var(--app-accent-pressed)', () => {
+    expect(PAGE).toContain('active:bg-[var(--app-accent-pressed)]');
+  });
+
+  it('the New button accent chain is consistent: accent / hover / pressed', () => {
+    expect(PAGE).toContain(
+      'bg-[var(--app-accent)] px-2 text-xs font-semibold text-[#111111] transition-colors hover:bg-[var(--app-accent-hover)] active:bg-[var(--app-accent-pressed)]',
+    );
+  });
+});
+
 describe('qm-drive-orange-accent: no Mail-orange spinners in components/drive lib', () => {
   // R4-NEW-2: the loading spinners in these drive-lib files leaked the
   // Mail-orange var(--quant-primary) token; they now resolve through
