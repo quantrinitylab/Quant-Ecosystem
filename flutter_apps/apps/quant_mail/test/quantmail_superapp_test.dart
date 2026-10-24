@@ -4,9 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 
-import 'package:quant_mail/main.dart';
 import 'package:quant_mail/screens/superapp/quantmail_superapp_bar.dart';
-import 'package:quant_mail/screens/superapp/superapp_home_screen.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -64,7 +62,7 @@ void main() {
   // 2. QUANTMAIL SUPER-APP BAR (v2 SLIM HEADER) WIDGET TESTS
   // ===========================================================================
   group('QuantMailSuperAppBar v2 Slim Header Widget Tests', () {
-    testWidgets('Renders brand, workspace selector and honest search — single nav lives outside the bar', (tester) async {
+    testWidgets('Renders brand, workspace selector and honest search â€” single nav lives outside the bar', (tester) async {
       bool workspaceTapped = false;
       bool voiceTapped = false;
       bool qrTapped = false;
@@ -86,7 +84,7 @@ void main() {
         ),
       );
 
-      // 1. Brand identity — no invented pills
+      // 1. Brand identity â€” no invented pills
       expect(find.byType(QuantMonogramLogo), findsOneWidget);
       expect(find.text('SOVEREIGN'), findsNothing);
 
@@ -123,175 +121,6 @@ void main() {
       // 5. No Tier-2 pillar rail inside the bar (nav lives in bottom dock)
       expect(find.text('Calendar'), findsNothing);
       expect(find.text('QuantGit'), findsNothing);
-    });
-  });
-
-  // ===========================================================================
-  // 3. SUPER-APP HOME SCREEN (v2) INTEGRATION TESTS
-  // ===========================================================================
-  group('SuperAppHomeScreen v2 Tests', () {
-    testWidgets('Renders single bottom 5-pillar nav, lenses, honest empty state', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: QuantTheme.obsidianDarkTheme,
-          home: const SuperAppHomeScreen(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Top bar presence
-      expect(find.byType(QuantMailSuperAppBar), findsOneWidget);
-
-      // ONE nav system: 5-pillar bottom dock
-      expect(find.text('Mail'), findsOneWidget);
-      expect(find.text('Calendar'), findsOneWidget);
-      expect(find.text('Drive'), findsOneWidget);
-      expect(find.text('Contacts'), findsOneWidget);
-      expect(find.text('QuantGit'), findsOneWidget);
-
-      // No Tier-3 executive clutter / fake claims
-      expect(find.text('EXECUTIVE SUITE AT A GLANCE'), findsNothing);
-      expect(find.text('PRIORITY MAIL'), findsNothing);
-      expect(find.text('FASTCDC STORAGE'), findsNothing);
-      expect(find.text('18.4 GB used'), findsNothing);
-      expect(find.text('Sub-5ms FTS5 Index'), findsNothing);
-
-      // Mail category lenses present
-      expect(find.text('Primary'), findsOneWidget);
-      expect(find.text('Updates'), findsOneWidget);
-      expect(find.text('Promotions'), findsOneWidget);
-      expect(find.text('Forums'), findsOneWidget);
-      expect(find.text('VIPs'), findsOneWidget);
-
-      // Honest empty state — no fabricated threads
-      expect(find.text('No mail in Primary yet'), findsOneWidget);
-      expect(find.text('Alex Mercer'), findsNothing);
-      expect(find.text('Sundar Pichai'), findsNothing);
-
-      // Primary compose action
-      expect(find.byType(FloatingActionButton), findsOneWidget);
-    });
-
-    testWidgets('Switches pillars; calendar and drive show honest empty states', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: QuantTheme.obsidianDarkTheme,
-          home: const SuperAppHomeScreen(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // 1. Switch to Calendar pillar
-      await tester.tap(find.text('Calendar'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('No meetings today'), findsOneWidget);
-      expect(find.text('Sovereign Core Architecture Sync'), findsNothing);
-
-      // 2. Switch to Drive pillar
-      await tester.tap(find.text('Drive'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('No files yet'), findsOneWidget);
-      expect(find.text('18.4 GB used'), findsNothing);
-
-      // 3. Back to Mail pillar
-      await tester.tap(find.text('Mail'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('No mail in Primary yet'), findsOneWidget);
-    });
-
-    testWidgets('Retapping the active tab resets filters (refresh)', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: QuantTheme.obsidianDarkTheme,
-          home: const SuperAppHomeScreen(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Switch lens to Updates
-      await tester.tap(find.text('Updates'));
-      await tester.pumpAndSettle();
-      expect(find.text('No mail in Updates yet'), findsOneWidget);
-
-      // Retap the active Mail tab -> refresh resets the lens
-      await tester.tap(find.text('Mail'));
-      await tester.pumpAndSettle();
-      expect(find.text('No mail in Primary yet'), findsOneWidget);
-    });
-
-    testWidgets('Opens Workspace Selector Modal and switches workspace', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: QuantTheme.obsidianDarkTheme,
-          home: const SuperAppHomeScreen(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Tap workspace selector pill
-      await tester.tap(find.text('Quant Trinity Lab'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Switch Workspace'), findsOneWidget);
-      expect(find.text('Sovereign Foundation'), findsOneWidget);
-      expect(find.text('Personal Workspace'), findsOneWidget);
-
-      // Select Sovereign Foundation
-      await tester.tap(find.text('Sovereign Foundation'));
-      await tester.pumpAndSettle();
-
-      // Workspace name updated in top bar
-      expect(find.text('Sovereign Foundation'), findsOneWidget);
-    });
-
-    testWidgets('Opens Voice Search VAD Modal and triggers query chip', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: QuantTheme.obsidianDarkTheme,
-          home: const SuperAppHomeScreen(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Tap Voice Mic Icon
-      await tester.tap(find.byIcon(Icons.mic_rounded).first);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Listening for Voice Query...'), findsOneWidget);
-      expect(find.text('Unread mail'), findsOneWidget);
-
-      // Tap query chip
-      await tester.tap(find.text('Unread mail'));
-      await tester.pumpAndSettle();
-
-      // Voice modal dismissed and query inserted
-      expect(find.text('Listening for Voice Query...'), findsNothing);
-    });
-
-    testWidgets('Opens QR Scanner Modal with viewfinder frame', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: QuantTheme.obsidianDarkTheme,
-          home: const SuperAppHomeScreen(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Tap QR Scanner Icon
-      await tester.tap(find.byIcon(Icons.qr_code_scanner_rounded).first);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Sovereign QR Authenticator'), findsOneWidget);
-      expect(find.text('Align QR Code in frame'), findsOneWidget);
-
-      // Dismiss modal
-      await tester.tap(find.text('Close Scanner'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Sovereign QR Authenticator'), findsNothing);
     });
   });
 

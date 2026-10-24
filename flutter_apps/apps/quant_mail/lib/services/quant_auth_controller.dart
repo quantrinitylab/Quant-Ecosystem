@@ -9,8 +9,11 @@
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
+import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import '../config/quant_api_config.dart';
+import '../data/network/secure_cookie_storage.dart';
 import 'quant_auth_service.dart';
 
 enum LoginStatus {
@@ -74,6 +77,7 @@ class QuantAuthController {
   final QuantAuthService _authService;
   final Dio _dio;
   final String _baseUrl;
+  final CookieJar? _cookieJar;
   bool _initialized = false;
 
   /// Production by default; see [QuantApiConfig] for the --dart-define overrides.
@@ -82,6 +86,7 @@ class QuantAuthController {
           authService: QuantAuthService(),
           baseUrl: QuantApiConfig.baseUrl,
           origin: QuantApiConfig.origin,
+          cookieJar: QuantCookieJar.shared,
         );
 
   QuantAuthController._create({
@@ -89,8 +94,10 @@ class QuantAuthController {
     required String baseUrl,
     required String origin,
     HttpClientAdapter? httpClientAdapter,
+    CookieJar? cookieJar,
   })  : _authService = authService,
         _baseUrl = baseUrl,
+        _cookieJar = cookieJar,
         _dio = Dio(
           BaseOptions(
             connectTimeout: const Duration(seconds: 10),
@@ -106,6 +113,11 @@ class QuantAuthController {
     if (httpClientAdapter != null) {
       _dio.httpClientAdapter = httpClientAdapter;
     }
+    // The login response sets the HttpOnly refresh cookie. It is kept in the
+    // shared jar so the API client can replay it on /auth/refresh.
+    if (cookieJar != null) {
+      _dio.interceptors.add(CookieManager(cookieJar));
+    }
   }
 
   @visibleForTesting
@@ -114,12 +126,14 @@ class QuantAuthController {
     required String baseUrl,
     required String origin,
     required HttpClientAdapter httpClientAdapter,
+    CookieJar? cookieJar,
   }) {
     return QuantAuthController._create(
       authService: authService,
       baseUrl: baseUrl,
       origin: origin,
       httpClientAdapter: httpClientAdapter,
+      cookieJar: cookieJar,
     );
   }
 
@@ -134,6 +148,11 @@ class QuantAuthController {
     if (_initialized) return;
     try {
       await _authService.init();
+      if (!_authService.isAuthenticated) {
+        // No session: a refresh cookie left behind by an interrupted sign-out
+        // must not survive.
+        await _cookieJar?.deleteAll();
+      }
       _initialized = true;
       debugPrint('[QuantAuthController] Initialized. Authenticated: $isAuthenticated');
     } catch (e) {
@@ -232,6 +251,11 @@ class QuantAuthController {
     } catch (_) {
       // Already signed out locally; nothing else to do.
     }
+    try {
+      await _cookieJar?.deleteAll();
+    } catch (_) {
+      // The jar is wiped again on the next start without a session.
+    }
   }
 
   /// Turns a successful backend response into a stored session, a 2FA
@@ -272,8 +296,8 @@ class QuantAuthController {
       'id': userId,
       'email': accountEmail,
       'name': userJson['displayName'] ?? userJson['username'] ?? _extractNameFromEmail(accountEmail),
-      'role': userJson['role'] ?? 'Executive Operator',
-      'tier': 'Sovereign Enterprise',
+      // Only what the server sent. The backend has no plan or tier field.
+      if (userJson['role'] is String) 'role': userJson['role'],
     });
 
     try {
@@ -333,7 +357,7 @@ class QuantAuthController {
 
   static String _extractNameFromEmail(String email) {
     final prefix = email.split('@').first;
-    if (prefix.isEmpty) return 'Quant Operator';
+    if (prefix.isEmpty) return email;
     final parts = prefix.split(RegExp(r'[\._\-]'));
     return parts.map((p) => p.isEmpty ? '' : '${p[0].toUpperCase()}${p.substring(1)}').join(' ').trim();
   }

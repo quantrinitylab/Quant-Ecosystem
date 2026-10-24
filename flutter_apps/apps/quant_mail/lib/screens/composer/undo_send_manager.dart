@@ -124,7 +124,7 @@ class UndoSendManager extends ChangeNotifier {
       }
       _state = UndoSendState.sent;
       notifyListeners();
-      _onStatusToast?.call('Email sent successfully to Fastify sovereign cluster.');
+      _onStatusToast?.call('The server accepted your message.');
     } catch (e) {
       debugPrint('[UndoSendManager] Error delivering email: $e');
       _onStatusToast?.call('Delivery error: Failed to reach sovereign mail gateway.');

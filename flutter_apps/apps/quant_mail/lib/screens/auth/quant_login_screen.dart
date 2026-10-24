@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../../services/quant_auth_controller.dart';
-import '../superapp/superapp_home_screen.dart';
+import '../../features/shell/mail_shell.dart';
 import 'auth_widgets.dart';
 import 'quant_forgot_password_screen.dart';
 import 'quant_register_screen.dart';
@@ -15,9 +15,13 @@ import 'quant_register_screen.dart';
 class QuantLoginScreen extends StatefulWidget {
   final VoidCallback? onAuthenticated;
 
+  /// Why the user is here again, for example "Your session ended. Sign in again."
+  final String? initialNotice;
+
   const QuantLoginScreen({
     super.key,
     this.onAuthenticated,
+    this.initialNotice,
   });
 
   @override
@@ -54,6 +58,7 @@ class _QuantLoginScreenState extends State<QuantLoginScreen>
   @override
   void initState() {
     super.initState();
+    _noticeMessage = widget.initialNotice;
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2500),
@@ -247,7 +252,7 @@ class _QuantLoginScreenState extends State<QuantLoginScreen>
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 600),
-          pageBuilder: (context, animation, secondaryAnimation) => const SuperAppHomeScreen(),
+          pageBuilder: (context, animation, secondaryAnimation) => const MailShell(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },
