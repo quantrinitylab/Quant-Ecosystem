@@ -693,30 +693,46 @@ async function purgeRows(
   userId: string,
   fileIds: string[],
   folderIds: string[],
-): Promise<void> {
+): Promise<{ files: number; folders: number }> {
   const prisma = getPrisma(fastify);
-  const [files, versions] = await Promise.all([
+  // fix/qm-drive-trash-empty (deep-fix): re-validate BOTH kinds against the
+  // caller before deleting anything — the old code re-filtered files but
+  // trusted folderIds verbatim for the share/folder deletes, so a caller
+  // passing an unscoped folder id could delete another user's shares. Both
+  // lists are now re-derived from userId + isDeleted here.
+  const [files, ownedFolders, versions] = await Promise.all([
     fileIds.length
       ? prisma.file.findMany({ where: { id: { in: fileIds }, userId, isDeleted: true } })
+      : [],
+    folderIds.length
+      ? prisma.folder.findMany({ where: { id: { in: folderIds }, userId, isDeleted: true } })
       : [],
     fileIds.length ? prisma.fileVersion.findMany({ where: { fileId: { in: fileIds } } }) : [],
   ]);
   const ownedIds = files.map((file: any) => file.id);
+  const ownedFolderIds = ownedFolders.map((folder: any) => folder.id);
   const keys = new Set<string>();
   for (const file of files) if (file.encryptedContent) keys.add(file.encryptedContent);
   for (const version of versions)
     if (ownedIds.includes(version.fileId) && version.encryptedContent)
       keys.add(version.encryptedContent);
   for (const key of keys) await deleteDriveObject(key);
-  await prisma.$transaction([
+  // Honest counting: purgedCount must reflect rows actually deleted, not
+  // rows merely selected a moment earlier (a row deleted by a concurrent
+  // per-item purge between select and delete must not be counted twice).
+  const [, , , fileResult, folderResult] = await prisma.$transaction([
     prisma.fileIndex.deleteMany({ where: { fileId: { in: ownedIds } } }),
     prisma.fileVersion.deleteMany({ where: { fileId: { in: ownedIds } } }),
     prisma.share.deleteMany({
-      where: { OR: [{ fileId: { in: ownedIds } }, { folderId: { in: folderIds } }] },
+      where: { OR: [{ fileId: { in: ownedIds } }, { folderId: { in: ownedFolderIds } }] },
     }),
     prisma.file.deleteMany({ where: { id: { in: ownedIds }, userId, isDeleted: true } }),
-    prisma.folder.deleteMany({ where: { id: { in: folderIds }, userId, isDeleted: true } }),
+    prisma.folder.deleteMany({ where: { id: { in: ownedFolderIds }, userId, isDeleted: true } }),
   ]);
+  return {
+    files: Number((fileResult as any)?.count) || 0,
+    folders: Number((folderResult as any)?.count) || 0,
+  };
 }
 
 /**
@@ -752,16 +768,28 @@ async function purgeUserTrash(
   const fileIds = files.map((f: any) => f.id);
   const folderIds = folders.map((f: any) => f.id);
   const docIds = docs.map((d: any) => d.id);
+  let purged = 0;
   if (fileIds.length || folderIds.length) {
-    await purgeRows(fastify, userId, fileIds, folderIds);
+    const counts = await purgeRows(fastify, userId, fileIds, folderIds);
+    purged += counts.files + counts.folders;
   }
   // Document rows: versions/collaborators/comments cascade per the prisma
   // schema (same as the per-item purge path). Deleted one-by-one to stay
-  // compatible with prisma engines/fakes that only model delete().
+  // compatible with prisma engines/fakes that only model delete(). A doc
+  // that vanished between select and delete (concurrent per-item purge)
+  // raises a not-found error on real Prisma — that row is already gone, so
+  // it is skipped, never counted, and never fails the whole bulk purge.
   for (const docId of docIds) {
-    await prisma.document.delete({ where: { id: docId } });
+    try {
+      await prisma.document.delete({ where: { id: docId } });
+      purged += 1;
+    } catch (error) {
+      // Already gone (or otherwise un-deletable): not counted, purge
+      // continues — but the skip is logged, never silent.
+      fastify.log.warn(`[drive-trash] skipped un-deletable document during purge: ${String(error)}`);
+    }
   }
-  return { purged: fileIds.length + folderIds.length + docIds.length };
+  return { purged };
 }
 
 /**
@@ -2471,9 +2499,13 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     // and it silently no-oped, so "deleted" documents lingered in listings.
     const docIds = ids.filter(isDocumentDriveId).map(documentIdFromDriveId);
     if (docIds.length > 0) {
+      // fix/qm-drive-trash-empty (deep-fix): documents carry no deletedAt —
+      // the retention purge ages them on updatedAt, so the trash clock MUST
+      // start at trash time. Do not rely on an implicit @updatedAt bump
+      // here: stamp it explicitly with the same `now` as files/folders.
       await prisma.document.updateMany({
         where: { id: { in: docIds }, userId, isDeleted: false },
-        data: { isDeleted: true },
+        data: { isDeleted: true, updatedAt: now },
       });
     }
 
@@ -2619,13 +2651,13 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     ]);
     if (!files.length && !folders.length)
       throw createAppError('Trash item not found', 404, 'NOT_FOUND');
-    await purgeRows(
+    const counts = await purgeRows(
       fastify,
       userId,
       files.map((file: any) => file.id),
       folders.map((folder: any) => folder.id),
     );
-    return reply.send({ ok: true, purged: files.length + folders.length });
+    return reply.send({ ok: true, purged: counts.files + counts.folders });
   });
 
   // fix/qm-drive-trash-empty — extended: purgeAll=true backs the "Empty

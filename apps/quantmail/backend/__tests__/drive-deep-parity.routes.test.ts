@@ -405,9 +405,16 @@ function createFakePrisma() {
         Object.assign(hit, data, { updatedAt: new Date() });
         return hit;
       },
+      // fix/qm-drive-trash-empty (deep-fix): this fake applies updateMany
+      // data EXACTLY as given — no implicit @updatedAt bump. That pins the
+      // production contract: the Drive trash path must stamp updatedAt
+      // explicitly at trash time, because the retention purge ages documents
+      // on updatedAt. The old fake auto-bumped and silently masked a missing
+      // stamp (a doc last edited 60 days ago, trashed today, would purge on
+      // the very next sweep instead of after 30 days in trash).
       updateMany: async ({ where, data }: { where: any; data: any }) => {
         const hits = documents.filter((d) => matches(d, where));
-        for (const hit of hits) Object.assign(hit, data, { updatedAt: new Date() });
+        for (const hit of hits) Object.assign(hit, data);
         return { count: hits.length };
       },
       delete: async ({ where }: { where: { id: string } }) => {
@@ -1330,6 +1337,373 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
 
     expect(result).toEqual({ users: 0, purged: 0 });
     expect(logs.some((m) => m.includes('skipped'))).toBe(true);
+  });
+
+  // fix/qm-drive-trash-empty (deep-fix) — NEGATIVE CONTROL for the document
+  // trash clock. A document last edited 60 days ago, trashed TODAY via
+  // POST /drive/files/trash (doc: id), must age from trash time: its
+  // updatedAt is stamped at trash time, and the next retention cleanup
+  // leaves it alone. Pre-fix code (updateMany with only isDeleted: true,
+  // relying on an implicit bump) leaves updatedAt 60 days old, so this test
+  // fails at the updatedAt assertion — and the follow-up cleanup would
+  // wrongly purge a just-trashed document.
+  it('trashing a document stamps updatedAt at trash time, so fresh trash survives retention cleanup', async () => {
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 86_400_000);
+    documents.push({
+      id: 'doc_clock',
+      userId: 'user_alice',
+      title: 'stale edit, fresh trash',
+      isDeleted: false,
+      updatedAt: sixtyDaysAgo,
+      createdAt: sixtyDaysAgo,
+    });
+
+    const trashRes = await app.inject({
+      method: 'POST',
+      url: '/drive/files/trash',
+      headers: { 'content-type': 'application/json' },
+      payload: { fileIds: ['doc:doc_clock'] },
+    });
+    expect(trashRes.statusCode).toBe(200);
+    const trashed = documents.find((d) => d.id === 'doc_clock');
+    expect(trashed?.isDeleted).toBe(true);
+    expect(trashed?.updatedAt.getTime()).toBeGreaterThan(Date.now() - 60_000);
+
+    const cleanupRes = await app.inject({
+      method: 'POST',
+      url: '/drive/trash/cleanup',
+      headers: { 'content-type': 'application/json' },
+      payload: { retentionDays: 30 },
+    });
+    expect(cleanupRes.statusCode).toBe(200);
+    expect(JSON.parse(cleanupRes.body).purgedCount).toBe(0);
+    expect(documents.find((d) => d.id === 'doc_clock')).toBeDefined();
+  });
+
+  // fix/qm-drive-trash-empty (deep-fix) — retention boundary is inclusive:
+  // trash aged >= 30 days is purged, anything younger is kept. Files/folders
+  // age on deletedAt, documents on updatedAt; both sides of the boundary
+  // are covered here (exactly-30d purged, 30d-minus-60s kept).
+  it('retention boundary: exactly-30-day trash purged, just-inside-window trash kept', async () => {
+    const now = Date.now();
+    const exactly30d = new Date(now - 30 * 86_400_000);
+    const justInside = new Date(now - 30 * 86_400_000 + 60_000);
+    files.push(
+      {
+        id: 'file_boundary_old',
+        name: 'boundary-old.zip',
+        mimeType: 'application/zip',
+        size: 100,
+        folderId: null,
+        isStarred: false,
+        isDeleted: true,
+        deletedAt: exactly30d,
+        trashRootId: 'file_boundary_old',
+        encryptedContent: 'enc_bo',
+        encryptionIV: 'iv',
+        encryptionAuthTag: 'tag',
+        encryptionKey: 'key',
+        contentHash: 'hash_bo',
+        userId: 'user_alice',
+        updatedAt: exactly30d,
+        createdAt: exactly30d,
+      },
+      {
+        id: 'file_boundary_young',
+        name: 'boundary-young.zip',
+        mimeType: 'application/zip',
+        size: 100,
+        folderId: null,
+        isStarred: false,
+        isDeleted: true,
+        deletedAt: justInside,
+        trashRootId: 'file_boundary_young',
+        encryptedContent: 'enc_by',
+        encryptionIV: 'iv',
+        encryptionAuthTag: 'tag',
+        encryptionKey: 'key',
+        contentHash: 'hash_by',
+        userId: 'user_alice',
+        updatedAt: justInside,
+        createdAt: justInside,
+      },
+    );
+    documents.push(
+      {
+        id: 'doc_boundary_old',
+        userId: 'user_alice',
+        title: 'boundary doc old',
+        isDeleted: true,
+        updatedAt: exactly30d,
+        createdAt: exactly30d,
+      },
+      {
+        id: 'doc_boundary_young',
+        userId: 'user_alice',
+        title: 'boundary doc young',
+        isDeleted: true,
+        updatedAt: justInside,
+        createdAt: justInside,
+      },
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/drive/trash/cleanup',
+      headers: { 'content-type': 'application/json' },
+      payload: { retentionDays: 30 },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).purgedCount).toBe(2);
+    expect(files.find((f) => f.id === 'file_boundary_old')).toBeUndefined();
+    expect(files.find((f) => f.id === 'file_boundary_young')).toBeDefined();
+    expect(documents.find((d) => d.id === 'doc_boundary_old')).toBeUndefined();
+    expect(documents.find((d) => d.id === 'doc_boundary_young')).toBeDefined();
+  });
+
+  // fix/qm-drive-trash-empty (deep-fix) — SCOPING. purgeAll empties ONLY
+  // the caller's trash: another user's trashed rows survive, non-trashed
+  // rows survive, and a file shared WITH the caller but owned by someone
+  // else (plus its share row) survives untouched.
+  it('purgeAll touches only the caller trash: other user, live rows, shared-with-me survive', async () => {
+    const fortyDaysAgo = new Date(Date.now() - 40 * 86_400_000);
+    files.push(
+      {
+        id: 'file_alice_trash',
+        name: 'alice-trash.zip',
+        mimeType: 'application/zip',
+        size: 100,
+        folderId: null,
+        isStarred: false,
+        isDeleted: true,
+        deletedAt: fortyDaysAgo,
+        trashRootId: 'file_alice_trash',
+        encryptedContent: 'enc_at',
+        encryptionIV: 'iv',
+        encryptionAuthTag: 'tag',
+        encryptionKey: 'key',
+        contentHash: 'hash_at',
+        userId: 'user_alice',
+        updatedAt: fortyDaysAgo,
+        createdAt: fortyDaysAgo,
+      },
+      {
+        id: 'file_alice_live',
+        name: 'alice-live.zip',
+        mimeType: 'application/zip',
+        size: 100,
+        folderId: null,
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        encryptedContent: 'enc_al',
+        encryptionIV: 'iv',
+        encryptionAuthTag: 'tag',
+        encryptionKey: 'key',
+        contentHash: 'hash_al',
+        userId: 'user_alice',
+        updatedAt: fortyDaysAgo,
+        createdAt: fortyDaysAgo,
+      },
+      {
+        id: 'file_bob_trash',
+        name: 'bob-trash.zip',
+        mimeType: 'application/zip',
+        size: 100,
+        folderId: null,
+        isStarred: false,
+        isDeleted: true,
+        deletedAt: fortyDaysAgo,
+        trashRootId: 'file_bob_trash',
+        encryptedContent: 'enc_bt',
+        encryptionIV: 'iv',
+        encryptionAuthTag: 'tag',
+        encryptionKey: 'key',
+        contentHash: 'hash_bt',
+        userId: 'user_bob',
+        updatedAt: fortyDaysAgo,
+        createdAt: fortyDaysAgo,
+      },
+      {
+        id: 'file_bob_shared',
+        name: 'bob-shared.zip',
+        mimeType: 'application/zip',
+        size: 100,
+        folderId: null,
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        encryptedContent: 'enc_bs',
+        encryptionIV: 'iv',
+        encryptionAuthTag: 'tag',
+        encryptionKey: 'key',
+        contentHash: 'hash_bs',
+        userId: 'user_bob',
+        updatedAt: fortyDaysAgo,
+        createdAt: fortyDaysAgo,
+      },
+    );
+    shares.push({
+      id: 'share_bob_to_alice',
+      fileId: 'file_bob_shared',
+      folderId: null,
+      ownerUserId: 'user_bob',
+      sharedWithUserId: 'user_alice',
+      encryptedFileKey: 'key',
+      permission: 'viewer',
+      status: 'accepted',
+      createdAt: fortyDaysAgo,
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/drive/trash/cleanup',
+      headers: { 'content-type': 'application/json' },
+      payload: { purgeAll: true },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.success).toBe(true);
+    expect(body.purgedCount).toBe(1);
+    expect(body.retentionDays).toBe(0);
+    expect(files.find((f) => f.id === 'file_alice_trash')).toBeUndefined();
+    expect(files.find((f) => f.id === 'file_alice_live')).toBeDefined();
+    expect(files.find((f) => f.id === 'file_bob_trash')).toBeDefined();
+    expect(files.find((f) => f.id === 'file_bob_shared')).toBeDefined();
+    expect(shares.find((s) => s.id === 'share_bob_to_alice')).toBeDefined();
+  });
+
+  // fix/qm-drive-trash-empty (deep-fix) — INTENT. The API never bulk-purges
+  // on a bare cleanup call: without the explicit purgeAll: true boolean,
+  // fresh trash survives (and a string 'true' does not count — strict
+  // boolean, so a UI that forgets the flag cannot wipe a fresh trash).
+  // Unauthenticated cleanup is rejected outright.
+  it('cleanup without explicit purgeAll:true never bulk-purges fresh trash; unauthenticated rejected', async () => {
+    const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000);
+    files.push({
+      id: 'file_fresh_intent',
+      name: 'fresh-intent.zip',
+      mimeType: 'application/zip',
+      size: 100,
+      folderId: null,
+      isStarred: false,
+      isDeleted: true,
+      deletedAt: tenDaysAgo,
+      trashRootId: 'file_fresh_intent',
+      encryptedContent: 'enc_fi',
+      encryptionIV: 'iv',
+      encryptionAuthTag: 'tag',
+      encryptionKey: 'key',
+      contentHash: 'hash_fi',
+      userId: 'user_alice',
+      updatedAt: tenDaysAgo,
+      createdAt: tenDaysAgo,
+    });
+
+    for (const payload of [{}, { retentionDays: 30 }, { purgeAll: 'true' }]) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/drive/trash/cleanup',
+        headers: { 'content-type': 'application/json' },
+        payload,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).purgedCount).toBe(0);
+      expect(files.find((f) => f.id === 'file_fresh_intent')).toBeDefined();
+    }
+
+    const anonApp = await buildTestApp(null);
+    const anonRes = await anonApp.inject({
+      method: 'POST',
+      url: '/drive/trash/cleanup',
+      headers: { 'content-type': 'application/json' },
+      payload: { purgeAll: true },
+    });
+    expect(anonRes.statusCode).toBe(401);
+    expect(files.find((f) => f.id === 'file_fresh_intent')).toBeDefined();
+    await anonApp.close();
+  });
+
+  // fix/qm-drive-trash-empty (deep-fix) — IDEMPOTENCY. A second cleanup
+  // after a full purge finds nothing left and reports 0 — no double-count.
+  it('repeat cleanup is idempotent: second run purges 0 with the same response shape', async () => {
+    const fortyDaysAgo = new Date(Date.now() - 40 * 86_400_000);
+    files.push({
+      id: 'file_idem',
+      name: 'idem.zip',
+      mimeType: 'application/zip',
+      size: 100,
+      folderId: null,
+      isStarred: false,
+      isDeleted: true,
+      deletedAt: fortyDaysAgo,
+      trashRootId: 'file_idem',
+      encryptedContent: 'enc_idem',
+      encryptionIV: 'iv',
+      encryptionAuthTag: 'tag',
+      encryptionKey: 'key',
+      contentHash: 'hash_idem',
+      userId: 'user_alice',
+      updatedAt: fortyDaysAgo,
+      createdAt: fortyDaysAgo,
+    });
+    const first = await app.inject({
+      method: 'POST',
+      url: '/drive/trash/cleanup',
+      headers: { 'content-type': 'application/json' },
+      payload: { retentionDays: 30 },
+    });
+    expect(JSON.parse(first.body)).toEqual({ success: true, purgedCount: 1, retentionDays: 30 });
+    const second = await app.inject({
+      method: 'POST',
+      url: '/drive/trash/cleanup',
+      headers: { 'content-type': 'application/json' },
+      payload: { retentionDays: 30 },
+    });
+    expect(JSON.parse(second.body)).toEqual({ success: true, purgedCount: 0, retentionDays: 30 });
+  });
+
+  // fix/qm-drive-trash-empty (deep-fix) — SWEEP SCOPE. The sweep purges
+  // expired trash across users but never fresh trash (either user's) and
+  // never non-trashed rows.
+  it('sweep keeps fresh trash of every user and all non-trashed rows', async () => {
+    const { sweepExpiredDriveTrash } = await import('../routes/drive');
+    const fortyDaysAgo = new Date(Date.now() - 40 * 86_400_000);
+    const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000);
+    const fileFixture = (id: string, userId: string, isDeleted: boolean, deletedAt: Date | null): FileRow => ({
+      id,
+      name: `${id}.zip`,
+      mimeType: 'application/zip',
+      size: 100,
+      folderId: null,
+      isStarred: false,
+      isDeleted,
+      deletedAt,
+      trashRootId: isDeleted ? id : null,
+      encryptedContent: `enc_${id}`,
+      encryptionIV: 'iv',
+      encryptionAuthTag: 'tag',
+      encryptionKey: 'key',
+      contentHash: `hash_${id}`,
+      userId,
+      updatedAt: deletedAt ?? tenDaysAgo,
+      createdAt: deletedAt ?? tenDaysAgo,
+    });
+    files.push(
+      fileFixture('file_sweep_scope_old', 'user_alice', true, fortyDaysAgo),
+      fileFixture('file_sweep_scope_bob_fresh', 'user_bob', true, tenDaysAgo),
+      fileFixture('file_sweep_scope_live', 'user_alice', false, null),
+    );
+    const log = { info: () => {}, error: () => {} };
+
+    const result = await sweepExpiredDriveTrash(app, log, 30);
+
+    expect(result).toEqual({ users: 1, purged: 1 });
+    expect(files.find((f) => f.id === 'file_sweep_scope_old')).toBeUndefined();
+    expect(files.find((f) => f.id === 'file_sweep_scope_bob_fresh')).toBeDefined();
+    expect(files.find((f) => f.id === 'file_sweep_scope_live')).toBeDefined();
   });
 
   it('supports server-side cursor pagination and sorting on GET /drive/files', async () => {
