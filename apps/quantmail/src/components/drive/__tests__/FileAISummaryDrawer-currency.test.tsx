@@ -36,6 +36,34 @@ describe('FileAISummaryDrawer extractEntities currency honesty', () => {
     expect(result?.amounts).toEqual(['50 (currency unknown)']);
   });
 
+  it('invoice-shaped payloads use the `tax` field with the same honesty (no currency → unknown)', async () => {
+    const manager = managerWithPayload({
+      vendor: 'Quant Labs',
+      dueDate: '2026-10-01',
+      total: 590,
+      subtotal: 500,
+      tax: 90,
+    });
+    const result = await manager.extractEntities({ id: 'file-2', name: 'invoice.pdf', mimeType: 'application/pdf', size: 1024 });
+    expect(result?.amounts).toEqual([
+      '590 (currency unknown)',
+      'Subtotal: 500 (currency unknown)',
+      'Tax: 90 (currency unknown)',
+    ]);
+    expect(result?.amounts?.join(' ')).not.toContain('$');
+  });
+
+  it('invoice-shaped payloads use the reported currency on total, subtotal AND tax', async () => {
+    const manager = managerWithPayload({
+      total: 590,
+      subtotal: 500,
+      tax: 90,
+      currency: '₹',
+    });
+    const result = await manager.extractEntities({ id: 'file-2', name: 'invoice.pdf', mimeType: 'application/pdf', size: 1024 });
+    expect(result?.amounts).toEqual(['₹590', 'Subtotal: ₹500', 'Tax: ₹90']);
+  });
+
   it('uses the reported currency for total, subtotal AND tax when present', async () => {
     const manager = managerWithPayload({
       total: 450,

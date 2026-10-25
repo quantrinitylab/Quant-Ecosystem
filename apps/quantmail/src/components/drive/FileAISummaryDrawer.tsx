@@ -326,8 +326,13 @@ export class AISummaryManager {
       if (typeof raw.subtotal === 'number') {
         amounts.push(formatAmount('Subtotal: ', raw.subtotal));
       }
-      if (typeof raw.taxAmount === 'number' && raw.taxAmount > 0) {
-        amounts.push(formatAmount('Tax: ', raw.taxAmount));
+      // Receipts report tax as `taxAmount`, invoices as `tax` — render
+      // whichever the payload carries, with the same currency honesty
+      // (a null currency must still reach this line as unknown, never '$').
+      const taxValue =
+        typeof raw.taxAmount === 'number' ? raw.taxAmount : raw.tax;
+      if (typeof taxValue === 'number' && taxValue > 0) {
+        amounts.push(formatAmount('Tax: ', taxValue));
       }
       if (raw.invoiceNumber) {
         contacts.push(`Invoice #${raw.invoiceNumber}`);
