@@ -78,7 +78,10 @@ export interface AppliedPlusMention {
  * Replace the trigger range with "@Name " — the "@" prefix keeps the mention
  * readable as a mention in a plain <textarea> (which cannot paint chips),
  * and the trailing space lets typing continue naturally. The recipient add
- * itself is the host composer's job (its To state); this only rewrites text.
+ * itself is the host composer's job (its To state, or ThreadComposer's
+ * mentioned-recipients list); this only rewrites text — a host that
+ * inserts the text without adding the recipient ships a fake recipient
+ * affordance (CODEX-REVIEW on PR #1549).
  */
 export function applyPlusMention(
   body: string,

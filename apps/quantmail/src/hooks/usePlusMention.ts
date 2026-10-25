@@ -23,8 +23,11 @@ import { rankContactSuggestions } from '../components/ContactAutocomplete';
  * - render `<PlusMentionDropdown>` next to the textarea when
  *   `mention.isOpen`, with `onSelect={mention.select}`.
  * - `onSelect` (this hook's option) receives the new body + caret: the host
- *   sets its body state, adds the contact to To where a To field exists,
- *   and restores focus + caret on its textarea ref.
+ *   sets its body state, adds the contact to its real recipient list
+ *   (EmailComposer/DockedComposer: the To field; ThreadComposer: its
+ *   mentioned-recipients list, which the send path addresses — a pick
+ *   that adds nobody is a fake recipient affordance, CODEX-REVIEW on
+ *   PR #1549), and restores focus + caret on its textarea ref.
  *
  * Fail-closed: the trigger offsets belong to the body snapshot from the
  * last keystroke. If the body moved under us since (template insert, AI
