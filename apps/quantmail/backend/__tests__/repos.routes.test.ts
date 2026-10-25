@@ -2564,6 +2564,88 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       expect(pr.checksStatus).toBe('none');
     });
 
+    it('V22c: GET /repos/:id/pulls reports reviewRequired=false when no protection rule guards the target branch', async () => {
+      const app = await buildApp('user-1');
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls',
+      });
+
+      expect(res.statusCode).toBe(200);
+      // Default mocks: no protection rules, no reviews — the row must NOT
+      // claim a review requirement (the old hardcoded chip did).
+      expect(res.json().data[0].reviewRequired).toBe(false);
+    });
+
+    it('V22d: GET /repos/:id/pulls reports reviewRequired=true when the target branch rule requires an approval nobody gave', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockResolvedValue([MOCK_BRANCH_PROTECTION]);
+      prisma.review.findMany.mockResolvedValue([]);
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data[0].reviewRequired).toBe(true);
+    });
+
+    it('V22e: GET /repos/:id/pulls reports reviewRequired=false once the required approval exists', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockResolvedValue([MOCK_BRANCH_PROTECTION]);
+      prisma.review.findMany.mockResolvedValue([MOCK_REVIEW]);
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data[0].reviewRequired).toBe(false);
+    });
+
+    it('V22f: GET /repos/:id/pulls ignores dismissed (stale) approvals — review still required', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockResolvedValue([MOCK_BRANCH_PROTECTION]);
+      prisma.review.findMany.mockResolvedValue([{ ...MOCK_REVIEW, dismissed: true }]);
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data[0].reviewRequired).toBe(true);
+    });
+
+    it('V22g: GET /repos/:id/pulls uses the latest verdict per reviewer — a newer CHANGES_REQUESTED re-opens the requirement', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockResolvedValue([MOCK_BRANCH_PROTECTION]);
+      prisma.review.findMany.mockResolvedValue([
+        { ...MOCK_REVIEW, status: 'CHANGES_REQUESTED', createdAt: new Date('2026-09-05T00:00:00.000Z') },
+        MOCK_REVIEW,
+      ]);
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data[0].reviewRequired).toBe(true);
+    });
+
+    it('V22h: GET /repos/:id/pulls never requires a review on a closed PR even under a protection rule', async () => {
+      const app = await buildApp('user-1');
+      prisma.pullRequest.findMany.mockResolvedValueOnce([{ ...MOCK_PR, status: 'CLOSED' }]);
+      prisma.branchProtection.findMany.mockResolvedValue([MOCK_BRANCH_PROTECTION]);
+      prisma.review.findMany.mockResolvedValue([]);
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data[0].reviewRequired).toBe(false);
+    });
+
     it('V22b: GET /repos/:id/pulls/:number returns null diff stats when the git diff cannot be computed', async () => {
       const app = await buildApp('user-1');
       const res = await app.inject({

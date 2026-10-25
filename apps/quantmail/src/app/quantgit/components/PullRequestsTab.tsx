@@ -1273,9 +1273,18 @@ export function PullRequestsTab({
                         <span className="px-1.5 py-0.2 rounded border border-[#30363D] text-[#8D96A0] text-[10px] font-semibold flex items-center gap-1">
                           <QuantGitPendingDotIcon size={10} /> Checks unknown
                         </span>
-                        <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#8D96A0] text-[10px]">
-                          Review required
-                        </span>
+                        {/* Review-required chip ONLY from real list data
+                            (target branch protection + effective verdicts).
+                            No rule, satisfied reviews, or unknown data → no chip,
+                            never a hardcoded badge on every row. */}
+                        {pr.reviewRequired === true && (
+                          <span
+                            data-testid={`pr-review-required-${pr.id}`}
+                            className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#8D96A0] text-[10px]"
+                          >
+                            Review required
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-[#8D96A0]">
                         #{pr.id} by {pr.author} was {pr.state} {pr.createdAt}

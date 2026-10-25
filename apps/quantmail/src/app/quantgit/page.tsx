@@ -975,6 +975,9 @@ function QuantGitContent() {  const router = useRouter();
                 : 'unknown',
               // Pass through honestly: null (unknown) stays null, never becomes an invented 0.
               commentsCount: item.commentsCount ?? null,
+              // Review-requirement verdict: only a real `true` from the list
+              // endpoint may render the row chip; anything else hides it.
+              reviewRequired: item.reviewRequired === true,
               createdAt: item.createdAt || 'recently',
               body: item.body || '',
               // Diff stats: pass through honestly — the list endpoint reports
