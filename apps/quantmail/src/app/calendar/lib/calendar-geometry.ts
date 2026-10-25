@@ -21,6 +21,69 @@ export const toTimeInput = (date: Date): string =>
 export const dayKey = (date: Date): string =>
   `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
 
+/** Guard against garbage end dates turning a by-day bucket into a huge loop. */
+export const MAX_EVENT_SPAN_DAYS = 3660;
+
+/**
+ * Last calendar day an event occupies, as a local-midnight Date (null when
+ * the start is invalid).
+ *
+ * End semantics (matches CalendarDayView.eventsForDay and Google Calendar):
+ * an event occupies every day from its start day through the day its end
+ * falls on — EXCEPT an end at exactly local midnight, which means the event
+ * stops at the start of that day, so the last occupied day is the previous
+ * one. App-created all-day events store end as endDateT23:59:59 (inclusive),
+ * so they are unaffected; the midnight rule only covers imported /
+ * Google-style exclusive-midnight ends and timed events ending at 00:00.
+ * Missing, invalid, or non-positive ends occupy the start day only.
+ */
+export function lastDayOf(event: CalendarEventLike): Date | null {
+  const s = startOf(event);
+  if (Number.isNaN(s.getTime())) return null;
+  const first = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+  const e = endOf(event);
+  if (Number.isNaN(e.getTime()) || e.getTime() <= s.getTime()) return first;
+  const last = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+  if (
+    e.getHours() === 0 &&
+    e.getMinutes() === 0 &&
+    e.getSeconds() === 0 &&
+    e.getMilliseconds() === 0
+  ) {
+    last.setDate(last.getDate() - 1);
+  }
+  return last.getTime() < first.getTime() ? first : last;
+}
+
+/**
+ * Bucket events by every day they occupy, not just their start day.
+ *
+ * The old call sites keyed each event by its start day only, so a 3-day
+ * conference appeared on day 1 and days 2-3 rendered nothing in the month
+ * grid, the agenda/feed lists, and the week all-day row — the calendar lied
+ * by omission. This is the single bucketing every by-day consumer must use;
+ * the day view (eventsForDay) and the week timed grid already span via
+ * interval overlap and are left alone. setDate arithmetic (not raw ms) keeps
+ * DST transitions from drifting the walk, and the span cap bounds garbage
+ * ends. Event order inside each day follows the input order.
+ */
+export function groupEventsByDay(events: CalendarEventLike[]): Record<string, CalendarEventLike[]> {
+  const map: Record<string, CalendarEventLike[]> = {};
+  for (const ev of events) {
+    const s = startOf(ev);
+    if (Number.isNaN(s.getTime())) continue;
+    const first = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    const last = lastDayOf(ev) ?? first;
+    const d = new Date(first);
+    for (let i = 0; i < MAX_EVENT_SPAN_DAYS && d.getTime() <= last.getTime(); i++) {
+      const k = dayKey(d);
+      map[k] = [...(map[k] ?? []), ev];
+      d.setDate(d.getDate() + 1);
+    }
+  }
+  return map;
+}
+
 export function parseCalendarEvent(raw: any): CalendarEventLike {
   let title: string = raw.title || '';
   let description: string = raw.description || '';

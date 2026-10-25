@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CalendarEventLike, EntryType } from '../app/calendar/types';
 import { MONTH_NAMES, FULL_WEEKDAYS } from '../app/calendar/types';
-import { dayKey, startOf, endOf, hhmm } from '../app/calendar/lib/calendar-geometry';
+import { dayKey, startOf, endOf, hhmm, groupEventsByDay } from '../app/calendar/lib/calendar-geometry';
 import { calendarEventMatchesQuery } from '../app/calendar/lib/calendar-search';
 import { longDayLabel, plural } from '../app/calendar/lib/calendar-copy';
 import type { Holiday } from '../lib/holidays';
@@ -257,17 +257,10 @@ export function CalendarFeedSubView({
 }: CalendarFeedSubViewProps) {
   const [filterType, setFilterType] = useState<'all' | 'meetings' | 'tasks' | 'trackers' | 'holidays'>('all');
 
-  // Group events by dayKey
-  const eventsByDay = useMemo(() => {
-    const map: Record<string, CalendarEventLike[]> = {};
-    for (const ev of events) {
-      const d = startOf(ev);
-      if (Number.isNaN(d.getTime())) continue;
-      const k = dayKey(d);
-      map[k] = [...(map[k] ?? []), ev];
-    }
-    return map;
-  }, [events]);
+  // fix/qm-calendar-multiday-span: group by every day the event occupies,
+  // not just its start day — otherwise multi-day events vanish from the
+  // feed after day 1.
+  const eventsByDay = useMemo(() => groupEventsByDay(events), [events]);
 
   // Build continuous feed days: past 3 days to future 30 days
   const feedDays = useMemo(() => {
@@ -642,17 +635,10 @@ export function CalendarMonthSubView({
     }
   };
 
-  // Group events by day key
-  const eventsByDayKey = useMemo(() => {
-    const map: Record<string, CalendarEventLike[]> = {};
-    for (const ev of events) {
-      const d = startOf(ev);
-      if (Number.isNaN(d.getTime())) continue;
-      const k = dayKey(d);
-      map[k] = [...(map[k] ?? []), ev];
-    }
-    return map;
-  }, [events]);
+  // fix/qm-calendar-multiday-span: group by every day the event occupies,
+  // not just its start day — otherwise multi-day events vanish from the
+  // month grid after day 1.
+  const eventsByDayKey = useMemo(() => groupEventsByDay(events), [events]);
 
   // Build Monday-first month grid (Mon = 0, Sun = 6)
   const monthWeeks = useMemo(() => {

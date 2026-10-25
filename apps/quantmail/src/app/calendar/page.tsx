@@ -27,6 +27,7 @@ import {
   endOf,
   parseCalendarEvent,
   calculateGrid,
+  groupEventsByDay,
   buildCurrentWeekDays,
   buildMonthWeeks,
   agendaEventWindow,
@@ -445,16 +446,10 @@ function CalendarPageContent() {
 
   const grid = useMemo(() => calculateGrid(year, month), [year, month]);
 
-  const eventsByDay = useMemo(() => {
-    const map: Record<string, CalendarEventLike[]> = {};
-    for (const event of events) {
-      const d = startOf(event);
-      if (Number.isNaN(d.getTime())) continue;
-      const key = dayKey(d);
-      map[key] = [...(map[key] ?? []), event];
-    }
-    return map;
-  }, [events]);
+  // fix/qm-calendar-multiday-span: bucket by every day the event occupies,
+  // not just its start day — otherwise multi-day events vanish from the
+  // agenda, the month/week dots, and the selected-day lists after day 1.
+  const eventsByDay = useMemo(() => groupEventsByDay(events), [events]);
 
   const holidaysByDay = useMemo(() => {
     const map: Record<string, Holiday[]> = {};
