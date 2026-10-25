@@ -268,15 +268,28 @@ export interface MergePlanGroup {
  * Groups left with nothing to merge (dismissal-exhausted) are dropped: they
  * neither surface in the preview nor merge in bulk.
  */
+/**
+ * Sort-safe createdAt: a missing or invalid date sorts as epoch, never NaN.
+ * A NaN comparator result is treated as "equal" by V8's sort, which would
+ * silently make the survivor follow DB row order instead of the tiebreak
+ * chain — the tiebreak must be total even for partial rows.
+ */
+function toSortTime(value: unknown): number {
+  const time = value ? new Date(value as string | number | Date).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
 export function buildMergePlan(contacts: Contact[], dismissed: Set<string>): MergePlanGroup[] {
   const plan: MergePlanGroup[] = [];
   for (const group of buildDuplicateGroups(contacts)) {
     const members = [group.primaryContact, ...group.duplicates];
     members.sort((a, b) => {
-      if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
-      if (a.frequency !== b.frequency) return b.frequency - a.frequency;
-      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (Boolean(a.isFavorite) !== Boolean(b.isFavorite)) return a.isFavorite ? -1 : 1;
+      const freqA = a.frequency ?? 0;
+      const freqB = b.frequency ?? 0;
+      if (freqA !== freqB) return freqB - freqA;
+      const timeA = toSortTime(a.createdAt);
+      const timeB = toSortTime(b.createdAt);
       if (timeA !== timeB) return timeA - timeB;
       return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });
@@ -1237,6 +1250,16 @@ export class ContactService {
    * the user pick any survivor), for stale previews merged on a second call,
    * and across service instances — POST /contacts/merge used to bypass the
    * dismissal table entirely (#1241).
+   *
+   * Enforcement alone is not enough for SEQUENTIAL calls: each call checks
+   * only its own ids, so A→P followed by B→P (each individually clean) would
+   * still collapse the dismissed pair (A,B) into P. The merge therefore also
+   * PROPAGATES dismissals: every dismissed pair naming an absorbed contact
+   * is re-recorded against the survivor (A,B) becomes (P,B) when A merges
+   * into P. The row lives in the dismissal table — never in memory — so it
+   * holds across service instances, and it chains: a later merge of P into Q
+   * propagates (P,B) to (Q,B) the same way. A dismissed pair can thus never
+   * collapse no matter how many merges, in how many calls, absorb its sides.
    */
   private async mergeContactsWithDismissals(
     userId: string,
@@ -1299,6 +1322,38 @@ export class ContactService {
 
     for (const id of duplicateIds) {
       await contactModel.delete({ where: { id } });
+    }
+
+    // Dismissal propagation (see the doc comment above): re-record every
+    // dismissed pair that named an absorbed contact against the survivor, so
+    // a later call cannot absorb the pair's other side into this same record.
+    // This runs AFTER the deletes so a failed merge never writes a row for a
+    // merge that did not happen. Pairs already naming the survivor, or both
+    // sides of this same merge (already 409'd above), are skipped; upsert
+    // makes re-propagation of an already-recorded pair a no-op.
+    const absorbedIds = new Set(duplicateIds);
+    const dismissedPairModel = (
+      this.prisma as unknown as { dismissedDuplicatePair: DismissedPairModel }
+    ).dismissedDuplicatePair;
+    for (const key of dismissed) {
+      const parts = key.split('::');
+      if (parts.length !== 2) continue;
+      const [first, second] = parts as [string, string];
+      const absorbed = absorbedIds.has(first)
+        ? first
+        : absorbedIds.has(second)
+          ? second
+          : null;
+      if (!absorbed) continue;
+      const other = absorbed === first ? second : first;
+      if (other === primaryId || absorbedIds.has(other)) continue;
+      const propagatedKey = duplicatePairKey(primaryId, other);
+      if (propagatedKey === key || dismissed.has(propagatedKey)) continue;
+      await dismissedPairModel.upsert({
+        where: { userId_pairKey: { userId, pairKey: propagatedKey } },
+        update: {},
+        create: { userId, pairKey: propagatedKey },
+      });
     }
 
     return updated;
