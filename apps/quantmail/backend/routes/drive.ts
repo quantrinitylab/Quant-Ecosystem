@@ -347,16 +347,55 @@ function linkDto(
     audienceEmails,
     audienceOrgs: scope === 'org' ? orgNames : [],
     requiresPassword: Boolean(link.password),
-    // QM-M39-006 (disable-download): owner-set flag; enforced on the public
-    // download path for viewer-role links. Honest state — a link without the
-    // flag reads false, never null.
-    disableDownload: Boolean(link.disableDownload),
+    // QM-M39-006 (hide-download-action): owner-set flag; enforced on the
+    // public download path for viewer-role links. Honest state — a link
+    // without the flag reads false, never null. The stored column and wire
+    // field keep the legacy name `disableDownload` (migration 0111); the
+    // semantics are "hide the download action for viewers", NOT copy
+    // protection — a viewer who can preview the file can still save what
+    // they can see. Display is normalized here so a legacy editor+true row
+    // (stored before server normalization) never advertises the flag.
+    disableDownload: normalizeHideDownloadForViewers(link.role, link.disableDownload),
     expiresAt: link.expiresAt,
     expired: expiresAt ? expiresAt.getTime() < Date.now() : false,
     createdAt: link.createdAt,
     shareUrl: `/drive/share/${link.token}`,
   };
 }
+/**
+ * QM-M39-006 corrective (CODEX checkpoint 6382393391): the hide-download
+ * flag is meaningful ONLY for viewer-role links. Server-side normalization —
+ * never trusted from the client: an editor-role link stores false no matter
+ * what the request asked for, so an editor+true row can never exist going
+ * forward and a role-only viewer→editor→viewer transition can never
+ * reactivate the flag (the editor step clears it; see the PATCH handler).
+ */
+function normalizeHideDownloadForViewers(role: unknown, disableDownload: unknown): boolean {
+  return role === 'viewer' && disableDownload === true;
+}
+
+/**
+ * QM-M39-006 corrective: the MIME types the public share page can actually
+ * render inline. This MUST mirror the frontend's previewKindFor
+ * (share-resolve.ts): image/*, application/pdf, text/*, application/json and
+ * application/*+json. Any other type has no preview — so the ?preview=1 lane
+ * must refuse it instead of streaming original bytes while the page claims
+ * preview is unavailable.
+ */
+function isPreviewableMime(mimeType: unknown): boolean {
+  const mime = String(mimeType ?? '')
+    .split(';', 1)[0]
+    ?.trim()
+    .toLowerCase();
+  if (!mime) return false;
+  if (mime.startsWith('image/')) return true;
+  if (mime === 'application/pdf') return true;
+  if (mime.startsWith('text/')) return true;
+  if (mime === 'application/json') return true;
+  if (/^application\/.*\+json$/.test(mime)) return true;
+  return false;
+}
+
 function requireStorage(): void {
   if (!driveStorageReady())
     throw createAppError(driveStorageUnavailableReason(), 503, 'STORAGE_UNAVAILABLE');
@@ -837,10 +876,12 @@ const publicShareLinkSchema = z.object({
   // Null/omitted = no expiry.
   expiresAt: z.string().min(1).max(40).nullable().optional(),
   password: z.string().max(100).optional(),
-  // QM-M39-006 (disable-download): owner can block downloads for viewer-role
-  // links (Google Drive parity — viewers get preview only, editors always
-  // need the bytes to edit). Defaults false; enforced on the public
-  // download path, never trusted from the client side at serve time.
+  // QM-M39-006 (hide-download-action): owner can hide the download action
+  // for viewer-role links (viewers get preview only, editors always need
+  // the bytes to edit). Defaults false; enforced on the public download
+  // path, never trusted from the client side at serve time. Server
+  // normalization stores editor+true as false. This hides the action only
+  // — it is NOT copy protection.
   disableDownload: z.boolean().optional().default(false),
 });
 const initiateChunkedSchema = z.object({
@@ -1806,7 +1847,14 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
         expiresAt,
         scope,
         audience: audienceIds.length > 0 ? JSON.stringify(audienceIds) : null,
-        disableDownload: parsed.data.disableDownload ?? false,
+        // Server-normalized: editor+true is stored as false, never as true.
+        // The dialog already strips the flag for editors client-side, but
+        // the server must not trust that — a direct API caller could
+        // otherwise store editor+true and reactivate it via a role change.
+        disableDownload: normalizeHideDownloadForViewers(
+          parsed.data.role ?? 'viewer',
+          parsed.data.disableDownload ?? false,
+        ),
       },
     });
 
@@ -1873,10 +1921,14 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
           expiresAt: share.expiresAt,
           scope,
           requiresSignIn: scope !== 'anyone',
-          // QM-M39-006 (disable-download): the public page hides its download
-          // button from viewers when this is true, and switches its previews
-          // to the preview-only path.
-          disableDownload: Boolean(share.disableDownload),
+          // QM-M39-006 (hide-download-action): the public page hides its
+          // download button from viewers when this is true, and switches
+          // its previews to the preview-only path. Normalized so a legacy
+          // editor+true row never advertises the flag.
+          disableDownload: normalizeHideDownloadForViewers(
+            share.role,
+            share.disableDownload,
+          ),
         },
       });
     },
@@ -1923,20 +1975,10 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
         }
       }
 
-      // QM-M39-006 (disable-download): the owner's flag applies to viewer-role
-      // links only — editors always need the bytes to edit, same as Google
-      // Drive. Fail closed with an honest 403 BEFORE any byte is read.
-      // ?preview=1 is the viewer's read-only preview lane (img/iframe/text
-      // preview on the public page): it stays available so the file remains
-      // viewable, but it streams inline instead of as an attachment.
-      if (share.role === 'viewer' && share.disableDownload && request.query.preview !== '1') {
-        throw createAppError(
-          'The owner of this file has disabled downloading for this link',
-          403,
-          'SHARE_DOWNLOAD_DISABLED',
-        );
-      }
-
+      // The file row must load BEFORE the hide-download gate: the gate needs
+      // the MIME type to decide whether ?preview=1 is a real preview at all
+      // (a deleted file on a blocked link now 404s instead of 403ing — the
+      // file is gone, so there is nothing to hide or preview).
       const file = await prisma.file.findFirst({
         where: { id: share.fileId, isDeleted: false },
       });
@@ -1953,12 +1995,46 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
         });
       }
 
+      // QM-M39-006 corrective (hide-download-action): the owner's flag
+      // applies to viewer-role links only — editors always need the bytes
+      // to edit. Fail closed with an honest 403 BEFORE any byte is read.
+      // The error code keeps its legacy name SHARE_DOWNLOAD_DISABLED for
+      // wire compatibility; the semantics are "hide the download action",
+      // NOT copy protection (see the limitation note on the public page).
+      // ?preview=1 is the viewer's preview lane ONLY for MIME types the
+      // share page can actually render inline (image/pdf/text/json). For
+      // every other type — ZIP included — ?preview=1 is refused with
+      // SHARE_PREVIEW_UNAVAILABLE and no byte is read: previously it
+      // streamed the ORIGINAL bytes for every MIME type while the page
+      // claimed preview was unavailable, which was the contract dishonesty
+      // CODEX blocked on. Links without the flag, and editor links, are
+      // unaffected: those viewers may download anyway, so preview=1 for
+      // them streams inline exactly as before.
+      if (share.role === 'viewer' && share.disableDownload) {
+        if (request.query.preview !== '1') {
+          throw createAppError(
+            'The owner of this file hid the download action for viewers on this link',
+            403,
+            'SHARE_DOWNLOAD_DISABLED',
+          );
+        }
+        if (!isPreviewableMime(file.mimeType)) {
+          throw createAppError(
+            'Preview isn\u2019t available for this file type, and the download action is hidden for viewers on this link',
+            403,
+            'SHARE_PREVIEW_UNAVAILABLE',
+          );
+        }
+      }
+
       requireStorage();
       const bytes = await checkedPlaintext(file);
       const filename = safeFileName(file.name);
 
-      // ?preview=1 (disable-download lane) streams inline so the viewer can
-      // preview the file in their browser; everything else forces a download.
+      // ?preview=1 streams inline so the viewer can preview the file in
+      // their browser; everything else forces a download. On a
+      // hide-download viewer link this line is only reachable for
+      // previewable MIME types (see the gate above).
       const disposition =
         request.query.preview === '1'
           ? `inline; filename="${filename}"`
@@ -1998,7 +2074,10 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     expiresAt: z.string().min(1).max(40).nullable().optional(),
     // password: null removes the password; undefined leaves it unchanged.
     password: z.string().max(100).nullable().optional(),
-    // QM-M39-006 (disable-download): toggling the flag on an existing link.
+    // QM-M39-006 (hide-download-action): toggling the flag on an existing
+    // link. Normalized against the resulting role server-side (see the
+    // PATCH handler): editor+true stores false, and role-only transitions
+    // can never reactivate a cleared flag.
     disableDownload: z.boolean().optional(),
   });
 
@@ -2037,9 +2116,34 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       data.expiresAt = parsed.data.expiresAt === null ? null : parseLinkExpiry(parsed.data.expiresAt);
     if (parsed.data.password !== undefined)
       data.password = parsed.data.password === null ? null : await argon2.hash(parsed.data.password);
-    // QM-M39-006 (disable-download): explicit toggles only — undefined leaves
-    // the stored flag untouched, like password above.
-    if (parsed.data.disableDownload !== undefined) data.disableDownload = parsed.data.disableDownload;
+    // QM-M39-006 corrective (hide-download-action): the resulting role
+    // decides what may be stored — an explicit flag is normalized against
+    // it, so editor+true can never be stored via PATCH either.
+    const nextRole = parsed.data.role ?? share.role;
+    if (parsed.data.disableDownload !== undefined) {
+      data.disableDownload = normalizeHideDownloadForViewers(
+        nextRole,
+        parsed.data.disableDownload,
+      );
+    } else if (nextRole === 'editor') {
+      // Role-only transition TO editor clears the stored flag outright
+      // (not just masks it): otherwise a later role-only transition back
+      // to viewer would silently reactivate it. This also self-heals
+      // legacy editor+true rows the first time they are patched.
+      data.disableDownload = false;
+    } else if (
+      parsed.data.role !== undefined &&
+      parsed.data.role !== share.role &&
+      share.role === 'editor'
+    ) {
+      // Role-only transition FROM a legacy editor+true row back to viewer
+      // without an explicit flag: the stored true was never a viewer
+      // choice, so it must not reactivate — the owner re-enables it with
+      // an explicit toggle if they want it.
+      data.disableDownload = false;
+    }
+    // Otherwise (role unchanged, viewer→viewer, flag untouched): the stored
+    // flag stays exactly as it was, like password above.
 
     const updated = await prisma.driveShare.update({ where: { id: share.id }, data });
     const finalScope = (updated.scope ?? 'anyone') as LinkScope;

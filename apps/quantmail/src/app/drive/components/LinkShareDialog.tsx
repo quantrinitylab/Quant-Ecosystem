@@ -86,8 +86,11 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
   const [audienceEmails, setAudienceEmails] = useState<string[]>([]);
   const [audienceInput, setAudienceInput] = useState('');
   const [role, setRole] = useState<LinkRole>('viewer');
-  // QM-M39-006 (disable-download): owner can block downloads for viewer-role
-  // links (Google Drive parity — viewers get preview only).
+  // QM-M39-006 (hide-download-action): owner can hide the download action
+  // for viewer-role links (viewers get preview only). This hides the
+  // button only — it is NOT copy protection. The wire field keeps the
+  // legacy name `disableDownload` (migration 0111); the server normalizes
+  // it against the role, so editor+true is never stored.
   const [disableDownload, setDisableDownload] = useState(false);
   const [noExpiry, setNoExpiry] = useState(true);
   const [expiresDate, setExpiresDate] = useState('');
@@ -160,8 +163,10 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
     role,
     expiresDate: noExpiry ? null : expiresDate || null,
     // The flag only applies to viewer-role links — editors always need the
-    // bytes to edit. Never send a download block for an editor link, so a
-    // viewer→editor role change can never silently keep downloads disabled.
+    // bytes to edit. Never send a hide-download flag for an editor link, so
+    // a viewer→editor role change can never silently keep the action
+    // hidden; the server enforces the same normalization and clears the
+    // stored flag on role-only transitions to editor.
     disableDownload: role === 'viewer' ? disableDownload : false,
   });
 
@@ -245,12 +250,12 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
       ],
       ['Access', values.role === 'editor' ? 'Can edit' : 'Can view'],
       [
-        'Download',
+        'Download button',
         values.role === 'editor'
-          ? 'Allowed (editors need the file to edit)'
+          ? 'Shown (editors need the file to edit)'
           : values.disableDownload
-            ? 'Disabled for viewers — preview only'
-            : 'Allowed',
+            ? 'Hidden for viewers — preview only'
+            : 'Shown',
       ],
       ['Link expires', values.expiresDate ? formatDate(values.expiresDate) : 'Never'],
     ];
@@ -345,12 +350,12 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
                         Password
                       </span>
                     )}
-                    {/* QM-M39-006: the flag only blocks viewer-role links — never
-                        show "No download" on an editor link where the backend
-                        intentionally ignores it. */}
+                    {/* QM-M39-006: the flag only hides the action on viewer-role
+                        links — never show "Download hidden" on an editor link
+                        where the backend intentionally ignores it. */}
                     {link.disableDownload && link.role !== 'editor' && (
                       <span className="text-[10px] px-2 py-0.5 rounded font-medium border border-[var(--quant-border)] text-[#8B949E]">
-                        No download
+                        Download hidden
                       </span>
                     )}
                     <span className="ml-auto text-[11px] text-[#8B949E]">{roleLabel(link.role)}</span>
@@ -571,15 +576,15 @@ export const LinkShareDialog: React.FC<LinkShareDialogProps> = ({ fileId, fileNa
               disabled={role !== 'viewer'}
               onChange={(e) => setDisableDownload(e.target.checked)}
               className="mt-0.5 accent-[var(--app-accent)]"
-              aria-label="Prevent viewers from downloading"
+              aria-label="Hide download action for viewers"
             />
             <span>
               <span className="block text-xs font-medium text-[#F0F6FC]">
-                Prevent viewers from downloading
+                Hide download action for viewers
               </span>
               <span className="block text-[11px] text-[#8B949E] mt-0.5">
                 {role === 'viewer'
-                  ? 'Viewers can preview this file in their browser but can’t download it.'
+                  ? 'Viewers can preview this file in their browser, but the download button is hidden for them. This hides the button only — it is not copy protection: a viewer can still save what they can see.'
                   : 'Only applies to viewer links — editors always need the file bytes to edit.'}
               </span>
             </span>

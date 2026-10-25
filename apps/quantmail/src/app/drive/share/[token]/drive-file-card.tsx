@@ -57,9 +57,12 @@ export function DriveFileCard({ share, token }: { share: ResolvedShare & { kind:
   const expiresLabel = formatDate(file.expiresAt);
   const sizeTooLargeForText = typeof file.size === 'number' && file.size > TEXT_PREVIEW_MAX_BYTES;
 
-  // QM-M39-006 (disable-download): the owner blocked downloads for this
-  // viewer-role link. The button is never shown — the backend 403s downloads
-  // anyway; previews use the read-only preview lane.
+  // QM-M39-006 (hide-download-action): the owner hid the download action
+  // for viewers on this link. The button is never shown — the backend 403s
+  // plain downloads anyway, and its ?preview=1 lane serves inline previews
+  // only for previewable file types (other types get a 403, never the
+  // original bytes). Hiding the button is NOT copy protection: a viewer
+  // who can preview the file can still save what they can see.
   const downloadBlocked = file.role !== 'editor' && file.disableDownload === true;
 
   const handleDownload = useCallback(() => {
@@ -121,7 +124,7 @@ export function DriveFileCard({ share, token }: { share: ResolvedShare & { kind:
           <Badge variant="default">{file.role === 'editor' ? 'Can edit' : 'View only'}</Badge>
           {file.requiresSignIn && <Badge variant="default">Restricted link</Badge>}
           {file.requiresPassword && <Badge variant="default">Password protected</Badge>}
-          {downloadBlocked && <Badge variant="default">Download disabled by owner</Badge>}
+          {downloadBlocked && <Badge variant="default">Download button hidden for viewers</Badge>}
         </div>
         {expiresLabel && (
           <p className="mt-2 text-[11px] text-[var(--quant-muted-foreground)]">
@@ -198,18 +201,24 @@ export function DriveFileCard({ share, token }: { share: ResolvedShare & { kind:
       {previewKind === null && (
         <p className="mt-5 text-center text-xs text-[var(--quant-muted-foreground)]">
           {downloadBlocked
-            ? 'Preview isn\u2019t available for this file type, and the owner disabled downloading — ask the owner for access.'
+            ? 'Preview isn\u2019t available for this file type, and the download button is hidden for viewers on this link — ask the owner for access.'
             : 'Preview isn\u2019t available for this file type — download it to view.'}
         </p>
       )}
 
       <div className="mt-5">
         {downloadBlocked ? (
-          <p className="text-center text-xs text-[var(--quant-muted-foreground)]">
-            {previewKind === null
-              ? 'The owner disabled downloading for this link — ask the owner for access.'
-              : 'The owner disabled downloading for this link — you can preview the file above.'}
-          </p>
+          <>
+            <p className="text-center text-xs text-[var(--quant-muted-foreground)]">
+              {previewKind === null
+                ? 'The owner hid the download button for viewers on this link — ask the owner for access.'
+                : 'The owner hid the download button for viewers on this link — you can preview the file above.'}
+            </p>
+            <p className="mt-1 text-center text-[11px] text-[var(--quant-muted-foreground)]">
+              Hiding the download button is not copy protection: a viewer can still save
+              what they can see.
+            </p>
+          </>
         ) : (
           <Button
             variant="primary"

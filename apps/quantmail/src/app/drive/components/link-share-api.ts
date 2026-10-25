@@ -18,7 +18,12 @@ export interface DriveLinkEntry {
   audienceEmails: string[];
   audienceOrgs: string[];
   requiresPassword: boolean;
-  /** QM-M39-006 (disable-download): owner blocked downloads for viewer-role links. */
+  /**
+   * QM-M39-006 (hide-download-action): owner hid the download action for
+   * viewers on this link. Wire field keeps the legacy name
+   * `disableDownload` (migration 0111); it hides the button only, it is
+   * NOT copy protection.
+   */
   disableDownload: boolean;
   expiresAt: string | null;
   expired: boolean;
@@ -33,9 +38,11 @@ export interface LinkFormValues {
   /** YYYY-MM-DD from the date picker, or null for "no expiry". */
   expiresDate: string | null;
   /**
-   * QM-M39-006 (disable-download): applies to viewer-role links only.
+   * QM-M39-006 (hide-download-action): applies to viewer-role links only.
    * Optional — callers that never set it get the backend default (false),
-   * so compose-time link creation stays download-enabled.
+   * so compose-time link creation stays download-enabled. The server
+   * normalizes editor+true to false; hiding the button is NOT copy
+   * protection.
    */
   disableDownload?: boolean;
 }

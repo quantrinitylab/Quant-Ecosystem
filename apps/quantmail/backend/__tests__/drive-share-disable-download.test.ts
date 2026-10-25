@@ -1,17 +1,27 @@
 // @vitest-environment node
-// fix/qm-drive-disable-download-3 (QM-M39-006): owner can disable downloads
-// for viewer-role share links (Google Drive parity — viewers get preview
-// only, editors always need the bytes to edit).
+// fix/qm-drive-disable-download-3 (QM-M39-006): owner can hide the download
+// action for viewer-role share links (viewers get preview only, editors
+// always need the bytes to edit). Hiding the action is NOT copy protection.
 //
 // - POST /drive/shares/link stores the flag and echoes it honestly
 //   (default false when omitted).
+// - POST editor+true is server-normalized to false — editor+true is never
+//   stored, no matter what the client sends.
+// - PATCH role-only viewer→editor→viewer transitions never reactivate the
+//   flag (the editor step clears it); a legacy editor+true row returning to
+//   viewer role-only also stays false.
 // - GET /drive/public/share/:token/download on a viewer-role link with the
 //   flag → 403 SHARE_DOWNLOAD_DISABLED, no byte read, honest message.
-// - ...?preview=1 on the same link → 200 with an inline disposition (the
-//   viewer's read-only preview lane).
+// - ...?preview=1 on the same link for a PREVIEWABLE type → 200 with an
+//   inline disposition (the viewer's preview lane).
+// - ...?preview=1 on the same link for an UNPREVIEWABLE type (ZIP,
+//   application/octet-stream) → 403 SHARE_PREVIEW_UNAVAILABLE, no byte read
+//   and no original bytes — the old behavior streamed original bytes for
+//   every MIME type while the page claimed preview was unavailable.
 // - The same flag on an EDITOR-role link is ignored → 200.
-// - GET /drive/public/share/:token advertises disableDownload honestly.
-// - PATCH /drive/shares/link/:id can flip the flag.
+// - GET /drive/public/share/:token advertises disableDownload honestly
+//   (normalized: a legacy editor+true row reads false).
+// - PATCH /drive/shares/link/:id can flip the flag on a viewer link.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
@@ -82,11 +92,17 @@ function shareRow(overrides: Record<string, unknown> = {}) {
 }
 
 function fakePrisma() {
-  const rows = [fileRow()];
+  const rows = [
+    fileRow(),
+    fileRow({ id: 'file-zip', name: 'a.zip', mimeType: 'application/zip', size: 2048 }),
+    fileRow({ id: 'file-bin', name: 'a.bin', mimeType: 'application/octet-stream', size: 512 }),
+  ];
   const shares: Record<string, unknown>[] = [
     shareRow({ id: 'share-blocked', token: 'tok-blocked', disableDownload: true }),
     shareRow({ id: 'share-editor-blocked', token: 'tok-editor', role: 'editor', disableDownload: true }),
     shareRow({ id: 'share-open', token: 'tok-open' }),
+    shareRow({ id: 'share-zip', token: 'tok-zip', fileId: 'file-zip', disableDownload: true }),
+    shareRow({ id: 'share-bin', token: 'tok-bin', fileId: 'file-bin', disableDownload: true }),
   ];
   const file = {
     aggregate: vi.fn().mockResolvedValue({ _sum: { size: 0 } }),
@@ -221,6 +237,99 @@ describe('share-link disableDownload flag', () => {
     await app.close();
   });
 
+  it('POST editor+disableDownload=true is server-normalized to false', async () => {
+    const prisma = fakePrisma();
+    const app = await buildApp(prisma);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/drive/shares/link',
+      payload: { fileId: 'file-1', role: 'editor', disableDownload: true },
+    });
+    expect(res.statusCode).toBe(201);
+    const createData = (prisma.driveShare.create as any).mock.calls[0][0].data;
+    expect(createData.role).toBe('editor');
+    expect(createData.disableDownload).toBe(false);
+    expect(res.json().share.disableDownload).toBe(false);
+    await app.close();
+  });
+
+  it('PATCH explicit editor+disableDownload=true stores false', async () => {
+    const prisma = fakePrisma();
+    const app = await buildApp(prisma);
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/drive/shares/link/share-open',
+      payload: { role: 'editor', disableDownload: true },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().share.disableDownload).toBe(false);
+    const updateData = (prisma.driveShare.update as any).mock.calls[0][0].data;
+    expect(updateData.role).toBe('editor');
+    expect(updateData.disableDownload).toBe(false);
+    await app.close();
+  });
+
+  it('PATCH role-only viewer→editor clears the flag, and viewer again never reactivates it', async () => {
+    const prisma = fakePrisma();
+    const app = await buildApp(prisma);
+    const toEditor = await app.inject({
+      method: 'PATCH',
+      url: '/drive/shares/link/share-blocked',
+      payload: { role: 'editor' },
+    });
+    expect(toEditor.statusCode).toBe(200);
+    expect(toEditor.json().share.disableDownload).toBe(false);
+    const editorData = (prisma.driveShare.update as any).mock.calls[0][0].data;
+    expect(editorData.disableDownload).toBe(false);
+    expect(
+      (prisma.__shares.find((s) => s.id === 'share-blocked') as any).disableDownload,
+    ).toBe(false);
+
+    const backToViewer = await app.inject({
+      method: 'PATCH',
+      url: '/drive/shares/link/share-blocked',
+      payload: { role: 'viewer' },
+    });
+    expect(backToViewer.statusCode).toBe(200);
+    expect(backToViewer.json().share.disableDownload).toBe(false);
+    const viewerData = (prisma.driveShare.update as any).mock.calls[1][0].data;
+    expect(viewerData.disableDownload).toBe(false);
+    expect(
+      (prisma.__shares.find((s) => s.id === 'share-blocked') as any).disableDownload,
+    ).toBe(false);
+    const meta = await app.inject({ method: 'GET', url: '/drive/public/share/tok-blocked' });
+    expect(meta.json().file.disableDownload).toBe(false);
+    await app.close();
+  });
+
+  it('PATCH role-only editor→viewer on a legacy editor+true row does not reactivate the flag', async () => {
+    const prisma = fakePrisma();
+    const app = await buildApp(prisma);
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/drive/shares/link/share-editor-blocked',
+      payload: { role: 'viewer' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().share.disableDownload).toBe(false);
+    expect(
+      (prisma.__shares.find((s) => s.id === 'share-editor-blocked') as any).disableDownload,
+    ).toBe(false);
+    const meta = await app.inject({ method: 'GET', url: '/drive/public/share/tok-editor' });
+    expect(meta.json().file.disableDownload).toBe(false);
+    await app.close();
+  });
+
+  it('metadata normalizes a legacy editor+true row to false', async () => {
+    const prisma = fakePrisma();
+    const app = await buildApp(prisma);
+    const meta = await app.inject({ method: 'GET', url: '/drive/public/share/tok-editor' });
+    expect(meta.statusCode).toBe(200);
+    expect(meta.json().file.role).toBe('editor');
+    expect(meta.json().file.disableDownload).toBe(false);
+    await app.close();
+  });
+
   it('metadata advertises disableDownload honestly', async () => {
     const prisma = fakePrisma();
     const app = await buildApp(prisma);
@@ -242,12 +351,50 @@ describe('public download enforcement', () => {
     expect(res.statusCode).toBe(403);
     const err = res.json().error;
     expect(err.code).toBe('SHARE_DOWNLOAD_DISABLED');
-    expect(err.message).toMatch(/disabled downloading/i);
+    expect(err.message).toMatch(/hid the download action/i);
     expect(checkedPlaintextMock).not.toHaveBeenCalled();
     await app.close();
   });
 
-  it('?preview=1 on the blocked link streams inline — viewers can still preview', async () => {
+  it('?preview=1 on a blocked ZIP link → 403 SHARE_PREVIEW_UNAVAILABLE, no bytes', async () => {
+    const prisma = fakePrisma();
+    const app = await buildApp(prisma);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/drive/public/share/tok-zip/download?preview=1',
+    });
+    expect(res.statusCode).toBe(403);
+    const err = res.json().error;
+    expect(err.code).toBe('SHARE_PREVIEW_UNAVAILABLE');
+    expect(err.message).toMatch(/Preview isn’t available for this file type/i);
+    expect(checkedPlaintextMock).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('manual ?preview=1 on a blocked unsupported-MIME link is rejected, not served', async () => {
+    const prisma = fakePrisma();
+    const app = await buildApp(prisma);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/drive/public/share/tok-bin/download?preview=1',
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('SHARE_PREVIEW_UNAVAILABLE');
+    expect(checkedPlaintextMock).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('plain download on a blocked ZIP link still 403s with no byte read', async () => {
+    const prisma = fakePrisma();
+    const app = await buildApp(prisma);
+    const res = await app.inject({ method: 'GET', url: '/drive/public/share/tok-zip/download' });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('SHARE_DOWNLOAD_DISABLED');
+    expect(checkedPlaintextMock).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('?preview=1 on the blocked link streams inline for a previewable type — viewers can still preview', async () => {
     const prisma = fakePrisma();
     const app = await buildApp(prisma);
     const res = await app.inject({
