@@ -14,6 +14,7 @@ import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
 import type { MessageKind } from '../../types';
 import { UndoSendProvider } from '../../components/UndoSendCountdownBar';
+import { readUndoSendDelay } from '../../lib/undo-send-preference';
 import { ServerDraftRef, saveServerDraft } from '../../lib/serverDraft';
 
 /**
@@ -314,7 +315,13 @@ export default function ComposePage() {
         return;
       }
 
-      const response = await apiClient.sendEmail(draft.id, { delayMs: 10000 });
+      // The backend delay IS the recall window on this path (the provider's
+      // countdown bar is destroyed by the navigation below, so there is no
+      // bar to count it down). It reads the same stored setting the bar
+      // reads — a user who picks 30s in Settings must get 30s here too, not
+      // a second hardcoded 10s window that ignores their choice.
+      const undoDelaySec = readUndoSendDelay();
+      const response = await apiClient.sendEmail(draft.id, { delayMs: undoDelaySec * 1000 });
       if (!response.success) {
         throw new Error(response.error?.message || 'Message could not be sent.');
       }
@@ -323,15 +330,15 @@ export default function ComposePage() {
       // a list left marked fresh would paint without the message that was just sent.
       invalidateMailLists(queryClient);
 
-      // QM-UIUX-025: this toast lives for exactly the 10s recall window
-      // (`delayMs: 10000` above) — the message has NOT been sent yet while
+      // QM-UIUX-025: this toast lives for exactly the recall window
+      // (`delayMs` above) — the message has NOT been sent yet while
       // it is on screen, so it must not claim "Message sent". Say what is
-      // true: it is sending, and there are 10s to undo.
+      // true: it is sending, and there are `undoDelaySec`s to undo.
       //
       // The recall window closing is NOT delivery confirmation — it is only
       // the moment the send becomes un-undoable and the worker STARTS
-      // transmitting (the server enqueues a BullMQ job with the same 10s
-      // delay and answers 202 "Email queued for delivery"; SES can still
+      // transmitting (the server enqueues a BullMQ job with the same delay
+      // and answers 202 "Email queued for delivery"; SES can still
       // fail afterwards). So the second toast must never claim "Email
       // sent" either — that would be a timer guess with zero knowledge of
       // the delivery outcome. Say what is true instead: the send is
@@ -339,10 +346,10 @@ export default function ComposePage() {
       // send, in which case the undo toast has already said what happened.
       let sendUndone = false;
       showToast({
-        text: 'Sending… (10s to undo)',
+        text: `Sending… (${undoDelaySec}s to undo)`,
         type: 'success',
-        duration: 10000,
-        countdown: 10,
+        duration: undoDelaySec * 1000,
+        countdown: undoDelaySec,
         undoAction: async () => {
           sendUndone = true;
           try {
@@ -363,12 +370,12 @@ export default function ComposePage() {
       });
       window.setTimeout(() => {
         if (!sendUndone) {
-          // Honest copy: at t=10s the undo window closes and transmission
+          // Honest copy: at t=undoDelaySec the undo window closes and transmission
           // starts — delivery itself is still unconfirmed (see above), so
           // never claim "Email sent" on this timer.
           showToast({ text: 'Send confirmed — delivering', type: 'success' });
         }
-      }, 10000);
+      }, undoDelaySec * 1000);
       router.push('/');
     },
     [composeDraft, queryClient, router],

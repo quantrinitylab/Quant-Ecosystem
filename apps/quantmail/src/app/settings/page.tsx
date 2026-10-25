@@ -20,10 +20,13 @@
  *   contain and no stylesheet implements; the pre-paint bootstrap already fell
  *   through to `dark` for it, so the card sat selected over an Obsidian canvas.
  *   A stored `midnight` is migrated to `dark` on mount.
- * - **Composer & Delivery Rules** entire section — Undo Send Delay
- *   (`quant-undo-delay`, no reader), Default Reply Action (no persistence at
- *   all), Conversation Threading and Automatic Read Receipts (neither persisted
- *   nor read). The undo window is currently owned by the outbox, not by this.
+ * - **Composer & Delivery Rules** entire section — Default Reply Action (no
+ *   persistence at all), Conversation Threading and Automatic Read Receipts
+ *   (neither persisted nor read). Undo Send Delay was removed with this
+ *   section for the same reason (`quant-undo-delay`, no reader) and has since
+ *   been RESTORED as a real control below: `lib/undo-send-preference` owns
+ *   the key, and AppShell's UndoSendProvider reads it, so the choice genuinely
+ *   moves the countdown. The undo window is no longer hardcoded anywhere.
  * - **"When something is slow or down"** entire section — the rerouting toggle
  *   (`quant-ai-failover`, no reader) and the three temperature pills
  *   (`quant-ai-creativity`, no reader) over a backend that hardcodes `0.7`.
@@ -83,6 +86,12 @@ import { useDesktopNotifications } from '../../hooks/useDesktopNotifications';
 import { useMailNotificationMode } from '../../hooks/useMailNotificationMode';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { writeAIIntent } from '../../lib/ai-intent-preference';
+import {
+  UNDO_SEND_DELAY_OPTIONS,
+  normalizeUndoSendDelay,
+  readUndoSendDelay,
+  writeUndoSendDelay,
+} from '../../lib/undo-send-preference';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
 import { buildHelpGroups, dimNoteFor, helpGroupHeading } from '../../lib/keyboard/help-model';
 import {
@@ -255,6 +264,26 @@ const DENSITY_OPTIONS: readonly SettingsChoiceOption<Density>[] = [
 ];
 
 /**
+ * The undo-send cancellation periods, Gmail's 5/10/20/30 seconds. The values
+ * are strings because `SettingsChoice` keys on strings; they are parsed back
+ * through `normalizeUndoSendDelay` on change, so a value this build does not
+ * recognise can never reach the preference.
+ */
+const UNDO_SEND_DELAY_CHOICES: readonly SettingsChoiceOption<string>[] =
+  UNDO_SEND_DELAY_OPTIONS.map((seconds) => ({
+    value: String(seconds),
+    label: `${seconds} seconds`,
+    description:
+      seconds === 5
+        ? 'Snappy — undo only if you catch it fast.'
+        : seconds === 10
+          ? 'The default — time to spot a wrong recipient.'
+          : seconds === 20
+            ? 'Unhurried — re-read before it really goes.'
+            : 'Cautious — a full half-minute to change your mind.',
+  }));
+
+/**
  * Paint the resolved theme onto `<html>` the same three ways the pre-paint
  * bootstrap in `layout.tsx` does.
  *
@@ -300,6 +329,7 @@ export default function SettingsPage() {
   >('loading');
   const [theme, setTheme] = useState<Theme>('dark');
   const [density, setDensity] = useState<Density>('comfortable');
+  const [undoSendDelay, setUndoSendDelay] = useState<number>(10);
   const [selectedAIModel, setSelectedAIModel] = useState<AIIntent>('auto');
 
   const desktopNotifications = useDesktopNotifications();
@@ -332,6 +362,10 @@ export default function SettingsPage() {
       setDensity(
         storedDensity === 'compact' || storedDensity === 'cozy' ? storedDensity : 'comfortable',
       );
+      // The undo-send window, restored as a real preference: the value is
+      // read through the same module AppShell's provider reads, so the
+      // picker can never show a number the bar is not using.
+      setUndoSendDelay(readUndoSendDelay());
       const storedIntent = localStorage.getItem(AI_INTENT_STORAGE_KEY);
       // Same migration shape as the theme above, for the same reason. Browsers
       // that used the app before this key had any reader hold `auto-router` (the
@@ -535,6 +569,22 @@ export default function SettingsPage() {
             : 'Rows are comfortable',
       type: 'info',
     });
+  }, []);
+
+  /**
+   * Undo send, restored as a control that actually moves the product.
+   *
+   * The write goes through the preference module, which notifies AppShell's
+   * provider in the same tick — no reload needed, and the next send counts
+   * the new window. A countdown already running keeps its window (see the
+   * preference module), so the copy says "next message", not "right now".
+   * Stored on this browser, not on the account, like the Assistant tier.
+   */
+  const changeUndoSendDelay = useCallback((next: string) => {
+    const seconds = normalizeUndoSendDelay(next);
+    setUndoSendDelay(seconds);
+    writeUndoSendDelay(seconds);
+    showToast({ text: `Undo send set to ${seconds} seconds`, type: 'info' });
   }, []);
 
   const tabsId = useId();
@@ -832,6 +882,19 @@ export default function SettingsPage() {
                     )}
                   </div>
                 )}
+              </SettingsSection>
+
+              <SettingsSection
+                title="Undo send"
+                description="How long a sent message waits before it really goes out. During that window the bar at the bottom of the screen offers Undo — after it, the message is gone. This is the cancellation period Gmail puts under Settings → General → Undo Send. It applies to the next message you send, not to one already counting down, and it is stored on this browser, not on your account."
+              >
+                <SettingsChoice<string>
+                  legend="Cancellation period"
+                  value={String(undoSendDelay)}
+                  options={UNDO_SEND_DELAY_CHOICES}
+                  onChange={(next) => changeUndoSendDelay(next)}
+                  columns={4}
+                />
               </SettingsSection>
 
               <VacationResponderSettings />

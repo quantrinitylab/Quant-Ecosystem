@@ -5,10 +5,10 @@
  * (a) A blocked send used to fire `mail:noRecipients` no matter which field
  *     was missing. `getSendBlockReaction` must name the field that is
  *     actually missing, in the same order `getSendBlockReason` checks.
- * (b) The `/compose` page showed a "Message sent" toast for the whole 10s
+ * (b) The `/compose` page showed a "Message sent" toast for the whole
  *     recall window, while the backend was still holding the message
- *     (`delayMs: 10000`). During that window the only honest copy is
- *     "Sending… (10s to undo)".
+ *     (`delayMs` from the stored undo-send setting). During that window the
+ *     only honest copy is "Sending… (Ns to undo)".
  * (c) The modal composer branch was `right-4 w-full` on mobile — a 100%
  *     width plus a 1rem right offset overflows the viewport by 1rem. It
  *     must pin both edges (`inset-x-4 w-auto`) on mobile and restore the
@@ -210,16 +210,21 @@ describe('recall-window toast copy (QM-UIUX-025b)', () => {
     'utf8',
   );
 
-  it('the /compose send toast says "Sending… (10s to undo)", not "Message sent"', () => {
-    expect(pageSource).toContain("text: 'Sending… (10s to undo)'");
+  it('the /compose send toast says "Sending… (Ns to undo)", not "Message sent"', () => {
+    // Ns = the stored undo-send setting (default 10s): the toast template
+    // carries the setting variable, and the backend delay uses the same one.
+    expect(pageSource).toContain('text: `Sending… (${undoDelaySec}s to undo)`');
+    expect(pageSource).toContain('readUndoSendDelay()');
     expect(pageSource).not.toContain("text: 'Message sent'");
   });
 
   it('the toast still spans exactly the backend recall window', () => {
-    // The message is held server-side for the same 10s the toast is visible.
-    expect(pageSource).toContain('delayMs: 10000');
-    expect(pageSource).toContain('duration: 10000');
-    expect(pageSource).toContain('countdown: 10');
+    // The message is held server-side for the same window the toast is
+    // visible — and all three now derive from ONE variable, so they cannot
+    // drift apart the way three literals could.
+    expect(pageSource).toContain('delayMs: undoDelaySec * 1000');
+    expect(pageSource).toContain('duration: undoDelaySec * 1000');
+    expect(pageSource).toContain('countdown: undoDelaySec');
     expect(pageSource).toContain('undoAction');
   });
 

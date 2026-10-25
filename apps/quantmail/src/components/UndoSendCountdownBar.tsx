@@ -9,6 +9,10 @@ import React, {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
+import {
+  readUndoSendDelay,
+  subscribeUndoSendDelay,
+} from '../lib/undo-send-preference';
 
 export const UNDO_SEND_COUNTDOWN_SEC = 10;
 export const MESSAGE_SENT_DISPLAY_MS = 2000;
@@ -24,7 +28,7 @@ export interface QueueSendOptions {
    * rejects them client-side as PR #908's convention).
    *
    * Recall-window interplay (explicit decision): a scheduled send goes
-   * through the SAME 10-second recall window as a regular send — it does
+   * through the SAME recall window as a regular send — it does
    * NOT bypass it. During the window nothing has been delivered (the API
    * call only exists inside the caller's `onSendNow`), so Undo genuinely
    * cancels the schedule before it exists server-side. A scheduled send
@@ -73,6 +77,13 @@ export interface UndoSendState {
   remainingSeconds: number;
   progressPercent: number;
   status: UndoSendStatus;
+  /**
+   * The window the current countdown (or, while idle, the next one) runs.
+   * This is the ACTIVE window, not the stored setting: a settings change
+   * mid-countdown leaves this alone and only moves the next send, so the
+   * bar never rewrites a promise the user already saw.
+   */
+  countdownDurationSec: number;
 }
 
 export interface UndoSendContextValue extends UndoSendState {
@@ -82,7 +93,8 @@ export interface UndoSendContextValue extends UndoSendState {
 }
 
 /**
- * Headless Manager for the 10-Second Undo-Send lifecycle.
+ * Headless Manager for the Undo-Send lifecycle (default 10 seconds; the
+ * stored setting from `lib/undo-send-preference` overrides it).
  * Manages timing precision, countdown intervals, auto-flush, and keyboard shortcuts.
  */
 export class UndoSendManager {
@@ -102,12 +114,33 @@ export class UndoSendManager {
       remainingSeconds: this.countdownDurationSec,
       progressPercent: 100,
       status: 'idle',
+      countdownDurationSec: this.countdownDurationSec,
     };
 
     if (typeof window !== 'undefined') {
       window.addEventListener('keydown', this.handleKeyDown);
     }
   }
+
+  /**
+   * Move the window the NEXT send counts down from. While idle this also
+   * re-seeds the displayed seconds, so the bar never idles on a stale
+   * number. While a countdown is running the in-flight window is untouched
+   * — its total was captured when it started — and the new value is picked
+   * up by the next `queueSend`. Changing the knob mid-countdown must not
+   * stretch or shrink a window the user is already watching.
+   */
+  public setCountdownDurationSec = (seconds: number): void => {
+    this.countdownDurationSec = seconds;
+    if (this.state.status === 'idle') {
+      this.state = {
+        ...this.state,
+        remainingSeconds: seconds,
+        countdownDurationSec: seconds,
+      };
+      this.notify();
+    }
+  };
 
   public getState = (): UndoSendState => {
     return this.state;
@@ -186,6 +219,7 @@ export class UndoSendManager {
       remainingSeconds: this.countdownDurationSec,
       progressPercent: 100,
       status: 'counting',
+      countdownDurationSec: this.countdownDurationSec,
     };
     this.notify();
 
@@ -274,6 +308,7 @@ export class UndoSendManager {
         remainingSeconds: this.countdownDurationSec,
         progressPercent: 100,
         status: 'idle',
+        countdownDurationSec: this.countdownDurationSec,
       };
       this.notify();
     }, this.sentDisplayDurationMs);
@@ -299,6 +334,7 @@ export class UndoSendManager {
       remainingSeconds: this.countdownDurationSec,
       progressPercent: 100,
       status: 'idle',
+      countdownDurationSec: this.countdownDurationSec,
     };
     this.notify();
   };
@@ -334,6 +370,7 @@ export class UndoSendManager {
       remainingSeconds: this.countdownDurationSec,
       progressPercent: 100,
       status: 'idle',
+      countdownDurationSec: this.countdownDurationSec,
     };
     this.notify();
   };
@@ -378,7 +415,12 @@ export interface UndoSendProviderProps {
   children: ReactNode;
   /** Optional custom UndoSendManager instance */
   manager?: UndoSendManager;
-  /** Custom countdown duration in seconds (default 10s) */
+  /**
+   * Fixed countdown duration in seconds. When omitted the stored setting
+   * wins (`lib/undo-send-preference`, default 10s) and the provider follows
+   * later settings changes — an explicit value pins the window and ignores
+   * the setting, which is what the tests use.
+   */
   countdownDurationSec?: number;
   /** Custom sent confirmation display in ms (default 2000ms) */
   sentDisplayDurationMs?: number;
@@ -387,7 +429,7 @@ export interface UndoSendProviderProps {
 export function UndoSendProvider({
   children,
   manager: customManager,
-  countdownDurationSec = UNDO_SEND_COUNTDOWN_SEC,
+  countdownDurationSec,
   sentDisplayDurationMs = MESSAGE_SENT_DISPLAY_MS,
 }: UndoSendProviderProps) {
   const existingContext = useContext(UndoSendContext);
@@ -400,13 +442,23 @@ export function UndoSendProvider({
     managerRef.current =
       customManager ||
       new UndoSendManager({
-        countdownDurationSec,
+        countdownDurationSec: countdownDurationSec ?? readUndoSendDelay(),
         sentDisplayDurationMs,
       });
   }
 
   const manager = managerRef.current;
   const state = useSyncExternalStore(manager.subscribe, manager.getState, manager.getState);
+
+  // The settings page sits INSIDE this provider, so a choice there must reach
+  // the manager without a reload. An explicit prop (or a custom manager)
+  // opts out — the caller owns the window then.
+  useEffect(() => {
+    if (customManager || countdownDurationSec !== undefined) return;
+    return subscribeUndoSendDelay(() => {
+      manager.setCountdownDurationSec(readUndoSendDelay());
+    });
+  }, [customManager, countdownDurationSec, manager]);
 
   useEffect(() => {
     return () => {
@@ -437,6 +489,8 @@ export interface UndoSendCountdownBarProps {
   remainingSeconds?: number;
   progressPercent?: number;
   status?: UndoSendStatus;
+  /** The window the countdown runs against — the progressbar's scale. */
+  countdownDurationSec?: number;
   onUndo?: () => void;
   onSendNow?: () => void;
   className?: string;
@@ -447,10 +501,14 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
 
   const pendingItem =
     props.pendingItem !== undefined ? props.pendingItem : (context?.pendingItem ?? null);
+  const countdownDurationSec =
+    props.countdownDurationSec !== undefined
+      ? props.countdownDurationSec
+      : (context?.countdownDurationSec ?? UNDO_SEND_COUNTDOWN_SEC);
   const remainingSeconds =
     props.remainingSeconds !== undefined
       ? props.remainingSeconds
-      : (context?.remainingSeconds ?? 10);
+      : (context?.remainingSeconds ?? countdownDurationSec);
   const progressPercent =
     props.progressPercent !== undefined ? props.progressPercent : (context?.progressPercent ?? 100);
   const status = props.status !== undefined ? props.status : (context?.status ?? 'idle');
@@ -528,12 +586,12 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
             </div>
           </div>
 
-          {/* Animated Countdown Progress Bar Line (Shrinking from 100% to 0% over 10 seconds) */}
+          {/* Animated Countdown Progress Bar Line (Shrinking from 100% to 0% over the recall window) */}
           <div
             role="progressbar"
             aria-valuenow={remainingSeconds}
             aria-valuemin={0}
-            aria-valuemax={10}
+            aria-valuemax={countdownDurationSec}
             className="w-full h-1 bg-[#27272A] rounded-full overflow-hidden mt-2.5"
           >
             <div
@@ -571,7 +629,7 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
             role="progressbar"
             aria-valuenow={0}
             aria-valuemin={0}
-            aria-valuemax={10}
+            aria-valuemax={countdownDurationSec}
             className="w-full h-1 bg-[#27272A] rounded-full overflow-hidden mt-2.5"
           >
             <div
