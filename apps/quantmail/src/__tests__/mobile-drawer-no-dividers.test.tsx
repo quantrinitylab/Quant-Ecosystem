@@ -18,7 +18,13 @@
 // Deliberately OUT of this fix (queued as related findings, not changed
 // here): `.quant-sidebar`'s right edge, `.sidebar-labels`' top rule, and
 // `.sidebar-footer`'s top rule in globals.css — same defect class, but
-// separate drawer elements needing their own review.
+// separate drawer elements needing their own review. Deep-fix audit
+// 2026-10-25 adds a fourth survivor to that list: ContactsLetterIndex's
+// `border-t` (src/components/ContactsLetterIndex.tsx) renders inside the
+// drawer via AppSidebar's `extra` slot on /contacts (and into the desktop
+// rail via AppShell's desktopSidebarExtra) — same defect class, also
+// queued, NOT removed by this PR. So this suite proves the four targeted
+// dividers are gone; it does NOT prove the drawer is divider-free.
 
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
