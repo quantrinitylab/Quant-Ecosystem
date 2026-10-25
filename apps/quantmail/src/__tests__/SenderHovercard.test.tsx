@@ -117,4 +117,45 @@ describe('SenderHovercardCard', () => {
     expect(html).toContain('Couldn');
     expect(html).not.toContain('In your contacts');
   });
+
+  it('renders a real Retry button in the error state when a retry handler is given', () => {
+    const html = renderToStaticMarkup(
+      <SenderHovercardCard
+        name="Priya"
+        email="priya@example.com"
+        contact={null}
+        contactState="error"
+        onRetry={() => {}}
+      />,
+    );
+    expect(html).toContain('Retry');
+    expect(html).not.toContain('Not in your contacts');
+  });
+
+  it('renders a real close button when a close handler is given', () => {
+    const html = renderToStaticMarkup(
+      <SenderHovercardCard
+        name="Priya"
+        email="priya@example.com"
+        contact={null}
+        contactState="loaded"
+        onClose={() => {}}
+      />,
+    );
+    expect(html).toContain('Close contact card');
+  });
+
+  it('never paints a stale contact preview (phone/tags) when the lookup failed', () => {
+    const html = renderToStaticMarkup(
+      <SenderHovercardCard
+        name="Priya"
+        email="priya@example.com"
+        contact={contact({ phone: '555-0100', tags: ['vip'] })}
+        contactState="error"
+      />,
+    );
+    expect(html).not.toContain('555-0100');
+    expect(html).not.toContain('vip');
+    expect(html).not.toContain('In your contacts');
+  });
 });
