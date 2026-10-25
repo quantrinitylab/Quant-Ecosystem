@@ -12,8 +12,8 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-// next/navigation is not mounted in the test renderer; both the pillar
-// top-bar and the super-app header read it via hooks.
+// next/navigation is not mounted in the test renderer; the pillar
+// top-bar reads it via hooks.
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: vi.fn(),
@@ -30,7 +30,6 @@ import {
   DriveVaultSubView,
 } from '../app/drive/components';
 import { QuantPillarTopBar } from '../components/QuantPillarTopBar';
-import { QuantMailSuperAppHeader } from '../components/Navigation/QuantMailSuperAppHeader';
 import { PostcardCanvas } from '../components/postcard/PostcardCanvas';
 import { DEFAULT_VINTAGE_PRESETS } from '../types/postcard';
 
@@ -143,13 +142,9 @@ vi.mock('framer-motion', () => {
     expect(html).toContain('Vault');
   });
 
-  it('QuantMailSuperAppHeader: Drive pillar and quota tile show no E2EE/AES claims', () => {
-    const html = renderToStaticMarkup(<QuantMailSuperAppHeader />);
-    assertNoFalseEncryptionClaims('QuantMailSuperAppHeader', html);
-    // Drive pillar is present but carries no security badge in its aria-label.
-    expect(html).toContain('aria-label="Drive Pillar"');
-  });
-
+  // NOTE: the QuantMailSuperAppHeader case that used to sit here was removed
+  // with the component itself (dead code: no production surface mounted it;
+  // the live header is QuantPillarTopBar, covered by the case above).
   it('DriveVaultSubView: honest "not available yet" copy, no encryption claims', () => {
     const html = renderToStaticMarkup(<DriveVaultSubView />);
     assertNoFalseEncryptionClaims('DriveVaultSubView', html);
