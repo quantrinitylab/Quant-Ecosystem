@@ -20,6 +20,7 @@ import {
 } from '../lib/email-body';
 import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
 import { getInvalidRecipientReason, filterValidRecipients } from '../lib/email-validation';
+import { dropOnePendingAttachmentName } from './EmailComposer';
 import type { Attachment } from './EmailComposer';
 import { createPortal } from 'react-dom';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
@@ -438,6 +439,14 @@ export function DockedComposer({
   const [bodyFormats, setBodyFormats] = useState<InlineFormatRange[]>([]);
   const [showFormatting, setShowFormatting] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // Pending FileReader reads — same 2026-10-22 P1 send race as
+  // EmailComposer: the old code tracked in-flight reads in a closure-local
+  // `pending` counter, so Send snapshotted `attachments` without the
+  // still-reading file. This state disables Send/schedule-send while any
+  // read is in flight, and handleSend refuses as belt-and-braces for the
+  // Cmd/Ctrl+Enter path.
+  const [pendingAttachmentNames, setPendingAttachmentNames] = useState<string[]>([]);
+  const pendingAttachmentReads = pendingAttachmentNames.length;
   const [isSending, setIsSending] = useState(false);
   const [showAssistMenu, setShowAssistMenu] = useState(false);
   const [isInsertingTemplate, setIsInsertingTemplate] = useState(false);
@@ -774,9 +783,13 @@ export function DockedComposer({
       return;
     }
 
+    // Feed the pending-reads state (2026-10-22 P1): the closure-local
+    // `pending` below cannot disable Send — only this state can.
+    setPendingAttachmentNames((prev) => [...prev, ...accepted.map((f) => f.name)]);
     let pending = accepted.length;
-    const settle = () => {
+    const settle = (fileName: string) => {
       pending -= 1;
+      setPendingAttachmentNames((prev) => dropOnePendingAttachmentName(prev, fileName));
       if (pending === 0 && fileInputRef.current) fileInputRef.current.value = '';
     };
 
@@ -795,17 +808,20 @@ export function DockedComposer({
             url: reader.result as string,
           },
         ]);
-        settle();
+        settle(file.name);
       };
       reader.onerror = () => {
         showToast({ text: `Could not read ${file.name}`, type: 'error' });
-        settle();
+        settle(file.name);
       };
       reader.readAsDataURL(file);
     });
 
+    // Honest copy (2026-10-22 P1 follow-on): the old toast claimed
+    // "Attached" the moment the reads STARTED, while the files were not
+    // in `attachments` yet. Say "Attaching" until the reads settle.
     showToast({
-      text: `Attached ${accepted.length} file${accepted.length > 1 ? 's' : ''}`,
+      text: `Attaching ${accepted.length} file${accepted.length > 1 ? 's' : ''}…`,
       type: 'info',
     });
   };
@@ -964,6 +980,18 @@ export function DockedComposer({
   // genuinely different send, and the bar claims "Email scheduled!" via
   // successLabel so it never says "Message sent!" for a future schedule.
   const handleSend = async (scheduledAt?: string) => {
+    // Send race guard (2026-10-22 P1): refuse before any confirm or
+    // snapshot while a FileReader read is in flight — the file is not in
+    // `attachments` yet, so sending now would omit it silently. The
+    // button is disabled in the same state, but Cmd/Ctrl+Enter and the
+    // schedule-send modal reach here without a button click.
+    if (pendingAttachmentReads > 0) {
+      showToast({
+        text: `Still attaching ${pendingAttachmentReads} file(s) — please wait for the upload to finish before sending.`,
+        type: 'error',
+      });
+      return;
+    }
     if (toRecipients.length === 0) {
       showToast({ text: 'Please specify at least one recipient (To:)', type: 'error' });
       return;
@@ -1516,6 +1544,18 @@ export function DockedComposer({
             className="w-full flex-1 bg-transparent text-white placeholder-[#4B5563] resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded text-xs leading-relaxed"
           />
 
+          {/* Attaching indicator (2026-10-22 P1): a read in flight is not
+              in `attachments` yet — name it, so the paused Send is
+              explained instead of looking broken. */}
+          {pendingAttachmentReads > 0 && (
+            <div role="status" aria-live="polite" className="mt-2 flex flex-wrap gap-1.5">
+              <span className="text-[11px] text-[var(--quant-muted-foreground)]">
+                Attaching {pendingAttachmentReads} file(s)… {pendingAttachmentNames.join(', ')} —
+                Send is paused until the read finishes.
+              </span>
+            </div>
+          )}
+
           {/* Attached Files Strip */}
           {attachments.length > 0 && (
             <div className="mt-2 pt-2 flex flex-wrap gap-1.5">
@@ -1550,13 +1590,17 @@ export function DockedComposer({
           <button
             type="button"
             onClick={() => void handleSend()}
-            disabled={isSending || invalidRecipientReason !== null}
+            disabled={isSending || invalidRecipientReason !== null || pendingAttachmentReads > 0}
             data-testid="docked-composer-send-button"
             className="group relative flex items-center gap-2 rounded-xl min-h-[44px] min-w-[44px] bg-gradient-to-r from-[var(--quant-primary)] to-[#F97316] px-4 py-2 text-xs font-bold text-black shadow-lg shadow-[var(--quant-primary)]/20 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
-            title={invalidRecipientReason ?? 'Send email (⌘↵ or Ctrl+Enter)'}
+            title={
+              pendingAttachmentReads > 0
+                ? `Attaching ${pendingAttachmentReads} file(s)…`
+                : (invalidRecipientReason ?? 'Send email (⌘↵ or Ctrl+Enter)')
+            }
           >
             <IconSend className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
-            <span>Send (⌘↵)</span>
+            <span>{pendingAttachmentReads > 0 ? 'Attaching…' : 'Send (⌘↵)'}</span>
           </button>
 
           {/* Schedule send — the same ScheduleSendModal the /compose page
@@ -1565,7 +1609,7 @@ export function DockedComposer({
           <button
             type="button"
             onClick={() => setShowScheduleModal(true)}
-            disabled={isSending || invalidRecipientReason !== null}
+            disabled={isSending || invalidRecipientReason !== null || pendingAttachmentReads > 0}
             data-testid="docked-composer-schedule-button"
             aria-label="Schedule send"
             className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl min-h-[44px] min-w-[44px] border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all text-xs font-semibold disabled:opacity-50 cursor-pointer"

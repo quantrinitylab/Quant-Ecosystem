@@ -118,6 +118,19 @@ export interface Attachment {
   url: string;
 }
 
+/**
+ * Drop exactly one occurrence of `name` from a pending-reads list.
+ * Shared by EmailComposer and DockedComposer so a duplicate filename
+ * (two `report.pdf` picks) settles one read at a time instead of clearing
+ * both — and a settle for an already-removed name is a no-op, never a
+ * negative count. Pure, so the send-guard tests can pin it directly.
+ */
+export function dropOnePendingAttachmentName(names: string[], name: string): string[] {
+  const idx = names.indexOf(name);
+  if (idx === -1) return names;
+  return [...names.slice(0, idx), ...names.slice(idx + 1)];
+}
+
 export interface ComposerMessageData {
   to: string | Array<{ email: string }>;
   cc?: string;
@@ -549,6 +562,16 @@ export function EmailComposer({
 
   // Attachments
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // Pending FileReader reads (2026-10-22 P1 send race): the old code tracked
+  // in-flight reads in a closure-local `pending` counter inside the file
+  // input's onChange, so Send never knew a read was running and snapshotted
+  // `attachments` without the still-reading file — it sent without the
+  // file and said nothing. This state is the single source of truth: Send
+  // (and schedule-send, via the same handleSend) is disabled while it is
+  // non-empty, and handleSend refuses as belt-and-braces for the
+  // Cmd/Ctrl+Enter path, which bypasses the button's disabled state.
+  const [pendingAttachmentNames, setPendingAttachmentNames] = useState<string[]>([]);
+  const pendingAttachmentReads = pendingAttachmentNames.length;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Unsaved-changes guard for back/close/discard. The branded confirm dialog
@@ -1098,6 +1121,20 @@ export function EmailComposer({
   // `error`, because the user has not done anything wrong yet.
   // Send Handler with 10s Recall Window & Undo-Send Integration
   const handleSend = async (scheduledAt?: string) => {
+    // Send race guard (2026-10-22 P1): a FileReader read still in flight
+    // means the file is not in `attachments` yet, so any snapshot taken now
+    // would send without it. The button is disabled while reads are pending,
+    // but Cmd/Ctrl+Enter and the schedule-send modal reach here without a
+    // button click — refuse here too, before any confirm or snapshot, so
+    // the draft stays exactly as it was and the user retries once the
+    // "Attaching…" indicator clears.
+    if (pendingAttachmentReads > 0) {
+      showToast({
+        text: `Still attaching ${pendingAttachmentReads} file(s) — please wait for the upload to finish before sending.`,
+        type: 'error',
+      });
+      return;
+    }
     if (sendBlockReason) {
       // QM-UIUX-025: announce the field that is actually missing — subject
       // and recipient blocks must not fire each other's reaction.
@@ -1933,7 +1970,9 @@ export function EmailComposer({
   };
 
 
-  const busy = isSending || isSaving;
+  // Send is busy while a FileReader read is in flight too — otherwise the
+  // send snapshot omits the still-reading file (2026-10-22 P1).
+  const busy = isSending || isSaving || pendingAttachmentReads > 0;
 
   const isVisible = (isOpen ?? true) && !isDismissed;
 
@@ -2656,10 +2695,20 @@ export function EmailComposer({
                 // One latch for the whole selection, cleared when the last reader settles.
                 // `file:uploading` caps itself at 30s in the reaction table, so a file that
                 // never finishes reading cannot leave the mascot working forever.
+                // The latch ALSO feeds `pendingAttachmentNames` state (not just
+                // this closure): that state is what disables Send while any
+                // read is in flight — the 2026-10-22 P1 send race.
                 quantyReact('file:uploading');
+                setPendingAttachmentNames((prev) => [
+                  ...prev,
+                  ...accepted.map((f) => f.name),
+                ]);
                 let pending = accepted.length;
-                const settle = () => {
+                const settle = (fileName: string) => {
                   pending -= 1;
+                  setPendingAttachmentNames((prev) =>
+                    dropOnePendingAttachmentName(prev, fileName),
+                  );
                   if (pending === 0) quantyReact('file:uploaded');
                 };
 
@@ -2678,16 +2727,32 @@ export function EmailComposer({
                         url: reader.result as string,
                       },
                     ]);
-                    settle();
+                    settle(file.name);
                   };
                   reader.onerror = () => {
                     showToast({ text: `Could not read ${file.name}`, type: 'error' });
-                    settle();
+                    settle(file.name);
                   };
                   reader.readAsDataURL(file);
                 }
               }}
             />
+
+            {/* Attaching indicator: while a FileReader read is in flight the
+                file is not in `attachments` yet — say so, and name it, so
+                the user never wonders why Send is paused (2026-10-22 P1). */}
+            {pendingAttachmentReads > 0 && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="p-3 rounded-2xl bg-[var(--quant-surface-elevated)] w-full max-w-full box-border"
+              >
+                <span className="text-xs font-semibold text-[var(--quant-muted-foreground)]">
+                  Attaching {pendingAttachmentReads} file(s)… {pendingAttachmentNames.join(', ')} — Send
+                  is paused until the read finishes.
+                </span>
+              </div>
+            )}
 
             {/* Attached Files List */}
             {attachments.length > 0 && (
@@ -3156,11 +3221,17 @@ export function EmailComposer({
                   onClick={() => handleSend()}
                   disabled={busy || sendBlockReason !== null}
                   aria-disabled={busy || sendBlockReason !== null}
-                  title={sendBlockReason ?? undefined}
+                  title={
+                    pendingAttachmentReads > 0
+                      ? `Attaching ${pendingAttachmentReads} file(s)…`
+                      : (sendBlockReason ?? undefined)
+                  }
                   className="relative flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 min-h-[44px] min-w-[44px] text-[#111111] text-xs sm:text-sm font-semibold hover:brightness-105 active:scale-95 disabled:opacity-40 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#111111]"
                 >
                   {isSending ? (
                     <span>Sending…</span>
+                  ) : pendingAttachmentReads > 0 ? (
+                    <span>Attaching…</span>
                   ) : (
                     <>
                       <span>Send</span>
