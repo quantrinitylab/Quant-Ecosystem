@@ -114,6 +114,11 @@ const call = async (method: string, path: string, request: Record<string, unknow
 
 const authed = (extra: Record<string, unknown> = {}) => ({
   auth: { userId: 'user-1' },
+  // The real Fastify request always carries the pino logger; the POST
+  // /settings/send-as handler threads request.log into the ownership-code
+  // dispatch (the repo's route logging path, replacing console). The double
+  // must provide it, or the SES-down path throws reading log.error.
+  log: { error: vi.fn() },
   ...extra,
 });
 

@@ -22,7 +22,7 @@
  * - Listing never exposes code digests or attempt counts.
  */
 
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, type FastifyRequest } from 'fastify';
 import type { PrismaClient } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { authenticatedUserId, fail } from '../lib/auth-session';
@@ -71,10 +71,20 @@ const sendAsVerifyHtml = (code: string): string =>
 /**
  * Dispatch the ownership code to the candidate address. Returns true only
  * when SES accepted the message — the caller answers honestly either way.
+ *
+ * Logging goes through the Fastify (pino) logger the caller passes in — the
+ * repo's route logging path (request.log elsewhere in routes/) — never
+ * console, so the root `no-console` rule stays green. The candidate address
+ * itself is deliberately NOT logged: it is user-supplied PII and the static
+ * message carries everything an operator needs.
  */
-const sendOwnershipCode = async (to: string, code: string): Promise<boolean> => {
+const sendOwnershipCode = async (
+  to: string,
+  code: string,
+  log: FastifyRequest['log'],
+): Promise<boolean> => {
   if (!isSesConfigured()) {
-    console.error('[send-as] SES is not configured; no ownership code was sent to', to);
+    log.error('[send-as] SES is not configured; no ownership code was sent');
     return false;
   }
   try {
@@ -87,7 +97,7 @@ const sendOwnershipCode = async (to: string, code: string): Promise<boolean> => 
     });
     return true;
   } catch (error) {
-    console.error('[send-as] ownership code delivery failed', error);
+    log.error({ err: error }, '[send-as] ownership code delivery failed');
     return false;
   }
 };
@@ -237,7 +247,7 @@ export async function sendAsRoutes(fastify: FastifyInstance) {
             select: { id: true, email: true, displayName: true, verifiedAt: true, createdAt: true },
           });
 
-      const codeDelivered = await sendOwnershipCode(normalized, code);
+      const codeDelivered = await sendOwnershipCode(normalized, code, request.log);
 
       return reply.status(201).send({
         success: true,

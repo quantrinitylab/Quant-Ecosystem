@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { resolveMx as dnsResolveMx } from 'node:dns/promises';
 import { createConnection } from 'node:net';
 import type { PrismaClient, Email } from '@prisma/client';
-import { createAppError } from '@quant/server-core';
+import { createAppError, isAppError } from '@quant/server-core';
 import {
   createTypedWorker,
   SendEmailJobSchema,
@@ -16,6 +16,7 @@ import { sendViaSes, isSesConfigured, buildMultipartBody, buildAlternativeBody }
 import { resolveOutboundAttachments, type OutboundAttachmentDb } from '../lib/outbound-attachments';
 import { QUANT_INTERNAL_DOMAINS } from '../lib/domains';
 import { EmailService } from './email.service';
+import { reauthorizeSendAsIdentity } from './send-as-identity.service';
 import { withOpenTrackingPixel } from './open-tracking.service';
 import { MailOutboxEvents, emitOutbox } from '../lib/outbox-events';
 
@@ -376,13 +377,17 @@ export class DeliveryWorker {
       throw createAppError('Email not found for delivery', 404, 'EMAIL_NOT_FOUND');
     }
 
-    const fromAddress =
+    let fromAddress =
       email.fromAddress && email.fromAddress.length > 0
         ? email.fromAddress
         : data.userId
           ? `${data.userId}@${this.fallbackDomain}`
           : `noreply@${this.fallbackDomain}`;
-    const fromDomain = senderDomainOf(fromAddress, this.fallbackDomain);
+    let fromDomain = senderDomainOf(fromAddress, this.fallbackDomain);
+    // The From the row carries may be an alias display name; a fire-time
+    // re-authorization below can replace both with the identity's CURRENT
+    // values (a rename between scheduling and firing).
+    let effectiveFromName = email.fromName ?? null;
 
     const toAddrs = toAddressList((email as { toAddresses: unknown }).toAddresses);
     const ccAddrs = toAddressList((email as { ccAddresses: unknown }).ccAddresses);
@@ -407,6 +412,42 @@ export class DeliveryWorker {
       fireStatus === 'bounced'
     ) {
       return { emailId: email.id, deliveryStatus: fireStatus, recipients: [] };
+    }
+
+    // Fire-time send-as re-authorization (PR #1529, CODEX checkpoint
+    // 6382393391 — the schedule-fire alias linearization gap). EmailService
+    // .send() re-authorizes the persisted identity at SCHEDULE time and stamps
+    // its values on the row, but the delayed job fires later: a revoke/delete
+    // of the alias in between left the worker transmitting the stamped From
+    // verbatim — a revoked alias still going out. So re-authorize HERE, at
+    // fire time, before ANY transmit (internal or external). This gate covers
+    // every job carrying a persisted identity id, scheduled or undo-window:
+    // both share this worker path and the same revoke window.
+    //   - Live identity → its CURRENT values become the effective From (a
+    //     rename between scheduling and firing sends with the fresh name).
+    //   - Revoked (403 SEND_AS_REVOKED) → fail closed: NO transmit, the
+    //     message returns to Drafts with `mail.outbound.cancelled.v1`
+    //     (reason send_as_revoked), mirroring reply-arrival suppression.
+    //     Never silently re-addressed to the account's own address, and never
+    //     a throw — a throw would BullMQ-retry a permanently-denied send.
+    //   - Any OTHER error (e.g. a transient DB failure) is rethrown so the
+    //     job retries instead of dropping user mail on an infrastructure
+    //     blip. Rows with no persisted identity id (the account's own
+    //     address) skip this gate untouched.
+    const persistedSendAsId = (email as { sendAsIdentityId?: string | null }).sendAsIdentityId;
+    if (persistedSendAsId) {
+      const fireUserId = data.userId ?? (email as { userId?: string }).userId ?? '';
+      try {
+        const identity = await reauthorizeSendAsIdentity(this.prisma, fireUserId, persistedSendAsId);
+        fromAddress = identity.email;
+        fromDomain = senderDomainOf(fromAddress, this.fallbackDomain);
+        effectiveFromName = identity.displayName ?? effectiveFromName;
+      } catch (error) {
+        if (isAppError(error) && error.code === 'SEND_AS_REVOKED') {
+          return this.revokeScheduledSend(email, fireUserId, persistedSendAsId, data.scheduledFor);
+        }
+        throw error;
+      }
     }
 
     // Reply-arrival suppression for scheduled sends (Superhuman parity): if an
@@ -472,9 +513,11 @@ export class DeliveryWorker {
           messageKind: (email as { messageKind?: string }).messageKind as 'MAIL' | 'CHAT' | undefined,
           // fix/qm-accounts-import-corrective-3: the row carries the send-time
           // re-authorized From — internal copies see the identical From the
-          // external envelope carries.
-          fromAddress: (email as { fromAddress?: string }).fromAddress,
-          fromName: (email as { fromName?: string | null }).fromName ?? null,
+          // external envelope carries. At fire time this is the
+          // RE-authorized value above (current alias values, or the row's
+          // own From when no identity is in play), never the stale stamp.
+          fromAddress,
+          fromName: effectiveFromName,
         });
         for (const r of internalAddrs) {
           const persisted = await this.recordAttempt(
@@ -522,7 +565,7 @@ export class DeliveryWorker {
 
     // NOTE: external recipients only — internal ones are already delivered above.
     if (extRecipients.length > 0 && isSesConfigured()) {
-      const from = email.fromName ? `${email.fromName} <${fromAddress}>` : fromAddress;
+      const from = effectiveFromName ? `${effectiveFromName} <${fromAddress}>` : fromAddress;
       let status: AttemptStatus = 'sent';
       let response = '250 2.0.0 OK (AWS SES)';
       try {
@@ -825,17 +868,18 @@ export class DeliveryWorker {
   }
 
   /**
-   * Suppress a scheduled send whose recipient already replied: return it to
+   * Shared "this queued send must not fire" landing: return the message to
    * Drafts (mirroring POST /emails/:id/cancel-send) and emit
-   * `mail.outbound.cancelled.v1` with the suppressing reply's identity, so
-   * consumers (notifications, timeline) can tell the user WHY it did not send.
+   * `mail.outbound.cancelled.v1` with the caller's reason, so consumers
+   * (notifications, timeline) can tell the user WHY it did not send.
    * The domain write and the outbox row commit in ONE transaction (K1).
+   * Used by both reply-arrival suppression and fire-time send-as revocation
+   * so the two "do not transmit" paths can never drift apart.
    */
-  private async suppressScheduledSend(
+  private async returnToDrafts(
     email: Email,
     userId: string,
-    reply: InboundReplyRow,
-    scheduledFor: string,
+    payload: Record<string, unknown>,
   ): Promise<DeliveryReceipt> {
     const db = this.prisma as unknown as SuppressionPrisma;
     let draftsFolder = await db.emailFolder.findFirst({
@@ -865,17 +909,54 @@ export class DeliveryWorker {
         event: MailOutboxEvents.outboundCancelled,
         aggregateType: 'Email',
         aggregateId: email.id,
-        payload: {
-          userId,
-          scheduledFor,
-          reason: 'inbound_reply',
-          suppressedByReplyId: reply.id,
-          replyFrom: reply.fromAddress,
-        },
+        payload: { userId, ...payload },
       });
     });
 
     return { emailId: email.id, deliveryStatus: 'draft', recipients: [] };
+  }
+
+  /**
+   * Suppress a scheduled send whose recipient already replied: return it to
+   * Drafts (mirroring POST /emails/:id/cancel-send) and emit
+   * `mail.outbound.cancelled.v1` with the suppressing reply's identity, so
+   * consumers (notifications, timeline) can tell the user WHY it did not send.
+   * The domain write and the outbox row commit in ONE transaction (K1).
+   */
+  private async suppressScheduledSend(
+    email: Email,
+    userId: string,
+    reply: InboundReplyRow,
+    scheduledFor: string,
+  ): Promise<DeliveryReceipt> {
+    return this.returnToDrafts(email, userId, {
+      scheduledFor,
+      reason: 'inbound_reply',
+      suppressedByReplyId: reply.id,
+      replyFrom: reply.fromAddress,
+    });
+  }
+
+  /**
+   * Fire-time send-as revocation: the persisted alias was revoked or deleted
+   * between scheduling and firing. The message returns to Drafts (never
+   * transmitted, never silently re-addressed) with `mail.outbound.cancelled
+   * .v1` (reason send_as_revoked) so the user can pick a live identity — or
+   * their own address — and resend. `scheduledFor` is present for scheduled
+   * sends and absent for undo-window jobs; the reason + identity id are the
+   * stable, diagnosable parts of the payload either way.
+   */
+  private async revokeScheduledSend(
+    email: Email,
+    userId: string,
+    sendAsIdentityId: string,
+    scheduledFor: string | undefined,
+  ): Promise<DeliveryReceipt> {
+    return this.returnToDrafts(email, userId, {
+      ...(scheduledFor ? { scheduledFor } : {}),
+      reason: 'send_as_revoked',
+      sendAsIdentityId,
+    });
   }
 
   /**
