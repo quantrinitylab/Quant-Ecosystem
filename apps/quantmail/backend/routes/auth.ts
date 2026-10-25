@@ -410,11 +410,15 @@ export async function authRoutes(fastify: FastifyInstance) {
         return fail(reply, 400, 'INVALID_OR_EXPIRED_CODE', 'The verification code is wrong or has expired.');
       }
       if (row.attempts >= MAX_VERIFICATION_ATTEMPTS) {
+        // A resend does NOT reset this: the replacement row inherits the
+        // burned attempts of the live code it superseded (see the resend
+        // handler), so the honest recovery is to wait out the current
+        // code's 15-minute expiry, then resend for a fresh epoch.
         return fail(
           reply,
           429,
           'TOO_MANY_ATTEMPTS',
-          'Too many wrong codes. Request a new code and try again.',
+          'Too many wrong codes. Wait for the current code to expire, then request a new code and try again.',
         );
       }
 
@@ -526,10 +530,37 @@ export async function authRoutes(fastify: FastifyInstance) {
             throw RESEND_ALREADY_VERIFIED;
           }
 
+          // Per-account attempt budget, not per-row: a resend used to mint
+          // a fresh row with attempts = 0, so burning 5 wrong guesses and
+          // resending reset the cap — at the 5/min resend limit that is
+          // ~25 fresh guesses/min against a 6-digit code, and the
+          // "attempt-capped" claim on verify-email was weaker than stated.
+          // The replacement code therefore inherits the failed-attempt
+          // count of every still-live code it supersedes, so verify-email's
+          // row.attempts >= MAX check keeps enforcing the same budget
+          // across resends. Attempts on an already-EXPIRED code do NOT
+          // carry over: expiry ends an epoch, and a fresh epoch gets a
+          // fresh budget — that is the legitimate recovery path after a
+          // cap-out (wait out the 15-minute TTL, resend, try again), and
+          // it bounds an attacker to 5 guesses per 15-minute epoch
+          // instead of 5 guesses per resend. A row with no expiry on
+          // record counts as live (fail closed, never silently reset).
           const pending = await tx.emailVerificationCode.findMany({
             where: { userId: user.id, usedAt: null },
-            select: { id: true },
+            select: { id: true, attempts: true, expiresAt: true },
           });
+          const nowMs = Date.now();
+          const carriedAttempts = pending.reduce((total: number, row: any) => {
+            const attempts = typeof row.attempts === 'number' ? row.attempts : 0;
+            const expiresMs =
+              row.expiresAt instanceof Date
+                ? row.expiresAt.getTime()
+                : typeof row.expiresAt === 'string'
+                  ? new Date(row.expiresAt).getTime()
+                  : Number.NaN;
+            const live = Number.isNaN(expiresMs) || expiresMs > nowMs;
+            return total + (live ? attempts : 0);
+          }, 0);
           const burned = await tx.emailVerificationCode.updateMany({
             where: { id: { in: pending.map((row: any) => row.id) }, usedAt: null },
             data: { usedAt: new Date() },
@@ -543,6 +574,8 @@ export async function authRoutes(fastify: FastifyInstance) {
               userId: user.id,
               codeHash: hashVerificationCode(verificationCode),
               expiresAt: verificationCodeExpiry(),
+              // The budget survives the resend: see the comment above.
+              attempts: carriedAttempts,
               requestedIp: typeof request.ip === 'string' ? request.ip : null,
             },
           });
