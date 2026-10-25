@@ -511,16 +511,60 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
             {
               id: 'v1',
               name: 'notes.txt.enc',
-              cipherSize: 1024,
+              size: 1024,
+              isEncrypted: true,
               cipherAlgorithm: 'AES-256-GCM',
               sha256Checksum: 'abc123',
-              encryptedAt: '2026-10-01T00:00:00Z',
+              lockedAt: '2026-10-01T00:00:00Z',
             },
           ]}
         />,
       );
 
       expect(html).toContain('notes.txt.enc');
+      expect(html).toContain('SHA-256:');
+      expect(html).toContain('AES-256-GCM');
+    });
+
+    it('never renders a cipher badge for an unencrypted vault item, even if a cipherAlgorithm value is present', () => {
+      const html = renderToStaticMarkup(
+        <DriveVaultSubView
+          items={[
+            {
+              id: 'v2',
+              name: 'plain-notes.txt',
+              size: 2048,
+              isEncrypted: false,
+              cipherAlgorithm: 'AES-256-GCM',
+              sha256Checksum: 'def456',
+              lockedAt: '2026-10-01T00:00:00Z',
+            },
+          ]}
+        />,
+      );
+
+      expect(html).toContain('plain-notes.txt');
+      expect(html).toContain('SHA-256:');
+      expect(html).not.toContain('AES-256-GCM');
+    });
+
+    it('renders no cipher badge when an encrypted flag is set but no algorithm is known', () => {
+      const html = renderToStaticMarkup(
+        <DriveVaultSubView
+          items={[
+            {
+              id: 'v3',
+              name: 'mystery.bin',
+              size: 512,
+              isEncrypted: true,
+              sha256Checksum: 'ghi789',
+              lockedAt: '2026-10-01T00:00:00Z',
+            },
+          ]}
+        />,
+      );
+
+      expect(html).toContain('mystery.bin');
       expect(html).toContain('SHA-256:');
     });
 
