@@ -4,7 +4,7 @@ import { FederationModeration } from '../moderation.js';
 export const ActivitySchema = z.object({
   type: z.string(),
   actor: z.string(),
-  object: z.union([z.string(), z.record(z.unknown())]),
+  object: z.union([z.string(), z.record(z.string(), z.unknown())]),
   id: z.string().optional(),
 });
 

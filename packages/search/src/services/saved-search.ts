@@ -11,7 +11,7 @@ export const SavedSearchSchema = z.object({
   id: z.string(),
   userId: z.string(),
   query: z.string(),
-  filters: z.record(z.string()).default({}),
+  filters: z.record(z.string(), z.string()).default({}),
   alertFrequency: AlertFrequencySchema.default('never'),
   createdAt: z.date(),
   lastAlertedAt: z.date().optional(),

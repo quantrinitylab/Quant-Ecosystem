@@ -15,7 +15,7 @@ export const CIJobConfigSchema = z.object({
   dependencies: z.array(z.string()).optional(),
   only: z.array(z.string()).optional(),
   except: z.array(z.string()).optional(),
-  environment: z.record(z.string()).optional(),
+  environment: z.record(z.string(), z.string()).optional(),
   timeout: z.string().optional().default('30m'),
   allowFailure: z.boolean().optional().default(false),
 });
@@ -23,8 +23,8 @@ export const CIJobConfigSchema = z.object({
 export const CIConfigSchema = z.object({
   version: z.string().optional().default('1'),
   stages: z.array(z.string()).optional().default(['build', 'test', 'deploy']),
-  variables: z.record(z.string()).optional(),
-  jobs: z.record(CIJobConfigSchema),
+  variables: z.record(z.string(), z.string()).optional(),
+  jobs: z.record(z.string(), CIJobConfigSchema),
 });
 
 export type CIConfig = z.infer<typeof CIConfigSchema>;

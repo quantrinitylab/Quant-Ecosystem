@@ -6,7 +6,7 @@ import { ClickFraudService } from '../services/click-fraud.service';
 const serveAdSchema = z.object({
   userId: z.string(),
   placement: z.string(),
-  demographics: z.record(z.unknown()).optional(),
+  demographics: z.record(z.string(), z.unknown()).optional(),
 });
 
 const recordEventSchema = z.object({

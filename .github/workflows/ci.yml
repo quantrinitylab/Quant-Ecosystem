@@ -25,7 +25,7 @@ jobs:
   #   2. e2e/assert-e2e-results.mjs parses the junit report and FAILS the
   #      job when tests="0" — a green run with no tests is a red run.
   quantmail-e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

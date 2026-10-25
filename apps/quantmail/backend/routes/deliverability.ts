@@ -50,7 +50,7 @@ export default async function deliverabilityRoutes(fastify: FastifyInstance) {
       const parsed = dmarcReportPayloadSchema.safeParse(request.body);
       if (!parsed.success) {
         throw createAppError(
-          parsed.error.errors[0]?.message || 'Invalid payload',
+          parsed.error.issues[0]?.message || 'Invalid payload',
           400,
           'VALIDATION_ERROR',
         );
@@ -112,7 +112,7 @@ export default async function deliverabilityRoutes(fastify: FastifyInstance) {
     const parsed = addSuppressionSchema.safeParse(request.body);
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid email address',
+        parsed.error.issues[0]?.message || 'Invalid email address',
         400,
         'VALIDATION_ERROR',
       );

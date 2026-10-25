@@ -112,7 +112,7 @@ const TriggerPipelineSchema = z.object({
   commitSha: z.string().optional(),
   prId: z.string().optional(),
   configYaml: z.string().optional(),
-  variables: z.record(z.string()).optional(),
+  variables: z.record(z.string(), z.string()).optional(),
 });
 
 export default async function ciRoutes(fastify: FastifyInstance) {
@@ -126,6 +126,19 @@ export default async function ciRoutes(fastify: FastifyInstance) {
   // go green. The CiRun row's status is flipped PENDING -> RUNNING ->
   // SUCCESS|FAILED by the ci-runs queue-events listener started in app.ts.
   const ciRunsQueue = new TypedQueue(CI_RUNS_QUEUE_NAME, CiRunJobSchema, ciRedisConnection());
+  // Explicit queue lifecycle (fix/qm-ci-queue-lifecycle-4): the route plugin
+  // owns this BullMQ queue, so close it when the Fastify instance closes.
+  // Without this, the queue's Redis connection outlives app.close() —
+  // orphaning reconnect attempts during teardown (gate red:
+  // EnvironmentTeardownError 'Closing rpc while onUserConsoleLog was pending'
+  // + Redis reconnect refusals). The guard makes repeated closes a no-op so
+  // the queue is closed exactly once per registration.
+  let ciRunsQueueClosed = false;
+  fastify.addHook('onClose', async () => {
+    if (ciRunsQueueClosed) return;
+    ciRunsQueueClosed = true;
+    await ciRunsQueue.close();
+  });
   const pipelineService = new PipelineService(prisma, {
     ciRunner: createQueueCiRunnerPort(ciRunsQueue),
   });

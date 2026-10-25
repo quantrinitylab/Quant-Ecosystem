@@ -8,9 +8,9 @@ const createCampaignSchema = z.object({
   objective: z
     .enum(['AWARENESS', 'TRAFFIC', 'ENGAGEMENT', 'LEADS', 'CONVERSIONS', 'APP_INSTALLS'])
     .optional(),
-  budget: z.record(z.unknown()).optional(),
-  schedule: z.record(z.unknown()).optional(),
-  targeting: z.record(z.unknown()).optional(),
+  budget: z.record(z.string(), z.unknown()).optional(),
+  schedule: z.record(z.string(), z.unknown()).optional(),
+  targeting: z.record(z.string(), z.unknown()).optional(),
 });
 
 const updateCampaignSchema = z.object({
@@ -18,9 +18,9 @@ const updateCampaignSchema = z.object({
   objective: z
     .enum(['AWARENESS', 'TRAFFIC', 'ENGAGEMENT', 'LEADS', 'CONVERSIONS', 'APP_INSTALLS'])
     .optional(),
-  budget: z.record(z.unknown()).optional(),
-  schedule: z.record(z.unknown()).optional(),
-  targeting: z.record(z.unknown()).optional(),
+  budget: z.record(z.string(), z.unknown()).optional(),
+  schedule: z.record(z.string(), z.unknown()).optional(),
+  targeting: z.record(z.string(), z.unknown()).optional(),
 });
 
 const statusSchema = z.object({

@@ -21,7 +21,7 @@ export default async function extractorRoutes(fastify: FastifyInstance) {
     const parseResult = documentExtractSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw createAppError(
-        parseResult.error.errors.map((e) => e.message).join(', '),
+        parseResult.error.issues.map((e) => e.message).join(', '),
         400,
         'VALIDATION_ERROR',
       );
@@ -50,7 +50,7 @@ export default async function extractorRoutes(fastify: FastifyInstance) {
     const parseResult = tableExtractSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw createAppError(
-        parseResult.error.errors.map((e) => e.message).join(', '),
+        parseResult.error.issues.map((e) => e.message).join(', '),
         400,
         'VALIDATION_ERROR',
       );

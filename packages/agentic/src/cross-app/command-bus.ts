@@ -14,7 +14,7 @@ export const VoiceCommandSchema = z.object({
   source: z.enum(['voice', 'text', 'agent']).default('voice'),
   targetApp: z.string(), // 'quantneon', 'quantsync', 'quanttube', '*'
   action: z.string(), // 'scroll', 'navigate', 'play', 'pause', 'next'
-  params: z.record(z.unknown()).default({}),
+  params: z.record(z.string(), z.unknown()).default({}),
   userId: z.string(),
   timestamp: z
     .string()

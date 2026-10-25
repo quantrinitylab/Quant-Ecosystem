@@ -35,6 +35,10 @@ export interface CalendarCallAlertOptions {
 export class CalendarCallAlertService {
   private queue: TypedQueue<ProactiveAgentJob> | null = null;
   private readonly memoryAlerts = new Map<string, ScheduledCallAlert>();
+  // True only when this service created the queue itself (from redisUrl).
+  // An injected queue belongs to its creator and must never be closed here.
+  private ownsQueue = false;
+  private queueClosed = false;
 
   constructor(options: CalendarCallAlertOptions = {}) {
     if (options.queue) {
@@ -53,11 +57,27 @@ export class CalendarCallAlertService {
               maxRetriesPerRequest: 1,
             },
           );
+          this.ownsQueue = true;
         } catch {
           this.queue = null;
         }
       }
     }
+  }
+
+  /**
+   * Closes the queue this service created, exactly once. No-op when the
+   * queue was injected (owned by its creator), when no queue exists, and
+   * on repeated calls. Callers that construct the service (e.g. the
+   * calendar route plugin's Fastify onClose hook) must call this on
+   * shutdown, or the queue's Redis connection outlives app.close() and
+   * trips EnvironmentTeardownError during test teardown — the same
+   * failure class as the ci-routes queue lifecycle fix.
+   */
+  async close(): Promise<void> {
+    if (this.queueClosed || !this.ownsQueue || !this.queue) return;
+    this.queueClosed = true;
+    await this.queue.close();
   }
 
   /**

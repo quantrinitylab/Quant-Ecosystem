@@ -38,7 +38,7 @@ export const ApprovalRequestSchema = z.object({
   requesterId: z.string().optional(),
   /** Policy version the request was classified under. */
   policyVersion: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type ApprovalRequest = z.infer<typeof ApprovalRequestSchema>;

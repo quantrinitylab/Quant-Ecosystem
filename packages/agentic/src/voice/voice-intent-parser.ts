@@ -10,7 +10,7 @@ import { z } from 'zod';
 export const ParsedIntentSchema = z.object({
   app: z.string(), // target app id or '*'
   action: z.string(),
-  params: z.record(z.unknown()).default({}),
+  params: z.record(z.string(), z.unknown()).default({}),
   confidence: z.number().min(0).max(1),
   rawText: z.string(),
 });

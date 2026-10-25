@@ -33,6 +33,7 @@ export const APIEndpointSchema = z.object({
     .optional(),
   responses: z
     .record(
+      z.string(),
       z.object({
         description: z.string(),
         schema: z.string().optional(),

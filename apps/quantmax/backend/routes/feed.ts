@@ -49,7 +49,7 @@ const feedItemSchema = z.object({
     .int()
     .nonnegative()
     .default(() => Date.now()),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
   upvotes: z.number().int().nonnegative().default(0),
   shares: z.number().int().nonnegative().default(0),
   replies: z.number().int().nonnegative().default(0),
@@ -86,7 +86,7 @@ const registerModelSchema = z.object({
   framework: z
     .enum(['linear', 'logistic', 'tree', 'ensemble', 'neural', 'custom'])
     .default('custom'),
-  metrics: z.record(z.number()).default({}),
+  metrics: z.record(z.string(), z.number()).default({}),
 });
 
 const scoreSchema = z.object({

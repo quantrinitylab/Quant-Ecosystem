@@ -39,7 +39,7 @@ export default async function codeAssistantRoutes(fastify: FastifyInstance) {
     const parseResult = analyzeCodeSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw createAppError(
-        parseResult.error.errors.map((e) => e.message).join(', '),
+        parseResult.error.issues.map((e) => e.message).join(', '),
         400,
         'VALIDATION_ERROR',
       );
@@ -62,7 +62,7 @@ export default async function codeAssistantRoutes(fastify: FastifyInstance) {
     const parseResult = refactorCodeSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw createAppError(
-        parseResult.error.errors.map((e) => e.message).join(', '),
+        parseResult.error.issues.map((e) => e.message).join(', '),
         400,
         'VALIDATION_ERROR',
       );

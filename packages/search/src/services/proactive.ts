@@ -9,7 +9,7 @@ export const ProactiveContextSchema = z.object({
   type: z.string(),
   id: z.string(),
   content: z.string(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type ProactiveContext = z.infer<typeof ProactiveContextSchema>;
@@ -20,7 +20,7 @@ export const ProactiveResultSchema = z.object({
   score: z.number(),
   title: z.string().optional(),
   snippet: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type ProactiveResult = z.infer<typeof ProactiveResultSchema>;
