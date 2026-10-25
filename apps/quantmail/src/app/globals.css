@@ -3403,6 +3403,24 @@ body {
   border-radius: 1rem;
   overflow: hidden;
 }
+/* Small viewports: the popover card must never overflow the viewport edge
+   even if a caller anchors it near the right edge — cap it to the viewport
+   minus a margin (the composers also clamp the anchor left, see the 348px
+   clamp in EmailComposer/DockedComposer/ThreadComposer). The drawer keeps
+   its 90vw cap. The list already scrolls (overflow-y: auto above), so a
+   short viewport only shrinks the panel, never hides rows. */
+@media (max-width: 480px) {
+  .templates-panel--popover { width: min(320px, calc(100vw - 16px)); max-width: calc(100vw - 16px); }
+  .templates-panel { width: min(320px, 90vw); }
+}
+/* Reduced motion: framer-motion's useReducedMotion branch in EmailTemplates
+   kills the panel's x/y travel; this kills the panel's own CSS transitions
+   (row hover, search focus ring) under the same media query, so the whole
+   surface is still. */
+@media (prefers-reduced-motion: reduce) {
+  .templates-panel .template-item { transition: none; }
+  .templates-panel .templates-search input { transition: none; }
+}
 /* Display-only template identifier (:name). Not a typing trigger — no composer
    recalls templates by typing; a template is inserted by selecting it in the
    templates picker. */
