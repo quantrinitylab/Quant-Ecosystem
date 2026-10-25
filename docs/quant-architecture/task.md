@@ -6526,6 +6526,6 @@ Status: [x] DONE (Owner: LANE-1, Branch: lane1-audit-015r38, R38 regression audi
 - NOTE (context, not a lane-1 action): PR #1466 still open at head 4491a159, gate + full-sweep both in_progress (not green); per the user's 2026-10-25 ~08:50 IST sole-focus decision this run did no merges, no fix agents, no deploys.
 Rotation -> QM-SCREEN-016 (settings) ROUND 38 regression, queued.
 
-## QM-SCREEN-016 R38 \u2014 Settings regression (ROUND 38)
+## QM-SCREEN-016 R38 — Settings regression (ROUND 38)
 Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-016r38, started 2026-10-25 ~11:40 IST; R37-016 tip e91cd548a19b -> origin/main e91cd548a19b, fresh fetch, zero new main merges)
 Audit started: 2026-10-25 ~11:40 IST (lane-1 deep audit loop, ROUND 38)
