@@ -58,6 +58,10 @@ export default function ComposePage() {
     to?: Array<{ email: string }>;
     subject?: string;
     body?: string;
+    // fix/qm-compose-undo-schedule: the undo draft's schedule travels with
+    // the restored draft — dropping it here is the same bug as the
+    // composer's onUndo dropping it (second undo path, no onReopen).
+    scheduledAt?: string;
   } | null>(null);
   const [draftLoading, setDraftLoading] = useState(Boolean(draftId));
 
@@ -71,6 +75,10 @@ export default function ComposePage() {
           to: parsed.toRecipients || (parsed.to ? [{ email: parsed.to }] : []),
           subject: parsed.subject || '',
           body: parsed.body || '',
+          // The composer's initial-prop path adopts only future times, so a
+          // stale/past value here is filtered there, never rendered as live.
+          scheduledAt:
+            typeof parsed.scheduledAt === 'string' ? parsed.scheduledAt : undefined,
         });
       }
     } catch {}
@@ -445,6 +453,7 @@ export default function ComposePage() {
           // `?draftId=`) wins, then an explicit `?body=`, then the fetched
           // reply quote; a failed quote load honestly stays blank.
           initialBody={draftData?.body ?? prefillBody ?? quoteBody ?? undefined}
+          initialScheduledAt={draftData?.scheduledAt}
           inReplyTo={replyTo || undefined}
           onSend={handleSend}
           onSaveDraft={handleSaveDraft}
