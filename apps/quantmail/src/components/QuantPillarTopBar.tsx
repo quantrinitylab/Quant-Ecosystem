@@ -17,6 +17,7 @@ import { LiquidTrack } from './workplace/LiquidTrack';
 import { PillarMascotMark } from './mascots/PillarMascotMark';
 import { useKeyboardSurfaces } from './KeyboardProvider';
 import { CommandIcon } from '../lib/keyboard/command-icons';
+import { SearchTypeaheadDropdown, useSearchTypeahead } from './SearchTypeahead';
 
 export type PillarId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -632,6 +633,20 @@ export function QuantPillarTopBar({
     setInternalSearch(effectiveQuery);
   }, [effectiveQuery]);
 
+  // Search typeahead for the pillar bar's search field (recents + contacts +
+  // from:/to: operators). Picking a row applies its query and, when the host
+  // treats Enter as a submit, submits it too. The key handler runs first in
+  // handleSearchKeyDown below; a consumed key skips the submit/clear path.
+  const searchTypeahead = useSearchTypeahead({
+    value: internalSearch,
+    onChange: (val) => {
+      setInternalSearch(val);
+      onSearchChange?.(val);
+    },
+    enabled: onSearchChange !== undefined,
+    onSelectSubmit: onSearchSubmit,
+  });
+
   // Optimistic selection: the liquid tab starts its slide on the tap itself,
   // not when the target route commits. Cleared as soon as the pathname moves
   // (or after a fallback, if the navigation never lands).
@@ -838,6 +853,7 @@ export function QuantPillarTopBar({
   };
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (searchTypeahead.handleKeyDown(e)) return;
     executeSearchKeyDown(e.key, internalSearch, {
       onSearchSubmit,
       onSearchClear: () => {
@@ -1312,10 +1328,27 @@ export function QuantPillarTopBar({
             type="search"
             value={internalSearch}
             onChange={handleSearchInputChange}
+            onFocus={searchTypeahead.handleFocus}
+            onBlur={searchTypeahead.handleBlur}
             onKeyDown={handleSearchKeyDown}
             placeholder={searchPlaceholder || activeTile.searchPlaceholder}
             aria-label={searchPlaceholder || activeTile.searchPlaceholder}
+            role="combobox"
+            aria-expanded={searchTypeahead.open}
+            aria-controls={searchTypeahead.listboxId}
+            aria-activedescendant={
+              searchTypeahead.activeIndex >= 0
+                ? `${searchTypeahead.listboxId}-${searchTypeahead.activeIndex}`
+                : undefined
+            }
             className="w-full bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
+          />
+          <SearchTypeaheadDropdown
+            open={searchTypeahead.open}
+            suggestions={searchTypeahead.suggestions}
+            activeIndex={searchTypeahead.activeIndex}
+            listboxId={searchTypeahead.listboxId}
+            onSelect={searchTypeahead.handleSelect}
           />
 
           {internalSearch.length > 0 && (
