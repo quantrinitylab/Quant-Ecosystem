@@ -203,4 +203,52 @@ describe('useMailMutations — the Undo toast is immediate', () => {
       ['error', 'Email not found'],
     ]);
   });
+
+  it('partial snooze failure: only the refused id rolls back, the receipt names the failure, Undo covers only the snoozed id', async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(INBOX_KEY, [email('m-1'), email('m-2')]);
+    const mutations = await mount(queryClient);
+
+    let done!: Promise<void>;
+    act(() => {
+      done = mutations.snooze(['m-1', 'm-2'], new Date('2026-10-20T09:00:00Z'));
+    });
+    const confirmation = toasts[0];
+    expect(confirmation.text.startsWith('Snoozed until')).toBe(true);
+    // Both messages leave the inbox optimistically.
+    expect(inboxIds(queryClient)).toEqual([]);
+
+    await act(async () => {
+      // m-1 is refused (e.g. a 409: trashed/draft/spam member of the thread);
+      // m-2 is accepted. The receipt must reflect exactly that split.
+      outbox.pending.shift()!.resolve({ sent: false, rejected: { lastError: 'Backend refused' } });
+      outbox.pending.shift()!.resolve({ sent: true });
+      await done;
+    });
+
+    // The blanket confirmation is withdrawn…
+    expect(dismissed).toContain(confirmation.id);
+    // …but only the refused id comes back: the snoozed id stays snoozed.
+    expect(inboxIds(queryClient)).toEqual(['m-1']);
+    // …and the replacement receipt is a partial failure, never a blanket
+    // success ("Snoozed until …") and never a blanket failure ("Backend
+    // refused" alone, which would deny the id that did snooze).
+    const partial = toasts[toasts.length - 1];
+    expect(partial.type).toBe('error');
+    expect(partial.text).toContain('1 of 2');
+    expect(partial.text).toContain('could not be saved');
+    expect(toasts.filter((t) => t.type === 'success')).toHaveLength(1);
+    // Undo reverses only what actually landed — never the refused id,
+    // whose optimistic change was already rolled back.
+    expect(typeof partial.undoAction).toBe('function');
+    expect(hasPendingUndo()).toBe(true);
+    act(() => {
+      expect(runPendingUndo()).toBe(true);
+    });
+    expect(outbox.enqueue.mock.calls.map((c) => [c[0], c[1]])).toEqual([
+      ['snooze', 'm-1'],
+      ['snooze', 'm-2'],
+      ['unsnooze', 'm-2'],
+    ]);
+  });
 });

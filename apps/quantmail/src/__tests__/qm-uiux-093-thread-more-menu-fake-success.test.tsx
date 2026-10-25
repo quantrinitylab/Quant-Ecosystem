@@ -552,6 +552,54 @@ describe('QM-UIUX-093 — Snooze', () => {
       unsubDismiss();
     }
   });
+
+  it('a partially refused thread snooze rolls back only the refused message and receipts the split', async () => {
+    const seen: ToastMessage[] = [];
+    const dismissed: string[] = [];
+    const unsubToast = subscribeToToasts((t) => seen.push(t));
+    const unsubDismiss = subscribeToDismissals((id) => dismissed.push(id));
+    try {
+      // First message refused (e.g. a 409 on a trashed/draft/spam member),
+      // second accepted: the thread path must not report either a blanket
+      // success or a blanket failure for the conversation.
+      outbox.enqueue
+        .mockResolvedValueOnce({
+          sent: false,
+          rejected: { lastError: 'Backend refused' },
+        })
+        .mockResolvedValueOnce({ sent: true });
+      const first = incoming();
+      const second = incoming();
+      renderView([first, second]);
+      lastClient!.setQueryData(INBOX_KEY, [first, second]);
+      await flush();
+
+      await snoozeViaMenu();
+
+      expect(outbox.enqueue).toHaveBeenCalledTimes(2);
+      expect(api.snoozeEmail).not.toHaveBeenCalled();
+      // Only the refused message comes back; the accepted one stays snoozed.
+      expect(lastClient!.getQueryData(INBOX_KEY)).toEqual([first]);
+      const confirmation = seen.find((t) => t.text.startsWith('Snoozed until'));
+      expect(confirmation).toBeDefined();
+      expect(dismissed).toContain(confirmation!.id);
+      const partial = seen[seen.length - 1];
+      expect(partial.type).toBe('error');
+      expect(partial.text).toContain('1 of 2');
+      expect(partial.text).toContain('could not be saved');
+      // The partial receipt's Undo reverses only the message that snoozed.
+      expect(typeof partial.undoAction).toBe('function');
+      act(() => {
+        partial.undoAction!();
+      });
+      await flush();
+      expect(outbox.enqueue).toHaveBeenCalledWith('unsnooze', second.id, {});
+      expect(outbox.enqueue).not.toHaveBeenCalledWith('unsnooze', first.id, {});
+    } finally {
+      unsubToast();
+      unsubDismiss();
+    }
+  });
 });
 
 // --- Labels --------------------------------------------------------------------

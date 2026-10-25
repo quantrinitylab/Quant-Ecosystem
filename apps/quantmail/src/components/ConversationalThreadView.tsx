@@ -1589,8 +1589,11 @@ export function ConversationalThreadView({
       // through the outbox. The old direct apiClient loop had no
       // optimistic update and its toast had no Undo, so a mis-tapped
       // snooze from the thread could not be undone. The mutation owns
-      // its own failure path (withdraws the confirmation, rolls back),
-      // so there is no success/error toast to earn here.
+      // its own failure path: a full refusal withdraws the confirmation
+      // and rolls back, and a partial refusal (one message refused, the
+      // rest accepted) rolls back only the refused ids and replaces the
+      // confirmation with a partial receipt whose Undo covers only the
+      // ids that snoozed — never a blanket success for a half-landed snooze.
       void mutations.snooze(ids, until);
     },
     [conversationMessageIds, mutations],
