@@ -17,6 +17,7 @@ import {
   resolveShareToken,
   SHARE_PASSWORD_HEADER,
   ShareResolveError,
+  sharePreviewObjectUrl,
   TEXT_PREVIEW_MAX_BYTES,
 } from '../app/drive/share/[token]/share-resolve';
 
@@ -225,6 +226,44 @@ describe('fetchShareDownload', () => {
     await fetchShareDownload('abc123', undefined, fetchImpl);
     const headers = seen[0].init?.headers as Record<string, string>;
     expect(headers[SHARE_PASSWORD_HEADER]).toBeUndefined();
+  });
+
+  // Deep-fix: even a password crafted to look like a query string must not
+  // leak into the URL — the fetch URL is exactly the bare download path.
+  it('never embeds an adversarial password (with & and =) in the URL', async () => {
+    const { seen, fetchImpl } = captureFetch();
+    await fetchShareDownload('abc123', 's3cret&password=other', fetchImpl);
+    expect(seen[0].input).toBe('/api/drive/public/share/abc123/download');
+    expect(seen[0].input).not.toContain('?');
+    const headers = seen[0].init?.headers as Record<string, string>;
+    expect(headers[SHARE_PASSWORD_HEADER]).toBe('s3cret&password=other');
+  });
+});
+
+describe('sharePreviewObjectUrl', () => {
+  // Deep-fix: the <img>/<iframe> preview path used to embed the secret in
+  // src URLs. It must now go through the header fetch and return an opaque
+  // blob URL that contains neither the password nor a query string.
+  it('fetches via the header and returns an opaque blob URL without the secret', async () => {
+    const seen: Array<{ input: string; init?: RequestInit }> = [];
+    const fetchImpl: FetchImpl = vi.fn(async (input: string, init?: RequestInit) => {
+      seen.push({ input, init });
+      return new Response('bytes', { status: 200 });
+    });
+    const originalCreateObjectURL = URL.createObjectURL;
+    URL.createObjectURL = () => 'blob:fake-preview-url';
+    try {
+      const url = await sharePreviewObjectUrl('abc123', 's3cret', fetchImpl);
+      expect(url).toBe('blob:fake-preview-url');
+      expect(url).not.toContain('s3cret');
+      expect(seen).toHaveLength(1);
+      expect(seen[0].input).toBe('/api/drive/public/share/abc123/download');
+      expect(seen[0].input).not.toContain('s3cret');
+      const headers = seen[0].init?.headers as Record<string, string>;
+      expect(headers[SHARE_PASSWORD_HEADER]).toBe('s3cret');
+    } finally {
+      URL.createObjectURL = originalCreateObjectURL;
+    }
   });
 });
 
