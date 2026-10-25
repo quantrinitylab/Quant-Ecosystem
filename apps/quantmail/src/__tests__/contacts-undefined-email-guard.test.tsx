@@ -72,13 +72,29 @@ describe('ContactDetailSheet undefined-email guards', () => {
     expect(html).toContain('Call');
   });
 
-  it('contact with email renders the mailto anchor and enables Email/Message actions', () => {
+  it('contact with email renders an in-app compose link (never mailto) and enables Email/Message actions', () => {
     const html = renderToStaticMarkup(
       React.createElement(ContactDetailSheet, { contact: emailContact as any }),
     );
-    expect(html).toContain('href="mailto:aarav@example.com"');
+    // Tapping the address must stay inside QuantMail compose — a mailto:
+    // link would hand off to the device's external mail client.
+    expect(html).toContain('href="/compose?to=aarav%40example.com"');
+    expect(html).not.toContain('mailto:');
     expect(html).toContain('Email Address');
     expect(html).not.toContain('disabled=""');
+    // The phone row keeps its tel: link — calls have no in-app target.
+    expect(html).toContain('href="tel:+91 90000 00000"');
+  });
+
+  it('contact email address in the detail row is URL-encoded in the compose link', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ContactDetailSheet, {
+        contact: { ...emailContact, email: 'first+label@example.com' } as any,
+      }),
+    );
+    expect(html).toContain('href="/compose?to=first%2Blabel%40example.com"');
+    expect(html).not.toContain('mailto:');
+    expect(html).not.toContain('compose?to=undefined');
   });
 
   it('empty-string email is treated the same as a missing email', () => {
