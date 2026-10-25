@@ -19181,27 +19181,6 @@ paths:
                 $ref: '#/components/schemas/Error'
       security:
       - BearerAuth: []
-  /events/alerts/scheduled:
-    get:
-      tags:
-      - Calendar
-      summary: List alerts scheduled
-      operationId: getEventsAlertsScheduled
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessWrapper'
-        '401':
-          description: Missing or invalid credentials
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-      security:
-      - BearerAuth: []
   /events/free-busy:
     get:
       tags:

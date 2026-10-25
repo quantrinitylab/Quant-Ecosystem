@@ -198,7 +198,7 @@ describe('Calendar Route Call Alert Integration', () => {
     return { app, callAlertService, mockPrisma };
   }
 
-  it('POST /events with call reminder schedules a call alert and GET /events/alerts/scheduled returns it', async () => {
+  it('POST /events with call reminder still schedules a call alert, but GET /events/alerts/scheduled is gone (fix/qm-alerts-scheduled-deadwire)', async () => {
     const { app, callAlertService } = createTestHarness();
 
     const response = await app.inject({
@@ -220,14 +220,8 @@ describe('Calendar Route Call Alert Integration', () => {
     expect(body.success).toBe(true);
     const eventId = body.data.id;
 
-    // Verify scheduled alerts query
-    const alertsResponse = await app.inject({
-      method: 'GET',
-      url: '/events/alerts/scheduled',
-    });
-
-    expect(alertsResponse.statusCode).toBe(200);
-    const alerts = alertsResponse.json().data;
+    // Scheduling itself is untouched: the service still holds the alert.
+    const alerts = callAlertService.getScheduledAlerts('test-user-call');
     expect(alerts).toHaveLength(1);
     expect(alerts[0]).toMatchObject({
       eventId,
@@ -236,6 +230,15 @@ describe('Calendar Route Call Alert Integration', () => {
       minutesBefore: 5,
       status: 'scheduled',
     });
+
+    // The dead endpoint is gone: the process-local list must not be served.
+    // No other calendar route matches the three-segment path, so this 404s
+    // instead of falling through to /events/:id.
+    const alertsResponse = await app.inject({
+      method: 'GET',
+      url: '/events/alerts/scheduled',
+    });
+    expect(alertsResponse.statusCode).toBe(404);
 
     await app.close();
   });
