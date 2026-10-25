@@ -105,11 +105,37 @@ beforeEach(() => {
 
 const BEARER = { authorization: 'Bearer valid-token' };
 
+const SPECIAL_STATE = 'a&b=c#frag ü';
+const SPECIAL_STATE_ENCODED = encodeURIComponent(SPECIAL_STATE);
+
+const authorizeQueryWithState = (state: string) =>
+  '/oauth/authorize?response_type=code' +
+  '&client_id=client-1' +
+  '&redirect_uri=' +
+  encodeURIComponent('https://app.test.com/callback') +
+  '&scope=' +
+  encodeURIComponent('openid profile email') +
+  '&state=' +
+  encodeURIComponent(state) +
+  '&code_challenge=challenge-abc&code_challenge_method=S256&nonce=nonce-123';
+
+/** A state value containing &, =, # and non-ASCII must round-trip opaquely
+ *  (RFC 6749 §4.1.2): the RP callback must parse exactly one `state` param
+ *  equal to the original, with no injected extra params. */
+function expectStateRoundTrips(location: string, extraParams: string[] = []) {
+  const url = new URL(location);
+  expect(url.searchParams.get('state')).toBe(SPECIAL_STATE);
+  expect(url.searchParams.has('b')).toBe(false);
+  expect(url.searchParams.get('c')).toBeNull();
+  for (const p of extraParams) expect(url.searchParams.has(p)).toBe(false);
+  expect(location).toContain(`state=${SPECIAL_STATE_ENCODED}`);
+}
+
 /** Render the consent screen and pull the hidden consent_token out of the HTML. */
-async function renderConsentScreen() {
+async function renderConsentScreen(url: string = AUTHORIZE_QUERY) {
   const res = await app.inject({
     method: 'GET',
-    url: AUTHORIZE_QUERY,
+    url,
     headers: BEARER,
   });
   expect(res.statusCode).toBe(200);
@@ -136,6 +162,23 @@ describe('GET /oauth/authorize consent screen', () => {
   it('still 401s without any session', async () => {
     const res = await app.inject({ method: 'GET', url: AUTHORIZE_QUERY });
     expect(res.statusCode).toBe(401);
+  });
+});
+
+describe('GET /oauth/authorize auto-approve encodes state (RFC 6749 §4.1.2)', () => {
+  it('percent-encodes a hostile state so the RP callback parses exactly one state param', async () => {
+    db.oAuthConsent.findUnique.mockResolvedValue({
+      scopes: ['openid', 'profile', 'email'],
+    } as never);
+    const res = await app.inject({
+      method: 'GET',
+      url: authorizeQueryWithState(SPECIAL_STATE),
+      headers: BEARER,
+    });
+    expect(res.statusCode).toBe(302);
+    const location = res.headers['location'] as string;
+    expect(location.startsWith('https://app.test.com/callback?code=ac_mock_')).toBe(true);
+    expectStateRoundTrips(location);
   });
 });
 
@@ -172,6 +215,35 @@ describe('POST /oauth/consent with consent_token (browser form)', () => {
     expect(created.nonce).toBe('nonce-123');
     // Consent is recorded for the token's user
     expect(db.oAuthConsent.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('approving percent-encodes a hostile state from the consent session', async () => {
+    const { consentToken } = await renderConsentScreen(
+      authorizeQueryWithState(SPECIAL_STATE),
+    );
+    const res = await app.inject({
+      method: 'POST',
+      url: '/oauth/consent',
+      payload: formBody(consentToken, { state: SPECIAL_STATE }),
+    });
+    expect(res.statusCode).toBe(302);
+    expectStateRoundTrips(res.headers['location'] as string);
+  });
+
+  it('denying percent-encodes a hostile state on the access_denied redirect', async () => {
+    const { consentToken } = await renderConsentScreen(
+      authorizeQueryWithState(SPECIAL_STATE),
+    );
+    const res = await app.inject({
+      method: 'POST',
+      url: '/oauth/consent',
+      payload: formBody(consentToken, { action: 'deny', state: SPECIAL_STATE }),
+    });
+    expect(res.statusCode).toBe(302);
+    const location = res.headers['location'] as string;
+    expect(location).toContain('error=access_denied');
+    expectStateRoundTrips(location);
+    expect(db.authorizationCode.create).not.toHaveBeenCalled();
   });
 
   it('denying 302s with ?error=access_denied and mints no code', async () => {
