@@ -389,6 +389,11 @@ export function PullRequestsTab({
   const [activeCommentLineKey, setActiveCommentLineKey] = useState<string | null>(null);
   const [lineCommentText, setLineCommentText] = useState<string>('');
   const [diffComments, setDiffComments] = useState<Record<string, PRDiffComment[]>>({});
+  // Comments whose suggestion block was applied this session (one-click
+  // apply commits onto the PR head branch; the button then reads "Applied").
+  const [appliedSuggestionIds, setAppliedSuggestionIds] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
 
   const isAuthor = Boolean(
     selectedPR && selectedPR.author && currentUsername && selectedPR.author === currentUsername,
@@ -444,6 +449,52 @@ export function PullRequestsTab({
       }
     } catch {
       showToast?.('Could not add inline comment — network error');
+    }
+  };
+
+  // One-click apply for a comment's suggestion block. The backend commits
+  // the replacement onto the PR head branch; on success the comment flips
+  // to "Applied" and the diff refetches so the author sees the new content.
+  // Any failure is reported honestly — the comment stays unapplied.
+  const handleApplySuggestion = async (comment: PRDiffComment) => {
+    const prNumber = selectedPR ? (selectedPR as any).number || selectedPR.id : null;
+    if (!prNumber) {
+      showToast?.('Could not apply suggestion: no pull request selected.');
+      return;
+    }
+    try {
+      const res = await apiFetchRaw(
+        `/api/repos/${encodeURIComponent(repoId)}/pulls/${prNumber}/comments/${encodeURIComponent(comment.id)}/apply-suggestion`,
+        { method: 'POST' },
+      );
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success) {
+        setAppliedSuggestionIds((prev) => new Set(prev).add(comment.id));
+        showToast?.('Suggested change applied');
+        if (diffFetchKey) {
+          try {
+            const diffRes = await apiFetchRaw(
+              `/api/repos/${encodeURIComponent(repoId ?? '')}/pulls/${prNumber}/diff`,
+            );
+            const diffJson = await diffRes.json().catch(() => null);
+            const text = diffRes.ok && diffJson?.success ? diffJson.data : null;
+            if (typeof text === 'string' && text.trim().length > 0) {
+              const files = parseUnifiedDiff(text);
+              setPrDiffByKey((prev) => ({
+                ...prev,
+                [diffFetchKey]: { status: files.length > 0 ? 'loaded' : 'empty', files },
+              }));
+            }
+          } catch {
+            // Diff refresh is best-effort: the apply itself already succeeded
+            // and the toast above says so; the next PR switch refetches.
+          }
+        }
+      } else {
+        showToast?.(json?.error?.message || 'Could not apply suggestion');
+      }
+    } catch {
+      showToast?.('Could not apply suggestion — network error');
     }
   };
 
@@ -1139,6 +1190,9 @@ export function PullRequestsTab({
                 }}
                 onChangeCommentText={setLineCommentText}
                 onSubmitComment={handleAddInlineComment}
+                onApplySuggestion={handleApplySuggestion}
+                appliedCommentIds={appliedSuggestionIds}
+                canApplySuggestions={isAuthor}
               />
             ) : prDiff?.status === 'loading' ? (
               <div
