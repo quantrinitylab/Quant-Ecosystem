@@ -168,8 +168,14 @@ describe('oauth-consent-session', () => {
 // (two "replicas") sharing one backing database must agree on first-use —
 // exactly one consume wins, every replay loses, even under a race.
 //
-// The fake DB below emulates the UNIQUE(jti) constraint of the real
-// `oauth_consent_tokens` table (migration 0091).
+// MOCKED — the fake DB below is an in-memory stand-in that EMULATES the
+// UNIQUE(jti) constraint of the real `oauth_consent_tokens` table
+// (migration 0115). These tests prove the store's branching logic (unique
+// violation -> replay, other error -> fail-closed throw), NOT the real
+// cross-replica guarantee: only the DATABASE_URL-gated two-connection
+// barrier test in oauth-consent-session.postgres.test.ts proves that
+// against real PostgreSQL, and it is owed to CI (no live Postgres exists
+// in the dev VM). Never cite this mocked section as live-DB proof.
 // ============================================================================
 
 function makeSharedFakeDb() {
@@ -264,6 +270,21 @@ describe('oauth-consent-session consumed-jti stores', () => {
     const store: ConsentTokenStore = new InMemoryConsentTokenStore();
     expect(await store.tryConsume('jti-m', expiresAt())).toBe(true);
     expect(await store.tryConsume('jti-m', expiresAt())).toBe(false);
+  });
+
+  it('NEGATIVE CONTROL: two in-memory stores (two "replicas") BOTH accept the same jti', async () => {
+    // This is the defect the DB-backed store fixes, pinned as a control:
+    // per-process in-memory sets share nothing, so a token consumed on
+    // replica A replays cleanly on replica B. Both tryConsume calls return
+    // true here — which would FAIL the cross-instance contract (exactly one
+    // winner) that PrismaConsentTokenStore enforces via UNIQUE(jti) and
+    // that the DATABASE_URL-gated barrier test proves on real Postgres.
+    // If this test ever starts failing (both stores no longer accept),
+    // the in-memory implementation changed — re-check the control's premise.
+    const replicaA = new InMemoryConsentTokenStore();
+    const replicaB = new InMemoryConsentTokenStore(); // separate instance, no shared state
+    expect(await replicaA.tryConsume('jti-negative-control', expiresAt())).toBe(true);
+    expect(await replicaB.tryConsume('jti-negative-control', expiresAt())).toBe(true);
   });
 
   it('consumeConsentToken honors the configured store end-to-end', async () => {

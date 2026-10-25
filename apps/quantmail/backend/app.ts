@@ -426,7 +426,7 @@ export async function buildApp(config?: AppConfig) {
   // in-memory consumed-jti store is per-process, so in a multi-replica
   // deploy a token consumed on replica A could replay on replica B.
   // Wire the DB-backed store (table `oauth_consent_tokens`, migration
-  // 0091 — UNIQUE(jti) is the cross-replica mutex). Route-level tests
+  // 0115 — UNIQUE(jti) is the cross-replica mutex). Route-level tests
   // register oauthRoutes without this boot path and keep the hermetic
   // in-memory store.
   setConsentTokenStore(new PrismaConsentTokenStore((app as any).prisma));
