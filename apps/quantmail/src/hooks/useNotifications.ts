@@ -10,7 +10,7 @@
 // honest empty state, not fabricated rows.
 // ============================================================================
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { browserApiRequest } from '../services/browser-api-request';
 
 export type NotificationPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
@@ -29,9 +29,24 @@ export interface AppNotification {
   createdAt: string;
 }
 
+export interface NotificationsPageData {
+  notifications: AppNotification[];
+  unreadCount: number;
+  /** Total active rows for the caller (all pages), when the backend reports it. */
+  totalCount?: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
 interface NotificationsPayload {
   success: boolean;
-  data?: { notifications: AppNotification[]; unreadCount: number };
+  data?: {
+    notifications: AppNotification[];
+    unreadCount: number;
+    totalCount?: number;
+    hasMore?: boolean;
+    nextCursor?: string | null;
+  };
   error?: { message?: string };
 }
 
@@ -43,16 +58,34 @@ async function readJson(response: Response): Promise<NotificationsPayload | null
   }
 }
 
-async function fetchNotifications(limit = 50): Promise<{
-  notifications: AppNotification[];
-  unreadCount: number;
-}> {
-  const response = await browserApiRequest(`/api/notifications?limit=${limit}`);
+async function fetchNotificationsPage(
+  limit: number,
+  cursor?: string | null,
+): Promise<NotificationsPageData> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.set('cursor', cursor);
+  const response = await browserApiRequest(`/api/notifications?${params.toString()}`);
   const payload = await readJson(response);
   if (!response.ok || !payload?.success || !payload.data) {
     throw new Error(payload?.error?.message || 'Could not load notifications.');
   }
-  return payload.data;
+  const data = payload.data;
+  return {
+    notifications: data.notifications,
+    unreadCount: data.unreadCount,
+    totalCount: data.totalCount,
+    // Older backends predate paging fields: a page without `hasMore` is a
+    // final page, never an invitation to fetch forever.
+    hasMore: data.hasMore ?? false,
+    nextCursor: data.nextCursor ?? null,
+  };
+}
+
+async function fetchNotifications(limit = 50): Promise<{
+  notifications: AppNotification[];
+  unreadCount: number;
+}> {
+  return fetchNotificationsPage(limit);
 }
 
 export function useNotifications(limit = 50) {
@@ -61,6 +94,22 @@ export function useNotifications(limit = 50) {
     queryFn: () => fetchNotifications(limit),
     // The bell polls on its own cadence; the center is a manual-refresh screen
     // so a mark-read/delete never fights a background refetch.
+    staleTime: 60 * 1000,
+  });
+}
+
+// Cursor-paged notifications for the center: the old single-page hook capped
+// the UI at one `limit` window while `unreadCount` counted ALL unread, so
+// older unread rows were unreachable. Pages append in order; the query key
+// stays under ['notifications', ...] so mark-read/delete/clear-all
+// invalidations still refresh every page.
+export function useNotificationsInfinite(pageSize = 50) {
+  return useInfiniteQuery({
+    queryKey: ['notifications', 'infinite', pageSize],
+    queryFn: ({ pageParam }) => fetchNotificationsPage(pageSize, pageParam ?? undefined),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore && lastPage.nextCursor ? lastPage.nextCursor : undefined,
     staleTime: 60 * 1000,
   });
 }

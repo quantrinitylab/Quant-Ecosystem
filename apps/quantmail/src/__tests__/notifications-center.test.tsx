@@ -19,14 +19,14 @@ vi.mock('../components/AppSidebar', () => ({
   AppSidebar: () => <div data-testid="sidebar" />,
 }));
 
-const mockUseNotifications = vi.fn();
+const mockUseNotificationsInfinite = vi.fn();
 const mockMarkRead = vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false }));
 const mockMarkAllRead = vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false }));
 const mockDeleteOne = vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false }));
 const mockClearAll = vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false }));
 
 vi.mock('../hooks/useNotifications', () => ({
-  useNotifications: () => mockUseNotifications(),
+  useNotificationsInfinite: () => mockUseNotificationsInfinite(),
   useMarkNotificationRead: () => mockMarkRead(),
   useMarkAllNotificationsRead: () => mockMarkAllRead(),
   useDeleteNotification: () => mockDeleteOne(),
@@ -59,12 +59,29 @@ const N2 = {
   createdAt: new Date(Date.now() - 86400000).toISOString(),
 };
 
-function loaded(notifications: unknown[], unreadCount: number) {
-  mockUseNotifications.mockReturnValue({
-    data: { notifications, unreadCount },
+function loaded(
+  notifications: unknown[],
+  unreadCount: number,
+  opts?: { hasNextPage?: boolean; totalCount?: number },
+) {
+  mockUseNotificationsInfinite.mockReturnValue({
+    data: {
+      pages: [
+        {
+          notifications,
+          unreadCount,
+          totalCount: opts?.totalCount ?? notifications.length,
+          hasMore: opts?.hasNextPage ?? false,
+          nextCursor: opts?.hasNextPage ? 'cursor-1' : null,
+        },
+      ],
+    },
     isLoading: false,
     error: null,
     refetch: vi.fn(),
+    fetchNextPage: vi.fn(),
+    hasNextPage: opts?.hasNextPage ?? false,
+    isFetchingNextPage: false,
   });
 }
 
@@ -124,22 +141,59 @@ describe('Notifications center', () => {
   });
 
   it('renders an error state with retry when the backend fails', () => {
-    mockUseNotifications.mockReturnValue({
+    mockUseNotificationsInfinite.mockReturnValue({
       data: undefined,
       isLoading: false,
       error: new Error('backend down'),
       refetch: vi.fn(),
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
     });
     const html = renderToStaticMarkup(<NotificationsPage />);
     expect(html).toContain('backend down');
   });
 
+  it('shows "Load more" only while another page exists', () => {
+    loaded([N1, N2], 1, { hasNextPage: true });
+    expect(renderToStaticMarkup(<NotificationsPage />)).toContain('Load more');
+
+    loaded([N1, N2], 1, { hasNextPage: false });
+    const html = renderToStaticMarkup(<NotificationsPage />);
+    expect(html).not.toContain('Load more');
+    expect(html).toContain('Showing all 2 loaded notifications');
+  });
+
+  it('flattens loaded pages in order', () => {
+    mockUseNotificationsInfinite.mockReturnValue({
+      data: {
+        pages: [
+          { notifications: [N1], unreadCount: 1, totalCount: 2, hasMore: true, nextCursor: 'c1' },
+          { notifications: [N2], unreadCount: 1, totalCount: 2, hasMore: false, nextCursor: null },
+        ],
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+    });
+    const html = renderToStaticMarkup(<NotificationsPage />);
+    expect(html).toContain('New message from Ada');
+    expect(html).toContain('New sign-in detected');
+    expect(html.indexOf('New message from Ada')).toBeLessThan(html.indexOf('New sign-in detected'));
+  });
+
   it('renders skeletons while loading', () => {
-    mockUseNotifications.mockReturnValue({
+    mockUseNotificationsInfinite.mockReturnValue({
       data: undefined,
       isLoading: true,
       error: null,
       refetch: vi.fn(),
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
     });
     const html = renderToStaticMarkup(<NotificationsPage />);
     expect(html).toContain('Loading notifications');
