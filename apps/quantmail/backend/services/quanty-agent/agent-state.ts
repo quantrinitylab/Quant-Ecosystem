@@ -39,8 +39,17 @@ class QuantyAgentState {
   }
 
   // -- Browser tasks --------------------------------------------------------
+  //
+  // Ownership is mandatory, not optional: this store is process-global, so
+  // every record carries its owner's userId and every read is filtered by
+  // the requesting userId (same rule as executor.liveStatus(userId)). A
+  // caller with no tasks of their own sees an empty list, never a
+  // neighbour's titles, URLs, thumbnails, or statuses. userId is a
+  // required parameter on record/list/update so a future caller cannot
+  // silently reintroduce the unscoped read — it fails typecheck.
 
   recordBrowserTask(input: {
+    userId: string;
     title: string;
     url: string;
     thumbnailUrl?: string;
@@ -56,15 +65,32 @@ class QuantyAgentState {
     return { ...task };
   }
 
-  updateBrowserTask(id: string, patch: Partial<Pick<QuantyBrowserTask, 'status' | 'thumbnailUrl' | 'title'>>): QuantyBrowserTask | null {
-    const t = this.browserTasks.find((b) => b.id === id);
+  /**
+   * Update one of the CALLER's browser tasks. Returns null when the id is
+   * unknown OR belongs to another user — a cross-user update must be
+   * indistinguishable from a missing task, so Bob can neither flip Alice's
+   * running task to done nor overwrite her title/thumbnail.
+   */
+  updateBrowserTask(id: string, userId: string, patch: Partial<Pick<QuantyBrowserTask, 'status' | 'thumbnailUrl' | 'title'>>): QuantyBrowserTask | null {
+    const t = this.browserTasks.find((b) => b.id === id && b.userId === userId);
     if (!t) return null;
     Object.assign(t, patch);
     return { ...t };
   }
 
-  listBrowserTasks(limit = 50): QuantyBrowserTask[] {
-    return this.browserTasks.slice(0, limit).map((t) => ({ ...t }));
+  /** The caller's own browser tasks, newest-first. Filter BEFORE slicing: slicing the global list first would hide a caller's tasks that sit behind another user's newer entries. */
+  listBrowserTasks(userId: string, limit = 50): QuantyBrowserTask[] {
+    return this.browserTasks.filter((t) => t.userId === userId).slice(0, limit).map((t) => ({ ...t }));
+  }
+
+  /**
+   * Scoped browsing flag for GET /api/quanty/status: true only when the
+   * CALLER has a running browser task. Scans the caller's owned records
+   * directly (no limit window) so an older still-running task is not masked
+   * by newer finished ones.
+   */
+  hasRunningBrowserTask(userId: string): boolean {
+    return this.browserTasks.some((t) => t.userId === userId && t.status === 'running');
   }
 
   // -- Identity -------------------------------------------------------------

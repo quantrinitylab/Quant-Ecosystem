@@ -71,12 +71,78 @@ describe('quanty-agent agent-state', () => {
   });
 
   it('records and updates browser tasks', () => {
-    const t = quantyAgentState.recordBrowserTask({ title: 'Research', url: 'https://example.com' });
+    const t = quantyAgentState.recordBrowserTask({ userId: 'user-1', title: 'Research', url: 'https://example.com' });
     expect(t.status).toBe('running');
-    const updated = quantyAgentState.updateBrowserTask(t.id, { status: 'done', thumbnailUrl: 'https://img/x.png' });
+    expect(t.userId).toBe('user-1');
+    const updated = quantyAgentState.updateBrowserTask(t.id, 'user-1', { status: 'done', thumbnailUrl: 'https://img/x.png' });
     expect(updated?.status).toBe('done');
     expect(updated?.thumbnailUrl).toBe('https://img/x.png');
-    expect(quantyAgentState.updateBrowserTask('missing', { status: 'done' })).toBeNull();
+    expect(quantyAgentState.updateBrowserTask('missing', 'user-1', { status: 'done' })).toBeNull();
+  });
+
+  it('never leaks browser tasks across users: list, update, and browsing flag are owner-scoped', () => {
+    // Distinct surfaced values per user so ANY leak is detectable on every field.
+    const alice = quantyAgentState.recordBrowserTask({
+      userId: 'alice',
+      title: 'Alice secret research',
+      url: 'https://alice-private.example/research',
+      thumbnailUrl: 'https://img/alice-thumb.png',
+    });
+    quantyAgentState.recordBrowserTask({
+      userId: 'bob',
+      title: 'Bob secret research',
+      url: 'https://bob-private.example/research',
+      thumbnailUrl: 'https://img/bob-thumb.png',
+    });
+    const aliceDone = quantyAgentState.recordBrowserTask({
+      userId: 'alice',
+      title: 'Alice finished read',
+      url: 'https://alice-private.example/done',
+    });
+    quantyAgentState.updateBrowserTask(aliceDone.id, 'alice', { status: 'done' });
+
+    // Alice sees ONLY her own tasks — zero Bob influence on any surfaced field.
+    const aliceList = quantyAgentState.listBrowserTasks('alice');
+    expect(aliceList.map((t) => t.title).sort()).toEqual(['Alice finished read', 'Alice secret research'].sort());
+    expect(aliceList.every((t) => t.userId === 'alice')).toBe(true);
+    const aliceBlob = JSON.stringify(aliceList);
+    expect(aliceBlob).not.toContain('Bob secret research');
+    expect(aliceBlob).not.toContain('bob-private.example');
+    expect(aliceBlob).not.toContain('bob-thumb.png');
+    // Bob sees ONLY his own task, with its own running status.
+    const bobList = quantyAgentState.listBrowserTasks('bob');
+    expect(bobList).toHaveLength(1);
+    expect(bobList[0].title).toBe('Bob secret research');
+    expect(bobList[0].url).toBe('https://bob-private.example/research');
+    expect(bobList[0].thumbnailUrl).toBe('https://img/bob-thumb.png');
+    expect(bobList[0].status).toBe('running');
+    const bobBlob = JSON.stringify(bobList);
+    expect(bobBlob).not.toContain('Alice secret research');
+    expect(bobBlob).not.toContain('alice-private.example');
+    expect(bobBlob).not.toContain('alice-thumb.png');
+    // A user with no tasks sees none — not a neighbour's list, not an error.
+    expect(quantyAgentState.listBrowserTasks('carol')).toEqual([]);
+
+    // Filter-before-limit: Bob's newer entries must not crowd Alice's out
+    // of a small window (a slice-first implementation would return Bob's).
+    expect(quantyAgentState.listBrowserTasks('alice', 1).map((t) => t.title)).toEqual(['Alice finished read']);
+
+    // Browsing flag is owner-scoped: both owners browse, Carol does not.
+    expect(quantyAgentState.hasRunningBrowserTask('alice')).toBe(true);
+    expect(quantyAgentState.hasRunningBrowserTask('bob')).toBe(true);
+    expect(quantyAgentState.hasRunningBrowserTask('carol')).toBe(false);
+    // Finishing Alice's running task clears ONLY Alice's flag.
+    quantyAgentState.updateBrowserTask(alice.id, 'alice', { status: 'done' });
+    expect(quantyAgentState.hasRunningBrowserTask('alice')).toBe(false);
+    expect(quantyAgentState.hasRunningBrowserTask('bob')).toBe(true);
+
+    // Cross-user update is rejected AND leaves the owner's record untouched.
+    const bobTask = quantyAgentState.listBrowserTasks('bob')[0];
+    expect(quantyAgentState.updateBrowserTask(bobTask.id, 'alice', { status: 'done', title: 'Hijacked' })).toBeNull();
+    const bobAfter = quantyAgentState.listBrowserTasks('bob')[0];
+    expect(bobAfter.status).toBe('running');
+    expect(bobAfter.title).toBe('Bob secret research');
+    expect(bobAfter.thumbnailUrl).toBe('https://img/bob-thumb.png');
   });
 
   it('returns placeholder identity cards', () => {

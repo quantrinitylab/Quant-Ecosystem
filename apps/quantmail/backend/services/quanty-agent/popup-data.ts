@@ -117,7 +117,11 @@ export async function buildPopupData(deps: PopupDataDeps): Promise<QuantyPopupBa
     status: deps.executor.liveStatus(deps.userId),
     activity: buildActivityFeed(tasks, deps.toolAppOf),
     approvals: await popupApprovals(deps.prisma, deps.userId),
-    browserTasks: quantyAgentState.listBrowserTasks(50),
+    // Scoped to the caller: the browser-task store is process-global, so an
+    // unscoped list here would show another user's titles/URLs/thumbnails
+    // in this user's popup Browser tab (the leak this branch's liveStatus
+    // fix left behind). A caller with no tasks sees an empty list.
+    browserTasks: quantyAgentState.listBrowserTasks(deps.userId, 50),
     schedule: getSchedule(),
     identity: quantyAgentState.getIdentity(),
   };

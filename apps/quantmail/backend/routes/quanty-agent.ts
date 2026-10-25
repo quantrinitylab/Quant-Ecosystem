@@ -438,10 +438,12 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: await listDurableApprovals(prisma, userId, 50) });
   });
 
-  // GET /api/quanty/browser-tasks — browser task history.
+  // GET /api/quanty/browser-tasks — the CALLER's browser task history.
+  // Scoped to the caller: the store is process-global, so the unscoped
+  // list previously returned every user's titles/URLs/thumbnails here.
   fastify.get('/api/quanty/browser-tasks', async (request, reply) => {
-    reqUserId(request);
-    return reply.send({ success: true, data: quantyAgentState.listBrowserTasks(50) });
+    const userId = reqUserId(request);
+    return reply.send({ success: true, data: quantyAgentState.listBrowserTasks(userId, 50) });
   });
 
   // GET /api/quanty/identity — soul + memory cards (placeholder for now).
@@ -452,12 +454,15 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
 
   // GET /api/quanty/status — live status text for the popup header.
   // Scoped to the caller: liveStatus() takes the caller's userId so another
-  // user's in-flight task can never surface in this user's popup header.
+  // user's in-flight task can never surface in this user's popup header,
+  // and the browsing flag counts ONLY the caller's own running browser
+  // tasks — another user's browsing must never flip this user's header
+  // to "browsing".
   fastify.get('/api/quanty/status', async (request, reply) => {
     const userId = reqUserId(request);
     const live = executor.liveStatus(userId);
     // A running browser task also counts as active ("browsing").
-    const browsing = quantyAgentState.listBrowserTasks(5).some((t) => t.status === 'running');
+    const browsing = quantyAgentState.hasRunningBrowserTask(userId);
     const status: QuantyLiveStatus =
       live.status === 'is working' ? live : browsing ? { status: 'browsing', detail: 'Browsing the web' } : live;
     return reply.send({ success: true, data: status });
