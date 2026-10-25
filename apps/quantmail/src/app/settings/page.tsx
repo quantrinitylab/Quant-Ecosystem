@@ -295,6 +295,28 @@ export default function SettingsPage() {
   const [signature, setSignature] = useState('');
   const [loadedSignature, setLoadedSignature] = useState('');
   const [defaultSignatureId, setDefaultSignatureId] = useState<string | null>(null);
+  /**
+   * Multiple signatures (fix/qm-multiple-signatures). The backend has
+   * always carried a list with an `isDefault` flag; this page used to load
+   * and edit only the default row, so a formal and a casual signature could
+   * not coexist. Now the whole list loads, the editor edits whichever
+   * signature is selected, and the composer picker (EmailSignaturePicker)
+   * switches between them per message.
+   *
+   * `signatureDrafts` keeps unsaved keystrokes per signature (key `'new'`
+   * for the not-yet-created one), so picking another signature to look at
+   * it never silently throws away typed text — reselecting restores the
+   * draft, saving clears it.
+   */
+  const [signatures, setSignatures] = useState<
+    Array<{ id: string; name: string; contentHtml: string; isDefault: boolean }>
+  >([]);
+  const [selectedSignatureId, setSelectedSignatureId] = useState<string | null>(null);
+  const [signatureName, setSignatureName] = useState('');
+  const [loadedSignatureName, setLoadedSignatureName] = useState('');
+  const [signatureDrafts, setSignatureDrafts] = useState<
+    Record<string, { name: string; content: string }>
+  >({});
   const [signatureStatus, setSignatureStatus] = useState<
     'loading' | 'idle' | 'saving' | 'saved' | 'error'
   >('loading');
@@ -313,7 +335,8 @@ export default function SettingsPage() {
   });
 
   const hasProfileChanges = profile.displayName.trim() !== loadedProfile.displayName;
-  const hasSignatureChanges = signature !== loadedSignature;
+  const hasSignatureChanges =
+    signature !== loadedSignature || signatureName !== loadedSignatureName;
   const signaturePreview = useSafeEmailHtml(signature);
 
   useEffect(() => {
@@ -376,15 +399,25 @@ export default function SettingsPage() {
       setLoadedProfile(next);
     });
 
-    void apiClient.getDefaultEmailSignature().then((response) => {
-      if (!response.success) {
+    void apiClient.getEmailSignatures().then((response) => {
+      if (!response.success || !Array.isArray(response.data)) {
         setSignatureStatus('error');
         return;
       }
-      const next = response.data?.contentHtml ?? '';
-      setSignature(next);
-      setLoadedSignature(next);
-      setDefaultSignatureId(response.data?.id ?? null);
+      const list = response.data;
+      setSignatures(list);
+      // The editor opens on the default, else the first in list order (the
+      // backend already orders default-first); an empty list leaves the
+      // editor in create mode, where Save mints the first signature.
+      const picked = list.find((item) => item.isDefault) ?? list[0] ?? null;
+      setDefaultSignatureId(list.find((item) => item.isDefault)?.id ?? null);
+      if (picked) {
+        setSelectedSignatureId(picked.id);
+        setSignature(picked.contentHtml);
+        setLoadedSignature(picked.contentHtml);
+        setSignatureName(picked.name);
+        setLoadedSignatureName(picked.name);
+      }
       setSignatureStatus('idle');
     });
   }, []);
@@ -423,49 +456,181 @@ export default function SettingsPage() {
     showToast({ text: 'Display name saved', type: 'success' });
   }, [profile.displayName, profileSaving]);
 
-  const saveSignature = useCallback(async () => {
-    const contentHtml = signature.trim();
-    if (!hasSignatureChanges) return;
+  /** Editor keystrokes also stash a per-signature draft (see state comment). */
+  const handleSignatureContentChange = useCallback(
+    (content: string) => {
+      setSignature(content);
+      const key = selectedSignatureId ?? 'new';
+      setSignatureDrafts((prev) => ({ ...prev, [key]: { name: signatureName, content } }));
+    },
+    [selectedSignatureId, signatureName],
+  );
+
+  const handleSignatureNameChange = useCallback(
+    (name: string) => {
+      setSignatureName(name);
+      const key = selectedSignatureId ?? 'new';
+      setSignatureDrafts((prev) => ({ ...prev, [key]: { name, content: signature } }));
+    },
+    [selectedSignatureId, signature],
+  );
+
+  /** Pick a signature to edit; a draft for it (if any) comes back with it. */
+  const handleSelectSignature = useCallback(
+    (id: string) => {
+      const item = signatures.find((entry) => entry.id === id);
+      if (!item) return;
+      const draft = signatureDrafts[id];
+      setSelectedSignatureId(id);
+      setSignature(draft?.content ?? item.contentHtml);
+      setLoadedSignature(item.contentHtml);
+      setSignatureName(draft?.name ?? item.name);
+      setLoadedSignatureName(item.name);
+    },
+    [signatures, signatureDrafts],
+  );
+
+  /** Start a blank signature; a half-typed new one is kept as the 'new' draft. */
+  const addSignature = useCallback(() => {
+    if (selectedSignatureId === null) return;
+    const draft = signatureDrafts['new'];
+    setSelectedSignatureId(null);
+    setSignature(draft?.content ?? '');
+    setLoadedSignature('');
+    setSignatureName(draft?.name ?? '');
+    setLoadedSignatureName('');
+  }, [selectedSignatureId, signatureDrafts]);
+
+  /** Delete the selected signature; the editor re-seeds on what remains. */
+  const deleteSelectedSignature = useCallback(async () => {
+    if (!selectedSignatureId || signatureStatus === 'saving') return;
     setSignatureStatus('saving');
-    // Emptying the field removes the signature entirely.
-    if (!contentHtml && defaultSignatureId) {
-      const response = await apiClient.deleteEmailSignature(defaultSignatureId);
-      if (!response.success) {
-        setSignatureStatus('error');
-        showToast({ text: 'Failed to remove signature', type: 'error' });
-        return;
-      }
-      setDefaultSignatureId(null);
+    const response = await apiClient.deleteEmailSignature(selectedSignatureId);
+    if (!response.success) {
+      setSignatureStatus('error');
+      showToast({ text: 'Failed to remove signature', type: 'error' });
+      return;
+    }
+    const removedId = selectedSignatureId;
+    const remaining = signatures.filter((entry) => entry.id !== removedId);
+    setSignatureDrafts((prev) => {
+      const next = { ...prev };
+      delete next[removedId];
+      return next;
+    });
+    // Deleting the default promotes the next signature server-side (next by
+    // name ascending — which is also the head of this list once the old
+    // default is removed, since the list is ordered default-first then by
+    // name). The local flags are stale until a refetch, so mark the
+    // promoted survivor as default here instead of trusting them: without
+    // this, deleting the default left `defaultSignatureId` null and the
+    // "Default" pill gone even though the server had already promoted one.
+    const next = remaining.find((entry) => entry.isDefault) ?? remaining[0] ?? null;
+    setSignatures(
+      next ? remaining.map((entry) => ({ ...entry, isDefault: entry.id === next.id })) : remaining,
+    );
+    setDefaultSignatureId(next?.id ?? null);
+    if (next) {
+      const draft = signatureDrafts[next.id];
+      setSelectedSignatureId(next.id);
+      setSignature(draft?.content ?? next.contentHtml);
+      setLoadedSignature(next.contentHtml);
+      setSignatureName(draft?.name ?? next.name);
+      setLoadedSignatureName(next.name);
+    } else {
+      setSelectedSignatureId(null);
       setSignature('');
       setLoadedSignature('');
-      setSignatureStatus('saved');
-      invalidateDefaultSignature();
-      showToast({ text: 'Email signature removed', type: 'success' });
+      setSignatureName('');
+      setLoadedSignatureName('');
+    }
+    setSignatureStatus('saved');
+    // The composer caches the signature list for the session, so any edit
+    // here has to drop that cache — otherwise saving and immediately
+    // composing would attach the old one, and the toast below would be a lie.
+    invalidateDefaultSignature();
+    showToast({ text: 'Email signature removed', type: 'success' });
+  }, [selectedSignatureId, signatureStatus, signatures, signatureDrafts]);
+
+  /** Promote the selected signature to the account default. */
+  const setSignatureAsDefault = useCallback(async () => {
+    if (!selectedSignatureId || signatureStatus === 'saving') return;
+    setSignatureStatus('saving');
+    const response = await apiClient.setDefaultEmailSignature(selectedSignatureId);
+    if (!response.success || !response.data) {
+      setSignatureStatus('error');
+      showToast({ text: 'Failed to set default signature', type: 'error' });
+      return;
+    }
+    setSignatures((prev) =>
+      prev.map((entry) => ({ ...entry, isDefault: entry.id === selectedSignatureId })),
+    );
+    setDefaultSignatureId(selectedSignatureId);
+    setSignatureStatus('saved');
+    invalidateDefaultSignature();
+    showToast({ text: 'Default signature updated', type: 'success' });
+  }, [selectedSignatureId, signatureStatus]);
+
+  const saveSignature = useCallback(async () => {
+    const contentHtml = signature.trim();
+    const name = signatureName.trim();
+    if (!hasSignatureChanges) return;
+    setSignatureStatus('saving');
+    // Emptying the field removes the selected signature entirely — the old
+    // single-editor behaviour, now per selected signature.
+    if (!contentHtml && selectedSignatureId) {
+      await deleteSelectedSignature();
       return;
     }
     if (!contentHtml) return;
-    const response = defaultSignatureId
-      ? await apiClient.updateEmailSignature(defaultSignatureId, { contentHtml })
+    const update: { name?: string; contentHtml: string } = { contentHtml };
+    if (name) update.name = name;
+    const response = selectedSignatureId
+      ? await apiClient.updateEmailSignature(selectedSignatureId, update)
       : await apiClient.createEmailSignature({
-          name: 'QuantMail signature',
+          name: name || 'QuantMail signature',
           contentHtml,
-          isDefault: true,
+          // The first signature is always the default (the backend enforces
+          // this too); later ones join as alternates until promoted.
+          isDefault: signatures.length === 0,
         });
     if (!response.success || !response.data) {
       setSignatureStatus('error');
       showToast({ text: 'Failed to update signature', type: 'error' });
       return;
     }
-    setDefaultSignatureId(response.data.id);
-    setSignature(response.data.contentHtml);
-    setLoadedSignature(response.data.contentHtml);
+    const saved = response.data;
+    setSignatures((prev) => {
+      const next = selectedSignatureId
+        ? prev.map((entry) => (entry.id === selectedSignatureId ? saved : entry))
+        : [...prev, saved];
+      return next;
+    });
+    if (saved.isDefault) setDefaultSignatureId(saved.id);
+    setSelectedSignatureId(saved.id);
+    setSignature(saved.contentHtml);
+    setLoadedSignature(saved.contentHtml);
+    setSignatureName(saved.name);
+    setLoadedSignatureName(saved.name);
+    setSignatureDrafts((prev) => {
+      const next = { ...prev };
+      delete next[selectedSignatureId ?? 'new'];
+      return next;
+    });
     setSignatureStatus('saved');
-    // The composer caches the default signature for the session, so an edit here
+    // The composer caches the signature list for the session, so an edit here
     // has to drop that cache — otherwise saving a new signature and immediately
     // composing would attach the old one, and the toast below would be a lie.
     invalidateDefaultSignature();
     showToast({ text: 'Email signature saved and active', type: 'success' });
-  }, [defaultSignatureId, hasSignatureChanges, signature]);
+  }, [
+    deleteSelectedSignature,
+    hasSignatureChanges,
+    selectedSignatureId,
+    signature,
+    signatureName,
+    signatures.length,
+  ]);
 
   const handleSelectAIModel = (modelId: AIIntent) => {
     setSelectedAIModel(modelId);
@@ -784,7 +949,7 @@ export default function SettingsPage() {
 
               <SettingsSection
                 title="Email signature"
-                description="Attached to messages you compose, above Send, where you can leave it off for one message. HTML is allowed."
+                description="Attached to messages you compose, above Send, where you can leave it off for one message. Keep several signatures — formal, casual — and pick one per message in the composer. HTML is allowed."
                 action={
                   <Button
                     variant="secondary"
@@ -794,15 +959,54 @@ export default function SettingsPage() {
                   >
                     {signatureStatus === 'saving'
                       ? 'Saving signature…'
-                      : !signature.trim() && defaultSignatureId
+                      : !signature.trim() && selectedSignatureId
                         ? 'Remove signature'
                         : 'Save signature'}
                   </Button>
                 }
               >
+                {/*
+                  The signature list (fix/qm-multiple-signatures). Spaced
+                  buttons, never divider lines. Selecting one loads it into
+                  the editor below; unsaved keystrokes survive the switch via
+                  the per-signature drafts and come back on reselect.
+                */}
+                {signatures.length > 0 && (
+                  <div className="space-y-2" aria-label="Email signatures">
+                    {signatures.map((item) => {
+                      const selected = item.id === selectedSignatureId;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleSelectSignature(item.id)}
+                          aria-pressed={selected}
+                          aria-label={`Edit signature ${item.name}`}
+                          className={`flex min-h-touch w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-xs ${
+                            selected
+                              ? 'border-[var(--quant-primary)] text-[var(--quant-foreground)]'
+                              : 'border-[var(--quant-border)] text-[var(--quant-muted-foreground)]'
+                          }`}
+                        >
+                          <span className="min-w-0 truncate font-medium">{item.name}</span>
+                          {item.isDefault && <StatusPill>Default</StatusPill>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <FormField label="Signature name" htmlFor="settings-signature-name">
+                  <Input
+                    id="settings-signature-name"
+                    value={signatureName}
+                    onChange={(event) => handleSignatureNameChange(event.target.value)}
+                    placeholder="Formal, Casual…"
+                    fullWidth
+                  />
+                </FormField>
                 <TextArea
                   value={signature}
-                  onChange={(event) => setSignature(event.target.value)}
+                  onChange={(event) => handleSignatureContentChange(event.target.value)}
                   rows={4}
                   aria-label="Email signature"
                   placeholder={'Best regards,\nYour name\nYour title'}
@@ -832,6 +1036,42 @@ export default function SettingsPage() {
                     )}
                   </div>
                 )}
+                {/*
+                  Signature management (fix/qm-multiple-signatures). The Save
+                  button in the section header writes the selected signature;
+                  these three change which signatures exist and which one is
+                  the default the composer starts with.
+                */}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => addSignature()}
+                    disabled={selectedSignatureId === null || signatureStatus === 'saving'}
+                  >
+                    Add signature
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void setSignatureAsDefault()}
+                    disabled={
+                      !selectedSignatureId ||
+                      selectedSignatureId === defaultSignatureId ||
+                      signatureStatus === 'saving'
+                    }
+                  >
+                    Set as default
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void deleteSelectedSignature()}
+                    disabled={!selectedSignatureId || signatureStatus === 'saving'}
+                  >
+                    Delete signature
+                  </Button>
+                </div>
               </SettingsSection>
 
               <VacationResponderSettings />
