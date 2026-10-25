@@ -701,32 +701,90 @@ export function useDrive(): UseDriveReturn {
   }, []);
 
   // fix/qm-drive-folder-colors-2 — Drive-style folder color with optimistic
-  // update + rollback on failure (same pattern as starFile/unstarFile).
+  // update + rollback on failure (same pattern as starFile/unstarFile, plus
+  // the concurrency hardening below — the naive capture-previous/rollback
+  // interleaves WRONG under rapid re-picks: pick A (red) then B (blue);
+  // if A's request fails after B was picked, rolling A back to A's
+  // `previous` (null) clobbers B's blue even when B succeeds. Two guards
+  // prevent that, per folder:
+  // 1. SERIALIZED network: each folder's PUTs run one at a time in issue
+  //    order (a per-folder promise chain), so the server applies picks in
+  //    the order the user made them — last-write-wins on the server too.
+  // 2. LAST-WRITE-WINS reconciliation: `confirmed` tracks the last color
+  //    the server actually persisted (updated by ANY completed PUT, stale
+  //    or not). Only the LATEST pick may roll back, and it rolls back to
+  //    `confirmed` — never to a stale captured `previous` that may itself
+  //    be an unconfirmed optimistic tint. A stale failure is ignored for
+  //    state (its own caller still resolves false, so its toast path stays
+  //    honest) but never touches the displayed tint.
+  // The tint itself still changes IMMEDIATELY on pick (optimistic setFiles
+  // below runs before any await); only the network is serialized.
+  const folderColorStateRef = useRef(
+    new Map<
+      string,
+      {
+        seq: number;
+        confirmed: string | null | undefined;
+        chain: Promise<void>;
+      }
+    >(),
+  );
   const setFolderColor = useCallback(async (folderId: string, color: string | null) => {
-    const previous = new Map<string, string | null | undefined>();
+    let entry = folderColorStateRef.current.get(folderId);
+    if (!entry) {
+      entry = { seq: 0, confirmed: undefined, chain: Promise.resolve() };
+      folderColorStateRef.current.set(folderId, entry);
+    }
+    const seq = ++entry.seq;
+    const state = entry;
     setFiles((prev) =>
       prev.map((f) => {
         if (f.id === folderId && f.type === 'folder') {
-          previous.set(f.id, f.color);
+          // First pick for this folder: the pre-pick tint IS server state
+          // (nothing pending), so it seeds `confirmed`.
+          if (state.confirmed === undefined) state.confirmed = f.color ?? null;
           return { ...f, color };
         }
         return f;
       }),
     );
-    try {
-      const response = await apiRequest(`/api/drive/folders/${folderId}/color`, {
-        method: 'PUT',
-        body: JSON.stringify({ color }),
-      });
-      if (!response.ok) throw new Error('Failed to set folder color');
-      return true;
-    } catch (err) {
-      setFiles((prev) =>
-        prev.map((f) => (f.id === folderId ? { ...f, color: previous.get(f.id) ?? null } : f)),
-      );
-      setError(getDriveErrorMessage(err, 'Setting folder color failed'));
-      return false;
-    }
+    const run = state.chain.then(async () => {
+      try {
+        const response = await apiRequest(`/api/drive/folders/${folderId}/color`, {
+          method: 'PUT',
+          body: JSON.stringify({ color }),
+        });
+        if (!response.ok) throw new Error('Failed to set folder color');
+        state.confirmed = color;
+        return true;
+      } catch (err) {
+        // Only the latest pick owns the tint now: roll back to the last
+        // server-confirmed color, and surface an honest error. A stale
+        // failure must not move the tint (a newer pick already owns it).
+        // Note the toast ordering stays honest too: because the network
+        // is serialized, a stale failure's error toast (same
+        // `drive-color-<id>` subject) always precedes the latest pick's
+        // outcome toast, which evicts it — the user never ends on a
+        // stale error for a color that actually persisted.
+        if (seq === state.seq) {
+          const target = state.confirmed ?? null;
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.id === folderId && f.type === 'folder' ? { ...f, color: target } : f,
+            ),
+          );
+          setError(getDriveErrorMessage(err, 'Setting folder color failed'));
+        }
+        return false;
+      }
+    });
+    // The chain itself never rejects (run always resolves boolean), so a
+    // later pick is never blocked by an earlier failure.
+    state.chain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
   }, []);
 
   const getVersionHistory = useCallback(async (fileId: string) => {

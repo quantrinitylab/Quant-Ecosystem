@@ -17,9 +17,49 @@ export interface FolderColorPickerProps {
  * Drive-style folder color picker: 16 fixed swatches + "No color" reset.
  * Renders as a fixed-position popover anchored near the click/tap point, on
  * pure-black per the QuantMail UI rules (no divider lines).
+ *
+ * Focus contract (applies identically at all three invocation points —
+ * right-click context menu, hover palette action, breadcrumb palette
+ * control — because every one renders this same component):
+ * - Opening moves focus INTO the picker: the selected swatch, else the
+ *   first swatch. A keyboard user never has to hunt for the popover.
+ * - Closing by ANY path (Escape, swatch/reset selection, backdrop
+ *   pointer-down) returns focus to the element that was focused when the
+ *   picker opened, via the unmount cleanup below. If that element is gone
+ *   by close time (e.g. the context-menu item unmounted when the palette
+ *   replaced the menu), the restore is a silent no-op — never a focus
+ *   error, never focus thrown at a detached node.
+ * - Arrow keys move across all 17 controls in grid order (Left/Right ±1
+ *   with wraparound, Up/Down ±4 clamped to the grid, Home/End to the
+ *   first/last control). Tab is deliberately NOT trapped: no focus trap
+ *   is installed, so Tab follows native DOM order out of the popover.
  */
 export function FolderColorPicker({ selected, onSelect, onClose, anchor, label }: FolderColorPickerProps) {
   const ref = useRef<HTMLDivElement>(null);
+  // One entry per focusable control: 16 swatches + the "No color" reset.
+  const controlRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  useEffect(() => {
+    // Capture BEFORE moving focus: whatever was focused at open time is
+    // where focus returns on close (when it still exists).
+    const previouslyFocused = document.activeElement;
+    const selectedIndex = FOLDER_COLORS.findIndex(
+      (c) => selected?.toUpperCase() === c.hex,
+    );
+    const initial = controlRefs.current[selectedIndex >= 0 ? selectedIndex : 0];
+    initial?.focus();
+    return () => {
+      // Unmount = close, whatever path closed it. Restore only when the
+      // opener is still a live, connected element; otherwise no-op.
+      try {
+        if (previouslyFocused instanceof HTMLElement && document.contains(previouslyFocused)) {
+          previouslyFocused.focus();
+        }
+      } catch {
+        // Focus restore must never throw: a detached opener is a no-op.
+      }
+    };
+  }, [selected]);
 
   useEffect(() => {
     const handlePointerDown = (e: PointerEvent) => {
@@ -36,6 +76,25 @@ export function FolderColorPicker({ selected, onSelect, onClose, anchor, label }
     };
   }, [onClose]);
 
+  // Arrow-key navigation across the swatch grid + reset control. The grid
+  // is 4 columns; the reset button is index 16, the row after the grid.
+  const handleGridKeyDown = (e: React.KeyboardEvent) => {
+    const controls = controlRefs.current;
+    const currentIndex = controls.indexOf(document.activeElement as HTMLButtonElement);
+    if (currentIndex < 0) return;
+    let nextIndex: number | null = null;
+    if (e.key === 'ArrowRight') nextIndex = (currentIndex + 1) % controls.length;
+    else if (e.key === 'ArrowLeft')
+      nextIndex = (currentIndex - 1 + controls.length) % controls.length;
+    else if (e.key === 'ArrowDown') nextIndex = Math.min(currentIndex + 4, controls.length - 1);
+    else if (e.key === 'ArrowUp') nextIndex = Math.max(currentIndex - 4, 0);
+    else if (e.key === 'Home') nextIndex = 0;
+    else if (e.key === 'End') nextIndex = controls.length - 1;
+    if (nextIndex === null) return;
+    e.preventDefault();
+    controls[nextIndex]?.focus();
+  };
+
   // Keep the popover inside the viewport.
   const width = 208;
   const height = 216;
@@ -50,16 +109,20 @@ export function FolderColorPicker({ selected, onSelect, onClose, anchor, label }
       className="fixed z-[80] rounded-xl bg-black border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.6)] p-3"
       style={{ left: x, top: y, width }}
       onClick={(e) => e.stopPropagation()}
+      onKeyDown={handleGridKeyDown}
     >
       <p className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider mb-2 px-1">
         Folder color
       </p>
       <div className="grid grid-cols-4 gap-2">
-        {FOLDER_COLORS.map((c) => {
+        {FOLDER_COLORS.map((c, i) => {
           const active = selected?.toUpperCase() === c.hex;
           return (
             <button
               key={c.hex}
+              ref={(el) => {
+                controlRefs.current[i] = el;
+              }}
               type="button"
               title={c.name}
               aria-label={`Color ${c.name}`}
@@ -77,6 +140,9 @@ export function FolderColorPicker({ selected, onSelect, onClose, anchor, label }
         })}
       </div>
       <button
+        ref={(el) => {
+          controlRefs.current[FOLDER_COLORS.length] = el;
+        }}
         type="button"
         onClick={() => {
           onSelect(null);

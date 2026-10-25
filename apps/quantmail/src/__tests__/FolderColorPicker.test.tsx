@@ -109,4 +109,174 @@ describe('FolderColorPicker', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onSelect).not.toHaveBeenCalled();
   });
+
+  it('Escape after unmount does not call onClose again (negative control)', () => {
+    const onClose = vi.fn();
+    renderPicker({ onClose });
+    act(() => {
+      root!.unmount();
+    });
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================================================
+// PR #1506 deep-fix — focus contract. Every invocation point (context menu,
+// hover palette action, breadcrumb control) renders this same component, so
+// the contract is proven once here and holds at all three: open moves focus
+// into the picker, every close path returns focus to the invoking element,
+// arrow keys traverse all 17 controls without trapping or dropping focus,
+// and a close whose invoker is already gone is a safe no-op.
+// ============================================================================
+
+function OpenCloseHarness({ selected }: { selected?: string | null }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div>
+      <button type="button" id="opener" onClick={() => setOpen(true)}>
+        Open picker
+      </button>
+      {open && (
+        <FolderColorPicker
+          selected={selected ?? null}
+          onSelect={() => {}}
+          onClose={() => setOpen(false)}
+          anchor={{ x: 100, y: 100 }}
+          label="Docs"
+        />
+      )}
+    </div>
+  );
+}
+
+function renderHarness(selected?: string | null) {
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+  act(() => {
+    root!.render(<OpenCloseHarness selected={selected} />);
+  });
+  const opener = container!.querySelector('#opener') as HTMLButtonElement;
+  act(() => {
+    opener.focus();
+    opener.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  return opener;
+}
+
+function pickerButtons() {
+  return Array.from(container!.querySelectorAll('button')).filter(
+    (b) => b.id !== 'opener',
+  ) as HTMLButtonElement[];
+}
+
+describe('FolderColorPicker focus', () => {
+  it('opening moves focus to the selected swatch, else the first swatch', () => {
+    const opener = renderHarness(FOLDER_COLORS[3].hex);
+    expect(document.activeElement).toBe(pickerButtons()[3]);
+    expect(opener).not.toBe(document.activeElement);
+  });
+
+  it('opening with no selection focuses the first swatch', () => {
+    renderHarness(null);
+    expect(document.activeElement).toBe(pickerButtons()[0]);
+  });
+
+  it('Escape closes and returns focus to the invoking element', () => {
+    const opener = renderHarness(null);
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(container!.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('selection close returns focus to the invoking element', () => {
+    const opener = renderHarness(null);
+    act(() => {
+      pickerButtons()[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(container!.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('backdrop close returns focus to the invoking element', () => {
+    const opener = renderHarness(null);
+    act(() => {
+      document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    });
+    expect(container!.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('arrow keys traverse swatches and the reset control without dropping focus', () => {
+    renderHarness(null);
+    const buttons = pickerButtons();
+    expect(buttons).toHaveLength(17);
+    expect(document.activeElement).toBe(buttons[0]);
+    const press = (key: string) => {
+      act(() => {
+        (document.activeElement as HTMLElement).dispatchEvent(
+          new KeyboardEvent('keydown', { key, bubbles: true }),
+        );
+      });
+    };
+    press('ArrowRight');
+    expect(document.activeElement).toBe(buttons[1]);
+    press('ArrowDown');
+    expect(document.activeElement).toBe(buttons[5]);
+    press('ArrowLeft');
+    expect(document.activeElement).toBe(buttons[4]);
+    press('End');
+    expect(document.activeElement).toBe(buttons[16]);
+    press('ArrowUp');
+    expect(document.activeElement).toBe(buttons[12]);
+    press('Home');
+    expect(document.activeElement).toBe(buttons[0]);
+    press('ArrowLeft');
+    expect(document.activeElement).toBe(buttons[16]);
+    // Focus never left the picker controls during the whole traversal.
+    expect(buttons).toContain(document.activeElement);
+  });
+
+  it('Tab does not trap: it neither closes the picker nor moves focus by itself', () => {
+    renderHarness(null);
+    const buttons = pickerButtons();
+    act(() => {
+      buttons[16].focus();
+    });
+    act(() => {
+      (document.activeElement as HTMLElement).dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }),
+      );
+    });
+    // No focus trap is installed, so Tab leaves focus where it was in
+    // jsdom (real Tab order is native DOM order) and the picker stays open.
+    expect(container!.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(document.activeElement).toBe(buttons[16]);
+  });
+
+  it('close with the invoking element already unmounted is a safe no-op', () => {
+    // Plain-DOM invoker (outside the React tree): focus it, open the
+    // picker against it, then detach it before closing.
+    const trigger = document.createElement('button');
+    trigger.textContent = 'Outside invoker';
+    document.body.appendChild(trigger);
+    trigger.focus();
+    try {
+      renderPicker({});
+      expect(document.activeElement).not.toBe(trigger);
+      trigger.remove();
+      act(() => {
+        root!.unmount();
+      });
+      expect(document.activeElement).not.toBe(trigger);
+      expect(document.body.contains(trigger)).toBe(false);
+    } finally {
+      trigger.remove();
+    }
+  });
 });
