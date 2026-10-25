@@ -17,7 +17,11 @@ interface DriveOfflineBannerProps {
  *
  * Renders only while the browser reports no network. Two honest states:
  *  - cached listings on screen: "You're offline — showing cached Drive files."
- *  - nothing cached yet: files opened while online will be available here.
+ *  - nothing cached yet: files opened while online MAY be available here.
+ *    "May" is load-bearing, not hedging: the worker only caches Drive reads
+ *    issued from Drive pages, only full 200 downloads (and only under the
+ *    declared-size cap when a size is declared), and nothing at all before
+ *    it was installed — so "will be available" would over-promise.
  *
  * Registration of the offline-cache worker happens here too; a failed
  * registration is silent by design — this banner describes the *network*
@@ -59,7 +63,7 @@ export function DriveOfflineBanner({ cached }: DriveOfflineBannerProps) {
       <p className="text-xs text-[var(--app-accent)]">
         {cached
           ? 'You\u2019re offline \u2014 showing cached Drive files. Uploads and edits need a connection.'
-          : 'You\u2019re offline \u2014 files you open while online will be available here.'}
+          : 'You\u2019re offline \u2014 files you opened while online may be available here.'}
       </p>
     </div>
   );

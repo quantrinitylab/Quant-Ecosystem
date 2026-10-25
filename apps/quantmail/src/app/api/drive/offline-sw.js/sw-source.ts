@@ -8,14 +8,31 @@
 // worker's behaviour.
 //
 // Worker contract (minimal slice):
-//  - Scope is /api/drive/ (granted by serving the script from under it).
-//    It never sees pages, and never touches the push worker at scope /.
+//  - CONTROL scope is /drive (granted by route.ts's Service-Worker-Allowed
+//    header — the script itself is served from under /api/drive/, whose
+//    default max scope could never control a Drive document). The worker
+//    therefore sees fetches from /drive and /drive/doc/* pages only.
+//  - INTERCEPT scope is narrower: only GET /api/drive/* reads (see
+//    isDriveReadCacheable, embedded below), plus a same-origin guard.
+//    Non-Drive routes, mutations, the worker script itself, and the
+//    freshness-critical upload-chunk status endpoint pass through
+//    untouched — the handler simply never calls respondWith for them.
+//    The worker never touches the push worker at scope /: push
+//    subscriptions live on the /sw.js registration, not on the page's
+//    controller, so controlling Drive pages changes nothing about push.
 //  - Metadata reads (listings, quota, shares, search): stale-while-revalidate
 //    — serve the cached copy instantly (stamped with the x-quantdrive-cache
 //    header so the UI can say "showing cached files"), refresh in background.
 //  - File downloads/previews: network-first with cache fallback, so a file
-//    opened while online opens offline too. Downloads larger than
-//    MAX_DOWNLOAD_CACHE_BYTES are never stored.
+//    opened while online opens offline too. A download is stored only when
+//    it is a full 200 response to a non-Range request, and — when the
+//    server declares a size — that size is at most
+//    MAX_DOWNLOAD_CACHE_BYTES. NOTE: the Drive download proxy streams
+//    without a Content-Length, so for real downloads the declared-size
+//    check cannot run and the body is cached opportunistically; a quota
+//    failure there is swallowed by cachePutSafe and never breaks the live
+//    response. The cap is a declared-size guard, not a measured-size
+//    guarantee — user-facing copy must not promise otherwise.
 //  - Offline with nothing cached: an honest 503 JSON (OFFLINE_NOT_CACHED) —
 //    never a fake success, never a poisoned cache entry (only res.ok cached).
 // ============================================================================
@@ -32,7 +49,8 @@ const MAX_DOWNLOAD_CACHE_BYTES = 25 * 1024 * 1024;
 
 const WORKER_PRELUDE = "'use strict';\n" +
   '/* QuantDrive offline-cache worker — minimal slice (read paths only).\n' +
-  ' * Scope: /api/drive/. Never touches pages or the push worker (scope /).\n' +
+  ' * Controls /drive documents; answers only GET /api/drive/ reads from them.\n' +
+  ' * Never touches the push worker (scope /) or its subscription.\n' +
   ' * Metadata: stale-while-revalidate. Downloads: network-first, cache fallback.\n' +
   ' * Offline + nothing cached: honest 503 JSON, never fake data. */\n';
 
@@ -122,9 +140,25 @@ self.addEventListener('fetch', function (event) {
         try {
           var network = await fetch(request);
           if (network && network.ok) {
+            // Never cache a partial response under the full URL: a 206 (or
+            // any Range answer) stored under the plain download URL would
+            // later be served as if it were the whole file.
+            var rangeHeader = null;
+            try {
+              rangeHeader = request.headers ? request.headers.get('Range') : null;
+            } catch (err) {
+              rangeHeader = null;
+            }
             var lengthHeader = network.headers.get('content-length');
             var length = lengthHeader === null ? NaN : Number(lengthHeader);
-            if (lengthHeader === null || length <= MAX_DOWNLOAD_CACHE_BYTES) {
+            // Declared-size cap only: streamed bodies carry no
+            // Content-Length (the download proxy streams), so those are
+            // cached opportunistically — see the contract comment above.
+            if (
+              network.status === 200 &&
+              rangeHeader === null &&
+              (lengthHeader === null || length <= MAX_DOWNLOAD_CACHE_BYTES)
+            ) {
               await cachePutSafe(await caches.open(CACHE_NAME), request, network.clone());
             }
           }

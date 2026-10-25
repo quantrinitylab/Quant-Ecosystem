@@ -9,10 +9,24 @@
 // Deliberate scope (full offline editing + auto-sync is follow-up work, NOT
 // in this slice):
 //   1. An offline-caching service worker for Drive READ paths (file
-//      listings/metadata + file previews/downloads). Served from
-//      /api/drive/offline-sw.js so its max scope is /api/drive/ — it can see
-//      every /api/drive/* read without ever touching pages or the push
-//      worker, which owns scope / (public/sw.js) and must keep owning it.
+//      listings/metadata + file previews/downloads) issued from Drive pages.
+//      TWO scopes must not be confused here:
+//      - Control scope (which documents the worker controls): '/drive'.
+//        A worker only ever sees fetches from documents it controls, so a
+//        scope of '/api/drive/' could NEVER intercept a Drive page's API
+//        calls — no app document lives under /api/drive/. The script is
+//        served from /api/drive/offline-sw.js, but route.ts widens the
+//        permitted scope to '/drive' via Service-Worker-Allowed, which is
+//        what lets the worker control the /drive document (and /drive/doc/*)
+//        and actually see its fetches. Scope '/' is forbidden: it would
+//        collide with the push worker (public/sw.js), which owns scope /
+//        and must keep owning it — and registering a second worker at an
+//        already-owned scope would replace the push registration.
+//      - Intercept scope (which requests the worker handles): only GET
+//        /api/drive/* reads (see isDriveReadCacheable), plus a same-origin
+//        guard in the worker itself. Every other fetch from a Drive page —
+//        non-Drive routes, mutations, the worker script itself — passes
+//        through untouched because the handler never calls respondWith.
 //   2. An honest offline indicator on the Drive surface when the network drops.
 //   3. Honest error states — never a fake success — when content is not
 //      available offline.
@@ -26,8 +40,19 @@
 /** URL the Drive offline worker is served from (route: src/app/api/drive/offline-sw.js). */
 export const DRIVE_OFFLINE_SW_URL = '/api/drive/offline-sw.js';
 
-/** Worker scope — deliberately limited to Drive API reads. */
-export const DRIVE_OFFLINE_SW_SCOPE = '/api/drive/';
+/**
+ * Worker CONTROL scope — the documents the worker controls.
+ *
+ * '/drive' (no trailing slash) is deliberate: the Drive document itself
+ * lives at exactly /drive, and scope matching is a string prefix — a scope
+ * of '/drive/' would control /drive/doc/* but NOT the /drive document, so
+ * the banner's own page would never be cached. '/drive' covers /drive,
+ * /drive?tab=*, and /drive/doc/*, and nothing else. It is NOT the
+ * intercept scope: what the worker caches is decided by
+ * isDriveReadCacheable (GET /api/drive/* reads only), not by this value.
+ * Never widen this to '/' — the push worker owns scope / (see above).
+ */
+export const DRIVE_OFFLINE_SW_SCOPE = '/drive';
 
 /** Versioned cache name; the worker evicts older quantdrive-offline-* caches. */
 export const DRIVE_OFFLINE_CACHE_NAME = 'quantdrive-offline-v1';
@@ -43,9 +68,21 @@ export const DRIVE_OFFLINE_CACHE_HIT = 'hit';
  * True when this request is a Drive READ the offline worker may cache.
  *
  * Rules: GET only (uploads/renames/deletes/shares pass straight through —
- * caching a mutation response would be a lie), same path family as the
- * worker's /api/drive/ scope, and never the worker script itself (caching
- * /api/drive/offline-sw.js would pin a stale worker).
+ * caching a mutation response would be a lie), under /api/drive/, and never
+ * the worker script itself (caching /api/drive/offline-sw.js would pin a
+ * stale worker). The resumable-upload subtree (/api/drive/upload/*) is
+ * excluded too: GET /api/drive/upload/chunk/<id>/status reports which
+ * chunks already landed, and serving a stale copy of THAT would make the
+ * uploader skip chunks the server never received — freshness-critical
+ * state must never come from the cache, even while online (the metadata
+ * strategy serves cached copies instantly).
+ *
+ * NOTE: this is a path-and-method check only. It deliberately does not
+ * decide origin: an absolute cross-origin URL with a Drive path still
+ * returns true here, and the worker's fetch handler applies the
+ * same-origin guard on top before ever calling respondWith. Do not use
+ * this predicate alone as an "is safe to serve" decision outside the
+ * worker without that guard.
  *
  * NOTE: declared as a typed const holding an *unannotated* arrow function.
  * The arrow's source is embedded verbatim into the service worker via
@@ -65,6 +102,9 @@ export const isDriveReadCacheable: (url: string, method: string) => boolean = (u
   }
   if (pathname.indexOf('/api/drive/') !== 0) return false;
   if (pathname === '/api/drive/offline-sw.js') return false;
+  if (pathname.indexOf('/api/drive/offline-sw.js/') === 0) return false;
+  if (pathname === '/api/drive/upload') return false;
+  if (pathname.indexOf('/api/drive/upload/') === 0) return false;
   return true;
 };
 
@@ -83,7 +123,12 @@ export async function registerDriveOfflineWorker(): Promise<ServiceWorkerRegistr
   try {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') return null;
     if (!('serviceWorker' in navigator)) return null;
-    // Scope /api/drive/ keeps this worker off the push worker's scope (/).
+    // Control scope '/drive' (see DRIVE_OFFLINE_SW_SCOPE): the worker must
+    // control Drive documents to see their fetches at all. The route's
+    // Service-Worker-Allowed header is what permits this scope for a script
+    // served from under /api/drive/. This stays off the push worker's
+    // scope (/) — push subscriptions live on the /sw.js registration and
+    // are unaffected by which worker controls a given page.
     const registration = await navigator.serviceWorker.register(DRIVE_OFFLINE_SW_URL, {
       scope: DRIVE_OFFLINE_SW_SCOPE,
     });

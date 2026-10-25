@@ -16,6 +16,7 @@ import {
   getDriveErrorMessage,
   registerDriveOfflineWorker,
   DRIVE_OFFLINE_CACHE_NAME,
+  DRIVE_OFFLINE_SW_SCOPE,
 } from '../../../../lib/drive-offline';
 import { DRIVE_OFFLINE_SW_SOURCE } from '../../../api/drive/offline-sw.js/sw-source';
 import { GET as offlineSwRouteGet } from '../../../api/drive/offline-sw.js/route';
@@ -53,6 +54,32 @@ describe('isDriveReadCacheable', () => {
 
   it('never caches the worker script itself', () => {
     expect(isDriveReadCacheable('/api/drive/offline-sw.js', 'GET')).toBe(false);
+    expect(isDriveReadCacheable('/api/drive/offline-sw.js/', 'GET')).toBe(false);
+    expect(isDriveReadCacheable('/api/drive/offline-sw.js?v=2', 'GET')).toBe(false);
+  });
+
+  it('never caches the freshness-critical upload-chunk status', () => {
+    // GET /api/drive/upload/chunk/<id>/status reports which chunks already
+    // landed; a stale-while-revalidate copy would make the uploader skip
+    // chunks the server never received. The whole upload subtree is out.
+    expect(isDriveReadCacheable('/api/drive/upload/chunk/abc123/status', 'GET')).toBe(false);
+    expect(isDriveReadCacheable('/api/drive/upload', 'GET')).toBe(false);
+    expect(isDriveReadCacheable('/api/drive/upload/chunk/abc123', 'POST')).toBe(false);
+    // Boundary pin: the exclusion is the /upload/ prefix, not the word
+    // "upload" anywhere — unrelated paths stay cacheable.
+    expect(isDriveReadCacheable('/api/drive/uploads', 'GET')).toBe(true);
+  });
+
+  it('controls Drive documents, not Drive API paths — and never the push scope', () => {
+    // The control scope is what lets the worker see a Drive page's fetches
+    // at all: '/api/drive/' would control no app document (scope matching
+    // is a document-URL prefix), and '/' would collide with the push
+    // worker. '/drive' (no trailing slash) covers the /drive document
+    // itself, which '/drive/' would miss.
+    expect(DRIVE_OFFLINE_SW_SCOPE).toBe('/drive');
+    expect(DRIVE_OFFLINE_SW_SCOPE).not.toBe('/api/drive/');
+    expect(DRIVE_OFFLINE_SW_SCOPE).not.toBe('/');
+    expect(DRIVE_OFFLINE_SW_SCOPE).not.toBe('/drive/');
   });
 
   it('ignores non-Drive paths', () => {
@@ -98,6 +125,18 @@ describe('DRIVE_OFFLINE_SW_SOURCE', () => {
     expect(DRIVE_OFFLINE_SW_SOURCE).toContain('MAX_DOWNLOAD_CACHE_BYTES');
     expect(DRIVE_OFFLINE_SW_SOURCE).toContain('quantdrive-offline-');
   });
+
+  it('never caches partial downloads under the full URL', () => {
+    // A 206 / Range answer stored under the plain download URL would later
+    // be served as if it were the whole file.
+    expect(DRIVE_OFFLINE_SW_SOURCE).toContain("get('Range')");
+    expect(DRIVE_OFFLINE_SW_SOURCE).toContain('network.status === 200');
+  });
+
+  it('states its control scope honestly in the served script', () => {
+    expect(DRIVE_OFFLINE_SW_SOURCE).toContain('Controls /drive documents');
+    expect(DRIVE_OFFLINE_SW_SOURCE).not.toContain('Scope: /api/drive/.');
+  });
 });
 
 describe('offline worker route', () => {
@@ -108,6 +147,15 @@ describe('offline worker route', () => {
     expect(res.headers.get('cache-control')).toContain('no-store');
     const body = await res.text();
     expect(body).toContain(DRIVE_OFFLINE_CACHE_NAME);
+  });
+
+  it('widens the permitted scope to /drive — the load-bearing header', () => {
+    // Without Service-Worker-Allowed: /drive, the browser would reject a
+    // '/drive' scope for a script served from under /api/drive/, and the
+    // worker would fall back to controlling nothing the app uses.
+    return offlineSwRouteGet().then((res) => {
+      expect(res.headers.get('service-worker-allowed')).toBe('/drive');
+    });
   });
 });
 
@@ -159,7 +207,10 @@ describe('DriveOfflineBanner', () => {
     setOnLine(false);
     const html = renderToStaticMarkup(<DriveOfflineBanner cached={false} />);
     expect(html).toContain('role="status"');
-    expect(html).toContain('files you open while online will be available here');
+    // "May", not "will": the worker only caches Drive reads from Drive
+    // pages, only full 200 downloads, and nothing before it was installed.
+    expect(html).toContain('files you opened while online may be available here');
+    expect(html).not.toContain('will be available here');
   });
 
   it('uses the Drive app accent on a pure-black surface with no divider lines', () => {
