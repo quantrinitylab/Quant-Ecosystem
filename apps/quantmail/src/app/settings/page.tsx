@@ -37,7 +37,11 @@
  *   for keys that act on the *focused* row. The tab now renders
  *   `INBOX_COMMAND_REFERENCE` through the same model the `?` sheet uses, so a key
  *   listed here cannot fail to exist. The `J / ↓` glyphs the old table spelled by
- *   hand come out of `chords.ts`'s `SYMBOL_LABELS` instead.
+ *   hand come out of `chords.ts`'s `SYMBOL_LABELS` instead. The tab is no longer
+ *   read-only either: each row can be changed, disabled or reset through the
+ *   override store in `lib/keyboard/`, which the registry applies when it binds
+ *   — so a remap rebinds the app, not just the text on this page. Overrides
+ *   live in this browser's `localStorage`.
  * - **Phone verification on the General tab.** It is still here, once, under
  *   Security — where a recovery factor belongs. Two entry points to one control
  *   is the ambiguity this page has been shedding everywhere else.
@@ -76,15 +80,15 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { apiClient } from '../../services/api-client';
 import { VacationResponderSettings } from './VacationResponderSettings';
+import { KeyboardShortcutSettings } from './KeyboardShortcutSettings';
 import { MailFiltersSettings } from './MailFiltersSettings';
 import { showToast } from '../../components/InboxToast';
-import { ShortcutKeys } from '../../components/ShortcutKeys';
 import { useDesktopNotifications } from '../../hooks/useDesktopNotifications';
 import { useMailNotificationMode } from '../../hooks/useMailNotificationMode';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { writeAIIntent } from '../../lib/ai-intent-preference';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
-import { buildHelpGroups, dimNoteFor, helpGroupHeading } from '../../lib/keyboard/help-model';
+import { buildHelpGroups, dimNoteFor } from '../../lib/keyboard/help-model';
 import {
   MAIL_NOTIFICATION_MODE_OPTIONS,
   type MailNotificationMode,
@@ -1130,35 +1134,9 @@ export default function SettingsPage() {
           {activeTab === 'keyboard' && (
             <SettingsSection
               title="Keyboard shortcuts"
-              description="Read from the same registry the keyboard engine matches against, so a key listed here is a key that is bound. The previous table was written by hand and had drifted: it documented Ctrl+S, a C for compose and an Escape that nothing listened for."
+              description="Read from the same registry the keyboard engine matches against, so a key listed here is a key that is bound — and each row can be changed, disabled or reset. A remap rebinds the live app immediately. Shortcuts are saved in this browser only, so a remap made here does not follow you to another machine."
             >
-              {helpGroups.map(({ group, items }) => (
-                <div key={group}>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--quant-text-muted)]">
-                    {helpGroupHeading(group)}
-                  </p>
-                  <ul className="mt-2 list-none p-0">
-                    {items.map((item) => (
-                      <li
-                        key={item.id}
-                        className={`shortcut-row min-h-11${item.available ? '' : ' is-unavailable'}`}
-                      >
-                        <span className="shortcut-desc">{item.label}</span>
-                        <span className="shortcut-keys">
-                          <ShortcutKeys keys={item.keys} aliases />
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-              <p className="border-t border-[var(--quant-border)] pt-3 text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
-                Press{' '}
-                <span className="shortcut-keys inline-flex">
-                  <kbd>?</kbd>
-                </span>{' '}
-                anywhere to see this as a sheet.{helpNote}
-              </p>
+              <KeyboardShortcutSettings groups={helpGroups} helpNote={helpNote} />
             </SettingsSection>
           )}
         </div>

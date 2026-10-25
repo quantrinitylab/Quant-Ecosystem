@@ -35,6 +35,13 @@ export interface HelpEntry {
   destructive: boolean;
   /** One-line explanation, where the registry supplies one. */
   description?: string;
+  /**
+   * Engine scope the binding lives in (`'global'` when unscoped). The `?`
+   * sheet ignores this; Settings needs it, because a collision only matters
+   * inside one scope — `t` toggling the theme globally and going to today
+   * on the calendar is designed shadowing, not a conflict.
+   */
+  scope: string;
 }
 
 export interface HelpGroup {
@@ -73,6 +80,7 @@ export function buildHelpGroups(commands: readonly Command[]): HelpGroup[] {
       elsewhere: false,
       destructive: !!command.destructive,
       description: command.description,
+      scope: command.scope ?? 'global',
     });
   }
 
@@ -89,6 +97,7 @@ export function buildHelpGroups(commands: readonly Command[]): HelpGroup[] {
       elsewhere: true,
       destructive: !!reference.destructive,
       description: reference.description,
+      scope: 'inbox',
     });
   }
 
@@ -105,6 +114,7 @@ export function buildHelpGroups(commands: readonly Command[]): HelpGroup[] {
       elsewhere: true,
       destructive: !!reference.destructive,
       description: reference.description,
+      scope: 'calendar',
     });
   }
 
