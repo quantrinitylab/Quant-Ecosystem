@@ -112,6 +112,17 @@ describe('VacationResponderService', () => {
       ).rejects.toThrow('startAt must be before endAt');
     });
 
+    it('rejects a zero intervalDays (0 disables the per-sender rate limit)', async () => {
+      await expect(
+        service.upsertResponder('user-1', {
+          subject: 'OOO',
+          message: 'away',
+          intervalDays: 0,
+        }),
+      ).rejects.toThrow('intervalDays must be at least 1');
+      expect(prisma.vacationResponder.upsert).not.toHaveBeenCalled();
+    });
+
     it('rejects a negative intervalDays', async () => {
       await expect(
         service.upsertResponder('user-1', {
@@ -119,7 +130,18 @@ describe('VacationResponderService', () => {
           message: 'away',
           intervalDays: -1,
         }),
-      ).rejects.toThrow('intervalDays must be zero or greater');
+      ).rejects.toThrow('intervalDays must be at least 1');
+      expect(prisma.vacationResponder.upsert).not.toHaveBeenCalled();
+    });
+
+    it('rejects a non-integer intervalDays', async () => {
+      await expect(
+        service.upsertResponder('user-1', {
+          subject: 'OOO',
+          message: 'away',
+          intervalDays: 1.5,
+        }),
+      ).rejects.toThrow('intervalDays must be at least 1');
       expect(prisma.vacationResponder.upsert).not.toHaveBeenCalled();
     });
 
@@ -262,6 +284,30 @@ describe('VacationResponderService', () => {
       const result = await service.shouldAutoReply('user-1', 'alice@example.com', NOW);
 
       expect(result).toBe(true);
+    });
+
+    it('clamps a legacy intervalDays of 0 to a 1-day rate limit', async () => {
+      prisma.vacationResponder.findUnique.mockResolvedValue(makeResponder({ intervalDays: 0 }));
+      // Replied 12 hours ago — with intervalDays 0 the old code computed
+      // intervalMs = 0 and replied again to every mail (reply storm).
+      prisma.vacationAutoReplyLog.findFirst.mockResolvedValue({
+        id: 'log-1',
+        userId: 'user-1',
+        toAddress: 'alice@example.com',
+        repliedAt: new Date(NOW.getTime() - 12 * 60 * 60 * 1000),
+      });
+
+      expect(await service.shouldAutoReply('user-1', 'alice@example.com', NOW)).toBe(false);
+
+      // 2 days later the clamped 1-day interval has elapsed.
+      prisma.vacationAutoReplyLog.findFirst.mockResolvedValue({
+        id: 'log-1',
+        userId: 'user-1',
+        toAddress: 'alice@example.com',
+        repliedAt: new Date(NOW.getTime() - 2 * 24 * 60 * 60 * 1000),
+      });
+
+      expect(await service.shouldAutoReply('user-1', 'alice@example.com', NOW)).toBe(true);
     });
 
     it('skips automated senders (no-reply, mailer-daemon, postmaster, empty)', async () => {

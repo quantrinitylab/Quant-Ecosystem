@@ -48,8 +48,11 @@ export class VacationResponderService {
       throw createAppError('startAt must be before endAt', 400, 'INVALID_DATE_RANGE');
     }
 
-    if (input.intervalDays != null && input.intervalDays < 0) {
-      throw createAppError('intervalDays must be zero or greater', 400, 'INVALID_INTERVAL');
+    if (
+      input.intervalDays != null &&
+      (!Number.isInteger(input.intervalDays) || input.intervalDays < 1)
+    ) {
+      throw createAppError('intervalDays must be at least 1', 400, 'INVALID_INTERVAL');
     }
 
     const updateData: Record<string, unknown> = {
@@ -131,7 +134,11 @@ export class VacationResponderService {
       where: { userId, toAddress: fromAddress },
     });
     if (lastLog) {
-      const intervalMs = responder.intervalDays * MS_PER_DAY;
+      // Floor at 1 day: rows stored before the min-1 validation may still
+      // carry intervalDays = 0, which would make intervalMs = 0 and let
+      // every incoming mail from the sender trigger a fresh auto-reply
+      // (elapsed < 0 is never true). Never let the rate limit collapse.
+      const intervalMs = Math.max(1, responder.intervalDays) * MS_PER_DAY;
       const elapsed = now.getTime() - lastLog.repliedAt.getTime();
       if (elapsed < intervalMs) {
         return false;
