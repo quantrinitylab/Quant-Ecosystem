@@ -43,7 +43,7 @@ const STYLES: Record<FileScanStatus, string> = {
   scanning:
     'bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)] border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] animate-pulse',
   clean:
-    'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/30',
+    'bg-[var(--quant-success)]/10 text-[var(--quant-success)] border-[var(--quant-success)]/30',
   quarantined:
     'bg-[var(--quant-destructive)]/10 text-[var(--quant-destructive)] border-[var(--quant-destructive)]/40',
   unknown:
@@ -70,7 +70,7 @@ export function FileScanBadge({ status, reason, className = '' }: FileScanBadgeP
       <span
         className={`size-1.5 rounded-full ${
           normalized === 'clean'
-            ? 'bg-[#10B981]'
+            ? 'bg-[var(--quant-success)]'
             : normalized === 'quarantined'
               ? 'bg-[var(--quant-destructive)]'
               : normalized === 'unknown'

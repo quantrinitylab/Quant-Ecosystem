@@ -284,17 +284,17 @@ export function DriveFilesSubView({
         <button
           type="button"
           onClick={() => setTypeFilter(typeFilter === 'code' ? 'all' : 'code')}
-          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#10B981] ${
+          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-success)] ${
             typeFilter === 'code'
-              ? 'bg-[#10B981]/15 border-[#10B981]/60 shadow-[0_0_16px_rgba(16,185,129,0.2)]'
-              : 'bg-[var(--quant-surface)] border-[var(--quant-border)] hover:border-[#10B981]/40 hover:bg-[#10B981]/5'
+              ? 'bg-[var(--quant-success)]/15 border-[var(--quant-success)]/60 shadow-[0_0_16px_color-mix(in_srgb,var(--quant-success)_20%,transparent)]'
+              : 'bg-[var(--quant-surface)] border-[var(--quant-border)] hover:border-[var(--quant-success)]/40 hover:bg-[var(--quant-success)]/5'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="size-8 rounded-lg bg-[#10B981]/15 border border-[#10B981]/30 flex items-center justify-center text-[#10B981] font-bold text-xs">
+            <span className="size-8 rounded-lg bg-[var(--quant-success)]/15 border border-[var(--quant-success)]/30 flex items-center justify-center text-[var(--quant-success)] font-bold text-xs">
               CODE
             </span>
-            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/25">
+            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[var(--quant-success)]/10 text-[var(--quant-success)] border border-[var(--quant-success)]/25">
               GREEN
             </span>
           </div>
