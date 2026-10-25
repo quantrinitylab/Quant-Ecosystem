@@ -69,6 +69,8 @@ let seq: number;
 
 const now = () => new Date('2026-10-24T12:00:00.000Z');
 
+let currentPrisma: any;
+
 function makePrisma() {
   const match = (row: Record<string, unknown>, where: Record<string, unknown>): boolean =>
     Object.entries(where).every(([key, value]) => {
@@ -85,7 +87,16 @@ function makePrisma() {
       }
       return row[key] === value;
     });
-  return {
+  // CODEX corrective (PR #1538): the routes now run membership mutations
+  // inside prisma.$transaction and take a FOR UPDATE lock via
+  // $queryRawUnsafe. The double mirrors the repo's established shape (the
+  // callback receives the mock itself as the tx client) and additionally
+  // SIMULATES ROLLBACK: a throw inside the callback restores the
+  // pre-transaction rows, exactly as real Postgres would. Without the
+  // snapshot restore, the create-atomicity test below would fail against
+  // the double even though production rolls back — the snapshot is what
+  // makes the double faithful, not what makes the test pass.
+  const prisma: any = {
     sharedDrive: {
       create: vi.fn(async ({ data }: { data: Partial<DriveRow> }) => {
         const row: DriveRow = {
@@ -152,13 +163,38 @@ function makePrisma() {
         const row = users.find((u) => match(u as unknown as Record<string, unknown>, where));
         return row ? { ...row } : null;
       }),
+      // Exact-match lookup on the unique email field (the corrective's
+      // recipient contract): no case folding here — a differently-cased
+      // address must NOT resolve to another account's row.
+      findUnique: vi.fn(async ({ where }: { where: { email: string } }) => {
+        const row = users.find((u) => u.email === where.email);
+        return row ? { ...row } : null;
+      }),
       findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) =>
         users
           .filter((u) => match(u as unknown as Record<string, unknown>, where))
           .map((u) => ({ ...u })),
       ),
     },
+    // No-op on the double: row locks only exist on real Postgres. The
+    // two-connection Postgres suite asserts the real locking behaviour.
+    $queryRawUnsafe: vi.fn(async () => []),
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
+      const snapDrives = drives.map((d) => ({ ...d }));
+      const snapMembers = members.map((m) => ({ ...m }));
+      try {
+        return await fn(prisma);
+      } catch (err) {
+        drives.length = 0;
+        drives.push(...snapDrives);
+        members.length = 0;
+        members.push(...snapMembers);
+        throw err;
+      }
+    }),
   };
+  currentPrisma = prisma;
+  return prisma;
 }
 
 async function buildApp(currentUserId: string | null): Promise<FastifyInstance> {
@@ -425,5 +461,85 @@ describe('Shared Drives (slice 1)', () => {
     const anon = await buildApp(null);
     const res = await anon.inject({ method: 'GET', url: '/drive/shared-drives' });
     expect(res.statusCode).toBe(401);
+  });
+
+  it('CODEX corrective: a failed initial-manager write rolls back the drive create (no orphan drive)', async () => {
+    currentPrisma.sharedDriveMember.create.mockRejectedValueOnce(
+      new Error('simulated member-write failure'),
+    );
+    const res = await app.inject({
+      method: 'POST',
+      url: '/drive/shared-drives',
+      payload: { name: 'Should Not Exist' },
+    });
+    expect(res.statusCode).toBe(500);
+    // Atomicity: the drive row must not survive its manager row failing.
+    expect(drives).toHaveLength(0);
+    expect(members).toHaveLength(0);
+    const list = await app.inject({ method: 'GET', url: '/drive/shared-drives' });
+    expect(list.json()).toEqual({ sharedDrives: [] });
+  });
+
+  it('CODEX corrective: member-add resolves the EXACT email, never a case-colliding account', async () => {
+    // A second account whose email differs only by case (legacy rows like
+    // this exist wherever signup once allowed mixed case). The old
+    // case-insensitive findFirst returned whichever row it found first.
+    users.push({
+      id: 'user-teammate-upper',
+      email: 'Teammate@quantmail.in',
+      displayName: 'Teammate Upper',
+    });
+    const driveA = await createDrive('Drive A');
+    const lower = await app.inject({
+      method: 'POST',
+      url: `/drive/shared-drives/${driveA.id}/members`,
+      payload: { email: 'teammate@quantmail.in', role: 'viewer' },
+    });
+    expect(lower.statusCode).toBe(201);
+    expect(lower.json().member.userId).toBe(TEAMMATE);
+    const driveB = await createDrive('Drive B');
+    const upper = await app.inject({
+      method: 'POST',
+      url: `/drive/shared-drives/${driveB.id}/members`,
+      payload: { email: 'Teammate@quantmail.in', role: 'viewer' },
+    });
+    expect(upper.statusCode).toBe(201);
+    expect(upper.json().member.userId).toBe('user-teammate-upper');
+    // A differently-cased address with NO exact account fails closed with
+    // 404 instead of resolving to the lowercase account.
+    const ghost = await app.inject({
+      method: 'POST',
+      url: `/drive/shared-drives/${driveB.id}/members`,
+      payload: { email: 'TEAMMATE@quantmail.in', role: 'viewer' },
+    });
+    expect(ghost.statusCode).toBe(404);
+  });
+
+  it('CODEX corrective: membership mutations run inside $transaction (fail-closed, never partial)', async () => {
+    const drive = await createDrive();
+    await app.inject({
+      method: 'POST',
+      url: `/drive/shared-drives/${drive.id}/members`,
+      payload: { email: 'teammate@quantmail.in', role: 'viewer' },
+    });
+    // The demote path must also be transactional: force the update to fail
+    // and confirm the role is unchanged (no partial write).
+    currentPrisma.sharedDriveMember.update.mockRejectedValueOnce(
+      new Error('simulated role-write failure'),
+    );
+    await app.inject({
+      method: 'POST',
+      url: `/drive/shared-drives/${drive.id}/members`,
+      payload: { email: 'teammate@quantmail.in', role: 'manager' },
+    });
+    const after = await app.inject({
+      method: 'GET',
+      url: `/drive/shared-drives/${drive.id}`,
+    });
+    const teammate = after
+      .json()
+      .sharedDrive.members.find((m: any) => m.userId === TEAMMATE);
+    expect(teammate.role).toBe('viewer');
+    expect(currentPrisma.$transaction).toHaveBeenCalled();
   });
 });

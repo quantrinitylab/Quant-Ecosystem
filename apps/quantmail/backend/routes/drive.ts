@@ -1232,7 +1232,10 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
   // `createdById` is audit-only. The one invariant that keeps a drive from
   // ever being orphaned: the last manager cannot be demoted or removed
   // before another manager exists — a sole manager must appoint a successor
-  // first (via POST .../members with role 'manager'). Role levels mirror
+  // first (via POST .../members with role 'manager'). The invariant is
+  // enforced inside a locked transaction (see lockSharedDriveMembers), not
+  // by a check-then-write outside one: without the lock, two concurrent
+  // removals could both pass the check and orphan the drive. Role levels mirror
   // Google's: manager > contentManager > contributor > commenter > viewer.
   // Membership management is manager-only; content-level enforcement of the
   // lower roles lands with the follow-up slice that puts files in drives.
@@ -1285,11 +1288,53 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     if (!membership) throw createAppError('Shared drive not found', 404, 'NOT_FOUND');
     return { drive, membership };
   }
-  async function isLastManager(prisma: any, driveId: string, userId: string) {
-    const managers = await prisma.sharedDriveMember.findMany({
+  // CODEX corrective (checkpoint 6385322027, PR #1538): every shared-drive
+  // membership mutation runs inside ONE interactive transaction, and the
+  // transaction first takes a row lock on ALL membership rows of the drive
+  // (SELECT ... FOR UPDATE). That lock is what serializes concurrent
+  // mutations: a second last-manager removal blocks until the first commits,
+  // then re-reads committed state — so it can never observe the stale
+  // "two managers remain" snapshot that let two concurrent removals orphan a
+  // drive. The last-manager check and the write below it must therefore
+  // ALWAYS read from the tx client, never from the outer prisma client.
+  // The lock is Postgres-only by nature; when the tx client has no raw-query
+  // method (unit-test doubles) the lock step is skipped but the check and
+  // the write still share the one transaction, so no partial write escapes.
+  async function runSharedDriveTx<T>(txFn: (tx: any) => Promise<T>): Promise<T> {
+    if (typeof prisma.$transaction !== 'function')
+      throw createAppError(
+        'Shared drive transactions are unavailable',
+        503,
+        'TRANSACTION_UNAVAILABLE',
+      );
+    return prisma.$transaction(txFn);
+  }
+  async function lockSharedDriveMembers(tx: any, driveId: string): Promise<void> {
+    if (tx && typeof tx.$queryRawUnsafe === 'function') {
+      await tx.$queryRawUnsafe(
+        'SELECT "id" FROM "drive_shared_drive_members" WHERE "sharedDriveId" = $1 FOR UPDATE',
+        driveId,
+      );
+    }
+  }
+  async function isLastManagerTx(tx: any, driveId: string, userId: string) {
+    const managers = await tx.sharedDriveMember.findMany({
       where: { sharedDriveId: driveId, role: 'manager' },
     });
     return managers.length === 1 && managers[0].userId === userId;
+  }
+  // Re-verify the caller's membership INSIDE the locked transaction: the
+  // pre-transaction gate may be stale (a concurrent mutation may have
+  // demoted or removed the caller). Failing closed here means a stale gate
+  // can never authorize a mutation.
+  async function requireManagerInTx(tx: any, driveId: string, userId: string) {
+    const membership = await tx.sharedDriveMember.findFirst({
+      where: { sharedDriveId: driveId, userId },
+    });
+    if (!membership) throw createAppError('Shared drive not found', 404, 'NOT_FOUND');
+    if (membership.role !== 'manager')
+      throw createAppError('Only a manager can manage members', 403, 'FORBIDDEN');
+    return membership;
   }
   async function sharedDriveMemberProfiles(prisma: any, driveId: string) {
     const members = await prisma.sharedDriveMember.findMany({
@@ -1319,15 +1364,24 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     const parsed = SHARED_DRIVE_CREATE_SCHEMA.safeParse(request.body);
     if (!parsed.success) throw createAppError('Invalid shared drive request', 400, 'VALIDATION_ERROR');
     const userId = requireUserId(request);
-    const drive = await prisma.sharedDrive.create({
-      data: {
-        name: parsed.data.name,
-        description: parsed.data.description ?? null,
-        createdById: userId,
-      },
-    });
-    await prisma.sharedDriveMember.create({
-      data: { sharedDriveId: drive.id, userId, role: 'manager', addedById: userId },
+    // CODEX corrective: drive + initial manager in ONE transaction — either
+    // both rows commit or neither does. The old two-write sequence could
+    // leave a drive with no manager (orphaned) or no creator row at all if
+    // the second write failed. Provenance is unchanged: createdById on the
+    // drive and addedById on the membership row record who created what;
+    // no new tracking fields are invented.
+    const drive = await runSharedDriveTx(async (tx: any) => {
+      const created = await tx.sharedDrive.create({
+        data: {
+          name: parsed.data.name,
+          description: parsed.data.description ?? null,
+          createdById: userId,
+        },
+      });
+      await tx.sharedDriveMember.create({
+        data: { sharedDriveId: created.id, userId, role: 'manager', addedById: userId },
+      });
+      return created;
     });
     return reply
       .status(201)
@@ -1394,44 +1448,77 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     const { drive, membership } = await sharedDriveForMember(prisma, request.params.id, userId);
     if (membership.role !== 'manager')
       throw createAppError('Only a manager can add members', 403, 'FORBIDDEN');
-    const recipient = await prisma.user.findFirst({
-      where: { email: { equals: parsed.data.email, mode: 'insensitive' } },
-      select: { id: true, email: true },
-    });
-    if (!recipient) throw createAppError('Recipient user not found', 404, 'USER_NOT_FOUND');
-    // Existing members go through the update path below (so a manager can
-    // change their own role, subject to the last-manager rule); only a
-    // brand-new self-add is rejected here.
-    const existing = await sharedDriveMembership(prisma, drive.id, recipient.id);
-    if (!existing && recipient.id === userId)
-      throw createAppError('You are already a member of this shared drive', 400, 'INVALID_RECIPIENT');
-    if (existing) {
-      if (
-        existing.role === 'manager' &&
-        parsed.data.role !== 'manager' &&
-        (await isLastManager(prisma, drive.id, recipient.id))
-      ) {
-        throw createAppError(
-          'Cannot demote the last manager — appoint another manager first',
-          400,
-          'LAST_MANAGER',
-        );
-      }
-      const updated = await prisma.sharedDriveMember.update({
-        where: { id: existing.id },
-        data: { role: parsed.data.role },
+    // CODEX corrective, all inside one locked transaction:
+    // (a) recipient lookup is an EXACT match on the unique email field
+    // (findUnique, no mode:'insensitive'). The old case-insensitive
+    // findFirst could return an arbitrary row when case-colliding accounts
+    // both existed, granting membership to the wrong account. An exact
+    // lookup returns at most one row by construction of the unique index;
+    // a differently-cased address fails closed with 404 instead of
+    // silently resolving to somebody else.
+    // (b) the last-manager check and the role write share the transaction
+    // and run after the FOR UPDATE lock, so a concurrent removal cannot
+    // interleave between check and write.
+    // (c) a concurrent duplicate add cannot create a partial/duplicate row:
+    // the lock serializes it into the update path, and the unique
+    // (sharedDriveId, userId) constraint is the backstop — a P2002 fails
+    // closed with 409, never a half-written membership.
+    const result = await runSharedDriveTx(async (tx: any) => {
+      await lockSharedDriveMembers(tx, drive.id);
+      await requireManagerInTx(tx, drive.id, userId);
+      const recipient = await tx.user.findUnique({
+        where: { email: parsed.data.email },
+        select: { id: true, email: true },
       });
-      return reply.send({ member: { userId: updated.userId, role: updated.role } });
-    }
-    const created = await prisma.sharedDriveMember.create({
-      data: {
-        sharedDriveId: drive.id,
-        userId: recipient.id,
-        role: parsed.data.role,
-        addedById: userId,
-      },
+      if (!recipient) throw createAppError('Recipient user not found', 404, 'USER_NOT_FOUND');
+      // Existing members go through the update path below (so a manager can
+      // change their own role, subject to the last-manager rule); only a
+      // brand-new self-add is rejected here.
+      const existing = await tx.sharedDriveMember.findFirst({
+        where: { sharedDriveId: drive.id, userId: recipient.id },
+      });
+      if (!existing && recipient.id === userId)
+        throw createAppError(
+          'You are already a member of this shared drive',
+          400,
+          'INVALID_RECIPIENT',
+        );
+      if (existing) {
+        if (
+          existing.role === 'manager' &&
+          parsed.data.role !== 'manager' &&
+          (await isLastManagerTx(tx, drive.id, recipient.id))
+        ) {
+          throw createAppError(
+            'Cannot demote the last manager — appoint another manager first',
+            400,
+            'LAST_MANAGER',
+          );
+        }
+        const updated = await tx.sharedDriveMember.update({
+          where: { id: existing.id },
+          data: { role: parsed.data.role },
+        });
+        return { status: 200, member: { userId: updated.userId, role: updated.role } };
+      }
+      let created: any;
+      try {
+        created = await tx.sharedDriveMember.create({
+          data: {
+            sharedDriveId: drive.id,
+            userId: recipient.id,
+            role: parsed.data.role,
+            addedById: userId,
+          },
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002')
+          throw createAppError('User is already a member of this shared drive', 409, 'MEMBER_EXISTS');
+        throw err;
+      }
+      return { status: 201, member: { userId: created.userId, role: created.role } };
     });
-    return reply.status(201).send({ member: { userId: created.userId, role: created.role } });
+    return reply.status(result.status).send({ member: result.member });
   });
   fastify.delete<{ Params: { id: string; memberUserId: string } }>(
     '/drive/shared-drives/:id/members/:memberUserId',
@@ -1445,16 +1532,35 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       const targetId = request.params.memberUserId;
       if (membership.role !== 'manager' && targetId !== userId)
         throw createAppError('Only a manager can remove members', 403, 'FORBIDDEN');
-      const target = await sharedDriveMembership(prisma, drive.id, targetId);
-      if (!target) throw createAppError('Member not found', 404, 'NOT_FOUND');
-      if (target.role === 'manager' && (await isLastManager(prisma, drive.id, targetId))) {
-        throw createAppError(
-          'Cannot remove the last manager — appoint another manager first',
-          400,
-          'LAST_MANAGER',
-        );
-      }
-      await prisma.sharedDriveMember.delete({ where: { id: target.id } });
+      // CODEX corrective: the last-manager check and the delete share one
+      // locked transaction (see lockSharedDriveMembers). Two concurrent
+      // removals of the last two managers serialize: the loser re-reads
+      // committed state and either finds its caller gone (404) or finds
+      // the target is now the sole manager (400 LAST_MANAGER) — the drive
+      // can never end up with zero managers. The caller's standing is
+      // re-verified inside the transaction so a stale pre-transaction
+      // gate cannot authorize a removal after a concurrent demotion.
+      await runSharedDriveTx(async (tx: any) => {
+        await lockSharedDriveMembers(tx, drive.id);
+        const caller = await tx.sharedDriveMember.findFirst({
+          where: { sharedDriveId: drive.id, userId },
+        });
+        if (!caller) throw createAppError('Shared drive not found', 404, 'NOT_FOUND');
+        if (caller.role !== 'manager' && targetId !== userId)
+          throw createAppError('Only a manager can remove members', 403, 'FORBIDDEN');
+        const target = await tx.sharedDriveMember.findFirst({
+          where: { sharedDriveId: drive.id, userId: targetId },
+        });
+        if (!target) throw createAppError('Member not found', 404, 'NOT_FOUND');
+        if (target.role === 'manager' && (await isLastManagerTx(tx, drive.id, targetId))) {
+          throw createAppError(
+            'Cannot remove the last manager — appoint another manager first',
+            400,
+            'LAST_MANAGER',
+          );
+        }
+        await tx.sharedDriveMember.delete({ where: { id: target.id } });
+      });
       return reply.send({ removed: true, userId: targetId });
     },
   );
