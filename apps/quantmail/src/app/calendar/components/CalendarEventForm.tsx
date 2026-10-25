@@ -40,7 +40,7 @@ import {
   CLUE_ENERGY,
 } from '../types';
 import { toDateInput } from '../lib/calendar-geometry';
-import { isEmailShaped } from '../lib/attendee-validation';
+import { isEmailShaped, addAttendeeEmail } from '../lib/attendee-validation';
 import { apiFetchRaw } from '@quant/api-client';
 import {
   suggestFreeSlots,
@@ -119,15 +119,16 @@ export function CalendarEventForm({
         return;
       }
       setAttendeeError(null);
-      if (!formState.attendees.includes(val)) {
-        setFormState((prev) => ({
-          ...prev,
-          attendees: [...prev.attendees, val],
-          attendeeInput: '',
-        }));
-      } else {
-        setFormState((prev) => ({ ...prev, attendeeInput: '' }));
-      }
+      // Case-insensitive dedup: "A@x.com" after "a@x.com" is the same
+      // guest, not a second chip (the old verbatim `includes` let both
+      // through, double-counting guests until the backend collapsed them).
+      // The input is always cleared, dup or not, so a re-typed address
+      // never looks stuck.
+      setFormState((prev) => ({
+        ...prev,
+        attendees: addAttendeeEmail(prev.attendees, val),
+        attendeeInput: '',
+      }));
     }
   };
 

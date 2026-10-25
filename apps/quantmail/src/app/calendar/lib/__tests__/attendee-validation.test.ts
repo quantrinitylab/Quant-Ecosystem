@@ -6,7 +6,14 @@
  * (calendar/page.tsx): only email-shaped strings may become attendees.
  */
 import { describe, it, expect } from 'vitest';
-import { isEmailShaped, toAttendeeEmail, ATTENDEE_EMAIL_PATTERN } from '../attendee-validation';
+import {
+  isEmailShaped,
+  toAttendeeEmail,
+  ATTENDEE_EMAIL_PATTERN,
+  attendeeDedupKey,
+  dedupeAttendeeEmails,
+  addAttendeeEmail,
+} from '../attendee-validation';
 
 describe('isEmailShaped', () => {
   it('accepts ordinary addresses', () => {
@@ -35,6 +42,43 @@ describe('isEmailShaped', () => {
 
   it('the pattern is a stable export the backend mirrors', () => {
     expect(ATTENDEE_EMAIL_PATTERN.source).toBe('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$');
+  });
+});
+
+describe('case-insensitive guest dedup (fix/qm-calendar-guest-dedup-casefold)', () => {
+  it('folds the whole address, ignoring surrounding whitespace', () => {
+    expect(attendeeDedupKey('  A@X.com ')).toBe('a@x.com');
+    expect(attendeeDedupKey('a@x.com')).toBe(attendeeDedupKey('A@X.COM'));
+  });
+
+  it('addAttendeeEmail refuses a case-variant of an existing guest', () => {
+    expect(addAttendeeEmail(['a@x.com'], 'A@x.com')).toEqual(['a@x.com']);
+    expect(addAttendeeEmail(['A@x.com'], 'a@x.com')).toEqual(['A@x.com']);
+    expect(addAttendeeEmail(['a@x.com'], 'A@X.COM')).toEqual(['a@x.com']);
+  });
+
+  it('addAttendeeEmail keeps distinct guests and trims the new address', () => {
+    expect(addAttendeeEmail(['a@x.com'], '  b@x.com ')).toEqual(['a@x.com', 'b@x.com']);
+    expect(addAttendeeEmail([], 'Ada@Example.com')).toEqual(['Ada@Example.com']);
+  });
+
+  it('addAttendeeEmail refuses non-email input instead of storing it', () => {
+    expect(addAttendeeEmail(['a@x.com'], 'hello')).toEqual(['a@x.com']);
+    expect(addAttendeeEmail([], 'hello')).toEqual([]);
+  });
+
+  it('dedupeAttendeeEmails keeps the first-seen casing, like the backend', () => {
+    expect(dedupeAttendeeEmails(['a@x.com', 'A@x.com', 'b@x.com', 'B@X.COM'])).toEqual([
+      'a@x.com',
+      'b@x.com',
+    ]);
+    expect(dedupeAttendeeEmails(['A@x.com', 'a@x.com'])).toEqual(['A@x.com']);
+  });
+
+  it('dedupeAttendeeEmails unwraps { email } objects and drops garbage rows', () => {
+    expect(
+      dedupeAttendeeEmails([{ email: 'a@x.com' }, 'A@x.com', 'hello', null, { email: 'b@x.com' }]),
+    ).toEqual(['a@x.com', 'b@x.com']);
   });
 });
 

@@ -37,7 +37,11 @@ import {
   calendarSearchStatus,
 } from './lib/calendar-search';
 import { initPeriodHealthFields, buildSheetSavePayload } from './lib/period-log-form';
-import { isEmailShaped, toAttendeeEmail } from './lib/attendee-validation';
+import {
+  isEmailShaped,
+  addAttendeeEmail,
+  dedupeAttendeeEmails,
+} from './lib/attendee-validation';
 import { guestNotificationToastText } from './lib/guest-notify';
 // fix/qm-calendar-drag-reschedule-guest-notify: drag-to-reschedule asks
 // "Send update to guests?" (edit-sheet copy) before persisting a moved event
@@ -948,10 +952,12 @@ function CalendarPageContent() {
     // Legacy rows may hold non-email strings ("hello" was storable before
     // attendee validation) — surface only email-shaped entries as chips so
     // they can never be re-saved or invited.
+    // Case-insensitive dedup as well as the email-shape filter: legacy
+    // rows stored before the backend's casefold dedup may hold both
+    // "A@x.com" and "a@x.com", and re-saving them would re-surface the
+    // duplicate chips.
     const attendeeList = Array.isArray(ev.attendees)
-      ? (ev.attendees as unknown[])
-          .map((a) => toAttendeeEmail(a))
-          .filter((a): a is string => a !== null)
+      ? dedupeAttendeeEmails(ev.attendees as unknown[])
       : [];
     const reminderList = Array.isArray(ev.reminders)
       ? (ev.reminders as unknown[])
@@ -1058,7 +1064,7 @@ function CalendarPageContent() {
       setFormState((prev) => ({
         ...prev,
         title: prev.title || `Meeting with ${email}`,
-        attendees: prev.attendees.includes(email) ? prev.attendees : [...prev.attendees, email],
+        attendees: addAttendeeEmail(prev.attendees, email),
       }));
     }
     window.history.replaceState(null, '', window.location.pathname);
