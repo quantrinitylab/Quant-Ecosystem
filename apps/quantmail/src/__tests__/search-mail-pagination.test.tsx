@@ -236,6 +236,91 @@ describe('search page mail-scope pagination', () => {
     expect(findButton(c, 'Load more')).toBeFalsy();
   });
 
+  it('page-2 failure keeps page 1, shows the error, and Retry appends exactly page 2', () => {
+    // Snippets are neutral on purpose: makeEmail's default snippet repeats the
+    // subject, which would make "exactly once" counts read 2 per row.
+    const page1 = [
+      { ...makeEmail('p1a', 'Page one A'), snippet: 'first page alpha' },
+      { ...makeEmail('p1b', 'Page one B'), snippet: 'first page beta' },
+    ];
+    const page2 = [
+      { ...makeEmail('p2a', 'Page two A'), snippet: 'second page alpha' },
+      { ...makeEmail('p2b', 'Page two B'), snippet: 'second page beta' },
+    ];
+    const countOccurrences = (html: string, text: string) =>
+      html.split(text).length - 1;
+
+    mailSearchState.data = page1;
+    mailSearchState.totalCount = 4;
+    mailSearchState.hasMore = true;
+
+    const c = renderOnMailTab();
+    const loadMore = findButton(c, 'Load more');
+    expect(loadMore).toBeTruthy();
+    act(() => {
+      loadMore!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(
+      (capturedParams[capturedParams.length - 1] as { page?: number }).page,
+    ).toBe(2);
+
+    // Page 2 fails with a 500 while page 1 is on screen. The hook's data
+    // stays the accumulated page 1; local hits exist, which is exactly what
+    // the old code replaced page 1 with.
+    mailSearchState.isError = true;
+    mailSearchState.error = new Error('Mail search failed');
+    mailSearchState.isFetching = false;
+    mailSearchState.localHits = [
+      { ...makeEmail('local-1', 'Local only hit'), snippet: 'local snippet' },
+    ];
+    act(() => {
+      root!.render(<SearchPage />);
+    });
+
+    const failedHtml = c.innerHTML;
+    // Page 1 stays — it is not replaced by local hits or an ErrorState.
+    expect(failedHtml).toContain('Page one A');
+    expect(failedHtml).toContain('Page one B');
+    expect(failedHtml).not.toContain('Local only hit');
+    expect(failedHtml).not.toContain('Server search unavailable');
+    expect(c.querySelector('[data-testid="error-state"]')).toBeFalsy();
+    // Partial/error provenance: the banner plus the honest partial count.
+    expect(failedHtml).toContain('Couldn’t load the next page');
+    expect(failedHtml).toContain('Showing 2 of 4 results');
+    // Retry stays reachable, in its retry label, not hidden by offline gating.
+    const retry = findButton(c, 'Try loading more again');
+    expect(retry).toBeTruthy();
+    act(() => {
+      retry!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(mailSearchState.refetch).toHaveBeenCalledTimes(1);
+    // Same page retried — the click must not advance past the failed page.
+    expect(
+      (capturedParams[capturedParams.length - 1] as { page?: number }).page,
+    ).toBe(2);
+
+    // The retry resolves page 2; the hook's accumulated data is pages 1+2.
+    mailSearchState.isError = false;
+    mailSearchState.error = null;
+    mailSearchState.isFetching = false;
+    mailSearchState.localHits = [];
+    mailSearchState.data = [...page1, ...page2];
+    mailSearchState.totalCount = 4;
+    mailSearchState.hasMore = false;
+    act(() => {
+      root!.render(<SearchPage />);
+    });
+
+    const retriedHtml = c.innerHTML;
+    // Page 2 appended exactly once, page 1 intact and never duplicated.
+    for (const subject of ['Page one A', 'Page one B', 'Page two A', 'Page two B']) {
+      expect(countOccurrences(retriedHtml, subject)).toBe(1);
+    }
+    expect(retriedHtml).toContain('4 results for');
+    expect(findButton(c, 'Load more')).toBeFalsy();
+    expect(findButton(c, 'Try loading more again')).toBeFalsy();
+  });
+
   it('falls back to the loaded count with no total claim when the backend reports none', () => {
     mailSearchState.data = Array.from({ length: 50 }, (_, i) =>
       makeEmail(`srv-${i}`, `Server invoice ${i}`),

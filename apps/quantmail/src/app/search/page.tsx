@@ -188,7 +188,21 @@ export default function SearchPage() {
   // failure (it never did before, which made the ErrorState below dead
   // code). With an empty local index the failure surfaces as an error; with
   // local hits those hits render honestly labeled as offline/partial.
-  const mailSearchOffline = scope === 'mail' && hasSearched && !!error;
+  //
+  // A failure is an APPEND failure, not an offline failure, when a page
+  // beyond the first fails while earlier pages are already on screen: the
+  // accumulated server results stay visible (never replaced by local hits),
+  // the Load more button stays as a same-page Retry, and the banner in the
+  // results block says the list is partial. Only a failure with nothing
+  // loaded — the initial search — takes the offline/ErrorState path.
+  // (searchPage > 1 alone is not enough: a fresh query resets the page to 1
+  // but the hook's accumulation resets on the search identity, so a failed
+  // first page of a new search must still read as an initial failure even
+  // if a stale accumulation were briefly on screen.)
+  const hasLoadedResults = (results ?? []).length > 0;
+  const isAppendFailure =
+    scope === 'mail' && hasSearched && !!error && searchPage > 1 && hasLoadedResults;
+  const mailSearchOffline = scope === 'mail' && hasSearched && !!error && !isAppendFailure;
   const offlineHits = mailSearchOffline ? (localHits ?? []) : [];
   // Always an array: the hook's `data` is undefined before the first page
   // resolves, and every count/branch below reads .length unguarded.
@@ -208,7 +222,11 @@ export default function SearchPage() {
       : `${visibleResults.length} result${visibleResults.length !== 1 ? 's' : ''} for “${query}”`;
 
   // Load more appends the next page; if the last page fetch failed, the same
-  // button retries it instead of advancing past the failed page.
+  // button retries it instead of advancing past the failed page. This retry
+  // path is reachable only because an append failure is not offline: the
+  // button below stays rendered (mailSearchOffline is false) and refetch()
+  // re-runs the current page's query, which the hook appends deduped by id
+  // — so a retry can neither duplicate page 1 nor skip the failed page.
   const handleLoadMore = useCallback(() => {
     if (isError) {
       void refetch();
@@ -681,7 +699,7 @@ export default function SearchPage() {
 
           {/* Backend search failed but the device has local hits: show them
               honestly labeled as offline/partial, never as full results. */}
-          {scope === 'mail' && hasSearched && !isLoading && error && offlineHits.length > 0 && (
+          {scope === 'mail' && hasSearched && !isLoading && error && !isAppendFailure && offlineHits.length > 0 && (
             <div className="p-4 pb-0" role="alert">
               <div className="flex items-start gap-3 rounded-xl border border-[var(--quant-border)] bg-black p-3">
                 <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-orange-500" />
@@ -718,6 +736,31 @@ export default function SearchPage() {
               animate="visible"
               className="p-4"
             >
+              {isAppendFailure && (
+                <div
+                  className="mb-2 flex items-start gap-3 rounded-xl border border-[var(--quant-border)] bg-black p-3"
+                  role="alert"
+                >
+                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-orange-500" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-[var(--quant-foreground)]">
+                      Couldn’t load the next page
+                    </p>
+                    <p className="mt-0.5 text-xs text-[var(--quant-muted-foreground)]">
+                      Showing the {visibleResults.length} results loaded so far — the
+                      rest are not lost, this page just failed to load.
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    onClick={handleLoadMore}
+                    disabled={isFetching}
+                    className="shrink-0"
+                  >
+                    {isFetching ? 'Loading…' : 'Retry'}
+                  </Button>
+                </div>
+              )}
               <p className="mb-2 px-1 text-xs text-[var(--quant-muted-foreground)]">
                 {resultCountLine}
               </p>
@@ -786,7 +829,7 @@ export default function SearchPage() {
                     onClick={handleLoadMore}
                     disabled={isFetching}
                   >
-                    {isError ? 'Try loading more again' : isFetching ? 'Loading…' : 'Load more'}
+                    {isFetching ? 'Loading…' : isError ? 'Try loading more again' : 'Load more'}
                   </Button>
                 </div>
               )}

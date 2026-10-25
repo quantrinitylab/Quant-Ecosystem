@@ -186,6 +186,65 @@ describe('useSearchEmails pagination', () => {
     );
   });
 
+  it('a failed page 2 keeps page 1 and its envelope; a refetch appends exactly page 2', async () => {
+    // The 400 envelope is deliberate: a 500 would auto-retry under
+    // shouldRetryQuery and make the failure/success sequencing racy. The
+    // hook's failure path (success:false -> throw) is identical either way;
+    // the page-level suite covers the 500-shaped error state.
+    let page2Down = true;
+    searchEmailsMock.mockImplementation(async (params: { page?: number }) => {
+      const page = params?.page ?? 1;
+      if (page === 1) {
+        return {
+          success: true,
+          data: makeEmails('p1', 2),
+          totalCount: 4,
+          totalPages: 2,
+          page: 1,
+          pageSize: 2,
+          hasNext: true,
+        };
+      }
+      if (page2Down) {
+        return { success: false, error: { statusCode: 400, message: 'Mail search failed' } };
+      }
+      return {
+        success: true,
+        data: makeEmails('p2', 2),
+        totalCount: 4,
+        totalPages: 2,
+        page: 2,
+        pageSize: 2,
+        hasNext: false,
+      };
+    });
+
+    renderHook({ query: 'invoice' });
+    await waitForHook((h) => (h.data?.length ?? 0) === 2, 'page 1');
+
+    rerenderHook({ query: 'invoice', page: 2 });
+    await waitForHook((h) => h.isError === true, 'page 2 error');
+
+    // The failed append must not touch page 1 or its envelope: the page
+    // component's Retry affordance depends on both surviving.
+    expect(captured!.data!.map((e) => e.id)).toEqual(['p1-0', 'p1-1']);
+    expect(captured!.totalCount).toBe(4);
+    expect(captured!.hasMore).toBe(true);
+
+    // Same-page retry: refetch re-runs page 2 only, and the hook appends
+    // it deduped — page 1 appears once, page 2 appears once.
+    page2Down = false;
+    await act(async () => {
+      await captured!.refetch();
+    });
+    await waitForHook((h) => (h.data?.length ?? 0) === 4, 'pages 1+2 after retry');
+
+    const ids = captured!.data!.map((e) => e.id);
+    expect(ids).toEqual(['p1-0', 'p1-1', 'p2-0', 'p2-1']);
+    expect(new Set(ids).size).toBe(4);
+    expect(captured!.hasMore).toBe(false);
+  });
+
   it('resets the accumulation when the query changes', async () => {
     searchEmailsMock.mockImplementation(async (params: { query?: string }) => {
       if (params?.query === 'invoice') {
