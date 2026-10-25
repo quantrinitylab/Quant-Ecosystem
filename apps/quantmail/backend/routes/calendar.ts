@@ -1285,6 +1285,14 @@ export default async function calendarRoutes(
   const bookingService = () => new BookingLinkService(getPrisma(fastify));
   const recurringService = new RecurringService(getPrisma(fastify));
   const callAlertService = options?.callAlertService ?? new CalendarCallAlertService();
+  // Explicit queue lifecycle (same class as the ci-routes queue fix): when
+  // this plugin created the call-alert service itself, its owned queue must
+  // close with the Fastify instance, or the Redis connection outlives
+  // app.close(). close() is a no-op for an injected service (owned by its
+  // creator) and for repeated calls.
+  fastify.addHook('onClose', async () => {
+    await callAlertService.close();
+  });
 
   if (!fastify.hasContentTypeParser('text/calendar')) {
     fastify.addContentTypeParser(

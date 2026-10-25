@@ -139,6 +139,19 @@ export default async function aiServicesRoutes(fastify: FastifyInstance) {
     port: Number(process.env['REDIS_PORT'] ?? 6379),
   });
   const undoService = new UndoSendService(undoQueue);
+  // Explicit queue lifecycle (same class as the ci-routes queue fix): this
+  // route plugin owns the undo-send queue, so close it when the Fastify
+  // instance closes. Without this, the queue's Redis connection outlives
+  // app.close() and trips EnvironmentTeardownError during test teardown
+  // ('Closing rpc while onUserConsoleLog was pending'). The guard makes
+  // repeated closes a no-op so the queue is closed exactly once per
+  // registration.
+  let undoQueueClosed = false;
+  fastify.addHook('onClose', async () => {
+    if (undoQueueClosed) return;
+    undoQueueClosed = true;
+    await undoQueue.close();
+  });
 
   // ==================== AI ROUTES ====================
 
