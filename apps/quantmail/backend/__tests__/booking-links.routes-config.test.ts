@@ -35,4 +35,14 @@ describe('booking links proxy allow-list', () => {
     expect(methodsFor('calendar/booking/my-slug/slots')).toContain('GET');
     expect(methodsFor('calendar/booking/my-slug/book')).toContain('POST');
   });
+
+  it('lists POST-only lock/unlock rows for the public invitee prefix (fix/qm-calendar-slot-lock)', () => {
+    // The lock endpoint existed in the backend but was doubly dead from the
+    // page: the page never called it AND this allow-list had no row, so the
+    // Next catch-all proxy answered its own API_ROUTE_NOT_FOUND 404 to any
+    // lock call. Only the /calendar/booking prefix is listed (like /book):
+    // it is the public, logged-out-invitee prefix in publicPaths.
+    expect(methodsFor('calendar/booking/my-slug/lock')).toEqual(['POST']);
+    expect(methodsFor('calendar/booking/my-slug/unlock')).toEqual(['POST']);
+  });
 });

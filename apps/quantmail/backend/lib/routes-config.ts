@@ -151,6 +151,16 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^calendar\/booking\/[^/]+$/, methods: ['GET'] },
   { pattern: /^calendar\/booking\/[^/]+\/slots$/, methods: ['GET'] },
   { pattern: /^calendar\/booking\/[^/]+\/book$/, methods: ['POST'] },
+  // fix/qm-calendar-slot-lock: the slot-lock handshake. The backend lock
+  // endpoint existed but was doubly dead from the page — the page never
+  // called it AND this allow-list had no row for it, so the Next catch-all
+  // proxy would have answered its own API_ROUTE_NOT_FOUND 404 to any lock
+  // call. Only the /calendar/booking prefix is listed (like /book): it is
+  // the public, logged-out-invitee prefix in publicPaths (backend/app.ts);
+  // the /booking/links duplicates stay host-authenticated and are not a
+  // guest lock surface.
+  { pattern: /^calendar\/booking\/[^/]+\/lock$/, methods: ['POST'] },
+  { pattern: /^calendar\/booking\/[^/]+\/unlock$/, methods: ['POST'] },
 
   // ── Mail filters ───────────────────────────────────────────────────────────
   // Mounted at /mail-filters, not /filters (backend/app.ts).

@@ -139,6 +139,14 @@ const lockSlotSchema = z.object({
   slot: z.string(),
   email: z.string().email(),
 });
+// fix/qm-calendar-slot-lock: release is bearer-keyed by the unguessable
+// lockId (same bearer semantics as lockId on /book) and idempotent —
+// releasing a consumed/expired lockId is a no-op success, so the booking
+// page can fire-and-forget it on back navigation, email change, or
+// book-another without ever surfacing a release failure as a booking error.
+const unlockSlotSchema = z.object({
+  lockId: z.string().min(1),
+});
 const confirmBookingSchema = z.object({
   slot: z.string(),
   name: z.string().min(1),
@@ -3151,6 +3159,22 @@ export default async function calendarRoutes(
     });
   };
 
+  // fix/qm-calendar-slot-lock: the page is the lock endpoint's only consumer
+  // and it must be able to give a lock back — without a release route a guest
+  // who goes back, changes their email, or picks another slot would hold the
+  // slot until its TTL while their own re-lock 409s against their stale lock.
+  // The slug param is intentionally not validated against the lock: the
+  // lockId bearer is the authority (as on /book) and release is idempotent.
+  const handleReleaseLock = async (
+    request: FastifyRequest<{ Params: { slug: string } }>,
+    reply: FastifyReply,
+  ) => {
+    const parsed = unlockSlotSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+    await bookingService().releaseLock(parsed.data.lockId);
+    return reply.status(200).send({ success: true });
+  };
+
   const handlePostBooking = async (
     request: FastifyRequest<{ Params: { slug: string } }>,
     reply: FastifyReply,
@@ -3202,6 +3226,9 @@ export default async function calendarRoutes(
 
   fastify.post<{ Params: { slug: string } }>('/booking/links/:slug/lock', handleLockSlot);
   fastify.post<{ Params: { slug: string } }>('/calendar/booking/:slug/lock', handleLockSlot);
+
+  fastify.post<{ Params: { slug: string } }>('/booking/links/:slug/unlock', handleReleaseLock);
+  fastify.post<{ Params: { slug: string } }>('/calendar/booking/:slug/unlock', handleReleaseLock);
 
   fastify.post<{ Params: { slug: string } }>('/booking/links/:slug/book', handlePostBooking);
   fastify.post<{ Params: { slug: string } }>('/calendar/booking/:slug/book', handlePostBooking);

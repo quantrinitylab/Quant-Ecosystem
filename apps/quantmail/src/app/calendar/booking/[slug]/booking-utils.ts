@@ -304,6 +304,170 @@ export function resolvePostSubmitDeadLink(
   return resolveLinkLoadFailure(status, serverMessage);
 }
 
+// ============================================================================
+// Slot locks (fix/qm-calendar-slot-lock).
+//
+// The backend has exposed POST /calendar/booking/:slug/lock (lockSlot with a
+// 10-minute TTL) since the booking engine landed, and confirmBooking already
+// honours a lockId — but the public booking page never called the endpoint:
+// guests booked straight via /book, so concurrent bookers raced into the
+// check-then-create inside confirmBooking and the loser only learned via a
+// 409 after submitting. The page is the lock endpoint's only consumer, so the
+// page must be the one that holds the lock.
+//
+// Contract (backend/routes/calendar.ts handleLockSlot, services
+// booking-link.service.ts lockSlot/confirmBooking):
+//   - lockSlot REQUIRES the booker's email, so the earliest the page can
+//     lock is step 2, once the guest has typed a valid email — never at slot
+//     selection, where no email exists yet. A lock held for the same
+//     slot+email refreshes its TTL instead of 409ing; a lock for another
+//     email 409s with SLOT_UNAVAILABLE.
+//   - confirmBooking with a matching lockId consumes the lock on success;
+//     without a lockId it still 409s when another booker holds the slot, so
+//     the lockId is what proves THIS guest holds the slot.
+//   - getAvailableSlots hides locked slots, so a held lock also removes the
+//     slot from every other guest's step-1 list until it expires.
+//   - release is idempotent (releasing a consumed/expired lockId is a no-op
+//     success) and bearer-keyed by the unguessable lockId, so the page can
+//     fire-and-forget it when the guest goes back, changes email, or books
+//     another appointment — a stale lock never blocks the guest past its TTL.
+//
+// These helpers are pure over an injected fetch so they are unit-testable
+// without the full workspace install (same convention as the resolvers
+// above); page.tsx passes apiFetchRaw, whose native Response satisfies
+// SlotLockResponse structurally.
+// ============================================================================
+
+/** A slot lock held by this page: the bearer lockId plus what it was taken for. */
+export interface SlotLock {
+  lockId: string;
+  /** Normalized (trimmed, lowercased) booker email — the backend normalizes the same way. */
+  email: string;
+  /** Slot start instant, ISO string — compared verbatim against the selected slot. */
+  slotIso: string;
+}
+
+/** Failure of a lock/unlock request: an HTTP status, or 0 when the fetch itself threw. */
+export interface SlotLockError {
+  status: number;
+  message?: string;
+}
+
+/** Minimal fetch shape the lock helpers need (Response satisfies this structurally). */
+export interface SlotLockResponse {
+  ok: boolean;
+  status: number;
+  json: () => Promise<unknown>;
+}
+
+export type SlotLockFetch = (
+  url: string,
+  init: { method: string; headers: Record<string, string>; body: string },
+) => Promise<SlotLockResponse>;
+
+/** Booker-email normalization, matching the backend (trim + lowercase). */
+export function normalizeBookerEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/** True when `lock` was taken for exactly this slot and booker email. */
+export function isSameSlotLock(lock: SlotLock | null, slotIso: string, email: string): boolean {
+  if (!lock) return false;
+  return lock.slotIso === slotIso && lock.email === normalizeBookerEmail(email);
+}
+
+function readLockErrorMessage(json: unknown): string | undefined {
+  if (typeof json !== 'object' || json === null) return undefined;
+  const record = json as Record<string, unknown>;
+  const err = record['error'];
+  if (typeof err === 'object' && err !== null) {
+    const message = (err as Record<string, unknown>)['message'];
+    if (typeof message === 'string') return message;
+  }
+  if (typeof err === 'string') return err;
+  if (typeof record['message'] === 'string') return record['message'];
+  return undefined;
+}
+
+/**
+ * Acquire (or refresh, for the same slot+email) the slot lock. Resolves with
+ * the lockId on 2xx; throws a SlotLockError otherwise — 409 when another
+ * booker holds the slot, 404/410 when the link died, 0 on a network failure.
+ * The lockId also arrives nested under `data` on the backend's envelope.
+ */
+export async function requestSlotLock(
+  fetchFn: SlotLockFetch,
+  slug: string,
+  slotIso: string,
+  email: string,
+): Promise<{ lockId: string; expiresAt?: string }> {
+  let res: SlotLockResponse;
+  try {
+    res = await fetchFn(`/api/calendar/booking/${slug}/lock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slot: slotIso, email: email.trim() }),
+    });
+  } catch {
+    throw { status: 0 } satisfies SlotLockError;
+  }
+  let json: unknown = undefined;
+  try {
+    json = await res.json();
+  } catch {
+    // Unreadable body — fall through to the status-based handling below.
+  }
+  if (res.ok) {
+    const record = (typeof json === 'object' && json !== null ? json : {}) as Record<
+      string,
+      unknown
+    >;
+    const data = (typeof record['data'] === 'object' && record['data'] !== null
+      ? record['data']
+      : {}) as Record<string, unknown>;
+    const lockId =
+      typeof record['lockId'] === 'string'
+        ? record['lockId']
+        : typeof data['lockId'] === 'string'
+          ? data['lockId']
+          : undefined;
+    if (lockId) {
+      const expiresAt =
+        typeof record['expiresAt'] === 'string'
+          ? record['expiresAt']
+          : typeof data['expiresAt'] === 'string'
+            ? data['expiresAt']
+            : undefined;
+      return { lockId, expiresAt };
+    }
+    // 2xx without a lockId is a broken contract, not a held lock — fail
+    // loudly so the caller never books as if it held a lock it does not.
+    throw { status: 502, message: 'The booking server did not return a slot lock.' } satisfies SlotLockError;
+  }
+  throw { status: res.status, message: readLockErrorMessage(json) } satisfies SlotLockError;
+}
+
+/**
+ * Release a held lock. Never throws: release is best-effort housekeeping
+ * (back navigation, email change, book-another) and a failure must never
+ * surface as a booking error — the lock expires on its own TTL regardless.
+ */
+export async function releaseSlotLock(
+  fetchFn: SlotLockFetch,
+  slug: string,
+  lockId: string,
+): Promise<void> {
+  try {
+    await fetchFn(`/api/calendar/booking/${slug}/unlock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lockId }),
+    });
+  } catch {
+    // Swallowed by design (see above).
+  }
+}
+
 export interface BookingSlotItem {
   start: Date;
   end: Date;

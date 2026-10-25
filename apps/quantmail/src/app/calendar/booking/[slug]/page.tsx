@@ -6,10 +6,10 @@
 // Completely public page: NO auth gate, unauthenticated guests can book!
 // ============================================================================
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { TIMEZONES } from '../../types';
-import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolvePostSubmitDeadLink, resolveSlotsResponse, resolveSlotsLoadFailure, slotsWithinGuestDay, guestDayKeyToYmd, compareGuestDayKeys, todayInTimeZone, weekdayInTimeZone, isGuestDayEnabled, formatGuestDayHeader, formatGuestDayShort, defaultSelectedGuestDay, daysIn1BasedMonth } from './booking-utils';
-import type { BookingLinkDetails, BookingLinkLoadStatus, BookingSlotItem, GuestDayKey } from './booking-utils';
+import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolvePostSubmitDeadLink, resolveSlotsResponse, resolveSlotsLoadFailure, slotsWithinGuestDay, guestDayKeyToYmd, compareGuestDayKeys, todayInTimeZone, weekdayInTimeZone, isGuestDayEnabled, formatGuestDayHeader, formatGuestDayShort, defaultSelectedGuestDay, daysIn1BasedMonth, requestSlotLock, releaseSlotLock, isSameSlotLock, normalizeBookerEmail } from './booking-utils';
+import type { BookingLinkDetails, BookingLinkLoadStatus, BookingSlotItem, GuestDayKey, SlotLock, SlotLockError } from './booking-utils';
 import {
   IconClock,
   IconVideoCall,
@@ -141,6 +141,16 @@ export default function PublicBookingPage(props: PageProps) {
   const [availableSlots, setAvailableSlots] = useState<BookingSlotItem[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState<boolean>(false);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlotItem | null>(null);
+  // Slot lock (fix/qm-calendar-slot-lock): the lock this page currently holds
+  // for the selected slot, if any. Acquired on step 2 once the guest's email
+  // is valid (the lock endpoint requires an email, so selection-time locking
+  // is impossible), reused at submit, released on back/book-another.
+  const [slotLock, setSlotLock] = useState<SlotLock | null>(null);
+  // Auto-lock guards: at most one lock request in flight, and a 409 for a
+  // given slot+email is not retried on every keystroke (the submit flow
+  // still retries explicitly — the slot may have freed since).
+  const lockInFlightRef = useRef(false);
+  const lockRejectedRef = useRef<string | null>(null);
   // Honest failure state (fix/qm-booking-slots-fallback): when the slots
   // endpoint fails, no availability is invented — this carries the copy for
   // the error panel instead.
@@ -336,6 +346,47 @@ export default function PublicBookingPage(props: PageProps) {
     };
   }, [selectedDate, resolvedSlug, meetingDetails, linkStatus, selectedTimezone, slotsReloadNonce]);
 
+  // Auto-lock the selected slot (fix/qm-calendar-slot-lock): once the guest
+  // is on step 2 with a valid email, hold the slot while they finish the
+  // form — otherwise two guests on the same slot race straight to /book. A
+  // 409 here means another booker already holds (or booked) the slot: say so
+  // now, in the step-2 error area, instead of after a full form submit. Any
+  // other failure stays silent here — the submit flow retries the lock.
+  useEffect(() => {
+    if (currentStep !== 2 || isSubmitting || !selectedSlot || !resolvedSlug) return;
+    const email = bookerEmail.trim();
+    if (!email || !email.includes('@')) return;
+    const slotIso = selectedSlot.start.toISOString();
+    if (isSameSlotLock(slotLock, slotIso, email)) return;
+    const rejectKey = `${slotIso}|${normalizeBookerEmail(email)}`;
+    if (lockRejectedRef.current === rejectKey || lockInFlightRef.current) return;
+    lockInFlightRef.current = true;
+    (async () => {
+      try {
+        // A lock held for this slot under a previous email would 409 our own
+        // re-lock (the backend keys the conflict on email) — give it back
+        // first so an email correction never wedges the guest.
+        if (slotLock && slotLock.slotIso === slotIso) {
+          await releaseSlotLock(apiFetchRaw, resolvedSlug, slotLock.lockId);
+        }
+        const acquired = await requestSlotLock(apiFetchRaw, resolvedSlug, slotIso, email);
+        setSlotLock({ lockId: acquired.lockId, email: normalizeBookerEmail(email), slotIso });
+        lockRejectedRef.current = null;
+        // A lock success supersedes a stale lock-409 error from an earlier
+        // email (validation/book errors are re-raised by their own paths).
+        setSubmitError(null);
+      } catch (err) {
+        const lockErr = err as SlotLockError;
+        if (lockErr.status === 409) {
+          lockRejectedRef.current = rejectKey;
+          setSubmitError(resolveBookingFailureMessage(409, lockErr.message));
+        }
+      } finally {
+        lockInFlightRef.current = false;
+      }
+    })();
+  }, [currentStep, isSubmitting, bookerEmail, selectedSlot, resolvedSlug, slotLock]);
+
   // Handle Month Navigation
   const handlePrevMonth = () => {
     setCalendarMonth((curr) =>
@@ -413,6 +464,23 @@ export default function PublicBookingPage(props: PageProps) {
     setCurrentStep(2);
   };
 
+  // Give a held lock back (fix/qm-calendar-slot-lock). Fire-and-forget:
+  // releaseSlotLock never throws, and an unreleased lock expires on its own
+  // TTL — abandoning the page mid-form can never wedge the slot past it.
+  const releaseHeldSlotLock = useCallback(() => {
+    if (!slotLock || !resolvedSlug) return;
+    const held = slotLock;
+    setSlotLock(null);
+    void releaseSlotLock(apiFetchRaw, resolvedSlug, held.lockId);
+  }, [slotLock, resolvedSlug]);
+
+  // Back to step 1 releases the held lock so the slot frees immediately for
+  // other guests instead of sitting locked until its TTL.
+  const handleBackToStep1 = useCallback(() => {
+    releaseHeldSlotLock();
+    setCurrentStep(1);
+  }, [releaseHeldSlotLock]);
+
   // Handle Booking Form Submission
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -432,13 +500,6 @@ export default function PublicBookingPage(props: PageProps) {
     setIsSubmitting(true);
     setSubmitError(null);
 
-    const bookingPayload = {
-      slot: selectedSlot.start.toISOString(),
-      name: bookerName.trim(),
-      email: bookerEmail.trim(),
-      notes: bookerNotes.trim(),
-    };
-
     let icsResult: string | undefined;
     // Real host identity, when the booking endpoint returns it. Otherwise
     // derived from the fetched booking-link record (honest unknown if absent).
@@ -450,6 +511,58 @@ export default function PublicBookingPage(props: PageProps) {
     const failBooking = (message: string) => {
       setSubmitError(message);
       setIsSubmitting(false);
+    };
+
+    // Slot-lock handshake (fix/qm-calendar-slot-lock): the page is the lock
+    // endpoint's only consumer and never called it. Lock first, then book
+    // with the lockId: the lock serializes concurrent confirms (the
+    // check-then-create in confirmBooking can otherwise interleave), and a
+    // guest who already holds the lock for this slot+email reuses it. A stale
+    // held lock (email changed since it was taken) is released first so it
+    // cannot 409 the guest's own re-lock.
+    const slotIso = selectedSlot.start.toISOString();
+    let lockIdForBooking: string | undefined;
+    const heldLock = isSameSlotLock(slotLock, slotIso, bookerEmail.trim()) ? slotLock : null;
+    if (heldLock) {
+      lockIdForBooking = heldLock.lockId;
+    } else {
+      try {
+        if (slotLock && slotLock.slotIso === slotIso) {
+          await releaseSlotLock(apiFetchRaw, resolvedSlug, slotLock.lockId);
+          setSlotLock(null);
+        }
+        const acquired = await requestSlotLock(
+          apiFetchRaw,
+          resolvedSlug,
+          slotIso,
+          bookerEmail.trim(),
+        );
+        lockIdForBooking = acquired.lockId;
+        setSlotLock({
+          lockId: acquired.lockId,
+          email: normalizeBookerEmail(bookerEmail.trim()),
+          slotIso,
+        });
+      } catch (err) {
+        const lockErr = err as SlotLockError;
+        const deadLink = resolvePostSubmitDeadLink(lockErr.status, lockErr.message);
+        if (deadLink) {
+          setLinkStatus(deadLink.status);
+          setLinkErrorMessage(deadLink.message);
+          setIsSubmitting(false);
+          return;
+        }
+        failBooking(resolveBookingFailureMessage(lockErr.status, lockErr.message));
+        return;
+      }
+    }
+
+    const bookingPayload = {
+      slot: slotIso,
+      name: bookerName.trim(),
+      email: bookerEmail.trim(),
+      notes: bookerNotes.trim(),
+      ...(lockIdForBooking ? { lockId: lockIdForBooking } : {}),
     };
 
     try {
@@ -531,6 +644,11 @@ export default function PublicBookingPage(props: PageProps) {
         attendeeEmail: bookerEmail.trim(),
       });
 
+    // The successful booking consumed the lock server-side; drop our copy so
+    // book-another never tries to release a dead lockId (harmless either way
+    // — release is idempotent — but do not carry stale state).
+    setSlotLock(null);
+
     setConfirmedBooking({
       title: meetingDetails.title,
       startTime: selectedSlot.start,
@@ -576,6 +694,7 @@ export default function PublicBookingPage(props: PageProps) {
 
   // Reset to book another
   const handleBookAnother = () => {
+    releaseHeldSlotLock();
     setCurrentStep(1);
     setSelectedSlot(null);
     setConfirmedBooking(null);
@@ -885,7 +1004,7 @@ export default function PublicBookingPage(props: PageProps) {
 
                   <button
                     type="button"
-                    onClick={() => setCurrentStep(1)}
+                    onClick={handleBackToStep1}
                     className="px-3 py-1.5 rounded-lg border border-[var(--quant-surface-elevated)] text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[#1E222B] transition-colors"
                   >
                     ← Back
@@ -947,7 +1066,7 @@ export default function PublicBookingPage(props: PageProps) {
                 <div className="pt-4 flex items-center justify-between">
                   <button
                     type="button"
-                    onClick={() => setCurrentStep(1)}
+                    onClick={handleBackToStep1}
                     className="px-4 py-2 rounded-xl text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-white transition-colors"
                   >
                     ← Change Date/Time
