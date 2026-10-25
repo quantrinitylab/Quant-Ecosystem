@@ -6472,3 +6472,8 @@ Status: [x] DONE (Owner: LANE-1, Branch: lane1-audit-010r38, R38 regression audi
 - LIVE HEALTHY, VISUAL VERIFIED: proxy 127.0.0.1:8888 healthy (PID 1946, no restart; / 307 in 1.44s); /drive -> 307 /login?returnTo=%2Fdrive; /api/drive/{files,quota,trash} -> honest 401 x3 (UNAUTHORIZED 'Missing or invalid authorization header' bodies byte-verified) — all match R37 baseline. Desktop 1440x900 (9334, ConnectionRefused retry launch as in prior runs) + mobile 390x844 (iPhone 14, MOBILE_CHROME_PORT=9519, wait_s=14 hydrated) /drive sign-in shots REVIEWED: settled sign-in gate both viewports, current clay M-mark, honest tri-cards (desktop), ONE IDENTITY footer, (c) 2026, pure black, mail-orange, zero old-logo flash; standing knowns re-seen not re-filed (P3 'Quant Mail' wordmark spacing, white ghost 'AI triage' card); mobile settled straight to sign-in form (no hero transient). Shots deleted; exactly my 2 run-created chrome dirs removed (pgrep-verified zero live chromes referencing them before rm; pre-existing 9333 orphan untouched); /tmp 2%. Signed-in drive flows = needs-auth (protocol), not faked. #1243 deploy hold ACTIVE (cat-verified) — nothing to deploy.
 Rotation -> QM-SCREEN-012 (contacts) ROUND 38 regression, queued.
 - TIME CORRECTION (same run, no rebase/reset): DONE window was ~06:35-06:40 IST; the '07:10' figure in the DONE line above was a misestimate. All other facts in this section stand as written.
+
+## QM-SCREEN-012 R38 — Contacts regression (ROUND 38)
+Status: [~] IN PROGRESS (R38 regression audit claimed 2026-10-25 ~07:35 IST)
+Owner: LANE-1
+Branch: lane1-audit-012r38
