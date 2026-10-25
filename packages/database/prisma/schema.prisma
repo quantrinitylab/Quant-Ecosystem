@@ -4654,7 +4654,7 @@ model UserSubscription {
   @@map("drive_user_subscriptions")
 }
 
-// CODEX PR #1558 corrective (migration 0107): durable S3 multipart upload
+// CODEX PR #1558 corrective (migration 0117): durable S3 multipart upload
 // sessions. The old flow trusted client-supplied uploadId/key/totalSize and
 // kept quota reservations in a process-local Map, so a restart or a second
 // replica lost ownership and quota state entirely. This row — written at

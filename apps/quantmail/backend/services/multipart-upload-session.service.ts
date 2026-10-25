@@ -9,7 +9,7 @@
 // hash failed. This module replaces all of that:
 //
 // - A DURABLE session record (Prisma `MultipartUploadSession`, migration
-//   0107) is created at initiate time from SERVER-side values. Every later
+//   0117) is created at initiate time from SERVER-side values. Every later
 //   step (part-url, complete, abort) loads that record and checks
 //   session.userId === caller, session.storageKey === client key, expiry,
 //   and status before touching S3. A caller can no longer complete, abort,
@@ -35,7 +35,7 @@
 //   re-runs pending digests (bounded) so a restart does not strand them.
 //
 // Fail-closed: when the Prisma delegate for the session table is absent
-// (migration 0107 not yet applied), every operation throws a 503 instead
+// (migration 0117 not yet applied), every operation throws a 503 instead
 // of falling back to trust-the-client behaviour.
 // ============================================================================
 import { createHash } from 'node:crypto';
@@ -115,7 +115,7 @@ function requireDelegate(
   const delegate = prisma.multipartUploadSession;
   if (!delegate) {
     throw createAppError(
-      'Multipart upload sessions are unavailable — migration 0107 has not been applied',
+      'Multipart upload sessions are unavailable — migration 0117 has not been applied',
       503,
       'SESSION_STORE_UNAVAILABLE',
     );
