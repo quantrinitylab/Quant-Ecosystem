@@ -312,6 +312,13 @@ const searchSchema = z.object({
   label: z.string().optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
+  // Unread / Starred chips: same string-"true" query-param shape as
+  // hasAttachment above, since the frontend sends booleans over GET params.
+  isRead: z.union([z.boolean(), z.enum(['true', 'false'])]).optional(),
+  isStarred: z.union([z.boolean(), z.enum(['true', 'false'])]).optional(),
+  // In-folder chip: a folder *name* ("Inbox", "Sent", "Archive"), resolved
+  // to the folder id by EmailService.search, like `label`.
+  folder: z.string().optional(),
 });
 
 /**
@@ -1838,6 +1845,16 @@ export default async function emailsRoutes(
       label: data.label,
       dateFrom: data.dateFrom,
       dateTo: data.dateTo,
+      // Normalize the string-"true"/"false" query-param shape to real
+      // booleans; absent stays absent (no opinion), never a filter.
+      isRead:
+        data.isRead === true || data.isRead === 'true'
+          ? true
+          : data.isRead === false || data.isRead === 'false'
+            ? false
+            : undefined,
+      isStarred: data.isStarred === true || data.isStarred === 'true',
+      folder: data.folder,
     };
     const result = await service.search(userId, data.q, {
       page: data.page,
