@@ -30,6 +30,8 @@ import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useDrive, type ReceivedShare, type SentShareItem, isDocumentDriveId, readErrorInstruction } from '../../hooks/useDrive';
 import { formatBytes } from '../../lib/format-bytes';
+import { normalizeFolderColor, folderColorName } from '../../lib/folder-colors';
+import { FolderColorPicker } from './components/FolderColorPicker';
 import { showToast } from '../../components/InboxToast';
 import { useScrollElement, useVirtualizer } from '../../lib/virtual/useVirtualizer';
 import {
@@ -39,6 +41,7 @@ import {
   IconFolderPlus,
   IconGrid,
   IconList,
+  IconPalette,
   IconStar,
   IconStarFilled,
   IconUpload,
@@ -74,6 +77,9 @@ type DriveItem = {
   // QM-M39-009: security scan state from the backend (never rendered as safe).
   scanStatus?: string | null;
   scanReason?: string | null;
+  // fix/qm-drive-folder-colors-2: Drive-style folder tint (palette hex) —
+  // null for the default folder color. Files never carry a color.
+  color?: string | null;
 };
 
 type DriveFilter = 'all' | 'folders' | 'documents' | 'images' | 'starred' | 'trash' | 'shared';
@@ -386,6 +392,7 @@ function DrivePageContent() {
     renameFile,
     starFile,
     unstarFile,
+    setFolderColor,
     navigateToFolder,
     navigateToBreadcrumb,
     searchFiles,
@@ -1091,6 +1098,75 @@ function DrivePageContent() {
     }
   };
 
+  // fix/qm-drive-folder-colors-2 — Drive-style folder color ("Change color").
+  // Optimistic update lives in the hook; the toast reports the confirmed
+  // outcome so the user never sees a color that didn't persist.
+  const handleSetFolderColor = useCallback(
+    async (folderId: string, color: string | null) => {
+      const subject = `drive-color-${folderId}`;
+      const folder = files.find((f) => f.id === folderId);
+      const ok = await setFolderColor(folderId, color);
+      if (ok) {
+        const name = folderColorName(color);
+        setCurrentFolderFallback((prev) => (prev && prev.id === folderId ? { ...prev, color } : prev));
+        showToast({
+          text: name
+            ? `Folder "${folder?.name ?? 'folder'}" color set to ${name}`
+            : `Folder "${folder?.name ?? 'folder'}" color cleared`,
+          type: 'success',
+          subject,
+        });
+      } else {
+        showToast({ text: `Could not change color of "${folder?.name ?? 'folder'}"`, type: 'error', subject });
+      }
+    },
+    [files, setFolderColor],
+  );
+
+  // fix/qm-drive-folder-colors-2 — the folder currently open (for the
+  // breadcrumb color control). The listing items carry the color; the open
+  // folder may not be in the current level's list, so fall back to the flat
+  // folder list (GET /api/drive/folders carries color since this feature).
+  const currentFolderFromItems = useMemo(
+    () => (currentFolderId ? files.find((f) => f.id === currentFolderId) ?? null : null),
+    [files, currentFolderId],
+  );
+  const [currentFolderFallback, setCurrentFolderFallback] = useState<DriveItem | null>(null);
+  useEffect(() => {
+    if (!currentFolderId || currentFolderFromItems) {
+      setCurrentFolderFallback(null);
+      return;
+    }
+    let cancelled = false;
+    browserApiRequest('/api/drive/folders')
+      .then(async (res) => {
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as {
+          folders?: { id: string; name: string; color?: string | null }[];
+        };
+        const f = (data.folders ?? []).find((x) => x.id === currentFolderId);
+        if (f && !cancelled) {
+          setCurrentFolderFallback({
+            id: f.id,
+            name: f.name,
+            type: 'folder',
+            mimeType: 'application/vnd.quant.folder',
+            size: 0,
+            modifiedAt: '',
+            color: f.color ?? null,
+          });
+        }
+      })
+      .catch(() => {
+        // The control simply hides when the lookup fails — no fake color.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentFolderId, currentFolderFromItems]);
+  const currentFolder = currentFolderFromItems ?? currentFolderFallback;
+  const [folderColorAnchor, setFolderColorAnchor] = useState<{ x: number; y: number } | null>(null);
+
   const handleDeleteItem = async (id: string, name: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const ok = await confirm({
@@ -1372,6 +1448,46 @@ function DrivePageContent() {
               ))
             )}
           </nav>
+
+          {/* fix/qm-drive-folder-colors-2 — color control for the open folder:
+              touch-friendly sibling of the right-click palette on folder cards.
+              Renders only inside a folder view. */}
+          {currentFolderId && currentFolder && (
+            <button
+              type="button"
+              aria-label={
+                normalizeFolderColor(currentFolder.color)
+                  ? `Change color of folder ${currentFolder.name} (currently ${folderColorName(currentFolder.color)})`
+                  : `Change color of folder ${currentFolder.name}`
+              }
+              title="Change folder color"
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                setFolderColorAnchor({ x: r.left, y: r.bottom + 4 });
+              }}
+              className="shrink-0 size-8 rounded-lg border border-white/10 bg-white/[0.03] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-white/[0.06] grid place-items-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+              style={
+                normalizeFolderColor(currentFolder.color)
+                  ? {
+                      backgroundColor: `${normalizeFolderColor(currentFolder.color)}26`,
+                      borderColor: `${normalizeFolderColor(currentFolder.color)}66`,
+                      color: normalizeFolderColor(currentFolder.color) as string,
+                    }
+                  : undefined
+              }
+            >
+              <IconPalette className="size-4" />
+            </button>
+          )}
+          {folderColorAnchor && currentFolderId && currentFolder && (
+            <FolderColorPicker
+              selected={normalizeFolderColor(currentFolder.color)}
+              anchor={folderColorAnchor}
+              label={currentFolder.name}
+              onSelect={(hex) => handleSetFolderColor(currentFolderId, hex)}
+              onClose={() => setFolderColorAnchor(null)}
+            />
+          )}
 
           {/* Filter pills — the only element allowed to overflow */}
           <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto no-scrollbar">
@@ -1948,6 +2064,7 @@ function DrivePageContent() {
               onOpenRename={handleOpenRename}
               onOpenVersionHistory={(item) => setVersionHistoryFile(item as any)}
               onOpenAiSummary={(item) => setAiSummaryFile(item as any)}
+              onSetFolderColor={handleSetFolderColor}
               onNavigateToFolder={(folderId, folderName) =>
                 navigateToFolder(folderId, folderName)
               }
