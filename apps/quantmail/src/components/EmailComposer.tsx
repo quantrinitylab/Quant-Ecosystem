@@ -947,7 +947,18 @@ export function EmailComposer({
   // recipient list covers To/Cc/Bcc chips — a malformed address anywhere
   // blocks the send with a named reason (compose validation).
   const allRecipients = [...toRecipients, ...ccRecipients, ...bccRecipients];
-  const sendBlockReason = getSendBlockReason(to, subject, body, allRecipients);
+  // Chat-kind exception (see composeValidation): a chat thread's subject is
+  // auto-supplied at send time (`Chat with <recipients>`), so an empty
+  // subject must not disable Send or toast a subject error on this path —
+  // otherwise the /compose page's composeDraft fallback is unreachable dead
+  // code. Mail kind keeps the hard subject block.
+  const sendBlockReason = getSendBlockReason(
+    to,
+    subject,
+    body,
+    allRecipients,
+    initialMessageKind,
+  );
 
   // ---------------------------------------------------------------------------
   // Drive link permission detector (Gmail "Share and send?" parity).
@@ -1112,7 +1123,7 @@ export function EmailComposer({
     // Asked BEFORE anything is dismissed or queued, so the 10s undo-send
     // countdown is never started — and never promised — for a send the
     // user never confirmed.
-    if (needsEmptyBodyConfirm(to, subject, body, allRecipients)) {
+    if (needsEmptyBodyConfirm(to, subject, body, allRecipients, initialMessageKind)) {
       const sendAnyway = await confirm({
         title: 'Send this message without text in the body?',
         message: 'Your recipients and subject are set — only the body is empty.',

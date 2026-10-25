@@ -119,7 +119,12 @@ interface Harness {
 const mounted: Harness[] = [];
 
 function renderComposer(
-  props: { initialTo?: string; initialSubject?: string; initialBody?: string } = {},
+  props: {
+    initialTo?: string;
+    initialSubject?: string;
+    initialBody?: string;
+    initialMessageKind?: 'mail' | 'chat';
+  } = {},
 ): Harness {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -133,6 +138,7 @@ function renderComposer(
         initialTo={props.initialTo}
         initialSubject={props.initialSubject}
         initialBody={props.initialBody}
+        initialMessageKind={props.initialMessageKind}
       />,
     );
   });
@@ -345,6 +351,35 @@ describe('DockedComposer subject-optional behaviour', () => {
 
     expect(mocks.queueSend).toHaveBeenCalledTimes(1);
     expect(mocks.queueSend.mock.calls[0][0]).toMatchObject({ subject: '' });
+  });
+
+  it('(g) Chat kind sends without a subject confirm and carries "Chat with …"', async () => {
+    const { container } = renderComposer({
+      initialTo: 'friend@example.com',
+      initialBody: 'Hey there.',
+      initialMessageKind: 'chat',
+    });
+
+    await click(sendButton(container));
+
+    // No "Send without a subject?" dialog: a chat thread's subject is
+    // auto-supplied at send time, so there is nothing to confirm — asking
+    // would state something false. The body is non-empty, so the empty-body
+    // confirm does not fire either.
+    expect(dialogEl()).toBeNull();
+    expect(mocks.queueSend).toHaveBeenCalledTimes(1);
+
+    // Drive the queued send to its real API call: the fallback subject must
+    // be what actually leaves, not the raw empty subject.
+    await act(async () => {
+      await mocks.queueSend.mock.calls[0][0].onSendNow();
+    });
+    await flushReal(400);
+
+    expect(mocks.composeEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.composeEmail.mock.calls[0][0]).toMatchObject({
+      subject: 'Chat with friend@example.com',
+    });
   });
 
   it('(f) Send WITH a subject never asks for confirmation', async () => {
