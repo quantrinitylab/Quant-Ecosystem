@@ -33,6 +33,7 @@ import {
   mintSsoTicket,
 } from './sso-ticket-handoff';
 import {
+  isPartialOidcAuthorizeRequest,
   parseOidcAuthorizeRequest,
   runOidcAuthorize,
   type OidcAuthorizeRequest,
@@ -237,6 +238,15 @@ export function SsoChooserContent({
     () => (searchParams ? parseOidcAuthorizeRequest(searchParams) : null),
     [searchParams],
   );
+  // Broken sign-in link: carries response_type but failed strict OIDC
+  // detection (e.g. code without redirect_uri). Never an OIDC flow and
+  // never the ticket handoff (which would bounce and drop the parameters)
+  // — the chooser shows an honest error instead. Plain ecosystem visits
+  // never carry response_type, so this cannot misclassify them.
+  const partialOidcRequest = useMemo(
+    () => (searchParams ? isPartialOidcAuthorizeRequest(searchParams) : false),
+    [searchParams],
+  );
   const oidcScopes = useMemo(
     () =>
       (oidcRequest?.scope || 'openid profile email')
@@ -322,6 +332,15 @@ export function SsoChooserContent({
         await completeOidcHandoff(token, oidcRequest);
         return;
       }
+      // Partial OIDC request (broken sign-in link): honest error, no
+      // navigation and no ticket mint — the ticket handoff would bounce
+      // and drop the OIDC parameters it cannot carry.
+      if (partialOidcRequest) {
+        setError(
+          'This sign-in link is incomplete, so it cannot continue as a sign-in request. Nothing was sent anywhere — please go back to the app and start sign-in again.',
+        );
+        return;
+      }
       setAuthorizing(true);
       if (!token) {
         setError('No active session token available. Please sign in again.');
@@ -347,7 +366,7 @@ export function SsoChooserContent({
       }
       router.push(safeReturn);
     },
-    [safeReturn, router, clientId, oidcRequest, completeOidcHandoff],
+    [safeReturn, router, clientId, oidcRequest, partialOidcRequest, completeOidcHandoff],
   );
 
   // Hydrate known accounts from localStorage
@@ -610,6 +629,15 @@ export function SsoChooserContent({
               <span className="text-zinc-300 font-medium">{oidcScopes.join(' · ')}</span>
             </p>
           )}
+          {/* Broken sign-in link: visible before any click, in every view,
+              so a partial OIDC visit is never mistaken for a normal SSO
+              visit and never proceeds to a bounce that drops parameters. */}
+          {partialOidcRequest && (
+            <p className="mt-2 text-[11px] leading-relaxed text-red-400">
+              This sign-in link is incomplete, so it cannot continue as a sign-in request.
+              Nothing was sent anywhere — please go back to the app and start sign-in again.
+            </p>
+          )}
         </div>
 
         {/* Authorizing Spinner Overlay */}
@@ -625,6 +653,19 @@ export function SsoChooserContent({
         {/* STATE 1: Executive Keyboard-First Account Chooser */}
         {!authorizing && showChooser && (
           <div className="w-full space-y-3">
+            {(partialOidcRequest || error) && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-center gap-2">
+                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>
+                  {error ??
+                    'This sign-in link is incomplete, so it cannot continue as a sign-in request. Nothing was sent anywhere — please go back to the app and start sign-in again.'}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 px-1">
               <span>SELECT ACCOUNT</span>
               <span className="text-[10px] text-zinc-500 hidden sm:flex items-center gap-1">

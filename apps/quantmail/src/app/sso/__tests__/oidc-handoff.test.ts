@@ -12,6 +12,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   OIDC_BROWSER_HEADER,
   buildOidcAuthorizeProxyUrl,
+  isPartialOidcAuthorizeRequest,
   parseOidcAuthorizeRequest,
   runOidcAuthorize,
   type OidcAuthorizeRequest,
@@ -35,6 +36,7 @@ const REQ: OidcAuthorizeRequest = {
   codeChallenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
   codeChallengeMethod: 'S256',
   nonce: 'n-0S6_WzA2Mj',
+  extras: {},
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -101,6 +103,76 @@ describe('parseOidcAuthorizeRequest', () => {
     expect(
       parseOidcAuthorizeRequest(new URLSearchParams('response_type=code&client_id=c&returnTo=')),
     ).toBeNull();
+  });
+
+  it('preserves every additional OIDC parameter the RP arrived with', () => {
+    // The /oauth/authorize route forwards ALL RP params to /sso, so an RP
+    // sending prompt/response_mode/login_hint arrives with them here. The
+    // old builder carried only the seven named fields and dropped these.
+    const sp = new URLSearchParams(FULL_QUERY);
+    sp.set('response_mode', 'query');
+    sp.set('prompt', 'login');
+    sp.set('login_hint', 'user@example.com');
+    sp.set('ui_locales', 'fr-FR');
+    sp.set('max_age', '3600');
+    sp.set('acr_values', 'urn:mace:incommon:iap:silver');
+    sp.set('display', 'popup');
+    sp.set('id_token_hint', 'hint-token');
+    sp.set('custom_future_param', 'keep-me');
+    // Handoff-internal params must NOT leak into the backend request.
+    sp.set('returnTo', 'https://other.example/ignored');
+    sp.set('__quant_sso_ticket', 'stale-ticket');
+    const req = parseOidcAuthorizeRequest(sp);
+    expect(req).not.toBeNull();
+    expect(req?.extras).toEqual({
+      response_mode: 'query',
+      prompt: 'login',
+      login_hint: 'user@example.com',
+      ui_locales: 'fr-FR',
+      max_age: '3600',
+      acr_values: 'urn:mace:incommon:iap:silver',
+      display: 'popup',
+      id_token_hint: 'hint-token',
+      custom_future_param: 'keep-me',
+    });
+    const params = new URLSearchParams(
+      buildOidcAuthorizeProxyUrl(req!).slice('/api/oauth/authorize?'.length),
+    );
+    for (const [key, value] of Object.entries(req!.extras)) {
+      expect(params.get(key)).toBe(value);
+    }
+    // Named params still intact alongside the extras.
+    expect(params.get('state')).toBe('xyz-state-1');
+    expect(params.get('code_challenge')).toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+    // The redirect_uri mapping source itself is not forwarded as returnTo.
+    expect(params.has('returnTo')).toBe(false);
+    expect(params.has('__quant_sso_ticket')).toBe(false);
+  });
+});
+
+describe('isPartialOidcAuthorizeRequest', () => {
+  it('flags broken OIDC links (response_type present, strict detection fails)', () => {
+    expect(
+      isPartialOidcAuthorizeRequest(new URLSearchParams('response_type=code&client_id=c')),
+    ).toBe(true);
+    expect(
+      isPartialOidcAuthorizeRequest(new URLSearchParams('response_type=code&redirect_uri=https%3A%2F%2Fx.test')),
+    ).toBe(true);
+    expect(
+      isPartialOidcAuthorizeRequest(new URLSearchParams('response_type=token&client_id=c&redirect_uri=https%3A%2F%2Fx.test')),
+    ).toBe(true);
+  });
+
+  it('does not flag genuine OIDC requests or plain ecosystem visits', () => {
+    expect(isPartialOidcAuthorizeRequest(new URLSearchParams(FULL_QUERY))).toBe(false);
+    expect(
+      isPartialOidcAuthorizeRequest(new URLSearchParams('returnTo=/dashboard&client_id=quantchat')),
+    ).toBe(false);
+    expect(
+      isPartialOidcAuthorizeRequest(
+        new URLSearchParams('returnTo=https%3A%2F%2Fquantchat.in%2Fapp&client_id=quantchat'),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -171,6 +243,38 @@ describe('runOidcAuthorize', () => {
     );
     const outcome = await runOidcAuthorize('tok-123', REQ, fetchImpl as unknown as typeof fetch);
     expect(outcome).toEqual({ kind: 'error', status: 400, message: 'Invalid redirect_uri' });
+  });
+
+  it('turns an unknown client / invalid redirect_uri into an honest error, never a redirect', async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({ error: 'invalid_request', error_description: 'Invalid redirect_uri' }, 400),
+    );
+    const outcome = await runOidcAuthorize('tok-123', REQ, fetchImpl as unknown as typeof fetch);
+    expect(outcome.kind).toBe('error');
+    expect(outcome).not.toHaveProperty('location');
+  });
+
+  it('refuses to navigate to a redirect target outside the requested redirect_uri', async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({ redirect: 'https://evil.example/callback?code=stolen&state=xyz-state-1' }),
+    );
+    const outcome = await runOidcAuthorize('tok-123', REQ, fetchImpl as unknown as typeof fetch);
+    expect(outcome.kind).toBe('error');
+    if (outcome.kind === 'error') {
+      expect(outcome.message).toMatch(/did not point back/);
+    }
+    expect(outcome).not.toHaveProperty('location');
+  });
+
+  it('still follows a deny-style redirect to the requested redirect_uri itself', async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({ redirect: 'https://app.example.com/oauth/callback?error=access_denied&state=xyz-state-1' }),
+    );
+    const outcome = await runOidcAuthorize('tok-123', REQ, fetchImpl as unknown as typeof fetch);
+    expect(outcome).toEqual({
+      kind: 'redirect',
+      location: 'https://app.example.com/oauth/callback?error=access_denied&state=xyz-state-1',
+    });
   });
 
   it('rejects on network failure so the caller shows an honest error', async () => {

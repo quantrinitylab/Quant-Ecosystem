@@ -41,7 +41,39 @@ export interface OidcAuthorizeRequest {
   codeChallenge: string;
   codeChallengeMethod: string;
   nonce: string;
+  /**
+   * Every other query parameter the user arrived with, preserved verbatim.
+   *
+   * The Next /oauth/authorize route forwards ALL RP parameters to /sso, so
+   * an RP may arrive with response_mode, prompt, login_hint, ui_locales,
+   * max_age, acr_values, display, or future OIDC parameters. The old builder
+   * only carried the seven named fields and silently dropped the rest — a
+   * prompt=login or response_mode=form_post RP would have its request
+   * rewritten on the way to the backend. Extras are forwarded as-is; the
+   * backend ignores parameters it does not implement, but nothing the RP
+   * sent is dropped at the /sso layer.
+   */
+  extras: Record<string, string>;
 }
+
+/**
+ * Query keys consumed by the named fields above (or by the /sso handoff
+ * itself) and therefore never copied into `extras`: `returnTo` is the
+ * /oauth/authorize mapping of redirect_uri, and `__quant_sso_ticket` is an
+ * ecosystem handoff credential that must never be forwarded to the backend.
+ */
+const KNOWN_OIDC_QUERY_KEYS = new Set([
+  'response_type',
+  'client_id',
+  'redirect_uri',
+  'returnTo',
+  'scope',
+  'state',
+  'code_challenge',
+  'code_challenge_method',
+  'nonce',
+  '__quant_sso_ticket',
+]);
 
 /**
  * Header the /sso chooser sends on its /api/oauth/authorize fetch.
@@ -75,6 +107,10 @@ export function parseOidcAuthorizeRequest(
     ''
   ).trim();
   if (!clientId || !redirectUri) return null;
+  const extras: Record<string, string> = {};
+  searchParams.forEach((value, key) => {
+    if (!KNOWN_OIDC_QUERY_KEYS.has(key)) extras[key] = value;
+  });
   return {
     clientId,
     redirectUri,
@@ -83,7 +119,26 @@ export function parseOidcAuthorizeRequest(
     codeChallenge: searchParams.get('code_challenge') ?? '',
     codeChallengeMethod: searchParams.get('code_challenge_method') ?? '',
     nonce: searchParams.get('nonce') ?? '',
+    extras,
   };
+}
+
+/**
+ * True when the visit carries an OIDC-looking request that FAILED strict
+ * detection — e.g. response_type=code with client_id but no redirect_uri,
+ * or an unsupported response_type. Such a visit is a broken sign-in link,
+ * not an ecosystem visit (ecosystem visits never carry response_type), so
+ * the chooser must show an honest error instead of silently falling through
+ * to the ticket handoff, which would bounce and drop the OIDC parameters.
+ * False for plain ecosystem visits and for genuine OIDC requests.
+ */
+export function isPartialOidcAuthorizeRequest(
+  searchParams: URLSearchParams,
+): boolean {
+  return (
+    searchParams.has('response_type') &&
+    parseOidcAuthorizeRequest(searchParams) === null
+  );
 }
 
 /** Build the Next proxy URL that carries the OIDC request to the backend. */
@@ -97,6 +152,9 @@ export function buildOidcAuthorizeProxyUrl(req: OidcAuthorizeRequest): string {
   if (req.codeChallenge) params.set('code_challenge', req.codeChallenge);
   if (req.codeChallengeMethod) params.set('code_challenge_method', req.codeChallengeMethod);
   if (req.nonce) params.set('nonce', req.nonce);
+  for (const [key, value] of Object.entries(req.extras ?? {})) {
+    params.set(key, value);
+  }
   return `/api/oauth/authorize?${params.toString()}`;
 }
 
@@ -139,6 +197,21 @@ export async function runOidcAuthorize(
   if (contentType.includes('application/json')) {
     const data = (await res.json()) as Record<string, unknown>;
     if (typeof data.redirect === 'string' && data.redirect) {
+      // Defense in depth on top of the backend's registered-URI validation
+      // (backend/routes/oauth.ts resolveRedirectUri: every authorize 302
+      // targets the DB-registered URI verbatim): the browser must only ever
+      // navigate to the redirect_uri this request asked for, with the
+      // backend's ?code=/ ?error= suffix. A redirect anywhere else — a
+      // misbehaving proxy, a backend regression, a confused response — is
+      // an honest error, never a top-level navigation to an attacker URI.
+      if (!data.redirect.startsWith(req.redirectUri)) {
+        return {
+          kind: 'error',
+          status: res.status,
+          message:
+            'The sign-in response did not point back to the app that asked for sign-in. Nothing was sent anywhere.',
+        };
+      }
       return { kind: 'redirect', location: data.redirect };
     }
     return { kind: 'error', status: res.status, message: honestErrorMessage(res.status, data) };

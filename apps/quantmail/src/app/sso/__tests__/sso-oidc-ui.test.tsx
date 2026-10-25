@@ -87,4 +87,26 @@ describe('SsoChooserContent OIDC branch', () => {
     // Ecosystem chooser copy unchanged
     expect(html).toContain('Sign in to Quant Account');
   });
+
+  it('shows no scopes line for plain ecosystem visits with an absolute returnTo', () => {
+    currentQuery = '?returnTo=' + encodeURIComponent('https://quantchat.in/app') + '&client_id=quantchat';
+    const html = renderToString(<SsoChooserContent />);
+    expect(html).not.toContain('Requests access to:');
+  });
+
+  it('shows no scopes line for partial OIDC requests (never claimed as an OIDC flow)', () => {
+    currentQuery = '?response_type=code&client_id=client_abc123&state=xyz';
+    const html = renderToString(<SsoChooserContent />);
+    expect(html).not.toContain('Requests access to:');
+    expect(html).toContain('This sign-in link is incomplete');
+  });
+
+  it('flags an unsupported response_type as an incomplete sign-in link', () => {
+    currentQuery =
+      '?response_type=token&client_id=client_abc123&redirect_uri=' +
+      encodeURIComponent('https://app.example.com/oauth/callback');
+    const html = renderToString(<SsoChooserContent />);
+    expect(html).not.toContain('Requests access to:');
+    expect(html).toContain('This sign-in link is incomplete');
+  });
 });
