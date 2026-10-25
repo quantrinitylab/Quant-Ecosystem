@@ -312,6 +312,9 @@ const searchSchema = z.object({
   label: z.string().optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
+  // Result ordering: relevance (default, Gmail behaviour), newest, oldest.
+  // An unknown value fails zod validation rather than silently re-sorting.
+  sort: z.enum(['relevance', 'newest', 'oldest']).optional(),
 });
 
 /**
@@ -1842,6 +1845,7 @@ export default async function emailsRoutes(
     const result = await service.search(userId, data.q, {
       page: data.page,
       pageSize: data.pageSize,
+      sort: data.sort,
     }, filters);
 
     // One API, one shape for a list of emails. Same envelope as the folder listing now,

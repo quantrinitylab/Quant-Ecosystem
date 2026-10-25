@@ -201,6 +201,8 @@ export interface ComposeEmailRequest {
 
 export interface SearchEmailRequest {
   query: string;
+  /** Result ordering: relevance (default), newest, or oldest. */
+  sort?: 'relevance' | 'newest' | 'oldest';
   from?: string;
   to?: string;
   subject?: string;

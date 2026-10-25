@@ -37,6 +37,16 @@ const SCOPES: Array<{ id: UniversalSearchScope; label: string }> = [
   { id: 'drive', label: 'Drive' },
 ];
 
+// Mail search result ordering: relevance is the Gmail-style default (a
+// highly-matching older mail outranks recent partial matches); newest/oldest
+// are the explicit chronological options. Mail scope only — universal scopes
+// aggregate per-source backends that do not take a sort.
+const SORT_OPTIONS: Array<{ id: 'relevance' | 'newest' | 'oldest'; label: string }> = [
+  { id: 'relevance', label: 'Relevance' },
+  { id: 'newest', label: 'Newest' },
+  { id: 'oldest', label: 'Oldest' },
+];
+
 interface SearchFilter {
   type: 'from' | 'to' | 'has' | 'in' | 'date';
   label: string;
@@ -123,6 +133,7 @@ export default function SearchPage() {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<UniversalSearchScope>('all');
+  const [sort, setSort] = useState<'relevance' | 'newest' | 'oldest'>('relevance');
   const [activeFilters, setActiveFilters] = useState<SearchFilter[]>([]);
   const [editingFilter, setEditingFilter] = useState<SearchFilter['type'] | null>(null);
   const [filterInput, setFilterInput] = useState('');
@@ -144,6 +155,7 @@ export default function SearchPage() {
     hasSearched && query.trim()
       ? {
           query: query.trim(),
+          sort,
           from: activeFilters.find((f) => f.type === 'from')?.value,
           to: activeFilters.find((f) => f.type === 'to')?.value,
           hasAttachment: activeFilters.some((f) => f.type === 'has') ? true : undefined,
@@ -426,6 +438,34 @@ export default function SearchPage() {
                 </button>
               );
             })}
+          </div>
+          )}
+          {/* Sort control — mail scope only, same pill row as the scope tabs
+              (no divider lines: separation comes from the pill borders and
+              gaps, per the pure-black design lock). Changing it re-runs the
+              search because `sort` is part of searchParams. */}
+          {scope === 'mail' && (
+          <div className="mt-3 flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5" role="radiogroup" aria-label="Sort search results">
+            <span className="shrink-0 px-1 text-xs font-semibold uppercase tracking-wide text-[var(--quant-muted-foreground)]">
+              Sort
+            </span>
+            {SORT_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                role="radio"
+                aria-checked={sort === option.id}
+                onClick={() => setSort(option.id)}
+                className={`inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3.5 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 sm:h-8 ${
+                  sort === option.id
+                    ? 'border-[var(--brand-primary)]/60 bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
+                    : 'border-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-muted)] hover:text-[var(--quant-foreground)]'
+                }`}
+              >
+                {option.label}
+                {sort === option.id && <Icon name="check" className="h-3 w-3" />}
+              </button>
+            ))}
           </div>
           )}
         </div>
