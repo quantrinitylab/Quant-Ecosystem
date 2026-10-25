@@ -342,7 +342,12 @@ export class SlotLockStore {
     const now = Date.now();
     for (const lock of this.locks.values()) {
       if (lock.expiresAt.getTime() <= now) continue;
-      if ((lock.slug === slug || lock.userId === userId) && lock.slotTime === slotTimeMs) {
+      // Scope a lock to its exact (booking link, host, slot) triple
+      // (fix/qm-slot-lock-scope): the old `slug || userId` disjunction let
+      // a lock held on one link of a host block the same slot on the
+      // host's OTHER links, 409ing unrelated guests and hiding the slot
+      // from getAvailableSlots on those links.
+      if (lock.slug === slug && lock.userId === userId && lock.slotTime === slotTimeMs) {
         return lock;
       }
     }
