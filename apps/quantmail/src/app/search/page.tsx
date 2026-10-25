@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Skeleton, ErrorState, EmptyState } from '@quant/shared-ui';
@@ -11,7 +11,17 @@ import { SearchClearButton } from '../../components/SearchClearButton';
 import { UnreadDot } from '../../components/UnreadDot';
 import { useSearchEmails } from '../../hooks/useSearchEmails';
 import { useUniversalSearch, type UniversalSearchScope } from '../../hooks/useUniversalSearch';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useLabels } from '../../hooks/useLabels';
 import { useAuth } from '../../providers/auth-provider';
+import { getFts5Indexer } from '../../lib/local-db';
+import {
+  buildSuggestionSections,
+  countSuggestions,
+  flattenSuggestions,
+  type SearchSuggestion,
+} from '../../lib/searchSuggestions';
+import { SearchSuggestions } from './SearchSuggestions';
 import {
   clearRecentSearches,
   ensureSearchHistoryNamespaceV2,
@@ -127,7 +137,25 @@ export default function SearchPage() {
   const [editingFilter, setEditingFilter] = useState<SearchFilter['type'] | null>(null);
   const [filterInput, setFilterInput] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [hasSearched, setHasSearched] = useState(false);
+  // As-you-type: keystrokes settle 300ms after the last one; the search
+  // pipeline below fires off the settled text — no explicit submit needed.
+  const { debounced: debouncedQuery, flush: flushDebouncedQuery, settleNow: settleDebouncedNow } =
+    useDebouncedValue(query, 300);
+  // Explicit submit (Enter / Search button / suggestion pick) commits the
+  // text immediately so results never wait out the debounce window. Typing
+  // again clears it and the debounced stream takes over.
+  const [committedQuery, setCommittedQuery] = useState('');
+  // The live search text: an explicit commit wins right away, otherwise the
+  // debounced keystrokes. One pipeline for both — submit is now just "run
+  // now", not "run at all".
+  const searchText = (committedQuery || debouncedQuery).trim();
+  // Suggestion dropdown state: opened while typing, closed on select/Escape/
+  // focus loss. activeSuggestion is the arrow-key index into the flattened
+  // suggestion list (-1 = none).
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  const suggestionsId = 'search-suggestions-listbox';
+  const { data: labelsData } = useLabels();
   // The backend-verified immutable user id is the namespace segment; an
   // unknown/empty account means no recent-search persistence at all.
   const accountKey = searchHistoryAccountKey(user?.id);
@@ -141,9 +169,9 @@ export default function SearchPage() {
   }, [accountKey]);
 
   const searchParams: Partial<SearchEmailRequest> | null =
-    hasSearched && query.trim()
+    searchText
       ? {
-          query: query.trim(),
+          query: searchText,
           from: activeFilters.find((f) => f.type === 'from')?.value,
           to: activeFilters.find((f) => f.type === 'to')?.value,
           hasAttachment: activeFilters.some((f) => f.type === 'has') ? true : undefined,
@@ -156,7 +184,7 @@ export default function SearchPage() {
 
   // Universal search fans out to the real per-source backends; the mail scope
   // keeps the dedicated Gmail-style search above (with its filters) untouched.
-  const universalQuery = scope === 'mail' || !hasSearched || !query.trim() ? null : query.trim();
+  const universalQuery = scope === 'mail' || !searchText ? null : searchText;
   const {
     data: universalResults,
     isLoading: universalLoading,
@@ -166,7 +194,7 @@ export default function SearchPage() {
   // failure (it never did before, which made the ErrorState below dead
   // code). With an empty local index the failure surfaces as an error; with
   // local hits those hits render honestly labeled as offline/partial.
-  const mailSearchOffline = scope === 'mail' && hasSearched && !!error;
+  const mailSearchOffline = scope === 'mail' && !!searchText && !!error;
   const offlineHits = mailSearchOffline ? (localHits ?? []) : [];
   const visibleResults = mailSearchOffline ? offlineHits : results;
 
@@ -174,22 +202,20 @@ export default function SearchPage() {
     (search: string) => {
       const trimmed = search.trim();
       if (!trimmed) return;
+      // Explicit submit: settle the debounce window now and commit, so the
+      // search fires this render instead of 300ms from now. Recent-search
+      // history is still submit-only — as-you-type keystrokes are never
+      // recorded.
+      flushDebouncedQuery();
       setQuery(trimmed);
-      setHasSearched(true);
+      setCommittedQuery(trimmed);
+      setSuggestionsOpen(false);
+      setActiveSuggestion(-1);
       const store = windowSearchHistoryStorage();
       saveRecentSearch(store, accountKey, trimmed);
       setRecentSearches(getRecentSearches(store, accountKey));
-      // BB-P1-10: the page seeds from ?q= on mount but never wrote it back,
-      // so the URL went stale (back button / copy-link / refresh lost the
-      // query). Keep it in sync; replace (not push) so typing one search
-      // doesn't stack history entries.
-      if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        url.searchParams.set('q', trimmed);
-        router.replace(url.pathname + url.search, { scroll: false });
-      }
     },
-    [router, accountKey],
+    [accountKey, flushDebouncedQuery],
   );
 
   const handleSearch = useCallback(() => {
@@ -210,10 +236,192 @@ export default function SearchPage() {
    * the hook forces this route into a Suspense boundary at build time, and all
    * this needs is the value present on first paint.
    */
+  const seededRef = useRef(false);
   useEffect(() => {
+    // Seed EXACTLY once. runSearchString's identity changes when the auth
+    // account hydrates (accountKey '' -> user id), which used to re-fire
+    // this effect and resurrect the stale ?q= value over text the user had
+    // since typed — a stale committed query surviving a live edit. The
+    // guard makes the second firing a no-op; the URL-sync effect below
+    // still runs, driven by the live search text.
+    if (seededRef.current) return;
+    seededRef.current = true;
     const seed = new URLSearchParams(window.location.search).get('q');
     if (seed) runSearchString(seed);
   }, [runSearchString]);
+
+  /**
+   * BB-P1-10, extended to as-you-type: keep `?q=` in sync with the live
+   * search text so back button / copy-link / refresh never lose the query.
+   * replace (not push), so typing one search doesn't stack history entries.
+   * Skipped until the seed above has run — otherwise the first paint would
+   * wipe a deep-linked `?q=` before the seed reads it.
+   */
+  useEffect(() => {
+    if (!seededRef.current || typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const current = url.searchParams.get('q') ?? '';
+    if (searchText === current) return;
+    if (searchText) url.searchParams.set('q', searchText);
+    else url.searchParams.delete('q');
+    router.replace(url.pathname + url.search, { scroll: false });
+  }, [searchText, router]);
+
+  /**
+   * As-you-type suggestion sections, recomputed per keystroke from
+   * local-first sources: recent searches + quick starts (localStorage),
+   * sender addresses from the local FTS5 index hits for the typed text, and
+   * the user's real labels. Empty sections render nothing — never invented.
+   */
+  const suggestionSections = useMemo(() => {
+    const text = query.trim();
+    if (!text) return { queries: [], senders: [], labels: [] };
+    let ftsHits: Array<{ fromAddress?: string }> = [];
+    try {
+      ftsHits = getFts5Indexer().search(text, { limit: 20 });
+    } catch {
+      // A wedged local index must not break the dropdown; the other two
+      // sections still render.
+      ftsHits = [];
+    }
+    return buildSuggestionSections({
+      text,
+      recentSearches,
+      exampleSearches: EXAMPLE_SEARCHES,
+      ftsHits,
+      labels: labelsData ?? [],
+    });
+  }, [query, recentSearches, labelsData]);
+
+  const flatSuggestions = useMemo(() => flattenSuggestions(suggestionSections), [suggestionSections]);
+  const hasSuggestions = countSuggestions(suggestionSections) > 0;
+  // The dropdown's single source of open truth: the intent flag AND a
+  // non-empty list. aria-expanded, aria-controls, aria-activedescendant
+  // and the rendered listbox all derive from this one value, so they can
+  // never disagree (an "open" flag with nothing to show used to be masked
+  // only by the && in aria-expanded — now the state itself is honest).
+  const dropdownOpen = suggestionsOpen && hasSuggestions;
+  // Guarded by the length check: a highlight left over from a longer list
+  // must never point activedescendant at an option id that no longer
+  // exists (the clamp effect below resets it; this keeps the one render
+  // before the effect honest too).
+  const activeOptionId =
+    dropdownOpen && activeSuggestion >= 0 && activeSuggestion < flatSuggestions.length
+      ? `${suggestionsId}-option-${activeSuggestion}`
+      : undefined;
+
+  /**
+   * Clamp a stale highlight: sections recompute when labels / recents load
+   * async, and a list that shrinks below the arrow-key index used to leave
+   * activeSuggestion pointing past the end — Enter then silently submitted
+   * raw text while the user believed an option was highlighted, and the
+   * next ArrowDown skipped index 0. Reset to "none highlighted".
+   */
+  useEffect(() => {
+    if (activeSuggestion >= flatSuggestions.length) setActiveSuggestion(-1);
+  }, [activeSuggestion, flatSuggestions.length]);
+
+  /**
+   * Apply a mail filter chip, replacing any existing chip of the same type
+   * in place (the same replace-in-place rule handleConfirmFilter uses).
+   */
+  const upsertFilterChip = useCallback((type: SearchFilter['type'], label: string, value: string) => {
+    setActiveFilters((prev) => {
+      const next: SearchFilter = { type, label, value };
+      const at = prev.findIndex((f) => f.type === type);
+      if (at === -1) return [...prev, next];
+      const copy = [...prev];
+      copy[at] = next;
+      return copy;
+    });
+  }, []);
+
+  /**
+   * Pick a suggestion from the dropdown.
+   * - query (recent / quick start): fill the field and submit, like Enter.
+   * - sender: switch to the Mail scope and pin a From chip, then submit the
+   *   current text with it — the same chips the filter row builds, so the
+   *   backend and the offline index apply identical filtering.
+   * - label: same, with the Label chip. With an empty field the chip is
+   *   applied and left pending — typing then searches with it, exactly like
+   *   tapping the chip row's own Label chip.
+   */
+  const selectSuggestion = useCallback(
+    (suggestion: SearchSuggestion) => {
+      if (suggestion.kind === 'sender') {
+        if (scope !== 'mail') setScope('mail');
+        upsertFilterChip('from', `From: ${suggestion.label}`, suggestion.label);
+        if (query.trim()) runSearchString(query);
+        else {
+          setSuggestionsOpen(false);
+          setActiveSuggestion(-1);
+        }
+        return;
+      }
+      if (suggestion.kind === 'label') {
+        if (scope !== 'mail') setScope('mail');
+        upsertFilterChip('in', `Label: ${suggestion.label}`, suggestion.label);
+        if (query.trim()) runSearchString(query);
+        else {
+          setSuggestionsOpen(false);
+          setActiveSuggestion(-1);
+        }
+        return;
+      }
+      runSearchString(suggestion.label);
+    },
+    [query, scope, upsertFilterChip, runSearchString],
+  );
+
+  const handleSuggestionKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        // An arrow-highlighted suggestion wins over the raw text — the same
+        // precedence Gmail gives the dropdown.
+        const picked = activeSuggestion >= 0 ? flatSuggestions[activeSuggestion] : undefined;
+        if (picked) selectSuggestion(picked);
+        else handleSearch();
+      } else if (e.key === 'Escape') {
+        setSuggestionsOpen(false);
+        setActiveSuggestion(-1);
+      } else if (e.key === 'ArrowDown' && flatSuggestions.length > 0) {
+        e.preventDefault();
+        // A closed list reopens on the first option (standard combobox:
+        // Escape-then-ArrowDown used to be dead — the closed flag gated
+        // navigation entirely). From no highlight, (i + 1) % len is 0.
+        if (!suggestionsOpen) {
+          setSuggestionsOpen(true);
+          setActiveSuggestion(0);
+        } else {
+          setActiveSuggestion((i) => (i + 1) % flatSuggestions.length);
+        }
+      } else if (e.key === 'ArrowUp' && flatSuggestions.length > 0) {
+        e.preventDefault();
+        // From no highlight ArrowUp lands on the LAST option. The old
+        // (i - 1 + len) % len from i = -1 gave len - 2 (and -0 for len 1
+        // only by accident) — a highlight the user never asked for.
+        if (!suggestionsOpen) {
+          setSuggestionsOpen(true);
+          setActiveSuggestion(flatSuggestions.length - 1);
+        } else {
+          setActiveSuggestion((i) => (i <= 0 ? flatSuggestions.length - 1 : i - 1));
+        }
+      }
+    },
+    [activeSuggestion, flatSuggestions, suggestionsOpen, selectSuggestion, handleSearch],
+  );
+
+  const handleQueryChange = useCallback((value: string) => {
+    setQuery(value);
+    // Typing resumes the as-you-type stream: any explicit commit is stale
+    // the moment the text differs from it.
+    setCommittedQuery('');
+    // Honest open intent: an emptied field is closed, not "open with
+    // nothing to show" (the old unconditional true left suggestionsOpen
+    // true for an empty query, masked only by the hasSuggestions &&).
+    setSuggestionsOpen(value.trim().length > 0);
+    setActiveSuggestion(-1);
+  }, []);
 
   /**
    * The chip row's one job: open this filter's editor, or toggle the one filter
@@ -289,18 +497,18 @@ export default function SearchPage() {
 
   const handleResetSearch = useCallback(() => {
     setQuery('');
-    setHasSearched(false);
+    setCommittedQuery('');
+    // Pin the debounced value to '' right now — otherwise the previous
+    // window's text would keep stale results on screen for one more 300ms
+    // after the field is cleared. The URL sync effect drops ?q= with it, so
+    // the URL never claims a search that isn't running (BB-P1-10).
+    settleDebouncedNow('');
+    setSuggestionsOpen(false);
+    setActiveSuggestion(-1);
     setActiveFilters([]);
     setEditingFilter(null);
     setFilterInput('');
-    // BB-P1-10: clear ?q= with the query so the URL never claims a search
-    // that isn't running.
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('q');
-      router.replace(url.pathname + url.search, { scroll: false });
-    }
-  }, [router]);
+  }, [settleDebouncedNow]);
 
   const clearRecent = useCallback(() => {
     clearRecentSearches(windowSearchHistoryStorage(), accountKey);
@@ -324,19 +532,31 @@ export default function SearchPage() {
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <div className="workspace-page search-workspace flex flex-col h-full">
-        {/* Search bar — one rounded field, icon inside, Enter searches */}
+        {/* Search bar — one rounded field, icon inside.
+            As-you-type: results fire off the debounced text, and a suggestion
+            dropdown (recent queries, senders, labels) drops while typing.
+            Enter still submits immediately; Escape dismisses the dropdown. */}
         <div className="p-4 pb-3">
           <div className="flex items-center gap-2">
-            <div className="relative flex-1 min-w-0">
+            <div
+              className="relative flex-1 min-w-0"
+              onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                  setSuggestionsOpen(false);
+                  setActiveSuggestion(-1);
+                }
+              }}
+            >
               <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--quant-muted-foreground)]">
                 <Icon name="search" className="h-[18px] w-[18px]" />
               </span>
               <input
                 type="search"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSearch();
+                onChange={(e) => handleQueryChange(e.target.value)}
+                onKeyDown={handleSuggestionKeyDown}
+                onFocus={() => {
+                  if (query.trim()) setSuggestionsOpen(true);
                 }}
                 placeholder={
                   scope === 'mail'
@@ -344,10 +564,29 @@ export default function SearchPage() {
                     : 'Search mail, people, calendar, drive…'
                 }
                 aria-label={scope === 'mail' ? 'Search mail' : 'Search everything'}
+                role="combobox"
+                aria-expanded={dropdownOpen}
+                // Points at the listbox only while it is rendered: a
+                // reference to an unmounted id is a dangling IDREF, not a
+                // control relationship. Likewise activedescendant is set
+                // only for a highlighted option that currently exists, and
+                // absent otherwise (closed, or nothing highlighted).
+                aria-controls={dropdownOpen ? suggestionsId : undefined}
+                aria-activedescendant={activeOptionId}
+                aria-haspopup="listbox"
+                aria-autocomplete="list"
                 autoFocus
                 className="h-11 w-full rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface)] pl-11 pr-10 text-sm outline-none transition-colors placeholder:text-[var(--quant-muted-foreground)]/60 focus:border-[var(--brand-primary)]/60 focus:ring-2 focus:ring-[var(--brand-primary)]/25"
               />
               {query && <SearchClearButton onClear={handleResetSearch} variant="ghost" />}
+              {dropdownOpen && (
+                <SearchSuggestions
+                  id={suggestionsId}
+                  sections={suggestionSections}
+                  activeIndex={activeSuggestion}
+                  onSelect={selectSuggestion}
+                />
+              )}
             </div>
             <Button variant="primary" onClick={handleSearch} disabled={!query.trim()}>
               Search
@@ -521,7 +760,7 @@ export default function SearchPage() {
 
         <div className="flex-1 overflow-y-auto">
           {/* Zero state: recent + quick starts */}
-          {!hasSearched && (
+          {!searchText && (
             <div className="space-y-6 p-4 sm:p-6">
               {recentSearches.length > 0 && (
                 <div>
@@ -595,14 +834,14 @@ export default function SearchPage() {
           )}
 
           {/* Universal scopes: aggregated per-source sections */}
-          {scope !== 'mail' && hasSearched && universalLoading && (
+          {scope !== 'mail' && !!searchText && universalLoading && (
             <div className="space-y-2 p-4" aria-label="Searching everything">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} variant="rect" width="100%" height="72px" />
               ))}
             </div>
           )}
-          {scope !== 'mail' && hasSearched && !universalLoading && universalResults && (
+          {scope !== 'mail' && !!searchText && !universalLoading && universalResults && (
             <UniversalSearchResults
               results={universalResults}
               scope={scope}
@@ -611,7 +850,7 @@ export default function SearchPage() {
           )}
 
           {/* Mail scope: the dedicated Gmail-style search */}
-          {scope === 'mail' && hasSearched && isLoading && (
+          {scope === 'mail' && !!searchText && isLoading && (
             <div className="space-y-2 p-4">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} variant="rect" width="100%" height="72px" />
@@ -622,7 +861,7 @@ export default function SearchPage() {
           {/* Backend search failed with an empty local index: surface the
               failure instead of the false "No results" claim. This branch was
               dead code while the hook's queryFn never threw. */}
-          {scope === 'mail' && hasSearched && !isLoading && error && offlineHits.length === 0 && (
+          {scope === 'mail' && !!searchText && !isLoading && error && offlineHits.length === 0 && (
             <ErrorState
               title="Search unavailable"
               message={error.message}
@@ -632,7 +871,7 @@ export default function SearchPage() {
 
           {/* Backend search failed but the device has local hits: show them
               honestly labeled as offline/partial, never as full results. */}
-          {scope === 'mail' && hasSearched && !isLoading && error && offlineHits.length > 0 && (
+          {scope === 'mail' && !!searchText && !isLoading && error && offlineHits.length > 0 && (
             <div className="p-4 pb-0" role="alert">
               <div className="flex items-start gap-3 rounded-xl border border-[var(--quant-border)] bg-black p-3">
                 <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-orange-500" />
@@ -651,17 +890,17 @@ export default function SearchPage() {
             </div>
           )}
 
-          {scope === 'mail' && hasSearched && !isLoading && !error && (!results || results.length === 0) && (
+          {scope === 'mail' && !!searchText && !isLoading && !error && (!results || results.length === 0) && (
             <EmptyState
               title="No results"
-              description={`Nothing matched “${query}”. Try a broader phrase, remove filters, or search by sender or subject.`}
+              description={`Nothing matched “${searchText}”. Try a broader phrase, remove filters, or search by sender or subject.`}
               actionLabel="Reset search"
               onAction={handleResetSearch}
             />
           )}
 
           {/* Results */}
-          {scope === 'mail' && hasSearched && !isLoading && visibleResults && visibleResults.length > 0 && (
+          {scope === 'mail' && !!searchText && !isLoading && visibleResults && visibleResults.length > 0 && (
             <motion.div
               variants={listContainerVariants}
               initial="hidden"
@@ -669,7 +908,7 @@ export default function SearchPage() {
               className="p-4"
             >
               <p className="mb-2 px-1 text-xs text-[var(--quant-muted-foreground)]">
-                {visibleResults.length}{' '}{mailSearchOffline ? 'offline ' : ''}result{visibleResults.length !== 1 ? 's' : ''}{' '}for “{query}”
+                {visibleResults.length}{' '}{mailSearchOffline ? 'offline ' : ''}result{visibleResults.length !== 1 ? 's' : ''}{' '}for “{searchText}”
               </p>
               <div className="overflow-hidden rounded-xl border border-[var(--quant-border)]">
                 {visibleResults.map((email) => {
