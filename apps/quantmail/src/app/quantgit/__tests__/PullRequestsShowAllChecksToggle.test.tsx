@@ -69,6 +69,17 @@ describe('PullRequestsTab "Show all checks" toggle', () => {
     expect(html).toContain('Show all checks');
     expect(html).not.toContain('data-testid="security-ci-checks-list"');
     expect(html).not.toContain('data-testid="check-ci/build"');
+    // Collapsing known checks must not leak the "status unknown" paragraph:
+    // unknown is only for genuinely missing check data, never for hidden data.
+    expect(html).not.toContain('data-testid="security-ci-checks-unknown"');
+  });
+
+  it('renders no toggle button for an explicitly empty checks array either', () => {
+    // "No check data" means both undefined AND []: activeChecks is [] in both
+    // cases, so the button must be absent and the honest unknown state shown.
+    const html = renderToStaticMarkup(<PullRequestsTab {...baseProps({ checks: [] })} />);
+    expect(html).not.toContain('data-testid="show-all-checks-btn"');
+    expect(html).toContain('data-testid="security-ci-checks-unknown"');
   });
 
   it('renders no toggle button when no check data exists (nothing to toggle)', () => {
@@ -128,6 +139,30 @@ describe('PullRequestsTab "Show all checks" toggle', () => {
       expect(button()!.textContent).toContain('Hide checks');
       expect(button()!.getAttribute('aria-expanded')).toBe('true');
       expect(list()).not.toBeNull();
+    });
+
+    it('is keyboard-operable: a native focusable button, not a div with onClick', async () => {
+      // jsdom does not implement browser keyboard activation (Enter/Space
+      // dispatching click), and this repo has no user-event dependency, so
+      // activation itself cannot be simulated here. What jsdom CAN prove is
+      // the precondition keyboard activation rests on: a real <button>
+      // (Enter/Space activation + tab focus are platform guarantees for
+      // native buttons) that accepts focus, with type="button" so it can
+      // never act as a form submit. A div/span swap would fail focus()
+      // (no tabindex) and the tagName/type assertions below; the shared
+      // onClick handler it would break is covered by the click test above.
+      root = createRoot(container!);
+      await act(async () => {
+        root!.render(<PullRequestsTab {...baseProps({ checks: REAL_CHECKS })} />);
+      });
+      const button = container!.querySelector(
+        '[data-testid="show-all-checks-btn"]',
+      ) as HTMLElement | null;
+      expect(button).not.toBeNull();
+      expect(button!.tagName).toBe('BUTTON');
+      expect(button!.getAttribute('type')).toBe('button');
+      button!.focus();
+      expect(document.activeElement).toBe(button);
     });
   });
 });
