@@ -10,7 +10,45 @@ import {
   writeUserMailNotificationMode,
 } from '../services/mail-notification-mode.service';
 
-const listQuerySchema = z.object({ limit: z.coerce.number().int().min(1).max(100).default(30) });
+const listQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+  // Opaque cursor paging (QM notifications-pagination fix): the UI used to be
+  // hard-capped at one `limit` window while `unreadCount` counted ALL unread,
+  // so rows beyond the newest window were unreachable. A cursor is the last
+  // row of the previous page, encoded as base64url JSON — no offset, so rows
+  // inserted between pages never shift a page boundary, and a forged cursor
+  // can only ever narrow the caller's own window (the userId filter applies
+  // regardless). `id` breaks createdAt ties deterministically with the
+  // matching `id desc` sort below.
+  cursor: z.string().optional(),
+});
+
+interface NotificationsCursor {
+  createdAt: string;
+  id: string;
+}
+
+function encodeNotificationsCursor(row: { createdAt: Date | string; id: string }): string {
+  const createdAt = row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt;
+  return Buffer.from(JSON.stringify({ createdAt, id: row.id }), 'utf8').toString('base64url');
+}
+
+function decodeNotificationsCursor(cursor: string): NotificationsCursor | null {
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    if (
+      typeof parsed !== 'object' || parsed === null ||
+      typeof (parsed as { createdAt?: unknown }).createdAt !== 'string' ||
+      typeof (parsed as { id?: unknown }).id !== 'string' ||
+      Number.isNaN(Date.parse((parsed as { createdAt: string }).createdAt))
+    ) {
+      return null;
+    }
+    return parsed as NotificationsCursor;
+  } catch {
+    return null;
+  }
+}
 
 const mailNotificationModeBodySchema = z.object({ mode: z.enum(MAIL_NOTIFICATION_MODES) });
 
@@ -45,7 +83,15 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
 
   fastify.get('/', async (request, reply) => {
     const userId = userIdFrom(request);
-    const { limit } = listQuerySchema.parse(request.query);
+    const parsedQuery = listQuerySchema.safeParse(request.query);
+    if (!parsedQuery.success) {
+      throw createAppError('Invalid notifications query', 400, 'VALIDATION_ERROR');
+    }
+    const { limit, cursor: cursorRaw } = parsedQuery.data;
+    const cursor = cursorRaw === undefined ? null : decodeNotificationsCursor(cursorRaw);
+    if (cursorRaw !== undefined && cursor === null) {
+      throw createAppError('Invalid notifications cursor', 400, 'VALIDATION_ERROR');
+    }
     const now = new Date();
     // Retention (QM fix: unbounded accumulation): expired rows are physically
     // removed on read, scoped to the caller. This keeps retention
@@ -54,11 +100,41 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
     // changes nothing the caller could see.
     await pruneExpiredNotifications(prisma, { userId, now });
     const active = { userId, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] };
-    const [notifications, unreadCount] = await Promise.all([
-      prisma.notification.findMany({ where: active, orderBy: { createdAt: 'desc' }, take: limit }),
+    // Cursor predicate: strictly older than the cursor row (createdAt, then
+    // id). Combined with userId + the active filter — never a replacement.
+    const cursorWhere = cursor
+      ? {
+          AND: [
+            {
+              OR: [
+                { createdAt: { lt: new Date(cursor.createdAt) } },
+                { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } },
+              ],
+            },
+          ],
+        }
+      : {};
+    // Fetch one extra row: its presence is what makes `hasMore` true, so
+    // the UI never shows a dead "Load more" on the last page.
+    const [rows, unreadCount, totalCount] = await Promise.all([
+      prisma.notification.findMany({
+        where: { ...active, ...cursorWhere },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
+      }),
       prisma.notification.count({ where: { ...active, isRead: false } }),
+      prisma.notification.count({ where: active }),
     ]);
-    return reply.send({ success: true, data: { notifications, unreadCount } });
+    const hasMore = rows.length > limit;
+    const notifications = hasMore ? rows.slice(0, limit) : rows;
+    const nextCursor =
+      hasMore && notifications.length > 0
+        ? encodeNotificationsCursor(notifications[notifications.length - 1])
+        : null;
+    return reply.send({
+      success: true,
+      data: { notifications, unreadCount, totalCount, hasMore, nextCursor },
+    });
   });
 
   fastify.post('/read-all', async (request, reply) => {

@@ -22,7 +22,7 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import {
-  useNotifications,
+  useNotificationsInfinite,
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
   useDeleteNotification,
@@ -74,14 +74,34 @@ export default function NotificationsPage() {
   // (TTL + prune), but users can reclaim space deliberately.
   const [confirmClearAllOpen, setConfirmClearAllOpen] = useState(false);
 
-  const { data, isLoading, error, refetch } = useNotifications(50);
+  // Cursor-paged: the old useNotifications(50) hard-capped the center at
+  // one window while the header counted ALL unread, so older unread rows
+  // were unreachable. Pages append in newest-first order; the header count
+  // is now honest because "Load more" reaches every row behind it.
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useNotificationsInfinite(50);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
   const deleteOne = useDeleteNotification();
   const clearAll = useClearAllNotifications();
 
-  const notifications = useMemo(() => data?.notifications ?? [], [data]);
-  const unreadCount = data?.unreadCount ?? 0;
+  const pages = data?.pages ?? [];
+  const notifications = useMemo(
+    () => pages.flatMap((page) => page.notifications),
+    [pages],
+  );
+  const unreadCount = pages[0]?.unreadCount ?? 0;
+  // Clear-all deletes EVERYTHING, not just the loaded pages, so its confirm
+  // copy must use the backend total — never the loaded-page count, which
+  // understates the blast radius once paging exists.
+  const totalCount = pages[0]?.totalCount ?? notifications.length;
 
   const visible = useMemo(() => {
     switch (filter) {
@@ -168,7 +188,7 @@ export default function NotificationsPage() {
           <ConfirmDialog
             isOpen={confirmClearAllOpen}
             title="Clear all notifications?"
-            message={`This will permanently delete all ${notifications.length} notification${notifications.length === 1 ? '' : 's'}.`}
+            message={`This will permanently delete all ${totalCount} notification${totalCount === 1 ? '' : 's'}.`}
             confirmLabel="Clear all"
             cancelLabel="Cancel"
             onConfirm={() => {
@@ -321,6 +341,26 @@ export default function NotificationsPage() {
                   </li>
                 ))}
               </ul>
+            )}
+
+            {/* Cursor paging: filters apply to loaded rows only, so "Load
+                more" stays reachable even when the current filter shows
+                nothing — older unread rows may live on the next page. */}
+            {!isLoading && !error && notifications.length > 0 && hasNextPage && (
+              <div className="mt-4 flex justify-center">
+                <Button
+                  variant="secondary"
+                  onClick={() => void fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                >
+                  {isFetchingNextPage ? 'Loading…' : 'Load more'}
+                </Button>
+              </div>
+            )}
+            {!isLoading && !error && notifications.length > 0 && !hasNextPage && (
+              <p className="mt-4 text-center text-xs text-[var(--quant-muted-foreground)]">
+                Showing all {notifications.length} loaded notification{notifications.length === 1 ? '' : 's'}
+              </p>
             )}
           </div>
         </div>
