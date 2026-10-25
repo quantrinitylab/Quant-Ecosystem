@@ -16,11 +16,19 @@ interface CachedContacts {
  * Caches for 5 minutes in sessionStorage.
  * Used by the ContactAutocomplete in the composer for fast suggestions.
  */
-export function useContactSuggestions(): {
+export function useContactSuggestions(options?: {
+  /**
+   * When false, no fetch is started on mount (the shell's typeahead passes
+   * false on pages with no search box, so a search-less page never pays for
+   * a contacts fetch). Defaults to true — the composer keeps its old behavior.
+   */
+  enabled?: boolean;
+}): {
   contacts: ContactSuggestion[];
   isLoading: boolean;
   refresh: () => void;
 } {
+  const enabled = options?.enabled ?? true;
   const [contacts, setContacts] = useState<ContactSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -85,8 +93,9 @@ export function useContactSuggestions(): {
   }, []);
 
   useEffect(() => {
-    void fetchContacts();
-  }, [fetchContacts]);
+    if (enabled) void fetchContacts();
+    else setIsLoading(false);
+  }, [enabled, fetchContacts]);
 
   return { contacts, isLoading, refresh: fetchContacts };
 }

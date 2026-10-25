@@ -36,6 +36,7 @@ import { Quanty } from './Quanty';
 import { openQuantyAvatarPicker, useQuantyAvatar } from '../lib/quanty/avatar-choice';
 import { SidebarStorage } from './AppSidebar';
 import { SearchClearButton } from './SearchClearButton';
+import { SearchTypeaheadDropdown, useSearchTypeahead } from './SearchTypeahead';
 import type { LogoAppType } from './Interactive3DLogo';
 
 function ComposePencilIcon({ className }: { className?: string }) {
@@ -132,6 +133,18 @@ export function DesktopContextSidebar({
   const [activeTabState, setActiveTabState] = useState<string | null>(null);
   const quantyAvatar = useQuantyAvatar();
 
+  // Search typeahead: as-you-type suggestions (recents + contacts + the
+  // from:/to: operators the view filters honor) for the sidebar search box.
+  // Disabled on pages with no search box so they never pay for a contacts
+  // fetch. The hook's key handler runs first: when it consumes a key
+  // (row navigation, pick, dropdown close) the field's own Escape-clear
+  // below must not also fire.
+  const searchTypeahead = useSearchTypeahead({
+    value: searchValue ?? '',
+    onChange: (val) => onSearchChange?.(val),
+    enabled: onSearchChange !== undefined,
+  });
+
   const config = PILLAR_SUB_CONFIGS[pillar];
 
   // Keep in sync with tab changes dispatched from elsewhere (pages, strips).
@@ -200,7 +213,7 @@ export function DesktopContextSidebar({
       {/* 2 — search: expands inline, filters exactly like the old header search.
           Rendered only on pages that pass `onSearchChange`. */}
       {onSearchChange && (
-        <div className="sidebar-search-wrap">
+        <div className="sidebar-search-wrap relative">
           <label className={`sidebar-search-field${searchValue ? ' is-open' : ''}`}>
             <SearchGlyph />
             <input
@@ -212,12 +225,23 @@ export function DesktopContextSidebar({
               placeholder={searchPlaceholder ?? 'Search'}
               value={searchValue ?? ''}
               onChange={(e) => onSearchChange(e.target.value)}
+              onFocus={searchTypeahead.handleFocus}
+              onBlur={searchTypeahead.handleBlur}
               onKeyDown={(e) => {
+                if (searchTypeahead.handleKeyDown(e)) return;
                 if (e.key === 'Escape') {
                   onSearchChange('');
                   (e.target as HTMLInputElement).blur();
                 }
               }}
+              role="combobox"
+              aria-expanded={searchTypeahead.open}
+              aria-controls={searchTypeahead.listboxId}
+              aria-activedescendant={
+                searchTypeahead.activeIndex >= 0
+                  ? `${searchTypeahead.listboxId}-${searchTypeahead.activeIndex}`
+                  : undefined
+              }
             />
             {searchValue ? (
               <SearchClearButton onClear={() => onSearchChange('')} />
@@ -227,6 +251,13 @@ export function DesktopContextSidebar({
               </kbd>
             )}
           </label>
+          <SearchTypeaheadDropdown
+            open={searchTypeahead.open}
+            suggestions={searchTypeahead.suggestions}
+            activeIndex={searchTypeahead.activeIndex}
+            listboxId={searchTypeahead.listboxId}
+            onSelect={searchTypeahead.handleSelect}
+          />
         </div>
       )}
 

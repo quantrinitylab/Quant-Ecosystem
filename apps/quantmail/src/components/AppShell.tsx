@@ -23,6 +23,7 @@ import { useAuth } from '../providers/auth-provider';
 import { groupEmailsIntoThreads } from '../lib/threading';
 import type { Email } from '../types';
 import { SearchClearButton } from './SearchClearButton';
+import { SearchTypeaheadDropdown, useSearchTypeahead } from './SearchTypeahead';
 import { QuantFab, type FabAction } from './QuantFab';
 import { ShellChromeProvider } from './ShellChromeContext';
 import { QuantyDrawerHost } from './QuantyLauncher';
@@ -167,6 +168,15 @@ export function AppShell({
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
   const sidebarSearchRef = useRef<HTMLInputElement>(null);
+  // Search typeahead for the mobile fallback search row (used on routes the
+  // pillar bar doesn't cover). In-flow dropdown: this row lives inside the
+  // grid-rows animation container, whose overflow-hidden would clip an
+  // absolutely positioned panel, so the panel expands below the field.
+  const mobileSearchTypeahead = useSearchTypeahead({
+    value: searchValue ?? '',
+    onChange: (val) => onSearchChange?.(val),
+    enabled: onSearchChange !== undefined,
+  });
   const router = useRouter();
   const pathname = usePathname() ?? '/';
   const { data: inboxEmails } = useInbox({ folderType: 'INBOX' });
@@ -847,47 +857,70 @@ export function AppShell({
               >
                 <div className="min-h-0 overflow-hidden">
                   <div className="flex items-center gap-2 border-b border-[var(--quant-surface-elevated)]/80 bg-[var(--quant-background)] px-3 py-2.5 sm:px-4">
-                    <div className="flex min-h-touch flex-1 items-center gap-2 rounded-xl border border-[#3A404D]/80 bg-[var(--quant-surface)]/90 px-3 shadow-inner focus-within:border-[var(--quant-primary)]/60 focus-within:ring-1 focus-within:ring-[var(--quant-primary)]/30">
-                      <svg
-                        className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.6"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <circle cx="11" cy="11" r="7" />
-                        <path d="m20 20-4-4" />
-                      </svg>
-                      <input
-                        ref={mobileSearchRef}
-                        id="app-shell-mobile-search-input"
-                        name="searchQuery"
-                        type="search"
-                        value={searchValue ?? ''}
-                        onChange={(e) => onSearchChange(e.target.value)}
-                        onKeyDown={(event) => {
-                          // Escape closes the row from inside the field, which is
-                          // where the user is. The engine's Escape binding is scoped
-                          // to the drawer, so it never sees this.
-                          if (event.key === 'Escape') {
-                            event.stopPropagation();
-                            onSearchChange('');
-                            setIsMobileSearchOpen(false);
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-h-touch items-center gap-2 rounded-xl border border-[#3A404D]/80 bg-[var(--quant-surface)]/90 px-3 shadow-inner focus-within:border-[var(--quant-primary)]/60 focus-within:ring-1 focus-within:ring-[var(--quant-primary)]/30">
+                        <svg
+                          className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <circle cx="11" cy="11" r="7" />
+                          <path d="m20 20-4-4" />
+                        </svg>
+                        <input
+                          ref={mobileSearchRef}
+                          id="app-shell-mobile-search-input"
+                          name="searchQuery"
+                          type="search"
+                          value={searchValue ?? ''}
+                          onChange={(e) => onSearchChange(e.target.value)}
+                          onFocus={mobileSearchTypeahead.handleFocus}
+                          onBlur={mobileSearchTypeahead.handleBlur}
+                          onKeyDown={(event) => {
+                            if (mobileSearchTypeahead.handleKeyDown(event)) return;
+                            // Escape closes the row from inside the field, which is
+                            // where the user is. The engine's Escape binding is scoped
+                            // to the drawer, so it never sees this. (A first Escape
+                            // only closes an open dropdown — the handler above
+                            // consumes it — so the row itself stays open.)
+                            if (event.key === 'Escape') {
+                              event.stopPropagation();
+                              onSearchChange('');
+                              setIsMobileSearchOpen(false);
+                            }
+                          }}
+                          aria-label="Search"
+                          placeholder={
+                            searchPlaceholder ||
+                            (currentApp === 'mail'
+                              ? 'Search messages, contacts, keywords…'
+                              : `Search in ${appDisplayName(currentApp)}…`)
                           }
-                        }}
-                        aria-label="Search"
-                        placeholder={
-                          searchPlaceholder ||
-                          (currentApp === 'mail'
-                            ? 'Search messages, contacts, keywords…'
-                            : `Search in ${appDisplayName(currentApp)}…`)
-                        }
-                        className="h-11 w-full bg-transparent text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
+                          role="combobox"
+                          aria-expanded={mobileSearchTypeahead.open}
+                          aria-controls={mobileSearchTypeahead.listboxId}
+                          aria-activedescendant={
+                            mobileSearchTypeahead.activeIndex >= 0
+                              ? `${mobileSearchTypeahead.listboxId}-${mobileSearchTypeahead.activeIndex}`
+                              : undefined
+                          }
+                          className="h-11 w-full bg-transparent text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
+                        />
+                        {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
+                      </div>
+                      <SearchTypeaheadDropdown
+                        open={mobileSearchTypeahead.open}
+                        suggestions={mobileSearchTypeahead.suggestions}
+                        activeIndex={mobileSearchTypeahead.activeIndex}
+                        listboxId={mobileSearchTypeahead.listboxId}
+                        onSelect={mobileSearchTypeahead.handleSelect}
+                        layout="in-flow"
                       />
-                      {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
                     </div>
                     {/*
                   A real 44px button, not a 26px line of text. Clear empties the
