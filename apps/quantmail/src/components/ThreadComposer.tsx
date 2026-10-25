@@ -19,6 +19,7 @@ import {
   windowThreadDraftStorage,
 } from '../lib/threadReplyDrafts';
 import { draftSaveStateLabel } from './useDraftAutosave';
+import { useReadReceiptsPreference } from '../hooks/useReadReceiptsPreference';
 
 export interface ThreadComposerProps {
   conversation: PersonConversation;
@@ -126,6 +127,13 @@ export interface ThreadSendDeps {
     bodyText: string;
     messageKind: 'chat';
     inReplyTo: string;
+    /**
+     * Per-message open-tracking beacon opt-out (fix/qm-read-receipts).
+     * Omitted = the server's read-receipts default for the user (see
+     * routes/emails.ts), so older callers keep working; pass an explicit
+     * boolean only from the composer's own toggle.
+     */
+    trackOpens?: boolean;
   }) => Promise<{ success: boolean; data?: { id?: string }; error?: { message?: string } }>;
   sendEmail: (
     draftId: string,
@@ -219,6 +227,10 @@ function IconTemplate({ className = 'size-4' }: { className?: string }) {
  * and the /compose page's EmailComposer. The backend 400s past times and
  * the modal rejects them client-side; the component's `handleSend` repeats
  * the past-time guard as belt-and-braces.
+ *
+ * `trackOpens` (fix/qm-read-receipts) is this composer's per-message
+ * open-tracking choice: omitted means the server applies the user's
+ * read-receipts default, an explicit boolean overrides it for this message.
  */
 export async function executeThreadSend(
   deps: ThreadSendDeps,
@@ -226,6 +238,11 @@ export async function executeThreadSend(
   subject: string,
   bodyText: string,
   scheduledAt?: string,
+  // fix/qm-read-receipts: the thread composer's own per-message toggle.
+  // Undefined keeps the payload byte-identical to before (the server then
+  // applies the user's read-receipts default); an explicit boolean rides
+  // the compose payload and wins for this message.
+  trackOpens?: boolean,
 ): Promise<ThreadSendOutcome> {
   try {
     const composeRes = await deps.composeEmail({
@@ -234,6 +251,7 @@ export async function executeThreadSend(
       bodyText,
       messageKind: 'chat',
       inReplyTo: conversation.lastMessage.id,
+      ...(trackOpens !== undefined ? { trackOpens } : {}),
     });
     if (!composeRes.success || !composeRes.data?.id) {
       throw new Error(composeRes.error?.message || 'Failed to compose email');
@@ -308,6 +326,20 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
   // docked composer wire (same pick logic, same past-time rejection, same
   // POST /emails/:id/send `{ sendAt }` contract).
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+
+  // Read receipts (fix/qm-read-receipts): this composer — the person-thread
+  // bar, the default home surface — previously had NO open-tracking toggle
+  // at all, so thread replies always sent tracked. The toggle starts from
+  // the user's persisted read-receipts default once it loads, and a tap
+  // wins over the seed (same convention as EmailComposer/DockedComposer).
+  const [trackOpens, setTrackOpens] = useState(true);
+  const readReceiptsPreference = useReadReceiptsPreference();
+  const trackOpensTouchedRef = useRef(false);
+  useEffect(() => {
+    if (readReceiptsPreference.loaded && !trackOpensTouchedRef.current) {
+      setTrackOpens(readReceiptsPreference.enabled);
+    }
+  }, [readReceiptsPreference.loaded, readReceiptsPreference.enabled]);
 
   /**
    * Insert a saved template into the reply draft, non-destructively: the
@@ -545,7 +577,7 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
           scheduledAt,
           successLabel: scheduledAt ? 'Email scheduled!' : undefined,
           onSendNow: async () => {
-            const outcome = await executeThreadSend(deps, conversation, subject, text, scheduledAt);
+            const outcome = await executeThreadSend(deps, conversation, subject, text, scheduledAt, trackOpens);
             if (!outcome.ok) {
               throw new Error(outcome.errorMessage || 'Failed to send message');
             }
@@ -566,7 +598,7 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
         // No undo provider above this composer: the direct send keeps
         // today's exact behavior — success toasts and clears, failure toasts
         // and keeps the text. Nothing navigates, nothing is discarded.
-        const outcome = await executeThreadSend(deps, conversation, subject, text, scheduledAt);
+        const outcome = await executeThreadSend(deps, conversation, subject, text, scheduledAt, trackOpens);
         if (outcome.ok) {
           onSent?.(text, subject, sendClientId);
         } else {
@@ -660,6 +692,32 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
           className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl text-[#9BA0AA] hover:text-[#F97316] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316] disabled:opacity-40"
         >
           <IconTemplate className="size-4" />
+        </button>
+        {/* Read receipts (fix/qm-read-receipts) — the per-message
+            open-tracking toggle this bar never had: double-tick, Mail
+            orange when on, grey when off, 44px hit target like its
+            neighbours. Starts from the user's read-receipts default; a tap
+            overrides it for this message only. */}
+        <button
+          type="button"
+          onClick={() => {
+            trackOpensTouchedRef.current = true;
+            setTrackOpens((prev) => !prev);
+          }}
+          aria-pressed={trackOpens}
+          aria-label={trackOpens ? 'Read receipts on — tap to turn off' : 'Read receipts off — tap to turn on'}
+          title={trackOpens
+            ? 'Read receipts: ON — a tiny invisible image tells you when this message is opened. Tap to send without tracking.'
+            : 'Read receipts: OFF — this message sends with no open tracking. Tap to turn tracking on.'}
+          disabled={isSending}
+          className={`flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316] disabled:opacity-40 ${
+            trackOpens ? 'text-[#F97316]' : 'text-[#9BA0AA] hover:text-white'
+          }`}
+        >
+          <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="1 12 5 16 11 9" />
+            <polyline points="8 12 12 16 18 9" />
+          </svg>
         </button>
         {/* Schedule send — the same ScheduleSendModal the /compose page's
             EmailComposer and the docked composer use: Mail orange accent,

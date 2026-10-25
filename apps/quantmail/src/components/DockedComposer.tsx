@@ -6,6 +6,7 @@ import { formatBytes } from '../lib/format-bytes';
 import { showToast } from './InboxToast';
 import { useContacts } from '../hooks/useContacts';
 import { useConfirm } from '../hooks/useConfirm';
+import { useReadReceiptsPreference } from '../hooks/useReadReceiptsPreference';
 import { apiClient } from '../services/api-client';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
@@ -455,11 +456,21 @@ export function DockedComposer({
   // uses (same pick logic, same past-time rejection, same backend contract).
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
-  // Open tracking (fix/qm-composer-open-tracking-2): per-composer opt-out for
-  // the invisible open beacon. Default ON (Superhuman parity) — but NEVER
-  // invisible: the toolbar toggle below is clearly labeled and one-tap, and
-  // the choice rides the draft + send payloads.
+  // Open tracking (fix/qm-composer-open-tracking-2, seeded by
+  // fix/qm-read-receipts): per-composer opt-out for the invisible open
+  // beacon. The toggle starts from the user's persisted read-receipts
+  // default (Settings › General › "Composer & delivery") once it loads —
+  // never from a hardcoded true again — and a tap on the toggle wins over
+  // the seed, so a choice made before the preference lands is never
+  // overwritten by it.
   const [trackOpens, setTrackOpens] = useState(true);
+  const readReceiptsPreference = useReadReceiptsPreference();
+  const trackOpensTouchedRef = useRef(false);
+  useEffect(() => {
+    if (readReceiptsPreference.loaded && !trackOpensTouchedRef.current) {
+      setTrackOpens(readReceiptsPreference.enabled);
+    }
+  }, [readReceiptsPreference.loaded, readReceiptsPreference.enabled]);
 
   // (Recipient autocomplete is owned by RecipientChipInput now.)
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1596,7 +1607,10 @@ export function DockedComposer({
               privacy-relevant choice, so the button names it explicitly. */}
           <button
             type="button"
-            onClick={() => setTrackOpens((prev) => !prev)}
+            onClick={() => {
+              trackOpensTouchedRef.current = true;
+              setTrackOpens((prev) => !prev);
+            }}
             aria-pressed={trackOpens}
             aria-label={trackOpens ? 'Open tracking on — tap to turn off' : 'Open tracking off — tap to turn on'}
             data-testid="docked-composer-track-opens-toggle"

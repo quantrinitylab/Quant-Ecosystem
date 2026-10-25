@@ -24,6 +24,12 @@
  *   (`quant-undo-delay`, no reader), Default Reply Action (no persistence at
  *   all), Conversation Threading and Automatic Read Receipts (neither persisted
  *   nor read). The undo window is currently owned by the outbox, not by this.
+ *   READ-RECEIPTS UPDATE (fix/qm-read-receipts): the read-receipts half of
+ *   that removal is now restored as a REAL control — `readReceiptsEnabled`
+ *   in `User.preferences`, read by the compose path when a request omits
+ *   `trackOpens` and seeding every composer's per-message toggle. It is
+ *   restored here, in Settings › General › "Composer & delivery", rather
+ *   than re-added as the localStorage key nothing read.
  * - **"When something is slow or down"** entire section — the rerouting toggle
  *   (`quant-ai-failover`, no reader) and the three temperature pills
  *   (`quant-ai-creativity`, no reader) over a backend that hardcodes `0.7`.
@@ -81,6 +87,7 @@ import { showToast } from '../../components/InboxToast';
 import { ShortcutKeys } from '../../components/ShortcutKeys';
 import { useDesktopNotifications } from '../../hooks/useDesktopNotifications';
 import { useMailNotificationMode } from '../../hooks/useMailNotificationMode';
+import { useReadReceiptsPreference } from '../../hooks/useReadReceiptsPreference';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { writeAIIntent } from '../../lib/ai-intent-preference';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
@@ -305,6 +312,7 @@ export default function SettingsPage() {
   const desktopNotifications = useDesktopNotifications();
   const pushNotifications = usePushNotifications();
   const mailNotificationMode = useMailNotificationMode();
+  const readReceiptsPreference = useReadReceiptsPreference();
   const commands = useCommandList();
   const helpGroups = useMemo(() => buildHelpGroups(commands), [commands]);
   const helpNote = dimNoteFor(helpGroups, {
@@ -509,6 +517,28 @@ export default function SettingsPage() {
       });
     },
     [mailNotificationMode.setMode],
+  );
+
+  /**
+   * Read receipts (fix/qm-read-receipts). The DEFAULT for open tracking on
+   * newly composed mail, stored server-side: the compose path falls back to
+   * it when a request omits `trackOpens`, and every composer's per-message
+   * toggle starts from it. A failed PUT leaves the previous value in place
+   * and says so — the toggle never claims a save that did not happen.
+   */
+  const changeReadReceiptsEnabled = useCallback(
+    async (next: boolean) => {
+      const ok = await readReceiptsPreference.setEnabled(next);
+      showToast({
+        text: ok
+          ? next
+            ? 'Read receipts on — new mail will show when it is opened'
+            : 'Read receipts off — new mail sends without open tracking'
+          : 'Could not save read receipts setting',
+        type: ok ? 'info' : 'error',
+      });
+    },
+    [readReceiptsPreference.setEnabled],
   );
 
   /**
@@ -832,6 +862,23 @@ export default function SettingsPage() {
                     )}
                   </div>
                 )}
+              </SettingsSection>
+
+              <SettingsSection
+                title="Composer & delivery"
+                description="The default for new mail. A per-message toggle in every composer still overrides it for that one message."
+              >
+                <SettingsToggleRow
+                  label="Read receipts"
+                  description={
+                    readReceiptsPreference.enabled
+                      ? 'On — new mail includes an invisible open beacon, so Sent and thread views can show read ticks when a recipient opens it. Turn it off to send without tracking.'
+                      : 'Off — new mail sends with no open tracking, so no read ticks will appear for it. Turn it on to restore the beacon on new mail.'
+                  }
+                  checked={readReceiptsPreference.enabled}
+                  disabled={readReceiptsPreference.saving}
+                  onChange={(next) => void changeReadReceiptsEnabled(next)}
+                />
               </SettingsSection>
 
               <VacationResponderSettings />

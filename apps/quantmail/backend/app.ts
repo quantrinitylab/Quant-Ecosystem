@@ -12,6 +12,7 @@ import aiRoutes from './routes/ai';
 import aiServicesRoutes, { aiThreadSummaryRoutes } from './routes/ai-services';
 import mailFiltersRoutes from './routes/mail-filters';
 import vacationResponderRoutes from './routes/vacation-responder';
+import readReceiptsRoutes from './routes/read-receipts';
 import emailTemplatesRoutes from './routes/email-templates';
 import emailSignaturesRoutes from './routes/email-signatures';
 import followUpReminderRoutes from './routes/follow-up-reminders';
@@ -454,6 +455,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(aiThreadSummaryRoutes);
   await app.register(mailFiltersRoutes, { prefix: '/mail-filters' });
   await app.register(vacationResponderRoutes, { prefix: '/vacation-responder' });
+  await app.register(readReceiptsRoutes, { prefix: '/read-receipts' });
   await app.register(emailTemplatesRoutes, { prefix: '/email-templates' });
   await app.register(emailSignaturesRoutes, { prefix: '/email-signatures' });
   // Follow-up reminders (fix/qm-followup-reminders): server-backed replacement
