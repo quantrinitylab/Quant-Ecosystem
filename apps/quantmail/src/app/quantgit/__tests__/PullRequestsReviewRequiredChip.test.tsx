@@ -65,6 +65,38 @@ describe('QuantGit PR list "Review required" chip honesty', () => {
     expect(html).not.toContain('Review required');
   });
 
+  it('renders NO chip when the verdict is null (UNKNOWN — a verdict source was unreadable), and null stays distinct from false: the row must not assert either verdict', () => {
+    const html = renderToStaticMarkup(
+      <PullRequestsTab {...baseProps} filteredPulls={[prRow({ reviewRequired: null })]} />,
+    );
+
+    expect(html).toContain('Fix login crash');
+    expect(html).not.toContain('Review required');
+    expect(html).not.toContain('pr-review-required-101');
+  });
+
+  it('renders the chip only on the true row among true / false / null rows', () => {
+    const html = renderToStaticMarkup(
+      <PullRequestsTab
+        {...baseProps}
+        filteredPulls={[
+          prRow({ id: 101, title: 'Needs review', reviewRequired: true }),
+          prRow({ id: 102, title: 'Already approved', reviewRequired: false }),
+          prRow({ id: 103, title: 'Verdict unknown', reviewRequired: null }),
+        ]}
+      />,
+    );
+
+    expect(html).toContain('Needs review');
+    expect(html).toContain('Already approved');
+    expect(html).toContain('Verdict unknown');
+    expect(html).toContain('pr-review-required-101');
+    expect(html).not.toContain('pr-review-required-102');
+    expect(html).not.toContain('pr-review-required-103');
+    // Exactly one chip in the whole list.
+    expect(html.split('Review required').length - 1).toBe(1);
+  });
+
   it('renders the chip per-row, not for every row', () => {
     const html = renderToStaticMarkup(
       <PullRequestsTab

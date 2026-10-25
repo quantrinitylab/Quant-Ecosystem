@@ -2646,6 +2646,85 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       expect(res.json().data[0].reviewRequired).toBe(false);
     });
 
+    // CODEX fail-closed contract: the verdict is TRUE | FALSE | NULL, NULL
+    // = UNKNOWN. A failure to compute the verdict must return null, never
+    // false. The pre-fix code mapped unreadable sources to false (rules
+    // failure → empty rule set → false) or to a spurious true (reviews
+    // failure → cleared review map → 0 approvals < required → true) — both
+    // assert a verdict the endpoint does not have. These tests fail on the
+    // pre-fix code at exactly that defect (V22i/V22m: false-for-unknown;
+    // V22j/V22k: true-for-unknown).
+    it('V22i: GET /repos/:id/pulls reports reviewRequired=null (unknown) when the protection-rules source is unreadable', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockRejectedValueOnce(
+        new Error('Postgres connection failed'),
+      );
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data[0].reviewRequired).toBeNull();
+    });
+
+    it('V22j: GET /repos/:id/pulls reports reviewRequired=null (unknown) when the reviews source is unreadable under a protection rule', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockResolvedValue([MOCK_BRANCH_PROTECTION]);
+      prisma.review.findMany.mockRejectedValueOnce(new Error('Postgres connection failed'));
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data[0].reviewRequired).toBeNull();
+    });
+
+    it('V22k: GET /repos/:id/pulls reports reviewRequired=null (unknown) when both verdict sources are unreadable', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockRejectedValueOnce(
+        new Error('Postgres connection failed'),
+      );
+      prisma.review.findMany.mockRejectedValueOnce(new Error('Postgres connection failed'));
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data[0].reviewRequired).toBeNull();
+    });
+
+    it('V22l: GET /repos/:id/pulls still reports reviewRequired=false on a closed PR even when verdict sources are unreadable — the closed verdict is settled by status alone and consults no review source', async () => {
+      const app = await buildApp('user-1');
+      prisma.pullRequest.findMany.mockResolvedValueOnce([{ ...MOCK_PR, status: 'CLOSED' }]);
+      prisma.branchProtection.findMany.mockRejectedValueOnce(
+        new Error('Postgres connection failed'),
+      );
+      prisma.review.findMany.mockRejectedValueOnce(new Error('Postgres connection failed'));
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data[0].reviewRequired).toBe(false);
+    });
+
+    it('V22m: GET /repos/:id/pulls reports reviewRequired=null (unknown) for an OPEN row when the reviews source is unreadable even with no protection rule — unknown is never collapsed into false', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockResolvedValue([]);
+      prisma.review.findMany.mockRejectedValueOnce(new Error('Postgres connection failed'));
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data[0].reviewRequired).toBeNull();
+    });
+
     it('V22b: GET /repos/:id/pulls/:number returns null diff stats when the git diff cannot be computed', async () => {
       const app = await buildApp('user-1');
       const res = await app.inject({

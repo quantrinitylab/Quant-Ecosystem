@@ -1989,15 +1989,24 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       // branch's protection rule plus the PR's effective review verdicts
       // (same semantics as MergeEligibilityService: latest verdict per
       // reviewer wins, dismissed/stale approvals are invisible). One rules
-      // query + one reviews query for the whole list; when either source is
-      // unreadable, no row claims a review requirement (false, never a
-      // hardcoded chip). Closed/merged PRs never require a review.
+      // query + one reviews query for the whole list. The verdict is
+      // TRUE | FALSE | NULL end-to-end, where NULL means UNKNOWN: an
+      // unreadable verdict source (thrown query, missing model/method, or
+      // non-array result) makes every OPEN row's verdict NULL — fail-closed
+      // to unknown, NEVER false. False is reserved for verdicts actually
+      // computed from readable sources (no rule, satisfied reviews) plus
+      // closed/merged PRs, whose verdict is settled by status alone and
+      // consults no review source. Collapsing unknown into false would let
+      // the UI silently assert "no review required" for a verdict it does
+      // not have.
       let protectionRules: Array<{ branchPattern: string; requiredApprovals: number }> = [];
+      let reviewSourcesReadable = true;
       try {
         const rules = await prisma.branchProtection?.findMany?.({ where: { repoId: repo.id } });
         if (Array.isArray(rules)) protectionRules = rules;
+        else reviewSourcesReadable = false;
       } catch {
-        protectionRules = [];
+        reviewSourcesReadable = false;
       }
       const reviewsByPr = new Map<
         string,
@@ -2014,12 +2023,22 @@ export default async function reposRoutes(fastify: FastifyInstance) {
             list.push(review);
             reviewsByPr.set(review.prId, list);
           }
+        } else {
+          reviewSourcesReadable = false;
         }
       } catch {
-        reviewsByPr.clear();
+        reviewSourcesReadable = false;
       }
-      const reviewRequiredFor = (pull: { id: string; status: string; targetBranch: string }) => {
+      const reviewRequiredFor = (pull: {
+        id: string;
+        status: string;
+        targetBranch: string;
+      }): boolean | null => {
+        // Closed/merged PRs never require a review — settled by status
+        // alone, no review source is consulted for them.
         if (pull.status !== 'OPEN') return false;
+        // Fail closed to unknown: any unreadable verdict source → null.
+        if (!reviewSourcesReadable) return null;
         const rule = protectionRules.find((r) => branchMatches(pull.targetBranch, r.branchPattern));
         if (!rule || !(rule.requiredApprovals > 0)) return false;
         const latestByReviewer = new Map<string, { status: string; dismissed?: boolean }>();
@@ -2054,7 +2073,9 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           additions: null,
           deletions: null,
           changedFiles: null,
-          // Real review-requirement verdict for the row chip — never hardcoded.
+          // Real review-requirement verdict for the row chip — true, false,
+          // or null (unknown, fail-closed) — never hardcoded, never false
+          // for an undetermined verdict.
           reviewRequired: reviewRequiredFor(pull),
         })),
       );
