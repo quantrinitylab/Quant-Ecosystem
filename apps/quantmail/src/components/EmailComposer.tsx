@@ -1816,7 +1816,11 @@ export function EmailComposer({
     if (action.subject) setSubject(action.subject);
     if (action.greeting) setGreeting(action.greeting);
     if (action.opening) setOpening(action.opening);
-    if (action.body) setBody(mergeQuantyActionBody(body, action.body));
+    // Functional update (same shape as applySavedTemplate): the merge reads
+    // the draft as it is at tap time, never a stale render-time snapshot, so
+    // a tap that lands while the composer is dirty cannot clobber keystrokes
+    // typed after the drawer last rendered.
+    if (action.body) setBody((prev) => mergeQuantyActionBody(prev, action.body));
     if (action.closing) setClosing(action.closing);
     if (action.signoff) setSignoff(action.signoff);
     if (action.senderName) setSenderName(action.senderName);

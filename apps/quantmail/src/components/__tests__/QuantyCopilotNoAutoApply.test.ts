@@ -127,12 +127,44 @@ describe('source pins: the auto-apply and the lying toast never come back', () =
     );
   });
 
+  it('runTurn itself never touches the apply callback or any toast', () => {
+    // Stronger than the exact-string pin above: ANY onApplyAction or
+    // showToast inside runTurn's body is a regression, whatever it is called
+    // with. Slice from runTurn's definition to the next top-level handler.
+    const runTurnStart = drawerSource.indexOf('const runTurn = async');
+    const runTurnEnd = drawerSource.indexOf('const handleSend = async', runTurnStart);
+    expect(runTurnStart).toBeGreaterThan(-1);
+    expect(runTurnEnd).toBeGreaterThan(runTurnStart);
+    const runTurnBody = drawerSource.slice(runTurnStart, runTurnEnd);
+    expect(runTurnBody).not.toContain('onApplyAction');
+    expect(runTurnBody).not.toContain('showToast');
+  });
+
   it('the lying success toast is gone', () => {
     expect(drawerSource).not.toContain("Quanty updated your email draft', type: 'success'");
   });
 
   it('the explicit Apply button is still the apply path', () => {
-    expect(drawerSource).toContain('onApplyAction(parseEmailActionFromText(m.text))');
+    // The button parses with the shared parser, then applies the parsed
+    // action (payload-gated and try/catch-guarded — see the toast test).
+    expect(drawerSource).toContain('parseEmailActionFromText(m.text)');
+    expect(drawerSource).toContain('onApplyAction(action)');
     expect(drawerSource).toContain('Apply to Composer');
+  });
+
+  it('the Apply button is the ONLY onApplyAction call site in the drawer', () => {
+    // The prop is destructured and guarded elsewhere, but invoked exactly
+    // once: a second invocation anywhere in this file is a new auto-apply
+    // (or duplicate-apply) path, however it is dressed up.
+    const invocations = drawerSource.match(/onApplyAction\(/g) ?? [];
+    expect(invocations).toHaveLength(1);
+  });
+
+  it('the Apply button toasts success only after a real apply', () => {
+    // The button gates the success toast behind a non-blank payload and a
+    // non-throwing apply; the no-payload and failure branches toast info /
+    // error instead and never claim an update.
+    expect(drawerSource).toContain('Nothing to apply from this message');
+    expect(drawerSource).toContain('Could not apply this message to the composer');
   });
 });

@@ -1650,7 +1650,39 @@ export function QuantyCopilotDrawer({
                             // inline and silently dropped the closing) and the
                             // composer's merge, so a tap on a non-draft answer
                             // appends instead of replacing the user's words.
-                            onApplyAction(parseEmailActionFromText(m.text));
+                            // Toast honesty: the success toast fires ONLY when
+                            // the tap actually applied something. A blank
+                            // message parses to no payload at all, and a tap
+                            // on it must not claim an update (and must not
+                            // close the drawer on the user); a throwing apply
+                            // must surface an error, never a success toast.
+                            const action = parseEmailActionFromText(m.text);
+                            const hasPayload = [
+                              action.to,
+                              action.subject,
+                              action.greeting,
+                              action.opening,
+                              action.body,
+                              action.closing,
+                              action.signoff,
+                              action.senderName,
+                            ].some((slot) => slot?.trim());
+                            if (!hasPayload) {
+                              showToast({
+                                text: 'Nothing to apply from this message',
+                                type: 'info',
+                              });
+                              return;
+                            }
+                            try {
+                              onApplyAction(action);
+                            } catch {
+                              showToast({
+                                text: 'Could not apply this message to the composer',
+                                type: 'error',
+                              });
+                              return;
+                            }
                             onClose();
                             showToast({ text: 'Applied draft into composer', type: 'success' });
                           }}
