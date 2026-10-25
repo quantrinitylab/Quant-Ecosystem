@@ -324,13 +324,30 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
           />,
         );
 
-        // Zone codes are DST-aware (computed via Intl): Oct 2026 -> PDT/EDT,
-        // Asia/Kolkata -> GMT+5:30 style code, London -> GMT+1 style code
-        expect(html).toContain('IST');
-        expect(html).toContain('UTC+5:30');
-        expect(html).toContain('PDT');
-        expect(html).toContain('EDT');
-        expect(html).toContain('UTC+1');
+        // Zone codes/offsets are DST-aware: derive the expected labels for
+        // TODAY via Intl instead of hardcoding them. Hardcoded PDT/EDT/UTC+1
+        // fail outside daylight saving time (UK DST ended 2026-10-25, so
+        // London renders GMT/UTC, and US DST ends 2026-11-01, so PDT/EDT
+        // become PST/EST). Kolkata has no DST. The Kolkata GMT-style code
+        // maps to IST, mirroring the component's STATIC_ZONE_CODES.
+        const now = new Date();
+        const tzPart = (tz: string, style: 'short' | 'shortOffset'): string =>
+          new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: style })
+            .formatToParts(now)
+            .find((p) => p.type === 'timeZoneName')?.value ?? '';
+        for (const tz of [
+          'Asia/Kolkata',
+          'America/Los_Angeles',
+          'America/New_York',
+          'Europe/London',
+        ]) {
+          const rawCode = tzPart(tz, 'short');
+          const code =
+            rawCode.startsWith('GMT') && tz === 'Asia/Kolkata' ? 'IST' : rawCode;
+          const offset = tzPart(tz, 'shortOffset').replace(/^GMT/, 'UTC');
+          expect(html).toContain(code);
+          expect(html).toContain(offset);
+        }
         expect(html).toContain('Hourly Time Blocking Schedule');
       });
 
