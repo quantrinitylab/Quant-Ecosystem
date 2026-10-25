@@ -723,6 +723,26 @@ export function contactThreadSearchParams(
  * then disables (a second click must not ping-pong into a redo). A failed
  * save keeps the draft on screen with an honest error — the edit is never
  * silently dropped, and the next keystroke retries.
+ *
+ * CODEX R3 corrections (PR #1573), both about never losing or regressing
+ * an edit:
+ *
+ * 1. Flush on unmount. The old debounce effect's cleanup cleared the
+ *    pending timer, so switching contacts or closing the sheet within the
+ *    800ms window unmounted this keyed editor and silently dropped the
+ *    draft. The unmount cleanup below now flushes any draft that differs
+ *    from the last saved value (chained behind any in-flight save, so the
+ *    server still sees writes in order). Unmount cannot await, so the
+ *    flush is fire-and-forget — but the fetch itself still runs.
+ * 2. Sequenced saves with a stale-completion guard. The old `save` fired
+ *    one fetch per timer with no ordering, so a slow older save completing
+ *    after a newer one regressed `saved`/`previous`/status (and, server
+ *    side, could overwrite the newer text). Saves now run through a
+ *    promise chain in issue order; a save superseded while queued skips
+ *    its network write entirely, and a completion whose sequence is no
+ *    longer latest is ignored for all state updates. Undo routes through
+ *    the same chain (after cancelling any pending autosave of the
+ *    pre-undo draft, which would otherwise re-save the undone text).
  */
 export function ContactNotesEditor({
   initialNotes,
@@ -736,46 +756,113 @@ export function ContactNotesEditor({
   const [previous, setPrevious] = React.useState<string | null>(null);
   const [status, setStatus] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
-  const save = React.useCallback(
-    async (value: string) => {
-      setStatus('saving');
-      try {
-        await onSave(value);
-        setPrevious(saved);
+  // Refs mirror the latest values so the unmount flush and the sequenced
+  // saves never act on a stale closure's snapshot.
+  const draftRef = React.useRef(draft);
+  const savedRef = React.useRef(saved);
+  const onSaveRef = React.useRef(onSave);
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seqRef = React.useRef(0);
+  const chainRef = React.useRef<Promise<unknown>>(Promise.resolve());
+  const mountedRef = React.useRef(true);
+  React.useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+  React.useEffect(() => {
+    savedRef.current = saved;
+  }, [saved]);
+  React.useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
+
+  // One sequenced save. `seq` marks this save's issue order; the chain
+  // runs saves in that order, so the server never sees a newer write
+  // followed by an older one from this editor.
+  const runSave = React.useCallback(
+    (value: string, opts?: { undo?: boolean; onApplied?: () => void }) => {
+      const seq = ++seqRef.current;
+      const task = chainRef.current.then(async () => {
+        // Superseded while queued: a newer save carries the truth, so skip
+        // this write entirely instead of sending a stale value afterwards.
+        if (seq !== seqRef.current) return;
+        if (mountedRef.current) setStatus('saving');
+        try {
+          await onSaveRef.current(value);
+        } catch {
+          // A superseding save owns the status now; a genuinely latest
+          // failure keeps the draft on screen with an honest error.
+          if (seq !== seqRef.current || !mountedRef.current) return;
+          setStatus('error');
+          return;
+        }
+        // Stale completion guard: an older save resolving after a newer
+        // one was issued must never regress saved/previous/status.
+        if (seq !== seqRef.current || !mountedRef.current) return;
+        if (opts?.undo) {
+          setPrevious(null);
+        } else {
+          setPrevious(savedRef.current);
+        }
+        savedRef.current = value;
         setSaved(value);
         setStatus('saved');
-      } catch {
-        // Keep the draft: the user still sees their edit and the next
-        // keystroke retries, instead of a toast claiming success.
-        setStatus('error');
-      }
+        opts?.onApplied?.();
+      });
+      chainRef.current = task.catch(() => {});
+      return task;
     },
-    [onSave, saved],
+    [],
   );
 
   React.useEffect(() => {
     if (draft === saved) return;
     setStatus('idle');
-    const timer = setTimeout(() => {
-      void save(draft);
+    timerRef.current = setTimeout(() => {
+      void runSave(draft);
     }, 800);
-    return () => clearTimeout(timer);
-  }, [draft, saved, save]);
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [draft, saved, runSave]);
 
-  const handleUndo = React.useCallback(async () => {
+  // Flush-on-unmount: switching contacts (keyed remount) or closing the
+  // sheet must not drop a draft still inside its 800ms debounce window.
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      const pending = draftRef.current;
+      if (pending !== savedRef.current) {
+        void chainRef.current
+          .then(() => onSaveRef.current(pending))
+          .catch(() => {});
+      }
+    };
+  }, []);
+
+  const handleUndo = React.useCallback(() => {
     if (previous === null) return;
     const target = previous;
-    setDraft(target);
-    setStatus('saving');
-    try {
-      await onSave(target);
-      setSaved(target);
-      setPrevious(null);
-      setStatus('saved');
-    } catch {
-      setStatus('error');
+    // Cancel any pending autosave of the pre-undo draft: it would otherwise
+    // fire after the undo was issued, supersede it, and re-save the undone
+    // text. The undo save itself applies the draft only on success, so a
+    // failed undo leaves the user's edit on screen to retry.
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
-  }, [onSave, previous]);
+    void runSave(target, {
+      undo: true,
+      onApplied: () => setDraft(target),
+    });
+  }, [previous, runSave]);
 
   const canUndo = previous !== null && previous !== saved;
 
