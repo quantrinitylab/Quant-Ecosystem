@@ -10,6 +10,11 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError, RepositoryHeadConflictError } from '@quant/server-core';
 import { RepoMigrationService, repoMigrationService } from '../services/repo-migration.service';
+import {
+  listGitNotifications,
+  requestReview,
+  type GitNotificationCategory,
+} from '../services/git-notifications.service';
 
 const execFileAsync = promisify(execFile);
 
@@ -1240,6 +1245,36 @@ export default async function reposRoutes(fastify: FastifyInstance) {
   fastify.post('/import', handleImportRepo);
   fastify.post('/api/repos/import', handleImportRepo);
 
+  // GET /notifications — QuantGit notifications inbox data source (P2 fix:
+  // the inbox previously had no producer and no consumer, so it could never
+  // show a real PR review request). Static segment, so Fastify routes it
+  // ahead of `/:id` below — "notifications" is never mistaken for a repo id.
+  // The Next proxy allow-list already covers `repos/...` for GET, so the
+  // frontend reaches this as GET /api/repos/notifications.
+  fastify.get<{
+    Querystring: { category?: string; limit?: string };
+  }>('/notifications', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const categoryRaw = request.query.category;
+    const category: GitNotificationCategory | 'all' =
+      categoryRaw === 'assigned' ||
+      categoryRaw === 'participating' ||
+      categoryRaw === 'mentioned' ||
+      categoryRaw === 'review_requested'
+        ? categoryRaw
+        : 'all';
+    const limitRaw = parseInt(request.query.limit ?? '', 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 50;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true, displayName: true },
+    });
+    if (!user) throw createAppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+    const result = await listGitNotifications(prisma, user, { category, limit });
+    return reply.send({ success: true, data: result });
+  });
+
   async function loadReadableRepo(request: unknown, idOrName: string): Promise<RepoRow> {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
@@ -2356,6 +2391,47 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       });
 
       return reply.status(201).send({ success: true, data: review });
+    },
+  );
+
+  // POST /:id/pulls/:number/request-review — the missing producer for the
+  // notifications inbox. Creates one durable PENDING Review row per
+  // reviewer; the inbox derives `review_requested` items from those rows,
+  // so a requested reviewer actually sees the request. Only a repo owner
+  // or collaborator may request (same gate as submitting a review), the
+  // PR must still be OPEN, and the author can never review their own PR.
+  // Body: { reviewers: string[] } — user ids or usernames.
+  fastify.post<{ Params: { id: string; number: string } }>(
+    '/:id/pulls/:number/request-review',
+    async (request, reply) => {
+      const repo = await loadReadableRepo(request, request.params.id);
+      const num = parseInt(request.params.number, 10);
+      if (isNaN(num)) throw createAppError('Invalid PR number', 400, 'INVALID_NUMBER');
+      const userId = requireUserId(request);
+      const prisma = getPrisma(fastify);
+      const pr = await prisma.pullRequest.findFirst({
+        where: { repoId: repo.id, number: num },
+      });
+      if (!pr) throw createAppError('Pull request not found', 404, 'PR_NOT_FOUND');
+      if (pr.status !== 'OPEN')
+        throw createAppError(
+          'Reviews can only be requested on an open pull request',
+          409,
+          'PR_NOT_OPEN',
+        );
+      const perm = await getRepoPermission(prisma, repo, userId);
+      if (!perm)
+        throw createAppError(
+          'Must be repository owner or collaborator to request reviews',
+          403,
+          'FORBIDDEN',
+        );
+      const parsed = z
+        .object({ reviewers: z.array(z.string().min(1)).min(1).max(50) })
+        .safeParse(request.body ?? {});
+      if (!parsed.success) throw parsed.error;
+      const result = await requestReview(prisma, pr, parsed.data.reviewers);
+      return reply.status(201).send({ success: true, data: result });
     },
   );
 
