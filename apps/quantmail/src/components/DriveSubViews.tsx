@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { formatBytes } from '../lib/format-bytes';
 import { isDocumentDriveId } from '../lib/drive-ids';
 import { useStorageQuota } from '../hooks/useStorageQuota';
@@ -1015,72 +1015,176 @@ export function DriveHomeSubView({
     });
   }, [files]);
 
-  // ── fix/qm-drive-keyboard-triage-2: Google-Drive-class list triage ─────────
-  // The file list was mouse-only — no keydown handlers anywhere on this
-  // surface. j/k move a highlight across the *visible* item order (folders,
-  // then the recent strip on the home view; the full category list inside a
-  // drilled-down category), x toggles selection of the highlighted item,
-  // Enter enters a folder / previews a file, Escape drops the highlight.
+  // ── fix/qm-drive-keyboard-triage-2 + APG corrective ───────────────────────
+  // The file list was mouse-only; triage added j/k/x/Enter/Escape, but as a
+  // visual-only highlight: the highlighted card was never DOM-focused, never
+  // tabbable, and carried `aria-selected` on a plain <div> with no role, so a
+  // screen reader consumed nothing and highlight was indistinguishable from
+  // selection. This block implements the widget the surface actually is.
+  //
+  // PATTERN (W3C APG listbox, multiselect variant — NOT grid): the items are
+  // a linear, multi-selectable list with no columns, headers, or cell
+  // navigation, so grid semantics would claim structure that does not exist.
+  // Each navigable group renders role="listbox" aria-multiselectable="true"
+  // and each item role="option". Two states that the old code conflated are
+  // kept apart on purpose:
+  //   - FOCUS (the "highlight") = real DOM focus via roving tabindex: exactly
+  //     one navigable item has tabIndex 0 (the focused one, or the first when
+  //     nothing is focused) and the rest have tabIndex -1. j/k move DOM focus,
+  //     so a screen reader announces the focused option and its selected
+  //     state with no extra live region for movement. Tabbing onto an option
+  //     syncs the highlight to it (onFocus), so Tab position and j/k position
+  //     can never disagree.
+  //   - SELECTION = aria-selected, reflecting ONLY the x-selection set
+  //     (selectedIds). A focused-but-unselected option reads as unselected;
+  //     a selected-but-unfocused option keeps aria-selected="true".
+  // Known tension, stated not hidden: the option cards contain the
+  // pre-existing row-action buttons (open/rename/delete/star/download).
+  // Those stay Tab-reachable and keep their native Enter/Space behavior —
+  // the action commands below are enabled ONLY while the option card itself
+  // holds DOM focus, so Enter on a Rename button renames instead of opening
+  // the item. The option's accessible name is its aria-label (item name,
+  // folders prefixed "Folder"), so button labels never pollute it.
+  //
+  // ESCAPE + FOCUS RETURN: Escape drops the highlight and returns focus to
+  // the element that had focus when keyboard navigation began (captured on
+  // the null -> first-item transition). If there was no such element — focus
+  // was on <body>, or on an item card itself — focus goes to the Files panel
+  // (tabIndex -1, programmatically focusable, never a Tab stop). Escape only
+  // fires while the option itself is focused (see the enabled guards): if
+  // focus has moved elsewhere, the highlight is stale UI state, not an active
+  // interaction, and Escape must not yank focus back from where the user is.
+  // That narrows the old "Escape clears from anywhere" behavior deliberately.
   //
   // The page-level `useDriveKeyboard` hook owns only shift+f/shift+t (new
   // folder / new document) in the same `drive` scope; the list triage lives
   // here because only this component knows the visible order. Ids, labels
   // and keys are spread from DRIVE_COMMAND_REFERENCE, never restated, so the
-  // `?` sheet documents exactly what is bound.
+  // `?` sheet documents exactly what is bound. Shift+F/T dialog focus in/out
+  // is the shared-ui Modal's contract (trap + data-autofocus + restore to the
+  // opener); this component's contribution is that the opener is a real
+  // focused option card, which only the roving focus below makes true.
   //
   // Trash is deliberately excluded: it is a restore/purge zone with its own
   // row actions, not a selection surface — j/k there would promise batch
   // behavior that cannot run.
+  //
+  // The recent strip renders 8 items in grid view but 10 in list view; the
+  // navigable order is exactly the rendered order in both, so no visible item
+  // is unreachable from the keyboard (the old code navigated 8 in both views
+  // and rendered NO item nodes at all in list view).
+  const recentVisibleFiles = useMemo<DriveItem[]>(
+    () => (viewMode === 'list' ? recentOrderedFiles.slice(0, 10) : recentOrderedFiles.slice(0, 8)),
+    [viewMode, recentOrderedFiles],
+  );
+
   const keyboardNavigable = useMemo<DriveItem[]>(() => {
     if (selectedCategory !== null) {
       if (selectedCategory === 'trash') return [];
       return categoryItems;
     }
-    return [...folders, ...recentOrderedFiles.slice(0, 8)];
-  }, [selectedCategory, categoryItems, folders, recentOrderedFiles]);
+    return [...folders, ...recentVisibleFiles];
+  }, [selectedCategory, categoryItems, folders, recentVisibleFiles]);
 
   const [keyboardFocusId, setKeyboardFocusId] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  /** Element to return focus to on Escape; null means the panel fallback. */
+  const focusReturnRef = useRef<HTMLElement | null>(null);
+  /** Polite announcement of x-selection changes (movement needs none: DOM
+   *  focus already announces the option). Set by effect, never by key press,
+   *  so it reports the selection state that actually resulted. */
+  const [selectionAnnouncement, setSelectionAnnouncement] = useState('');
+  const prevFocusIdRef = useRef<string | null>(null);
+  const prevSelectedRef = useRef<Map<string, boolean>>(new Map());
 
   // Drop the highlight when the focused item leaves the visible list (e.g.
-  // the user drills into a category or the search filter narrows).
+  // the user drills into a category or the search filter narrows). Focus is
+  // deliberately NOT moved here: only Escape owns focus return.
   useEffect(() => {
     if (keyboardFocusId && !keyboardNavigable.some((i) => i.id === keyboardFocusId)) {
       setKeyboardFocusId(null);
     }
   }, [keyboardFocusId, keyboardNavigable]);
 
-  // Keep the highlighted card in view while navigating.
+  // Keep the focused card in view AND move real DOM focus to it. The focus
+  // call is what turns the visual ring into a screen-reader event; the
+  // onFocus sync below makes this a no-op state-wise (same id).
   useEffect(() => {
     if (!keyboardFocusId) return;
-    const nodes = document.querySelectorAll('[data-drive-item-id]');
-    for (const node of nodes) {
-      if ((node as HTMLElement).dataset.driveItemId === keyboardFocusId) {
-        (node as HTMLElement).scrollIntoView?.({ block: 'nearest' });
-        break;
-      }
-    }
+    const node = panelRef.current?.querySelector(
+      `[data-drive-item-id="${keyboardFocusId}"]`,
+    ) as HTMLElement | null;
+    if (!node) return;
+    node.scrollIntoView?.({ block: 'nearest' });
+    if (document.activeElement !== node) node.focus();
   }, [keyboardFocusId]);
+
+  // Announce a selection change for the focused item only, and only when the
+  // item was already focused when its selected state changed. Landing on an
+  // option announces its selected state via focus itself — announcing again
+  // would double-speak.
+  useEffect(() => {
+    if (keyboardFocusId === null) {
+      prevFocusIdRef.current = null;
+      return;
+    }
+    const item = keyboardNavigable.find((i) => i.id === keyboardFocusId);
+    if (!item) {
+      prevFocusIdRef.current = keyboardFocusId;
+      return;
+    }
+    const now = selectedIds.has(item.id);
+    if (prevFocusIdRef.current !== keyboardFocusId) {
+      prevSelectedRef.current.set(item.id, now);
+      prevFocusIdRef.current = keyboardFocusId;
+      return;
+    }
+    const prev = prevSelectedRef.current.get(item.id);
+    if (prev !== undefined && prev !== now) {
+      setSelectionAnnouncement(`${item.name} ${now ? 'selected' : 'deselected'}`);
+    }
+    prevSelectedRef.current.set(item.id, now);
+  }, [keyboardFocusId, keyboardNavigable, selectedIds]);
 
   const moveKeyboardFocus = useCallback(
     (delta: 1 | -1) => {
-      setKeyboardFocusId((prev) => {
-        if (keyboardNavigable.length === 0) return null;
-        const idx = keyboardNavigable.findIndex((i) => i.id === prev);
-        if (idx === -1) {
-          // Nothing highlighted yet: j starts at the top, k at the bottom.
-          return keyboardNavigable[delta === 1 ? 0 : keyboardNavigable.length - 1].id;
-        }
+      if (keyboardNavigable.length === 0) return;
+      if (keyboardFocusId === null) {
+        // Navigation begins: capture the return target, unless focus was on
+        // <body> (no meaningful target) or on an item card itself (returning
+        // there would leave focus on a highlight-less option — the panel
+        // fallback is the stated place instead). A descendant button of a
+        // card IS captured: Escape returns to the control the user was on.
+        const active = document.activeElement as HTMLElement | null;
+        const isItemCard = !!active?.dataset?.driveItemId;
+        focusReturnRef.current =
+          active && active !== document.body && !isItemCard && document.contains(active)
+            ? active
+            : null;
+        setKeyboardFocusId(keyboardNavigable[delta === 1 ? 0 : keyboardNavigable.length - 1].id);
+      } else {
+        const idx = keyboardNavigable.findIndex((i) => i.id === keyboardFocusId);
         const next = Math.min(keyboardNavigable.length - 1, Math.max(0, idx + delta));
-        return keyboardNavigable[next].id;
-      });
+        setKeyboardFocusId(keyboardNavigable[next].id);
+      }
     },
-    [keyboardNavigable],
+    [keyboardNavigable, keyboardFocusId],
   );
 
   const focusedKeyboardItem = useCallback(
     () => keyboardNavigable.find((i) => i.id === keyboardFocusId) ?? null,
     [keyboardNavigable, keyboardFocusId],
   );
+
+  /** The option card itself holds DOM focus (not an inner button, not a
+   *  stale highlight from before focus moved elsewhere). Action commands
+   *  (x/Enter/Escape) run only in this state; j/k are the entry keys and
+   *  deliberately have no such guard. */
+  const isFocusedOption = useCallback((): boolean => {
+    const active = document.activeElement as HTMLElement | null;
+    const activeId = active?.dataset?.driveItemId;
+    return !!activeId && activeId === keyboardFocusId;
+  }, [keyboardFocusId]);
 
   const toggleKeyboardSelection = useCallback(() => {
     const item = focusedKeyboardItem();
@@ -1093,6 +1197,14 @@ export function DriveHomeSubView({
     if (item.type === 'folder') onNavigateToFolder?.(item.id, item.name);
     else onPreviewItem?.(item);
   }, [focusedKeyboardItem, onNavigateToFolder, onPreviewItem]);
+
+  const clearKeyboardFocusWithReturn = useCallback(() => {
+    const origin = focusReturnRef.current;
+    focusReturnRef.current = null;
+    setKeyboardFocusId(null);
+    if (origin && document.contains(origin)) origin.focus();
+    else panelRef.current?.focus();
+  }, []);
 
   useKeyboardScope('drive');
 
@@ -1113,36 +1225,70 @@ export function DriveHomeSubView({
       ...driveCommand('drive.toggleSelect'),
       scope: 'drive',
       run: toggleKeyboardSelection,
-      enabled: () => focusedKeyboardItem() !== null && !!onToggleSelect,
+      enabled: () => isFocusedOption() && !!onToggleSelect,
     },
     {
       ...driveCommand('drive.openItem'),
       scope: 'drive',
       run: openKeyboardItem,
-      enabled: () => focusedKeyboardItem() !== null,
+      enabled: () => isFocusedOption(),
     },
     {
       ...driveCommand('drive.clearFocus'),
       scope: 'drive',
-      run: () => setKeyboardFocusId(null),
-      enabled: () => keyboardFocusId !== null,
+      run: clearKeyboardFocusWithReturn,
+      enabled: () => isFocusedOption(),
     },
   ];
 
   useRegisterCommands(driveListCommands);
 
-  /** Accent focus ring on the keyboard-highlighted card. */
+  /** Accent focus ring on the keyboard-focused card. */
   const keyboardFocusRing = (id: string): string =>
     keyboardFocusId === id ? ' outline outline-2 outline-offset-1 outline-[var(--app-accent)]' : '';
 
-  /** Data attributes that the scroll-into-view effect and tests read. */
-  const keyboardFocusData = (id: string): { 'data-drive-item-id': string; 'aria-selected': boolean } => ({
-    'data-drive-item-id': id,
-    'aria-selected': selectedIds.has(id),
-  });
+  /** APG listbox option props: role + selection state + roving tabindex +
+   *  accessible name. Tab/focus entry syncs the highlight to the option, so
+   *  the engine's focused item and the DOM-focused item are the same item.
+   *  Focus bubbling up from an inner row-action button does NOT sync: the
+   *  button keeps its own focus and its own native Enter/Space behavior. */
+  const keyboardItemProps = (item: DriveItem) => {
+    const navigableIndex = keyboardNavigable.findIndex((i) => i.id === item.id);
+    return {
+      'data-drive-item-id': item.id,
+      role: 'option' as const,
+      'aria-selected': selectedIds.has(item.id),
+      'aria-label': item.type === 'folder' ? `Folder ${item.name}` : item.name,
+      tabIndex:
+        navigableIndex === -1
+          ? -1
+          : keyboardFocusId !== null
+            ? keyboardFocusId === item.id
+              ? 0
+              : -1
+            : navigableIndex === 0
+              ? 0
+              : -1,
+      onFocus: (e: React.FocusEvent<HTMLDivElement>) => {
+        if (e.target === e.currentTarget) setKeyboardFocusId(item.id);
+      },
+    };
+  };
 
   return (
-    <div id="drive-panel-home" role="tabpanel" aria-labelledby="drive-tab-home" className="space-y-6">
+    <div
+      id="drive-panel-home"
+      ref={panelRef}
+      role="tabpanel"
+      aria-labelledby="drive-tab-home"
+      tabIndex={-1}
+      className="space-y-6"
+    >
+      {/* Polite live region for x-selection changes only (see above). Outside
+          every listbox: listbox children must be options. */}
+      <div aria-live="polite" className="sr-only" data-testid="drive-selection-announcement">
+        {selectionAnnouncement}
+      </div>
       {/* If category is NOT selected: Render 8 Category Cards + Folders & Files */}
       {selectedCategory === null ? (
         <>
@@ -1211,11 +1357,16 @@ export function DriveHomeSubView({
                   Folders ({folders.length})
                 </h3>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div
+                className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3"
+                role="listbox"
+                aria-label="Folders"
+                aria-multiselectable="true"
+              >
                 {folders.map((folder) => (
                   <div
                     key={folder.id}
-                    {...keyboardFocusData(folder.id)}
+                    {...keyboardItemProps(folder)}
                     className={`group relative flex items-center gap-1 p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] transition-all${keyboardFocusRing(folder.id)}`}
                   >
                     {/*
@@ -1288,11 +1439,16 @@ export function DriveHomeSubView({
                 </p>
               </div>
             ) : viewMode === 'grid' ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {recentOrderedFiles.slice(0, 8).map((file) => (
+              <div
+                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
+                role="listbox"
+                aria-label="Recent files"
+                aria-multiselectable="true"
+              >
+                {recentVisibleFiles.map((file) => (
                   <div
                     key={file.id}
-                    {...keyboardFocusData(file.id)}
+                    {...keyboardItemProps(file)}
                     onClick={() => onPreviewItem?.(file)}
                     className={`group rounded-xl p-3 border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-all flex flex-col justify-between${keyboardFocusRing(file.id)}`}
                   >
@@ -1338,12 +1494,18 @@ export function DriveHomeSubView({
                 ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-[#232938] bg-[var(--quant-surface)] overflow-hidden">
-                {recentOrderedFiles.slice(0, 10).map((file) => (
+              <div
+                className="rounded-xl border border-[#232938] bg-[var(--quant-surface)] overflow-hidden"
+                role="listbox"
+                aria-label="Recent files"
+                aria-multiselectable="true"
+              >
+                {recentVisibleFiles.map((file) => (
                   <div
                     key={file.id}
+                    {...keyboardItemProps(file)}
                     onClick={() => onPreviewItem?.(file)}
-                    className="flex items-center justify-between px-3 py-3.5 hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-colors"
+                    className={`flex items-center justify-between px-3 py-3.5 hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-colors${keyboardFocusRing(file.id)}`}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="size-7 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
@@ -1489,11 +1651,16 @@ export function DriveHomeSubView({
             </div>
           ) : (
             /* Category files grid */
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div
+              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
+              role="listbox"
+              aria-label={`Files in ${selectedCategory}`}
+              aria-multiselectable="true"
+            >
               {categoryItems.map((item) => (
                 <div
                   key={item.id}
-                  {...keyboardFocusData(item.id)}
+                  {...keyboardItemProps(item)}
                   onClick={() => onPreviewItem?.(item)}
                   className={`group rounded-xl p-3.5 border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-all flex flex-col justify-between${keyboardFocusRing(item.id)}`}
                 >

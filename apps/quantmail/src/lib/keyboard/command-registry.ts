@@ -321,14 +321,22 @@ export type DriveCommandId =
 
 /**
  * Every binding the drive surface owns, in the order the sheet should read
- * them. Google-Drive-class triage for the Files/Home file list:
+ * them. Google-Drive-class triage for the Files/Home file list, implemented
+ * as a W3C APG listbox with roving tabindex (see DriveHomeSubView): j/k move
+ * real DOM focus across the options, aria-selected tracks only the
+ * x-selection set, and Escape drops the highlight and returns focus:
  *
- *   j/k          move the highlight across folders and files
- *   x            toggle selection of the highlighted item (batch actions)
- *   Enter        enter the highlighted folder / preview the highlighted file
- *   Escape       drop the highlight
+ *   j/k          move focus across folders and files
+ *   x            toggle selection of the focused item (batch actions)
+ *   Enter        enter the focused folder / preview the focused file
+ *   Escape       drop the highlight and return focus (pre-navigation
+ *                element, else the Files panel)
  *   shift+f      new folder dialog (Google Drive's own chord)
  *   shift+t      new document dialog (Google Drive's Shift+T new doc)
+ *
+ * Shift+F/T dialog focus in/out is the shared-ui Modal's contract (trap +
+ * data-autofocus input + restore to the opener); the drive hook only fires
+ * the open callbacks, and the opener is the focused option card.
  *
  * Single-declaration contract (as with the inbox/calendar lists):
  * `useDriveKeyboard` and the drive list component spread these entries onto
@@ -355,35 +363,35 @@ export const DRIVE_COMMAND_REFERENCE: Array<CommandReference & { id: DriveComman
     label: 'Next item',
     group: 'Drive',
     keys: 'j',
-    description: 'Move the highlight to the next folder or file on the Files view',
+    description: 'Move focus to the next folder or file on the Files view',
   },
   {
     id: 'drive.previousItem',
     label: 'Previous item',
     group: 'Drive',
     keys: 'k',
-    description: 'Move the highlight to the previous folder or file',
+    description: 'Move focus to the previous folder or file',
   },
   {
     id: 'drive.toggleSelect',
-    label: 'Select highlighted item',
+    label: 'Select focused item',
     group: 'Drive',
     keys: 'x',
-    description: 'Toggle selection of the highlighted item, for batch actions',
+    description: 'Toggle selection of the focused item, for batch actions',
   },
   {
     id: 'drive.openItem',
-    label: 'Open highlighted item',
+    label: 'Open focused item',
     group: 'Drive',
     keys: 'enter',
-    description: 'Enter the highlighted folder, or preview the highlighted file',
+    description: 'Enter the focused folder, or preview the focused file',
   },
   {
     id: 'drive.clearFocus',
-    label: 'Clear highlight',
+    label: 'Clear highlight and return focus',
     group: 'Drive',
     keys: 'escape',
-    description: 'Drop the keyboard highlight on the file list',
+    description: 'Drop the highlight and return focus to where keyboard navigation began, or to the Files panel',
   },
   {
     id: 'drive.newFolder',

@@ -17,6 +17,13 @@
  * text field (typing a capital F or T in the rename box must never pop the
  * new-folder dialog). `?` and `mod+k` are global and unmaskable, so they keep
  * working everywhere.
+ *
+ * Dialog focus management: this hook only fires the open callbacks. The
+ * dialogs themselves are the shared-ui Modal (page.tsx), which traps focus,
+ * prefers the `data-autofocus` name input, and restores focus to the opener
+ * on close — and the opener is the DOM-focused list option, which only the
+ * listbox roving focus in DriveHomeSubView makes true. No focus code belongs
+ * here; duplicating the trap here would fight Modal's.
  */
 
 import { useKeyboardScope, useRegisterCommands } from '../lib/keyboard/hooks';
