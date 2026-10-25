@@ -1,19 +1,30 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { EmailComposer } from '../../components/EmailComposer';
-import type { ComposerMessageData } from '../../components/EmailComposer';
+import type { Attachment, ComposerMessageData } from '../../components/EmailComposer';
 import { showToast } from '../../components/InboxToast';
 import {
-  buildForwardQuote,
   buildReplyQuote,
-  normalizeForwardSubject,
   stripTrailingSignature,
 } from '../../lib/email-body';
+import {
+  carryForwardAttachments,
+  type ForwardDroppedAttachment,
+} from '../../lib/forward-attachments';
+import {
+  FORWARD_LOAD_FAILURE_COPY,
+  forwardComposeReducer,
+  forwardPrefillFor,
+  forwardSendDisabledReason,
+  initialForwardComposeState,
+  resolveForwardOriginal,
+} from '../../lib/forward-load';
+import { loadAttachmentBytes } from '../../lib/mail-attachments';
 import { filterValidRecipients } from '../../lib/email-validation';
 import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
@@ -81,18 +92,35 @@ export default function ComposePage() {
     } catch {}
   }, []);
 
+  // Persisted-draft attachment restoration: a draft saved with files must
+  // reopen WITH those files, not as a bare body. The stored attachments go
+  // through the same carryover resolver as forwarded files (inline data
+  // URLs, AttachmentService rows, QuantDrive picks — same caps, same
+  // never-silent drops), and resolve behind the draft loading gate, so the
+  // composer mounts with its files already applied. A file that cannot be
+  // restored lands in `draftAttachmentWarnings` and renders persistently
+  // in the composer, exactly like a dropped forwarded file.
+  const [draftAttachments, setDraftAttachments] = useState<Attachment[] | null>(null);
+  const [draftAttachmentWarnings, setDraftAttachmentWarnings] = useState<
+    ForwardDroppedAttachment[] | null
+  >(null);
+
   useEffect(() => {
     if (!draftId) return;
     let active = true;
+    const controller = new AbortController();
     setDraftLoading(true);
-    apiClient
-      .getEmail(draftId)
-      .then((response) => {
+    setDraftAttachments(null);
+    setDraftAttachmentWarnings(null);
+    const loadDraft = async () => {
+      try {
+        const response = await apiClient.getEmail(draftId);
         if (!active) return;
         if (response.success && response.data) {
           const storedDraft = response.data as typeof response.data & {
             toAddresses?: string[];
             bodyPlain?: string;
+            attachments?: unknown;
           };
           // Adopt the row version the server just reported, so the first
           // autosave is version-guarded — but only if no save has landed
@@ -115,14 +143,38 @@ export default function ComposePage() {
               storedDraft.bodyText ?? storedDraft.bodyPlain ?? storedDraft.snippet ?? '',
             ),
           });
+          const raw = Array.isArray(storedDraft.attachments)
+            ? storedDraft.attachments
+            : [];
+          if (raw.length > 0) {
+            try {
+              const { carried, dropped } = await carryForwardAttachments(
+                raw,
+                (source, signal) => loadAttachmentBytes(source, signal),
+                { signal: controller.signal },
+              );
+              if (!active) return;
+              if (carried.length > 0) setDraftAttachments(carried as Attachment[]);
+              if (dropped.length > 0) setDraftAttachmentWarnings(dropped);
+            } catch {
+              // carryForwardAttachments only rejects on abort; per-file
+              // failures are drops, never throws. An abort here means the
+              // page moved on — the active guard below already covers it.
+            }
+          }
         }
-        setDraftLoading(false);
-      })
-      .catch(() => {
+      } catch {
+        // A draft that cannot be loaded honestly opens as fresh compose
+        // below (draftLoading clears); the draft load is not a forward load,
+        // so the forward error screen does not apply to it.
+      } finally {
         if (active) setDraftLoading(false);
-      });
+      }
+    };
+    void loadDraft();
     return () => {
       active = false;
+      controller.abort();
     };
   }, [draftId]);
 
@@ -181,68 +233,128 @@ export default function ComposePage() {
     };
   }, [replyTo, prefillBody, draftId, draftData?.body]);
 
-  // Forward prefill: `?forward=<id>` used to open a BLANK composer — the
-  // param was parsed (forwardId above) and never used, so every forward
-  // entry point (thread view's `f` key, the inbox/people keyboards, the
-  // person view) behaved like fresh compose and the original was never
-  // fetched. Fetch it and prefill a Gmail-class forwarded subject + body.
+  // Forward prefill + attachment carryover, as ONE load through the state
+  // machine in lib/forward-load.ts (`?forward=<id>`). Every forward entry
+  // point (thread view's `f` key, the inbox/people keyboards, the person
+  // view) resolves the original — message id first, thread id fallback to
+  // its latest message, exactly like the reply loader above — and prefills
+  // a Gmail-class forwarded subject + body AND carries the original's
+  // attachments into the composer.
   //
-  // The id may be a message id (people/inbox keyboards, person view) or a
-  // thread id (thread view's forward action passes its threadId) — try the
-  // message endpoint first, then fall back to the thread's latest message,
-  // exactly like the reply loader above. A reply (`?replyTo=`) always wins
-  // over a forward when both are present; an explicit `?body=` or a restored
-  // draft always wins over the forwarded body, and an explicit `?subject=`
-  // always wins over the forwarded subject (applied at render, below).
-  // The composer is held behind the load for the same reason as the reply
-  // quote: a prefill arriving after the user started typing would clobber
-  // their words. If the original cannot be loaded the composer honestly
-  // stays blank; nothing is invented.
-  const [forwardBody, setForwardBody] = useState<string | null>(null);
-  const [forwardSubject, setForwardSubject] = useState<string | null>(null);
-  const [forwardLoading, setForwardLoading] = useState(
-    () => Boolean(forwardId && !replyTo && !prefillBody && !draftId),
+  // Precedence, enforced by the machine + render below: a reply
+  // (`?replyTo=`) always wins over a forward; a restored draft always wins
+  // over a forward (and owns its own attachments, restored above); an
+  // explicit `?body=` always wins over the forwarded body — BUT it does
+  // not suppress the forwarded subject or the attachments, so a
+  // body-only prefill still loads `Fwd: ` + the original's files. An
+  // explicit `?subject=` always wins over the forwarded subject (render).
+  //
+  // Two phases, two different gates — do not collapse them:
+  //  * Phase 1 (original): the composer is HELD behind it, for the same
+  //    reason as the reply quote — EmailComposer applies a changed
+  //    initialBody/initialSubject to its editable fields, so a prefill
+  //    arriving after the user started typing would clobber their words.
+  //    A FAILED phase 1 renders the honest error screen (denied / deleted
+  //    / offline + Retry) instead of any composer: failure-as-success
+  //    blank compose is forbidden, nothing is invented, nothing is sent.
+  //  * Phase 2 (attachments): the composer IS mounted (subject + body are
+  //    final), but Send stays DISABLED until resolution settles — see
+  //    `forwardSendDisabledReason`. A send can never go out before the
+  //    carryover lands, and dropped files warn persistently instead of
+  //    vanishing silently.
+  //
+  // A->B reset: `start-run` wipes the previous run's subject, body,
+  // attachments, warnings and failure before B loads; the effect's abort
+  // cancels A's in-flight fetches and byte reads; and the composer below
+  // is keyed by forward/draft/reply id, so its apply-once attachment ref
+  // resets too. A can never leak into B — not state, not files, not
+  // warnings.
+  const [forwardState, dispatchForward] = useReducer(
+    forwardComposeReducer,
+    initialForwardComposeState,
   );
+  const [forwardRetryNonce, setForwardRetryNonce] = useState(0);
 
   useEffect(() => {
-    if (!forwardId || replyTo || prefillBody || draftId || draftData?.body) {
-      setForwardLoading(false);
+    if (!forwardId || replyTo || draftId || draftData) {
+      dispatchForward({ type: 'clear' });
       return;
     }
-    let active = true;
-    const loadForward = async () => {
+    const controller = new AbortController();
+    dispatchForward({ type: 'start-run', runId: forwardId });
+    const run = async () => {
+      let resolved;
       try {
-        const one = await apiClient.getEmail(forwardId);
-        if (!active) return;
-        if (one.success && one.data) {
-          setForwardBody(buildForwardQuote(one.data));
-          setForwardSubject(normalizeForwardSubject(one.data.subject ?? ''));
-          return;
-        }
-        const thread = await apiClient.getThread(forwardId);
-        if (!active || !thread.success || !thread.data?.messages?.length) return;
-        const latest = [...thread.data.messages].sort(
-          (a, b) =>
-            new Date(b.receivedAt ?? b.createdAt ?? 0).getTime() -
-            new Date(a.receivedAt ?? a.createdAt ?? 0).getTime(),
-        )[0];
-        if (latest) {
-          setForwardBody(buildForwardQuote(latest));
-          setForwardSubject(
-            normalizeForwardSubject(latest.subject ?? thread.data.subject ?? ''),
-          );
-        }
+        resolved = await resolveForwardOriginal(
+          {
+            getEmail: (id) => apiClient.getEmail(id),
+            getThread: (id) => apiClient.getThread(id),
+          },
+          forwardId,
+          controller.signal,
+        );
       } catch {
-        // No forwarded original — the composer stays honestly blank.
-      } finally {
-        if (active) setForwardLoading(false);
+        // resolveForwardOriginal only rejects on abort; anything else here
+        // is a superseded run, and the abort guard below drops it.
+        return;
+      }
+      if (controller.signal.aborted) return;
+      if (!resolved.ok) {
+        dispatchForward({ type: 'original-failed', kind: resolved.kind });
+        return;
+      }
+      const prefill = forwardPrefillFor({
+        explicitSubject: prefillSubject,
+        explicitBody: prefillBody,
+        original: resolved.message,
+      });
+      const raw = resolved.message.attachments;
+      dispatchForward({
+        type: 'original-loaded',
+        subject: prefill.subject,
+        body: prefill.body,
+        hasAttachments: raw.length > 0,
+      });
+      if (raw.length === 0) return;
+      try {
+        const { carried, dropped } = await carryForwardAttachments(
+          raw,
+          (source, signal) => loadAttachmentBytes(source, signal),
+          { signal: controller.signal },
+        );
+        if (controller.signal.aborted) return;
+        dispatchForward({ type: 'attachments-settled', carried, dropped });
+      } catch {
+        if (controller.signal.aborted) return;
+        // carryForwardAttachments only rejects on abort; a non-abort throw
+        // here is unexpected, so settle honestly with the files missing
+        // and a warning — never leave Send disabled forever, and never
+        // settle silently as if the files had arrived.
+        dispatchForward({
+          type: 'attachments-settled',
+          carried: [],
+          dropped: [
+            {
+              filename: 'Original message',
+              reason: 'its attachments could not be read',
+            },
+          ],
+        });
       }
     };
-    void loadForward();
+    void run();
     return () => {
-      active = false;
+      controller.abort();
     };
-  }, [forwardId, replyTo, prefillBody, draftId, draftData?.body]);
+  }, [
+    forwardId,
+    replyTo,
+    prefillBody,
+    prefillSubject,
+    draftId,
+    draftData,
+    forwardRetryNonce,
+  ]);
 
   // `?kind=chat` (from the inbox's "New chat" button) starts a chat thread
   // instead of a letter; the kind travels to the backend compose call and to
@@ -488,7 +600,7 @@ export default function ComposePage() {
     [],
   );
 
-  if (draftLoading || quoteLoading || forwardLoading) {
+  if (draftLoading || quoteLoading || forwardState.phase === 'loading-original') {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[var(--quant-surface-subtle)] text-[var(--quant-muted-foreground)] text-sm">
         <p>
@@ -502,11 +614,58 @@ export default function ComposePage() {
     );
   }
 
+  // Honest forward failure: the original could not be loaded, so there is
+  // NO composer here — a blank composer would be failure-as-success, and
+  // anything typed into it would send without the forwarded original.
+  // Retry re-runs the load; Back leaves without sending anything.
+  if (forwardState.phase === 'failed' && forwardState.failureKind) {
+    const copy = FORWARD_LOAD_FAILURE_COPY[forwardState.failureKind];
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[var(--quant-surface-subtle)] px-6">
+        <div className="w-full max-w-[480px] text-center">
+          <h1 className="text-base font-semibold text-[var(--quant-foreground)]">
+            {copy.title}
+          </h1>
+          <p className="mt-2 text-sm text-[var(--quant-muted-foreground)]">{copy.body}</p>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setForwardRetryNonce((n) => n + 1)}
+              className="rounded-xl bg-[var(--quant-primary)] px-4 py-2 min-h-[44px] text-sm font-semibold text-[#111111]"
+            >
+              Retry
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              className="rounded-xl border border-[var(--quant-surface-elevated)] px-4 py-2 min-h-[44px] text-sm text-[var(--quant-muted-foreground)]"
+            >
+              Back to inbox
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Carried + restored attachments, and the files that could not ride along.
+  // A forward run and a draft restore never coexist (a draft clears the
+  // forward run), so the forward list wins when present, else the draft's.
+  const attachmentWarnings = [
+    ...forwardState.warnings,
+    ...(draftAttachmentWarnings ?? []),
+  ];
+
   return (
     <UndoSendProvider>
       <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[var(--quant-surface-subtle)] flex justify-center">
         <div className="w-full max-w-[880px] h-full">
         <EmailComposer
+          // Keyed per compose session: navigating forward A -> forward B
+          // (or draft A -> draft B) remounts the composer, so B starts
+          // with no trace of A — typed text, attachments, and the
+          // apply-once carryover ref all reset with the run.
+          key={forwardId ?? draftId ?? replyTo ?? 'compose'}
           // Handed over as the raw string, not wrapped in a one-entry array: `?to=`
           // can carry a whole group's members, and the composer is the thing that
           // knows how to cut a list of addresses into one chip each.
@@ -515,15 +674,30 @@ export default function ComposePage() {
             draftData?.subject ??
             (prefillSubject
               ? normalizeReplySubject(prefillSubject)
-              : (forwardSubject ?? ''))
+              : (forwardState.subject ?? ''))
           }
           // `initialBody` precedence: a restored draft (undo-draft or
           // `?draftId=`) wins, then an explicit `?body=`, then the fetched
-          // reply quote, then the fetched forwarded original; a failed
-          // quote/forward load honestly stays blank.
+          // reply quote, then the fetched forwarded original. An empty
+          // explicit body counts as absent (falsy check, matching the
+          // load effects): `?body=` with nothing in it must not blank
+          // out the forwarded quote. A failed forward load never reaches
+          // here — it renders the error screen above instead.
           initialBody={
-            draftData?.body ?? prefillBody ?? quoteBody ?? forwardBody ?? undefined
+            draftData?.body ??
+            (prefillBody || (quoteBody ?? forwardState.body ?? undefined))
           }
+          // Forwarded + restored attachments (null until resolved, or when
+          // the original/draft had none) — the composer appends them
+          // exactly once. Warnings render persistently inside the composer
+          // body. Send stays disabled while forward attachments resolve.
+          initialAttachments={
+            forwardState.attachments ?? draftAttachments ?? undefined
+          }
+          initialAttachmentWarnings={
+            attachmentWarnings.length > 0 ? attachmentWarnings : undefined
+          }
+          sendDisabledReason={forwardSendDisabledReason(forwardState)}
           inReplyTo={replyTo || undefined}
           onSend={handleSend}
           onSaveDraft={handleSaveDraft}
