@@ -19,6 +19,16 @@ import {
   type Command,
 } from './command-registry';
 import { keyboardEngine, type BindingOptions, type ShortcutHandler } from './engine';
+import {
+  clearAllShortcutOverrides,
+  clearShortcutOverride,
+  getShortcutOverrides,
+  getShortcutOverridesVersion,
+  setShortcutOverride,
+  subscribeToShortcutOverrides,
+  type ShortcutOverride,
+  type ShortcutOverrides,
+} from './shortcut-overrides';
 
 const EMPTY_COMMANDS: Command[] = [];
 const EMPTY_CHORDS: string[] = [];
@@ -152,6 +162,16 @@ export function useRegisterCommands(commands: Command[]): void {
 
   const signature = commandSignature(commands);
 
+  // User shortcut overrides live outside the commands array, so a remap in
+  // Settings would otherwise leave every mounted surface bound to the old
+  // keys until a remount. Watching the overrides version re-registers with
+  // the new bindings in the same tick the user saves — no reload required.
+  const overridesVersion = useSyncExternalStore(
+    subscribeToShortcutOverrides,
+    getShortcutOverridesVersion,
+    () => 0,
+  );
+
   useEffect(() => {
     // Snapshot the shape once, then proxy `run`/`enabled` through the ref so
     // the registry always calls the latest closure.
@@ -164,8 +184,47 @@ export function useRegisterCommands(commands: Command[]): void {
       } satisfies Command;
     });
     return registerCommands(proxied);
-    // `signature` is the intended dependency; `commandsRef` is stable.
-  }, [signature]);
+    // `signature` and `overridesVersion` are the intended dependencies;
+    // `commandsRef` is stable.
+  }, [signature, overridesVersion]);
+}
+
+export interface UseShortcutOverrides {
+  /** Current overrides, keyed by command id (`null` = disabled). */
+  overrides: ShortcutOverrides;
+  /** Monotonic version; changes whenever any override is saved or cleared. */
+  version: number;
+  /** Replace a command's bindings, or pass `null` to disable it. */
+  setOverride: (id: string, value: ShortcutOverride) => void;
+  /** Drop one command's override, restoring its defaults. */
+  clearOverride: (id: string) => void;
+  /** Drop every override, restoring every default binding. */
+  clearAll: () => void;
+}
+
+/**
+ * The override store as React state, for Settings › Keyboard Shortcuts.
+ * The store itself (not a component) owns persistence, so this hook is just
+ * the subscription — the same record the registry reads.
+ */
+export function useShortcutOverrides(): UseShortcutOverrides {
+  const overrides = useSyncExternalStore(
+    subscribeToShortcutOverrides,
+    getShortcutOverrides,
+    () => ({}),
+  );
+  const version = useSyncExternalStore(
+    subscribeToShortcutOverrides,
+    getShortcutOverridesVersion,
+    () => 0,
+  );
+  return {
+    overrides,
+    version,
+    setOverride: setShortcutOverride,
+    clearOverride: clearShortcutOverride,
+    clearAll: clearAllShortcutOverrides,
+  };
 }
 
 /** All registered commands, re-rendering when the registry changes. */

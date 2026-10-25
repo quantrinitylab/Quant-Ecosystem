@@ -16,6 +16,7 @@
  */
 
 import { keyboardEngine, type ShortcutHandler } from './engine';
+import { resolveShortcutKeys } from './shortcut-overrides';
 
 /**
  * Palette/help sections, in display order. Adding a group here is all that is
@@ -329,24 +330,32 @@ export function registerCommands(commands: Command[]): () => void {
   const token = Symbol('commands');
   const releaseKeys: Array<() => void> = [];
 
-  for (const command of commands) {
-    if (!command.keys) continue;
-    releaseKeys.push(
-      keyboardEngine.bind(command.id, command.keys, command.run as ShortcutHandler, {
-        scope: command.scope,
-        priority: command.priority,
-        enabled: command.enabled,
-        allowInInput: command.allowInInput,
-        allowRepeat: command.allowRepeat,
-        preventDefault: command.preventDefault,
-        stopPropagation: command.stopPropagation,
-        unmaskable: command.unmaskable,
-        label: command.label,
-      }),
-    );
-  }
+  // User overrides are applied at the one place bindings are made, so a
+  // remap changes the engine, the palette and the shortcuts sheet together —
+  // never just the documentation. A disabled command binds nothing but is
+  // still stored (with `keys` dropped), so Settings can offer it back
+  // instead of it vanishing from the list that manages it.
+  const storedCommands = commands.map((command) => {
+    const resolved = resolveShortcutKeys(command.id, command.keys);
+    if (resolved.keys && resolved.keys.length > 0) {
+      releaseKeys.push(
+        keyboardEngine.bind(command.id, resolved.keys, command.run as ShortcutHandler, {
+          scope: command.scope,
+          priority: command.priority,
+          enabled: command.enabled,
+          allowInInput: command.allowInInput,
+          allowRepeat: command.allowRepeat,
+          preventDefault: command.preventDefault,
+          stopPropagation: command.stopPropagation,
+          unmaskable: command.unmaskable,
+          label: command.label,
+        }),
+      );
+    }
+    return resolved.state === 'default' ? command : { ...command, keys: resolved.keys ?? undefined };
+  });
 
-  registrations.set(token, { commands, releaseKeys });
+  registrations.set(token, { commands: storedCommands, releaseKeys });
   invalidate();
 
   return () => {
