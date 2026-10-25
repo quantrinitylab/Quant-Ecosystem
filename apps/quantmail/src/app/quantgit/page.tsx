@@ -964,6 +964,10 @@ function QuantGitContent() {  const router = useRouter();
               state:
                 item.status === 'merged' ? 'merged' : item.status === 'closed' ? 'closed' : 'open',
               author: item.author || 'user',
+              // Merger pass-through only: the backend sends no mergedBy
+              // today, so this is null (→ 'Unknown' in the detail view) for
+              // every loaded PR. Never derive it from item.author here.
+              mergedBy: item.mergedBy ?? null,
               branchSource: item.branchSource || 'main',
               branchTarget: item.branchTarget || 'main',
               // checksStatus honesty (#1071): normalize unrecognized values to 'unknown'
@@ -1813,9 +1817,20 @@ function QuantGitContent() {  const router = useRouter();
         },
       );
       if (res.ok) {
-        setPulls((prev) => prev.map((p) => (p.id === prNumber ? { ...p, state: 'merged' } : p)));
+        // The viewer just performed this merge, so the viewer IS the merger
+        // for this in-session transition (same rule as PullRequestsTab's own
+        // merge path). Loaded PRs keep whatever mergedBy the backend sent.
+        setPulls((prev) =>
+          prev.map((p) =>
+            p.id === prNumber
+              ? { ...p, state: 'merged', mergedBy: currentUsername || p.mergedBy }
+              : p,
+          ),
+        );
         if (selectedPr && selectedPr.id === prNumber) {
-          setSelectedPr((prev) => (prev ? { ...prev, state: 'merged' } : null));
+          setSelectedPr((prev) =>
+            prev ? { ...prev, state: 'merged', mergedBy: currentUsername || prev.mergedBy } : null,
+          );
         }
         showToast(
           `Pull request #${prNumber} merged into ${selectedRepo.defaultBranch} via ${mergeMethod}!`,

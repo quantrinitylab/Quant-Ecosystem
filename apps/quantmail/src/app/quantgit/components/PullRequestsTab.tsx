@@ -147,6 +147,20 @@ export function reviewReviewerName(
   return reviewer?.username || reviewer?.displayName || '';
 }
 
+/**
+ * Merger identity for a PR, from the PR's OWN merged-by data only. This
+ * deliberately never looks at `pr.author`: the author opened the PR, the
+ * merger closed it, and substituting the author for a missing merger was
+ * the defect this file previously shipped (first the viewer, then the
+ * author, both misattributed every unknown merger). An unknown merger
+ * degrades to '' and the render sites show 'Unknown' — the same honest
+ * convention as reviewReviewerName. Whitespace-only values are unknown too.
+ */
+export function prMergerName(pr: { mergedBy?: string | null } | null | undefined): string {
+  const name = pr?.mergedBy?.trim();
+  return name ? name : '';
+}
+
 export function PullRequestsTab({
   pullSearchQuery,
   setPullSearchQuery,
@@ -559,7 +573,13 @@ export function PullRequestsTab({
       }
 
       if (merged) {
-        setSelectedPR((prev) => (prev ? { ...prev, state: 'merged' } : null));
+        // The viewer just performed this merge, so the viewer IS the merger
+        // for this in-session transition — this is the actor of a completed
+        // action, not a fallback for unknown data. Loaded (historical) PRs
+        // never get a mergedBy here; theirs comes only from backend data.
+        setSelectedPR((prev) =>
+          prev ? { ...prev, state: 'merged', mergedBy: currentUsername || prev.mergedBy } : null,
+        );
         setIsMergeConfirmOpen(false);
         showToast?.(`Pull request #${prNumber} merged successfully!`);
       } else {
@@ -771,7 +791,7 @@ export function PullRequestsTab({
               {selectedPR.state === 'merged' ? (
                 <span data-testid="pr-merged-info">
                   Merged by{' '}
-                  <strong className="text-[#E6EDF3]">{selectedPR.author || 'Unknown'}</strong>{' '}
+                  <strong className="text-[#E6EDF3]">{prMergerName(selectedPR) || 'Unknown'}</strong>{' '}
                   into{' '}
                   <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchTarget || 'main'}
@@ -1097,7 +1117,7 @@ export function PullRequestsTab({
                   <QuantGitCheckIcon size={16} />
                   <span className="font-semibold text-xs">
                     Pull request #{(selectedPR as any).number || selectedPR.id} was successfully
-                    merged and closed. Merged by {selectedPR.author || 'Unknown'} into{' '}
+                    merged and closed. Merged by {prMergerName(selectedPR) || 'Unknown'} into{' '}
                     {selectedPR.branchTarget || 'main'}.
                   </span>
                 </div>
