@@ -4654,6 +4654,46 @@ model UserSubscription {
   @@map("drive_user_subscriptions")
 }
 
+// CODEX PR #1558 corrective (migration 0107): durable S3 multipart upload
+// sessions. The old flow trusted client-supplied uploadId/key/totalSize and
+// kept quota reservations in a process-local Map, so a restart or a second
+// replica lost ownership and quota state entirely. This row — written at
+// initiate from server-side values — is now the authority for every later
+// step: owner + key binding + expiry + status are checked against it before
+// any S3 call, completion is claimed atomically, replays resolve to the
+// same fileId, and the SHA-256 digest runs as a background task whose
+// state (pending | hashing | ready | failed) lives here, never as a
+// silently permanent empty contentHash on the file row.
+model MultipartUploadSession {
+  id          String   @id @default(cuid())
+  // S3-assigned upload id; unique per upload, used as the lookup key.
+  uploadId    String   @unique
+  userId      String
+  // Server-issued object key; client keys must match this exactly.
+  storageKey  String
+  name        String
+  mimeType    String
+  // Server-recorded size from initiate; completion reconciles the real
+  // stored bytes against this, never against a client-sent totalSize.
+  totalSize   Int
+  folderId    String?
+  // pending | completing | completed | aborted | failed | expired
+  status      String   @default("pending")
+  // pending | hashing | ready | failed — digest state of the file's
+  // contentHash; 'pending' at completion, 'ready' once the real SHA-256
+  // is stored, 'failed' when the background digest could not finish.
+  hashStatus  String   @default("pending")
+  contentHash String?
+  fileId      String?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([status, hashStatus])
+  @@map("drive_multipart_upload_sessions")
+}
+
 
 
 // ==================== QuantCalendar (Google Calendar killer) =============

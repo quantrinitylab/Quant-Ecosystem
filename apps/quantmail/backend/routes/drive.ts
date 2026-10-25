@@ -18,6 +18,16 @@ import {
   safeFileName,
 } from '../services/drive-storage.service';
 import { StorageQuotaService } from '../services/storage-quota.service';
+import {
+  claimMultipartSessionForCompletion,
+  createMultipartSession,
+  digestMultipartFile,
+  getPendingMultipartReservedBytes,
+  loadOwnedMultipartSession,
+  markMultipartSession,
+  releaseMultipartCompletionClaim,
+  resumePendingMultipartDigests,
+} from '../services/multipart-upload-session.service';
 import { ChunkedUploadService } from '../services/chunked-upload.service';
 import { AIExtractDataService } from '../services/ai-extract-data.service';
 import { AISummarizeFileService } from '../services/ai-summarize-file.service';
@@ -2856,12 +2866,46 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
   );
 
   // Task DR-1 to DR-5: Direct S3 5GB multipart presigned upload protocol
+  //
+  // CODEX PR #1558 corrective: every step is gated on a DURABLE session
+  // record created here from server-side values. part-url / complete / abort
+  // never trust a client-supplied uploadId/key on their own — they load the
+  // session, check owner + key binding + expiry + status, and only then
+  // touch S3. Quota is enforced against durable state (DB file usage +
+  // pending-session bytes from the database) as well as the process-local
+  // reservation map, so a restart or a second replica cannot bypass it.
+  async function assertMultipartQuota(
+    userId: string,
+    additionalBytes: number,
+    excludeUploadId?: string,
+  ): Promise<void> {
+    const quota = await quotaService.getQuota(userId);
+    if (!Number.isFinite(quota.limitBytes) || quota.limitBytes <= 0) {
+      throw createAppError('Storage quota is misconfigured', 500, 'INTERNAL_ERROR');
+    }
+    // Process-local reservations (this replica) excluding the caller's own
+    // hold, PLUS durable pending-session bytes (all replicas, restart-safe).
+    const localReserved = quotaService.getReservedUsage(userId, excludeUploadId);
+    const durablePending = await getPendingMultipartReservedBytes(
+      prisma,
+      userId,
+      excludeUploadId,
+    );
+    if (quota.usedBytes + localReserved + durablePending + additionalBytes > quota.limitBytes) {
+      throw createAppError(
+        'Storage quota exceeded. Please upgrade your plan.',
+        507,
+        'QUOTA_EXCEEDED',
+      );
+    }
+  }
+
   fastify.post('/drive/upload/multipart/initiate', async (request, reply) => {
     const userId = requireUserId(request);
     const parsed = initiateMultipartSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
 
-    await quotaService.checkQuota(userId, parsed.data.totalSize);
+    await assertMultipartQuota(userId, parsed.data.totalSize);
 
     let folderId = parsed.data.folderId ?? null;
     if (
@@ -2884,7 +2928,31 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       parsed.data.mimeType || 'application/octet-stream',
     );
 
-    await quotaService.reserveQuota(userId, parsed.data.totalSize, uploadId, 24 * 60 * 60 * 1000);
+    // The S3 upload now exists, so the session + quota hold must be
+    // recorded before returning — and cleaned up if recording fails, so a
+    // half-initiated upload never strands an S3 upload or a quota hold.
+    try {
+      await quotaService.reserveQuota(userId, parsed.data.totalSize, uploadId, 24 * 60 * 60 * 1000);
+      await createMultipartSession(prisma, {
+        uploadId,
+        userId,
+        storageKey,
+        name: safeFileName(parsed.data.name),
+        mimeType: parsed.data.mimeType || 'application/octet-stream',
+        totalSize: parsed.data.totalSize,
+        folderId,
+        ttlMs: 24 * 60 * 60 * 1000,
+      });
+    } catch (error) {
+      quotaService.releaseReservation(uploadId);
+      await storage.abortMultipartUpload({ key: storageKey, uploadId }).catch(() => undefined);
+      throw error;
+    }
+
+    // Restart recovery, fire-and-forget: a previous process may have died
+    // mid-digest, leaving completed sessions with a pending digest. This
+    // never blocks the initiate response and never fails it.
+    void resumePendingMultipartDigests(prisma, storage).catch(() => undefined);
 
     return reply.status(201).send({
       uploadId,
@@ -2898,9 +2966,20 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
   fastify.post<{ Params: { uploadId: string } }>(
     '/drive/upload/multipart/:uploadId/part-url',
     async (request, reply) => {
-      requireUserId(request);
+      const userId = requireUserId(request);
       const parsed = multipartPartUrlSchema.safeParse(request.body);
       if (!parsed.success) throw parsed.error;
+
+      // Owner + key-binding + expiry gate: minting a part URL for someone
+      // else's uploadId, or for a key the server never issued, is refused
+      // before any presigned URL is generated.
+      await loadOwnedMultipartSession(
+        prisma,
+        userId,
+        request.params.uploadId,
+        parsed.data.key,
+        ['pending'],
+      );
 
       const storage = requireObjectStorage();
       const presignedUrl = await storage.getUploadPartPresignedUrl({
@@ -2924,93 +3003,230 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       const parsed = completeMultipartSchema.safeParse(request.body);
       if (!parsed.success) throw parsed.error;
 
+      const uploadId = request.params.uploadId;
       const storage = requireObjectStorage();
-      const completeRes = await storage.completeMultipartUpload({
-        key: parsed.data.key,
-        uploadId: request.params.uploadId,
-        parts: parsed.data.parts,
-      });
 
-      // contentHash contract (all other upload paths): SHA-256 of the stored
-      // bytes. An S3 ETag is NOT that — for multipart uploads it is
-      // `<md5-of-part-md5s>-<part-count>`. Storing the ETag here made the
-      // duplicate cleaner mislabel it "SHA-256:" and made identical files
-      // uploaded via single vs multipart paths never group as duplicates.
-      // Hash the completed object itself (streamed, never buffered whole)
-      // so multipart files group with identical single-path uploads. On a
-      // hash failure the upload still succeeds, but the file is left out of
-      // duplicate detection: an empty hash is skipped by findDuplicates,
-      // while a wrong value would group unrelated files.
-      let contentHash = '';
-      try {
-        const { body } = await storage.download(parsed.data.key);
-        const hash = createHash('sha256');
-        for await (const chunk of body) hash.update(chunk);
-        contentHash = hash.digest('hex');
-      } catch (error) {
-        request.log.warn(
-          { err: error },
-          'Multipart complete: could not hash completed object; storing empty contentHash',
+      // Step 1 — durable session gate. The client-sent name/totalSize/
+      // mimeType/folderId are NOT trusted for the file record below; the
+      // session's server-recorded values are. Unknown session → 404,
+      // another user's session or a mismatched key → 403, expired → 410.
+      const session = await loadOwnedMultipartSession(prisma, userId, uploadId, parsed.data.key, [
+        'pending',
+        'completing',
+        'completed',
+      ]);
+
+      // Step 2 — idempotent replay: a completed session always returns the
+      // SAME file row, never a second file, however often complete is
+      // retried (client retry, duplicate webhook, double-submit).
+      if (session.status === 'completed') {
+        const existing = session.fileId
+          ? await prisma.file.findUnique({ where: { id: session.fileId } })
+          : null;
+        if (!existing || existing.userId !== userId) {
+          throw createAppError(
+            'Multipart upload completed but its file record is missing',
+            409,
+            'COMPLETED_FILE_MISSING',
+          );
+        }
+        const quota = await quotaService.getQuota(userId);
+        const owner = await ownerInfo(prisma, userId);
+        return reply.send({
+          file: fileDto(existing, owner),
+          quota: { used: quota.usedBytes, total: quota.limitBytes },
+          replayed: true,
+          contentHashStatus: session.hashStatus,
+        });
+      }
+      if (session.status === 'completing') {
+        throw createAppError(
+          'Multipart completion already in progress; retry to fetch the completed file',
+          409,
+          'COMPLETION_IN_PROGRESS',
         );
       }
 
-      let folderId = parsed.data.folderId ?? null;
-      if (
-        folderId &&
-        !(await prisma.folder.findFirst({ where: { id: folderId, userId, isDeleted: false } }))
-      ) {
-        folderId = null;
+      // A quota hold left in this process by another user must never be
+      // consumed here; an absent hold (restart) is fine — the session row
+      // is the authority, and quota is re-checked durably below.
+      quotaService.assertReservationOwner(uploadId, userId);
+
+      // Step 3 — atomic claim. Losing the claim means a concurrent
+      // completion won; the client retries into the replay path above.
+      const claimed = await claimMultipartSessionForCompletion(prisma, session);
+      if (!claimed) {
+        throw createAppError(
+          'Multipart completion already in progress; retry to fetch the completed file',
+          409,
+          'COMPLETION_IN_PROGRESS',
+        );
       }
 
-      const file = await prisma.file.create({
-        data: {
-          userId,
-          name: safeFileName(parsed.data.name),
-          mimeType: parsed.data.mimeType || 'application/octet-stream',
-          size: parsed.data.totalSize,
-          folderId,
-          encryptedContent: completeRes.key,
-          encryptionIV: '',
-          encryptionAuthTag: '',
-          encryptionKey: '',
-          contentHash,
-        },
-      });
+      try {
+        // Step 4 — quota re-enforced at completion against durable state,
+        // not the client totalSize and not only this process's map.
+        await assertMultipartQuota(userId, session.totalSize, uploadId);
 
-      await prisma.fileVersion.create({
-        data: {
+        // Step 5 — S3 completion against the SESSION key (never a
+        // client-chosen key). S3 Complete is not itself retry-idempotent,
+        // so a failure here first checks whether the object nevertheless
+        // landed (e.g. the Complete response was lost): if the finished
+        // object exists at exactly the initiated size, completion proceeds
+        // instead of stranding the session. Otherwise the claim is released
+        // so the client can retry safely.
+        let completeRes;
+        try {
+          completeRes = await storage.completeMultipartUpload({
+            key: session.storageKey,
+            uploadId,
+            parts: parsed.data.parts,
+          });
+        } catch (error) {
+          let recoveredSize: number | null = null;
+          try {
+            recoveredSize = await storage.getObjectSize(session.storageKey);
+          } catch {
+            recoveredSize = null;
+          }
+          if (recoveredSize !== null && recoveredSize === session.totalSize) {
+            completeRes = { key: session.storageKey };
+          } else {
+            await releaseMultipartCompletionClaim(prisma, session);
+            throw error;
+          }
+        }
+
+        // Step 6 — server-side length reconciliation: the real stored byte
+        // count (HeadObject) must equal the initiated size. A mismatch
+        // means the parts did not add up to the declared file — the object
+        // is deleted, the session is terminal-failed, the hold is released,
+        // and NO file row is created (a truncated/overlong object must
+        // never masquerade as the declared file).
+        let actualSize: number | null;
+        try {
+          actualSize = await storage.getObjectSize(session.storageKey);
+        } catch {
+          actualSize = null;
+        }
+        if (actualSize === null || actualSize !== session.totalSize) {
+          // Deleting the bad object is best-effort: a storage failure here
+          // must not mask the size-mismatch verdict (or strand the session).
+          try {
+            await storage.delete(session.storageKey);
+          } catch {
+            // Leave the orphan object for the storage lifecycle sweeper;
+            // the session is terminal-failed and no file row is created.
+          }
+          await markMultipartSession(prisma, session, 'failed');
+          quotaService.releaseReservation(uploadId, userId);
+          throw createAppError(
+            `Completed object size ${actualSize ?? 'unknown'} does not match initiated size ${session.totalSize}`,
+            422,
+            'SIZE_MISMATCH',
+          );
+        }
+
+        // Folder re-validated at completion (it may have been deleted or
+        // moved since initiate); fall back to root, as before.
+        let folderId = session.folderId;
+        if (
+          folderId &&
+          !(await prisma.folder.findFirst({ where: { id: folderId, userId, isDeleted: false } }))
+        ) {
+          folderId = null;
+        }
+
+        // Step 7 — file + version from SESSION values only. contentHash
+        // starts empty with the digest pending (see below): an empty hash
+        // is skipped by findDuplicates, so no false grouping, and — unlike
+        // the old code — it is transient, not permanent.
+        const file = await prisma.file.create({
+          data: {
+            userId,
+            name: session.name,
+            mimeType: session.mimeType,
+            size: session.totalSize,
+            folderId,
+            encryptedContent: completeRes.key,
+            encryptionIV: '',
+            encryptionAuthTag: '',
+            encryptionKey: '',
+            contentHash: '',
+          },
+        });
+
+        await prisma.fileVersion.create({
+          data: {
+            fileId: file.id,
+            versionNumber: 1,
+            encryptedContent: completeRes.key,
+            encryptionIV: '',
+            encryptionAuthTag: '',
+            encryptionKey: '',
+            size: session.totalSize,
+          },
+        });
+
+        await markMultipartSession(prisma, session, 'completed', { fileId: file.id });
+        quotaService.commitReservation(uploadId, userId);
+        const quota = await quotaService.getQuota(userId);
+        const owner = await ownerInfo(prisma, userId);
+        // QM-M39-008: log the real upload event for multipart uploads.
+        await recordFileActivity(
+          prisma,
+          {
+            fileId: file.id,
+            ownerUserId: userId,
+            actorUserId: userId,
+            actorName: owner.name || null,
+            actorEmail: owner.email || null,
+            action: 'upload',
+            details: { name: file.name, size: file.size },
+          },
+          (msg) => request.log.warn(msg),
+        );
+
+        // Step 8 — respond WITHOUT waiting for the digest. The old code
+        // downloaded + hashed the whole (up to 5 GB) object inside this
+        // request; the digest now runs as a background task that streams
+        // the object, verifies its byte count, and only then writes the
+        // real SHA-256 onto the file row and the session (pending → ready,
+        // or 'failed' on error — never a silently permanent empty hash).
+        // contentHash contract: SHA-256 of the stored bytes, never the S3
+        // ETag (a multipart ETag is `<md5-of-part-md5s>-<part-count>`).
+        reply.status(201).send({
+          file: fileDto(file, owner),
+          quota: { used: quota.usedBytes, total: quota.limitBytes },
+          contentHashStatus: 'pending',
+        });
+        void digestMultipartFile(prisma, storage, {
+          ...session,
+          status: 'completed',
           fileId: file.id,
-          versionNumber: 1,
-          encryptedContent: completeRes.key,
-          encryptionIV: '',
-          encryptionAuthTag: '',
-          encryptionKey: '',
-          size: parsed.data.totalSize,
-        },
-      });
-
-      quotaService.commitReservation(request.params.uploadId);
-      const quota = await quotaService.getQuota(userId);
-      const owner = await ownerInfo(prisma, userId);
-      // QM-M39-008: log the real upload event for multipart uploads.
-      await recordFileActivity(
-        prisma,
-        {
-          fileId: file.id,
-          ownerUserId: userId,
-          actorUserId: userId,
-          actorName: owner.name || null,
-          actorEmail: owner.email || null,
-          action: 'upload',
-          details: { name: file.name, size: file.size },
-        },
-        (msg) => request.log.warn(msg),
-      );
-
-      return reply.status(201).send({
-        file: fileDto(file, owner),
-        quota: { used: quota.usedBytes, total: quota.limitBytes },
-      });
+          hashStatus: 'pending',
+          contentHash: null,
+        }).catch((error) => {
+          request.log.warn(
+            { err: error },
+            'Multipart background digest failed; session left in failed digest state for retry',
+          );
+        });
+        return;
+      } catch (error) {
+        // Release the claim unconditionally: the release is a no-op unless
+        // the session is still 'completing' (conditional UPDATE), so the
+        // terminal paths (size-mismatch → 'failed', success → 'completed')
+        // and the S3-failure path (already released) are unaffected, while
+        // any other post-claim failure (quota, file write, activity log)
+        // returns the session to 'pending' instead of stranding it in
+        // 'completing' forever. (Do NOT gate this on session.status: the
+        // session object shares identity with the stored row, so its
+        // status already reflects the claim — reading it here would skip
+        // exactly the releases that matter.)
+        await releaseMultipartCompletionClaim(prisma, session);
+        throw error;
+      }
     },
   );
 
@@ -3021,13 +3237,24 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       const parsed = abortMultipartSchema.safeParse(request.body);
       if (!parsed.success) throw parsed.error;
 
+      // Same durable gate as complete: only the session owner, with the
+      // server-issued key, may abort — and only while still pending.
+      const session = await loadOwnedMultipartSession(
+        prisma,
+        userId,
+        request.params.uploadId,
+        parsed.data.key,
+        ['pending'],
+      );
+
       const storage = requireObjectStorage();
       await storage.abortMultipartUpload({
         key: parsed.data.key,
         uploadId: request.params.uploadId,
       });
 
-      quotaService.releaseReservation(request.params.uploadId);
+      quotaService.releaseReservation(request.params.uploadId, userId);
+      await markMultipartSession(prisma, session, 'aborted');
       return reply.send({ ok: true });
     },
   );
