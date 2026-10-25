@@ -16,6 +16,15 @@
 //
 // Non-navigating drawer controls (a plain button, a text input) must NOT
 // close it — the user is still working inside the drawer.
+//
+// Runs under the repo's REAL vitest config (apps/quantmail/vitest.config.ts)
+// with the repo's established next/navigation mock pattern (mutable
+// pathname + router fns, as in app-shell-integration.test.tsx and
+// mobile-drawer-deadend.test.tsx) — no bespoke harness, no next/* stubs.
+// The sidebar prop is a fake mirroring the real AppSidebar's DOM shapes:
+// `.sidebar-brand` div with an onClick router.push('/'), and plain anchors
+// for the footer links (what next/link renders), plus a `.sidebar-nav-item`.
+// AppShell itself is real.
 // ============================================================================
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -24,20 +33,32 @@ import { createRoot, type Root } from 'react-dom/client';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-// Navigation state for the test run. Local runs use a temp vitest config
-// (/tmp/qm-vitest.config.ts) aliasing next/* to stubs, because this VM's
-// pnpm store copy of `next` is missing its package.json and cannot resolve
-// next/dynamic or next/navigation at all (pre-existing environment defect —
-// the sibling inbox-view-nav-targets test fails the same way here; CI
-// installs next fresh, so no repo change is needed for it).
-const navState = {
-  pathname: '/privacy',
-  push: vi.fn(),
-  replace: vi.fn(),
-  prefetch: vi.fn(),
-  back: vi.fn(),
-};
-(globalThis as any).__qmNavState = navState;
+// Mutable navigation state, following the repo's established pattern
+// (mobile-drawer-deadend.test.tsx): the mock returns the CURRENT pathname,
+// so re-rendering after mutating it models a committed route change —
+// whether it came from a tap, a keyboard shortcut, or browser back/forward.
+let currentPathname = '/privacy';
+const mockPush = vi.fn();
+const mockReplace = vi.fn();
+const mockPrefetch = vi.fn();
+const mockBack = vi.fn();
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+    replace: mockReplace,
+    prefetch: mockPrefetch,
+    back: mockBack,
+  }),
+  usePathname: () => currentPathname,
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+// Established pattern (qm-uiux-093): dynamic imports resolve to a null
+// component, so the lazily-loaded Quanty live agent stays out of the test.
+vi.mock('next/dynamic', () => ({
+  default: () => () => null,
+}));
 
 vi.mock('../hooks/useInbox', () => ({
   useInbox: () => ({ data: [] }),
@@ -109,17 +130,26 @@ import { AppShell } from '../components/AppShell';
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
 
+// Mirrors the real AppSidebar (AppSidebar.tsx): the brand header is a
+// `.sidebar-brand` div whose inner div calls router.push('/'), and the
+// footer links are anchors to /privacy and /settings (what next/link
+// renders). The drawer-close logic under test lives entirely in AppShell.
 function FakeDrawerSidebar() {
   return (
     <div>
       <div className="sidebar-brand" data-testid="drawer-brand">
-        <span>QuantMail brand</span>
+        <div onClick={() => mockPush('/')} data-testid="drawer-brand-inner">
+          <span>QuantMail brand</span>
+        </div>
       </div>
       <button type="button" className="sidebar-nav-item" data-testid="drawer-nav-item">
         Inbox
       </button>
-      <a href="/privacy" data-testid="drawer-footer-link">
+      <a href="/privacy" data-testid="drawer-footer-privacy">
         Privacy &amp; Data Safety
+      </a>
+      <a href="/settings" data-testid="drawer-footer-settings">
+        Settings
       </a>
       <button type="button" data-testid="drawer-plain-button">
         Plain drawer control
@@ -142,20 +172,53 @@ function renderShell() {
   });
 }
 
+// Re-render with a new pathname: models a committed route change, whatever
+// caused it. No drawer click, no router call from the test itself unless the
+// individual test performs one.
+function navigateTo(path: string) {
+  currentPathname = path;
+  act(() => {
+    root!.render(
+      <AppShell sidebar={<FakeDrawerSidebar />}>
+        <div>Page content</div>
+      </AppShell>,
+    );
+  });
+}
+
 function drawerAside(): HTMLElement {
   const aside = container!.querySelector('aside[role="dialog"]');
   expect(aside).not.toBeNull();
   return aside as HTMLElement;
 }
 
+function backdropButton(): HTMLElement {
+  const button = container!.querySelector('button[aria-label="Close navigation menu"]');
+  expect(button).not.toBeNull();
+  return button as HTMLElement;
+}
+
+function menuButton(): HTMLElement {
+  const button = container!.querySelector('[data-testid="shell-mobile-menu-button"]');
+  expect(button).not.toBeNull();
+  return button as HTMLElement;
+}
+
 function openDrawer() {
-  const menuButton = container!.querySelector('[data-testid="shell-mobile-menu-button"]');
-  expect(menuButton).not.toBeNull();
   act(() => {
-    menuButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    menuButton().dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
-  expect(drawerAside().className).toContain('translate-x-0');
-  expect(drawerAside().className).not.toContain('-translate-x-full');
+  expectDrawerOpen();
+}
+
+// On main suite routes (e.g. '/') the hamburger lives in the mocked-out
+// QuantPillarTopBar, so open the drawer the way that bar and the `[`
+// shortcut do: the `quant:sidebar:toggle` window event.
+function openDrawerViaToggleEvent() {
+  act(() => {
+    window.dispatchEvent(new CustomEvent('quant:sidebar:toggle'));
+  });
+  expectDrawerOpen();
 }
 
 function clickTestId(testId: string) {
@@ -176,7 +239,7 @@ function expectDrawerOpen() {
 }
 
 beforeEach(() => {
-  navState.pathname = '/privacy';
+  currentPathname = '/privacy';
   vi.clearAllMocks();
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
@@ -195,20 +258,29 @@ afterEach(() => {
   container?.remove();
   root = null;
   container = null;
+  document.body.style.overflow = '';
 });
 
 describe('AppShell mobile drawer closes on in-drawer navigation', () => {
-  it('closes when the brand header is tapped', () => {
+  it('closes when the brand header is tapped (logo -> /)', () => {
     renderShell();
     openDrawer();
-    clickTestId('drawer-brand');
+    clickTestId('drawer-brand-inner');
+    expectDrawerClosed();
+    expect(mockPush).toHaveBeenCalledWith('/');
+  });
+
+  it('closes when the footer Privacy link is tapped', () => {
+    renderShell();
+    openDrawer();
+    clickTestId('drawer-footer-privacy');
     expectDrawerClosed();
   });
 
-  it('closes when a footer anchor link is tapped', () => {
+  it('closes when the footer Settings link is tapped', () => {
     renderShell();
     openDrawer();
-    clickTestId('drawer-footer-link');
+    clickTestId('drawer-footer-settings');
     expectDrawerClosed();
   });
 
@@ -219,18 +291,91 @@ describe('AppShell mobile drawer closes on in-drawer navigation', () => {
     expectDrawerClosed();
   });
 
-  it('closes on ANY route change, even without a drawer click', () => {
+  it('closes on keyboard Enter activation of a focused footer link', () => {
+    // jsdom does not synthesize a click from a keydown, so this dispatches
+    // the click the browser itself fires when Enter activates a focused
+    // link. The gate sees a click either way — keyboard activation is not
+    // a separate code path, and this pins that it is not excluded from it.
     renderShell();
     openDrawer();
-    navState.pathname = '/settings';
+    const link = container!.querySelector('[data-testid="drawer-footer-settings"]') as HTMLElement;
     act(() => {
-      root!.render(
-        <AppShell sidebar={<FakeDrawerSidebar />}>
-          <div>Page content</div>
-        </AppShell>,
-      );
+      link.focus();
+    });
+    expect(document.activeElement).toBe(link);
+    act(() => {
+      link.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expectDrawerClosed();
+  });
+
+  it('closes on keyboard-shortcut navigation: a route change with no drawer click', () => {
+    // Models a keybinding that calls router.push (e.g. a palette action):
+    // the drawer sees no click at all, only the pathname change.
+    renderShell();
+    openDrawer();
+    navigateTo('/settings');
+    expectDrawerClosed();
+  });
+
+  it('closes on browser back/forward: a pathname change with no click and no push', () => {
+    // History navigation changes the pathname without any in-drawer
+    // interaction and without a router.push call from the drawer.
+    renderShell();
+    openDrawer();
+    navigateTo('/calendar');
+    expectDrawerClosed();
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('closes on a pathname change that is NOT a drawer-link navigation', () => {
+    // The pillar switcher (outside the drawer) navigates while the drawer
+    // is open: the effect is route-driven, not click-driven, so it closes.
+    renderShell();
+    openDrawer();
+    navigateTo('/drive');
+    expectDrawerClosed();
+  });
+
+  it('closes on a same-pathname brand tap via the capture gate (no route change)', () => {
+    // Brand while already on '/': the pathname effect cannot fire because
+    // the pathname does not change, so only the widened capture gate
+    // (`.sidebar-brand`) closes the drawer.
+    currentPathname = '/';
+    renderShell();
+    openDrawerViaToggleEvent();
+    clickTestId('drawer-brand-inner');
+    expectDrawerClosed();
+  });
+
+  it('does NOT restore focus to the menu trigger after a route-driven close', () => {
+    // A route change owns focus; the trigger belongs to the old page.
+    // The pathname effect calls setIsSidebarOpen(false) directly, never
+    // closeSidebar(), so no focus return happens.
+    renderShell();
+    openDrawer();
+    const navItem = container!.querySelector(
+      '[data-testid="drawer-nav-item"]',
+    ) as HTMLElement;
+    act(() => {
+      navItem.focus();
+    });
+    expect(document.activeElement).toBe(navItem);
+    navigateTo('/settings');
+    expectDrawerClosed();
+    expect(document.activeElement).not.toBe(menuButton());
+  });
+
+  it('releases the scroll lock and backdrop on route-driven close', () => {
+    renderShell();
+    openDrawer();
+    expect(document.body.style.overflow).toBe('hidden');
+    expect(backdropButton().className).toContain('opacity-100');
+    navigateTo('/settings');
+    expectDrawerClosed();
+    expect(document.body.style.overflow).toBe('');
+    expect(backdropButton().className).toContain('invisible');
+    expect(backdropButton().className).toContain('pointer-events-none');
   });
 
   it('stays open when a non-navigating drawer control is tapped', () => {
@@ -240,5 +385,7 @@ describe('AppShell mobile drawer closes on in-drawer navigation', () => {
     expectDrawerOpen();
     clickTestId('drawer-input');
     expectDrawerOpen();
+    // Still modal: the lock the widened gate must not have dropped.
+    expect(document.body.style.overflow).toBe('hidden');
   });
 });
