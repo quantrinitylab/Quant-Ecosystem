@@ -6549,3 +6549,7 @@ Audit started: 2026-10-25 ~12:40 IST (lane-1 deep audit loop, ROUND 38)
 - NOTE (context, not a lane-1 action): PR #1466 still OPEN at head eb9cb08f, but its checks have moved since the R38-016 run: gate = pass, full-sweep = pass, browser-auth workflow = success, quantmail-e2e = pass (31 pass + 1 skipping cubic reviewer, 0 non-pass lines, verified this run). No separately-named 'booking E2E' check was found among #1466's checks, so this run does NOT declare the user's sole-focus condition (gate + full-sweep + booking E2E + browser-auth) met — that call belongs to the orchestrator/main agent. This audit opened no PRs and merged nothing.
 - STILL-UNVERIFIED: signed-in staff/non-staff admin flows; whether staff-viewer cross-tenant audit returns real rows on staging.
 Rotation -> QM-SCREEN-018 (help) ROUND 38 regression, queued.
+
+## QM-SCREEN-018 R38 — Help / privacy / terms / invite / groups / SSO regression (ROUND 38)
+Status: [~] IN_PROGRESS (Owner: LANE-1, Branch: lane1-audit-018r38, started 2026-10-25 ~14:40 IST; R37-018 tip e91cd548a19b -> origin/main e91cd548a19b, fresh fetch)
+Audit started: 2026-10-25 ~14:40 IST (lane-1 deep audit loop, ROUND 38)
