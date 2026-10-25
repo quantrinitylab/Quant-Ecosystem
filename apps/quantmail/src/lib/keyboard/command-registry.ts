@@ -41,6 +41,10 @@ export const COMMAND_GROUPS = [
   // Navigation/View/Compose, where they would collide visually with the
   // mail-scoped rows they shadow by scope depth.
   'Calendar',
+  // The drive surface owns its own Google-Drive-class triage set (j/k/x/…).
+  // Same reason as Calendar: one section in the `?` sheet, readable on its
+  // own instead of scattered across Selection and View.
+  'Drive',
   'Account',
 ] as const;
 
@@ -299,6 +303,121 @@ const calendarReferenceById = new Map(CALENDAR_COMMAND_REFERENCE.map((entry) => 
  */
 export function calendarCommand(id: CalendarCommandId): CommandReference & { id: CalendarCommandId } {
   return calendarReferenceById.get(id)!;
+}
+
+/**
+ * The `drive.*` command ids. A union rather than a `string`, so a typo is a
+ * type error and not a command that silently loses its label and key at
+ * runtime (the same contract the inbox and calendar references keep).
+ */
+export type DriveCommandId =
+  | 'drive.nextItem'
+  | 'drive.previousItem'
+  | 'drive.toggleSelect'
+  | 'drive.openItem'
+  | 'drive.clearFocus'
+  | 'drive.newFolder'
+  | 'drive.newDocument';
+
+/**
+ * Every binding the drive surface owns, in the order the sheet should read
+ * them. Google-Drive-class triage for the Files/Home file list, implemented
+ * as a W3C APG listbox with roving tabindex (see DriveHomeSubView): j/k move
+ * real DOM focus across the options, aria-selected tracks only the
+ * x-selection set, and Escape drops the highlight and returns focus:
+ *
+ *   j/k          move focus across folders and files
+ *   x            toggle selection of the focused item (batch actions)
+ *   Enter        enter the focused folder / preview the focused file
+ *   Escape       drop the highlight and return focus (pre-navigation
+ *                element, else the Files panel)
+ *   shift+f      new folder dialog (Google Drive's own chord)
+ *   shift+t      new document dialog (Google Drive's Shift+T new doc)
+ *
+ * Shift+F/T dialog focus in/out is the shared-ui Modal's contract (trap +
+ * data-autofocus input + restore to the opener); the drive hook only fires
+ * the open callbacks, and the opener is the focused option card.
+ *
+ * Single-declaration contract (as with the inbox/calendar lists):
+ * `useDriveKeyboard` and the drive list component spread these entries onto
+ * their live commands rather than restating id/label/group/keys, so the `?`
+ * sheet cannot document a key the drive surface does not bind. `help-model.ts`
+ * falls back to this list when the drive page is not mounted.
+ *
+ * Deliberate deviations from Google Drive's documented set, forced by existing
+ * bindings:
+ *
+ * - `/` is NOT re-bound here: AppShell already binds `/` (higher priority)
+ *   to focus the drive search field in place, and the global command registry
+ *   documents it as "Search this view". Re-declaring it in the drive scope
+ *   would double-bind the same chord.
+ * - `?` (shortcuts sheet) and `mod+k` (command palette) stay global and
+ *   unmaskable; the toolbar also carries a visible keyboard-shortcuts button
+ *   so the sheet is discoverable without the key.
+ * - Trash items are excluded from j/k navigation: the trash list is a
+ *   restore/purge zone with its own row actions, not a selection surface.
+ */
+export const DRIVE_COMMAND_REFERENCE: Array<CommandReference & { id: DriveCommandId }> = [
+  {
+    id: 'drive.nextItem',
+    label: 'Next item',
+    group: 'Drive',
+    keys: 'j',
+    description: 'Move focus to the next folder or file on the Files view',
+  },
+  {
+    id: 'drive.previousItem',
+    label: 'Previous item',
+    group: 'Drive',
+    keys: 'k',
+    description: 'Move focus to the previous folder or file',
+  },
+  {
+    id: 'drive.toggleSelect',
+    label: 'Select focused item',
+    group: 'Drive',
+    keys: 'x',
+    description: 'Toggle selection of the focused item, for batch actions',
+  },
+  {
+    id: 'drive.openItem',
+    label: 'Open focused item',
+    group: 'Drive',
+    keys: 'enter',
+    description: 'Enter the focused folder, or preview the focused file',
+  },
+  {
+    id: 'drive.clearFocus',
+    label: 'Clear highlight and return focus',
+    group: 'Drive',
+    keys: 'escape',
+    description: 'Drop the highlight and return focus to where keyboard navigation began, or to the Files panel',
+  },
+  {
+    id: 'drive.newFolder',
+    label: 'New folder',
+    group: 'Drive',
+    keys: 'shift+f',
+    description: 'Open the new-folder dialog',
+  },
+  {
+    id: 'drive.newDocument',
+    label: 'New document',
+    group: 'Drive',
+    keys: 'shift+t',
+    description: 'Open the new-document dialog',
+  },
+];
+
+const driveReferenceById = new Map(DRIVE_COMMAND_REFERENCE.map((entry) => [entry.id, entry]));
+
+/**
+ * The reference entry for a drive binding. The id is a union rather than a
+ * `string`, so a typo is a type error and not a command that silently loses
+ * its label and key at runtime.
+ */
+export function driveCommand(id: DriveCommandId): CommandReference & { id: DriveCommandId } {
+  return driveReferenceById.get(id)!;
 }
 
 interface Registration {
