@@ -4502,34 +4502,6 @@ body {
 }
 
 /* ========================================================================== */
-/* Scheduled Email Timeline                                                   */
-/* ========================================================================== */
-.schedule-timeline { padding: 0.75rem 1rem; border-radius: 0.6rem; background: rgba(99, 102, 241, 0.03); border: 1px solid rgba(99, 102, 241, 0.1); margin-bottom: 0.75rem; }
-.schedule-timeline-header { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; }
-.schedule-timeline-icon { display: inline-flex; align-items: center; color: #818cf8; }
-.schedule-timeline-header strong { font-size: 0.72rem; font-weight: 650; color: #F5F5F5; }
-.schedule-timeline-count { margin-left: auto; font-size: 0.625rem; color: #888; background: rgba(255,255,255,0.06); padding: 0.1rem 0.4rem; border-radius: 1rem; }
-.schedule-timeline-group { margin-bottom: 0.5rem; }
-.schedule-timeline-date { font-size: 0.625rem; font-weight: 650; color: #888; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; padding-left: 1rem; }
-.schedule-timeline-item { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.3rem 0; }
-.schedule-timeline-dot { width: 0.4rem; height: 0.4rem; border-radius: 50%; background: #6366f1; margin-top: 0.35rem; flex-shrink: 0; }
-.schedule-timeline-content { flex: 1; min-width: 0; }
-.schedule-timeline-meta { display: flex; align-items: center; gap: 0.3rem; }
-.schedule-timeline-time { font-size: 0.625rem; font-weight: 600; color: #bbb; }
-/* The recipient stays a text run rather than a flex row so the ellipsis keeps
-   working — `text-overflow` has nothing to clip once the children become flex
-   items. The arrow is an inline SVG nudged onto the text baseline instead. */
-.schedule-timeline-to { font-size: 0.625rem; color: #A1A4AC; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.schedule-timeline-to svg { vertical-align: -0.15em; margin-right: 0.2rem; }
-.schedule-timeline-subject { font-size: 0.64rem; color: #999; margin-top: 0.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.schedule-timeline-actions { display: flex; gap: 0.3rem; margin-top: 0.2rem; }
-/* Cancelling a scheduled send is destructive and this widget is at its narrowest
-   on a phone, so both controls carry a full tap target even though the type is
-   small. */
-.schedule-timeline-actions button { display: inline-flex; align-items: center; min-height: 44px; border: none; background: transparent; color: #A1A4AC; font-size: 0.625rem; cursor: pointer; padding: 0.1rem 0.4rem; border-radius: 0.2rem; transition: color 80ms; }
-.schedule-timeline-actions button:hover { color: var(--quant-primary); }
-
-/* ========================================================================== */
 /* Thread Mute Button                                                         */
 /* ========================================================================== */
 .thread-mute-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.6rem; border-radius: 1.5rem; border: 1px solid var(--quant-surface-elevated); background: transparent; color: #888; font-size: 0.64rem; font-weight: 550; cursor: pointer; transition: all 120ms; }
