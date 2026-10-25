@@ -7,7 +7,7 @@ export const AuditEntrySchema = z.object({
   timestamp: z.number(),
   result: z.enum(['success', 'failure', 'pending']),
   reversible: z.boolean(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;

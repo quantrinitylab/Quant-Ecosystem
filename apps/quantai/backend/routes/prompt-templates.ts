@@ -57,7 +57,7 @@ const templateListQuerySchema = z.object({
 });
 
 const substituteBodySchema = z.object({
-  variables: z.record(z.string()).optional().default({}),
+  variables: z.record(z.string(), z.string()).optional().default({}),
 });
 
 function getUserId(request: unknown): string {
@@ -88,7 +88,7 @@ export default async function promptTemplateRoutes(fastify: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({
         success: false,
-        error: parsed.error.errors.map((e) => e.message).join(', '),
+        error: parsed.error.issues.map((e) => e.message).join(', '),
       });
     }
 
@@ -112,7 +112,7 @@ export default async function promptTemplateRoutes(fastify: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({
         success: false,
-        error: parsed.error.errors.map((e) => e.message).join(', '),
+        error: parsed.error.issues.map((e) => e.message).join(', '),
       });
     }
 
@@ -137,7 +137,7 @@ export default async function promptTemplateRoutes(fastify: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({
         success: false,
-        error: parsed.error.errors.map((e) => e.message).join(', '),
+        error: parsed.error.issues.map((e) => e.message).join(', '),
       });
     }
 

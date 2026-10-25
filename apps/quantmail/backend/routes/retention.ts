@@ -74,7 +74,7 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
     const parsed = createPolicySchema.safeParse(request.body);
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid policy parameters',
+        parsed.error.issues[0]?.message || 'Invalid policy parameters',
         400,
         'VALIDATION_ERROR',
       );
@@ -122,7 +122,7 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
     const parsed = placeLegalHoldSchema.safeParse(request.body);
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid legal hold payload',
+        parsed.error.issues[0]?.message || 'Invalid legal hold payload',
         400,
         'VALIDATION_ERROR',
       );

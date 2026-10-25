@@ -46,7 +46,7 @@ export default async function imageInpaintingRoutes(fastify: FastifyInstance) {
     const parseResult = inpaintingGenerateSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw createAppError(
-        parseResult.error.errors.map((e) => e.message).join(', '),
+        parseResult.error.issues.map((e) => e.message).join(', '),
         400,
         'VALIDATION_ERROR',
       );
@@ -151,7 +151,7 @@ export default async function imageInpaintingRoutes(fastify: FastifyInstance) {
     const parseResult = maskCoverageSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw createAppError(
-        parseResult.error.errors.map((e) => e.message).join(', '),
+        parseResult.error.issues.map((e) => e.message).join(', '),
         400,
         'VALIDATION_ERROR',
       );

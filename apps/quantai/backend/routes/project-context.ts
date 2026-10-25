@@ -115,7 +115,7 @@ export default async function projectContextRoutes(fastify: FastifyInstance) {
     const parseResult = createProjectSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw createAppError(
-        parseResult.error.errors[0]?.message || 'Invalid project data',
+        parseResult.error.issues[0]?.message || 'Invalid project data',
         400,
         'VALIDATION_ERROR',
       );

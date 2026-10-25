@@ -13,7 +13,7 @@ export const SearchResultWithPermissionsSchema = z.object({
   visibility: VisibilitySchema,
   sharedWith: z.array(z.string()).optional(),
   score: z.number(),
-  document: z.record(z.unknown()),
+  document: z.record(z.string(), z.unknown()),
 });
 
 export type SearchResultWithPermissions = z.infer<typeof SearchResultWithPermissionsSchema>;

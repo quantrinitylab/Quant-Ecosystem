@@ -12,7 +12,7 @@ const uploadPhotoSchema = z.object({
   height: z.number().int().positive(),
   fileSize: z.number().positive(),
   filter: z.string().optional(),
-  location: z.record(z.unknown()).optional(),
+  location: z.record(z.string(), z.unknown()).optional(),
   tags: z.array(z.string()).optional(),
 });
 

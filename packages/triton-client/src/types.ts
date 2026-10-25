@@ -124,11 +124,11 @@ export const InferRequestSchema = z.object({
     .array(
       z.object({
         name: z.string(),
-        parameters: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+        parameters: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
       }),
     )
     .optional(),
-  parameters: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+  parameters: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
 });
 
 export const InferResponseSchema = z.object({
@@ -136,7 +136,7 @@ export const InferResponseSchema = z.object({
   model_name: z.string(),
   model_version: z.string(),
   outputs: z.array(TensorDataSchema),
-  parameters: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+  parameters: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
 });
 
 export const ModelMetadataSchema = z.object({

@@ -8,7 +8,7 @@ import { fetchWithTimeout } from '@quant/server-core';
 export const QdrantPointSchema = z.object({
   id: z.string(),
   vector: z.array(z.number()),
-  payload: z.record(z.unknown()).optional(),
+  payload: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type QdrantPoint = z.infer<typeof QdrantPointSchema>;
