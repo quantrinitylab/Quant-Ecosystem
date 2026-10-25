@@ -40,12 +40,42 @@ const mocks = vi.hoisted(() => {
     return row.id === id;
   };
 
+  // Int/date filter predicates, mirroring real Prisma semantics: the
+  // verify-email fix folds the attempt cap and expiry into its UPDATE
+  // predicates, so the fake must evaluate them — a fake that ignored them
+  // would let a capped/expired burn "succeed" and prove nothing.
+  const matchIntFilter = (value: number, filter: any): boolean => {
+    if (filter === undefined) return true;
+    if (typeof filter === 'number') return value === filter;
+    if (filter && typeof filter === 'object') {
+      if (filter.lt !== undefined && !(value < filter.lt)) return false;
+      if (filter.lte !== undefined && !(value <= filter.lte)) return false;
+      if (filter.gt !== undefined && !(value > filter.gt)) return false;
+      if (filter.gte !== undefined && !(value >= filter.gte)) return false;
+    }
+    return true;
+  };
+  const matchDateFilter = (value: Date, filter: any): boolean => {
+    if (filter === undefined) return true;
+    const t = value.getTime();
+    if (filter instanceof Date) return t === filter.getTime();
+    if (filter && typeof filter === 'object') {
+      if (filter.lt !== undefined && !(t < new Date(filter.lt).getTime())) return false;
+      if (filter.lte !== undefined && !(t <= new Date(filter.lte).getTime())) return false;
+      if (filter.gt !== undefined && !(t > new Date(filter.gt).getTime())) return false;
+      if (filter.gte !== undefined && !(t >= new Date(filter.gte).getTime())) return false;
+    }
+    return true;
+  };
+
   const matchCodes = (where: any) =>
     db.codes.filter(
       (r) =>
         (where.userId === undefined || r.userId === where.userId) &&
         matchId(r, where.id) &&
-        (where.usedAt === undefined || (where.usedAt === null ? r.usedAt === null : r.usedAt !== null)),
+        (where.usedAt === undefined || (where.usedAt === null ? r.usedAt === null : r.usedAt !== null)) &&
+        matchIntFilter(r.attempts, where.attempts) &&
+        matchDateFilter(r.expiresAt, where.expiresAt),
     );
 
   const emailVerificationCode = {
@@ -63,6 +93,12 @@ const mocks = vi.hoisted(() => {
     findFirst: vi.fn(async (args: any) => {
       const matches = matchCodes(args?.where ?? {});
       matches.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      return matches[0] ?? null;
+    }),
+    // The verify-email transaction re-reads the row inside the transaction
+    // (the TOCTOU fix): a plain id lookup, no ordering, no copy.
+    findUnique: vi.fn(async (args: any) => {
+      const matches = matchCodes(args?.where ?? {});
       return matches[0] ?? null;
     }),
     // The resend handler snapshots pending rows inside its transaction before
@@ -86,11 +122,14 @@ const mocks = vi.hoisted(() => {
     // ATOMIC compare-and-set: the WHERE check and the write complete in one
     // synchronous step (no await between them), mirroring a single Postgres
     // UPDATE ... WHERE under the row lock. Exactly one concurrent racer can
-    // observe count 1 for the same { id, usedAt: null } predicate.
+    // observe count 1 for the same predicate — including the attempt-cap
+    // and expiry predicates the verify-email fix now folds into its burns
+    // and its guarded attempt increment.
     updateMany: vi.fn(async (args: any) => {
       const rows = matchCodes(args?.where ?? {});
       for (const row of rows) {
         if (args.data?.usedAt !== undefined) row.usedAt = args.data.usedAt;
+        if (args.data?.attempts?.increment) row.attempts += args.data.attempts.increment;
       }
       return { count: rows.length };
     }),
@@ -199,7 +238,7 @@ vi.mock('@quant/auth/lib/secrets', () => ({
 }));
 
 import { authRoutes } from '../routes/auth';
-import { hashVerificationCode } from '../lib/email-verification';
+import { MAX_VERIFICATION_ATTEMPTS, hashVerificationCode } from '../lib/email-verification';
 
 type RouteHandler = (request: any, reply: any) => Promise<unknown>;
 
@@ -323,13 +362,63 @@ describe('POST /auth/verify-email — proving the address', () => {
     const reply = await request({ email: USER.email, code: '000000' });
     expect(reply.statusCode).toBe(400);
     expect(reply.body.error.code).toBe('INVALID_CODE');
-    expect(mocks.prisma.emailVerificationCode.update).toHaveBeenCalledWith({
-      where: { id: 'evc-1' },
+    // The increment now runs inside the redemption transaction, guarded by
+    // the attempt cap in the UPDATE predicate itself (the TOCTOU fix) —
+    // not as a bare pre-transaction update.
+    expect(mocks.prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(mocks.prisma.emailVerificationCode.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'evc-1',
+        usedAt: null,
+        expiresAt: { gt: expect.any(Date) },
+        attempts: { lt: MAX_VERIFICATION_ATTEMPTS },
+      },
       data: { attempts: { increment: 1 } },
     });
     expect(mocks.db.codes[0].attempts).toBe(1);
     expect(mocks.db.codes[0].usedAt).toBeNull();
     expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a code that expires between the pre-transaction read and the burn', async () => {
+    seedLiveCode();
+    // Expire the row at the transaction boundary — after the handler's
+    // pre-transaction read (live) but before its in-transaction re-read.
+    // The old code would have burned this code: its expiry check ran only
+    // on the stale pre-transaction row.
+    mocks.prisma.$transaction.mockImplementationOnce(async (cb: any) => {
+      mocks.db.codes[0].expiresAt = new Date(Date.now() - 1000);
+      return cb({
+        emailVerificationCode: mocks.prisma.emailVerificationCode,
+        user: mocks.prisma.user,
+      });
+    });
+    const reply = await request({ email: USER.email, code: REAL_CODE });
+    expect(reply.statusCode).toBe(400);
+    expect(reply.body.error.code).toBe('INVALID_OR_EXPIRED_CODE');
+    expect(mocks.db.codes[0].usedAt).toBeNull();
+    expect(mocks.db.users[USER.email].emailVerified).toBe(false);
+  });
+
+  it('concurrent wrong guesses cannot overshoot the attempt cap', async () => {
+    seedLiveCode();
+    mocks.db.codes[0].attempts = MAX_VERIFICATION_ATTEMPTS - 1;
+    const RACERS = 5;
+    const results = await Promise.all(
+      Array.from({ length: RACERS }, () =>
+        call('/auth/verify-email', { headers: {}, body: { email: USER.email, code: '000000' }, ip: '203.0.113.9' }),
+      ),
+    );
+    // Every racer passed the stale pre-transaction cap check (attempts was
+    // MAX - 1 for all of them). The guarded increment inside the
+    // transaction lets exactly one through; the rest hit the cap honestly.
+    const invalid = results.filter((r) => r.statusCode === 400 && r.body?.error?.code === 'INVALID_CODE');
+    const capped = results.filter((r) => r.statusCode === 429 && r.body?.error?.code === 'TOO_MANY_ATTEMPTS');
+    expect(invalid).toHaveLength(1);
+    expect(capped).toHaveLength(RACERS - 1);
+    expect(mocks.db.codes[0].attempts).toBe(MAX_VERIFICATION_ATTEMPTS);
+    expect(mocks.db.codes[0].usedAt).toBeNull();
+    expect(mocks.db.users[USER.email].emailVerified).toBe(false);
   });
 
   it('rejects an expired code', async () => {
@@ -395,10 +484,14 @@ describe('POST /auth/verify-email — proving the address', () => {
     expect(winners[0].body.data.emailVerified).toBe(true);
     // The code row was burned exactly once — one compare-and-set won.
     expect(mocks.db.codes[0].usedAt).not.toBeNull();
+    // Exactly one burn: losers now short-circuit on the in-transaction
+    // re-read (they see usedAt set) before ever reaching the burn
+    // statement — the old flow burned first and let the CAS sort it out,
+    // which is why it attempted one burn per racer.
     const burns = mocks.prisma.emailVerificationCode.updateMany.mock.calls.filter(
       (c: any) => c[0]?.where?.id === 'evc-1' && c[0]?.where?.usedAt === null,
     );
-    expect(burns).toHaveLength(RACERS);
+    expect(burns).toHaveLength(1);
     // The address is proven exactly once, by the single winner.
     expect(mocks.db.users[USER.email].emailVerified).toBe(true);
   });

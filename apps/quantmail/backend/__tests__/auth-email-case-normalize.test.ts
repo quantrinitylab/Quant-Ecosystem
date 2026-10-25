@@ -126,6 +126,12 @@ const fakes = vi.hoisted(() => {
       if (orderBy?.createdAt === 'desc') rows.sort((a, b) => b.createdAt - a.createdAt);
       return rows[0] ? { ...rows[0] } : null;
     },
+    // The verify-email transaction re-reads the row inside the transaction
+    // (the TOCTOU fix): a plain id lookup, mirroring findFirst's matching.
+    findUnique: async ({ where }: any) => {
+      const rows = arr.filter((r) => codeMatches(r, where));
+      return rows[0] ? { ...rows[0] } : null;
+    },
     findMany: async ({ where }: any) =>
       arr.filter((r) => codeMatches(r, where)).map((r) => ({ ...r })),
     create: async ({ data }: any) => {
