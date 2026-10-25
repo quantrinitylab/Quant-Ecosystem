@@ -6486,7 +6486,7 @@ Audit started: 2026-10-25 ~07:35 IST (lane-1 deep audit loop, ROUND 38)
 Rotation -> QM-SCREEN-013 (QuantGit) ROUND 38 regression, queued.
 
 ## QM-SCREEN-013 R38 — QuantGit regression (ROUND 38)
-Status: [~] IN PROGRESS (R38 regression audit started 2026-10-25 ~08:35 IST; 0 new findings so far)
+Status: [x] DONE (R38 regression audit complete 2026-10-25 ~08:55 IST; 0 new findings; all R37 pins intact; live healthy)
 Owner: LANE-1
 Branch: lane1-audit-013r38
 Audit started: 2026-10-25 ~08:35 IST (lane-1 deep audit loop, ROUND 38)
