@@ -159,7 +159,7 @@ describe('ContactService — list filters', () => {
     return findArg.where as Record<string, unknown>;
   }
 
-  it('searches name, email, company and phone', async () => {
+  it('searches name, email, company, phone and notes', async () => {
     const where = await whereFor({ q: '  acme  ' });
     expect(where).toEqual({
       userId: 'u1',
@@ -168,6 +168,8 @@ describe('ContactService — list filters', () => {
         { email: { contains: 'acme', mode: 'insensitive' } },
         { company: { contains: 'acme', mode: 'insensitive' } },
         { phone: { contains: 'acme', mode: 'insensitive' } },
+        // fix/qm-contacts-notes-field-r3: relationship context is searchable.
+        { notes: { contains: 'acme', mode: 'insensitive' } },
       ],
     });
   });
@@ -189,7 +191,7 @@ describe('ContactService — list filters', () => {
   it('combines q, tag and favorites', async () => {
     const where = await whereFor({ q: 'ada', tag: 'vip', favorites: true });
     expect(where).toMatchObject({ userId: 'u1', tags: { has: 'vip' }, isFavorite: true });
-    expect(where.OR).toHaveLength(4);
+    expect(where.OR).toHaveLength(5);
   });
 
   it('puts starred rows first, then most-contacted, then alphabetical', async () => {

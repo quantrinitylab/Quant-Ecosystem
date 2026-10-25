@@ -555,11 +555,13 @@ export interface ContactActivitySuggestion {
 
 /**
  * A contact as the backend API actually returns it (Prisma `Contact` row —
- * id, userId, name, email, avatar, phone, company, tags, isFavorite,
+ * id, userId, name, email, avatar, phone, company, tags, notes, isFavorite,
  * frequency, lastContactedAt, createdAt, updatedAt). Fields the backend never
- * sends (firstName/lastName/title/addresses/notes/birthday/socialLinks) were
+ * sends (firstName/lastName/title/addresses/birthday/socialLinks) were
  * removed: they never rendered and invented API shape the server does not
- * have. `avatar` is the backend's URL-string column — the only avatar field.
+ * have. `notes` rejoined the row with fix/qm-contacts-notes-field-r3 (a real
+ * column + API field now, not a removed phantom). `avatar` is the backend's
+ * URL-string column — the only avatar field.
  */
 export interface Contact extends BaseEntity {
   userId: string;
@@ -568,6 +570,8 @@ export interface Contact extends BaseEntity {
   phone?: string;
   company?: string;
   avatar?: string;
+  /** Free-form relationship context, user-written, null/undefined = none. */
+  notes?: string | null;
   tags: string[];
   lastContactedAt?: Date;
   isFavorite: boolean;
