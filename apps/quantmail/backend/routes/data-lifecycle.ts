@@ -117,6 +117,30 @@ export default async function dataLifecycleRoutes(fastify: FastifyInstance) {
       } catch {
         // The failure record itself failed — surface the original error.
       }
+      // Terminal-state race guard: failDataExport is compare-and-set (a
+      // no-op on rows that already left `requested`), so a concurrent
+      // builder may have completed this export while this build failed —
+      // or this build may itself be the loser whose complete hit 409.
+      // The completed row is the truth: report it (with its stored
+      // manifest) instead of a spurious failure for an export that did
+      // complete. A genuinely failed row still falls through to the 500.
+      try {
+        const current = await prisma.dataExportRequest.findUnique({ where: { id: exportId } });
+        if (current && String((current as { status?: string }).status) === 'completed') {
+          const currentRow = current as { artifactRef?: string; manifest?: unknown };
+          return reply.send({
+            success: true,
+            data: {
+              exportId,
+              status: 'completed',
+              artifactRef: currentRow.artifactRef ?? `inline-manifest:${exportId}`,
+              manifest: currentRow.manifest ?? null,
+            },
+          });
+        }
+      } catch {
+        // Re-read failed — fall through to the original error below.
+      }
       throw createAppError(`Export build failed: ${message}`, 500, 'EXPORT_BUILD_FAILED');
     }
   });

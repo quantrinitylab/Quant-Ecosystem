@@ -43,6 +43,13 @@ export interface LifecycleTx {
     create(args: unknown): Promise<Record<string, unknown>>;
     findUnique(args: unknown): Promise<Record<string, unknown> | null>;
     update(args: unknown): Promise<Record<string, unknown>>;
+    /**
+     * Optional CAS primitive. Real Prisma always provides `updateMany`;
+     * unit-test fakes may omit it, in which case the transition below
+     * falls back to a re-check inside the same transaction (correct
+     * sequentially, but NOT a concurrency guard — the guard is `updateMany`).
+     */
+    updateMany?(args: unknown): Promise<{ count: number }>;
     count(args: unknown): Promise<number>;
   };
   retentionPolicyRecord: {
@@ -315,7 +322,54 @@ export async function generateInventoryManifest(
 }
 
 /**
- * Mark an export complete — ONLY after the artifact was actually produced.
+ * Compare-and-set terminal transition for a data-export row: the ONLY
+ * authority on whether this call moves the row out of `requested`.
+ *
+ * Terminal states are final, and exactly one builder may claim the
+ * transition. The pre-fix `failDataExport` updated unconditionally, so
+ * when two POST /exports/:id/build calls raced, the loser overwrote the
+ * winner's `completed` row with `failed` and emitted a second terminal
+ * event. With real Prisma, `updateMany` with
+ * `where: { id, status: 'requested' }` is the atomic guard: under
+ * read-committed, a concurrent transaction's UPDATE waits on the row lock
+ * and re-evaluates the predicate against the committed row, so the loser
+ * observes count 0. Clients without `updateMany` fall back to a re-check
+ * inside the same transaction — correct sequentially, not a concurrency
+ * guard (see the interface note).
+ *
+ * Returns 'ok' when this call performed the transition, 'not-found' when
+ * the row does not exist, and 'conflict' when the row already left
+ * `requested`. A 'conflict' result NEVER touches the row, its operation
+ * rows, or the outbox — the terminal row and its single event stand.
+ */
+async function casTransitionExportFromRequested(
+  tx: LifecycleTx,
+  exportId: string,
+  data: Record<string, unknown>,
+): Promise<'ok' | 'not-found' | 'conflict'> {
+  if (typeof tx.dataExportRequest.updateMany === 'function') {
+    const result = await tx.dataExportRequest.updateMany({
+      where: { id: exportId, status: 'requested' },
+      data,
+    });
+    if (result.count > 0) return 'ok';
+    // Lost the race (or the row never existed): re-read to tell the two
+    // apart. The caller's pre-read may itself be stale, so this re-read —
+    // not the caller's pre-read — decides not-found vs conflict.
+    const req = await tx.dataExportRequest.findUnique({ where: { id: exportId } });
+    return req ? 'conflict' : 'not-found';
+  }
+  const req = await tx.dataExportRequest.findUnique({ where: { id: exportId } });
+  if (!req) return 'not-found';
+  if (req.status !== 'requested') return 'conflict';
+  await tx.dataExportRequest.update({ where: { id: exportId }, data });
+  return 'ok';
+}
+
+/**
+ * Mark an export complete — ONLY after the artifact was actually produced,
+ * and ONLY via the CAS transition above, so two concurrent builders yield
+ * exactly one `completed` row and one `data.export.completed.v1` event.
  * Emits `data.export.completed.v1` with the artifact pointer. When the build's
  * inventory manifest is passed, it is stored on the request row in the same
  * transaction, so the manifest survives the generating session: any later
@@ -336,15 +390,27 @@ export async function completeDataExport(
     if (req.status !== 'requested') {
       throw createAppError(`Export is already ${String(req.status)}`, 409, 'EXPORT_STATE_CONFLICT');
     }
-    await tx.dataExportRequest.update({
-      where: { id: exportId },
-      data: {
-        status: 'completed',
-        artifactRef,
-        completedAt: new Date(),
-        ...(manifest !== undefined ? { manifest } : {}),
-      },
+    const scope = String(req.scope ?? 'mailbox-inventory');
+    const transition = await casTransitionExportFromRequested(tx, exportId, {
+      status: 'completed',
+      artifactRef,
+      completedAt: new Date(),
+      ...(manifest !== undefined ? { manifest } : {}),
     });
+    if (transition === 'not-found') {
+      throw createAppError('Export request not found', 404, 'EXPORT_NOT_FOUND');
+    }
+    if (transition === 'conflict') {
+      // A concurrent builder claimed the row between our pre-read and the
+      // CAS write. The CAS result itself is the truth — the row exists
+      // but no longer matches `status: 'requested'` — so report terminal,
+      // not whatever a (possibly stale) re-read would claim.
+      throw createAppError(
+        'Export is already in a terminal state',
+        409,
+        'EXPORT_STATE_CONFLICT',
+      );
+    }
     const operation = await tx.lifecycleOperation.create({
       data: {
         operationType: 'export',
@@ -358,7 +424,7 @@ export async function completeDataExport(
     const payload = parseLifecyclePayload(LifecycleEvents.exportCompleted, {
       actor,
       exportId,
-      scope: String(req.scope ?? 'mailbox-inventory'),
+      scope,
       operationId: String(operation.id),
       artifactRef,
     });
@@ -371,7 +437,15 @@ export async function completeDataExport(
   });
 }
 
-/** Mark an export failed — terminal, with the error recorded. Never silent. */
+/**
+ * Mark an export failed — terminal, with the error recorded. Never silent.
+ * CAS: only transitions from `requested`. A call on a row that already
+ * left `requested` (notably the LOSER of a concurrent-build race, whose
+ * route handler calls this from its catch block) is a NO-OP — no row
+ * write, no operation row, no second terminal event. The winner's
+ * `completed` row and its single `data.export.completed.v1` event stand.
+ * Unknown ids still 404.
+ */
 export async function failDataExport(
   db: LifecycleDb,
   exportId: string,
@@ -381,10 +455,16 @@ export async function failDataExport(
   await db.$transaction(async (tx) => {
     const req = await tx.dataExportRequest.findUnique({ where: { id: exportId } });
     if (!req) throw createAppError('Export request not found', 404, 'EXPORT_NOT_FOUND');
-    await tx.dataExportRequest.update({
-      where: { id: exportId },
-      data: { status: 'failed', error: error.slice(0, 500), completedAt: new Date() },
+    const scope = String(req.scope ?? 'mailbox-inventory');
+    const transition = await casTransitionExportFromRequested(tx, exportId, {
+      status: 'failed',
+      error: error.slice(0, 500),
+      completedAt: new Date(),
     });
+    if (transition === 'not-found') {
+      throw createAppError('Export request not found', 404, 'EXPORT_NOT_FOUND');
+    }
+    if (transition === 'conflict') return; // terminal row stands; no second event
     const operation = await tx.lifecycleOperation.create({
       data: {
         operationType: 'export',
@@ -399,7 +479,7 @@ export async function failDataExport(
     const payload = parseLifecyclePayload(LifecycleEvents.exportFailed, {
       actor,
       exportId,
-      scope: String(req.scope ?? 'mailbox-inventory'),
+      scope,
       operationId: String(operation.id),
       error: error.slice(0, 500),
     });

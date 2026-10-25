@@ -148,6 +148,20 @@ describe('QM-UIUX-091 DataExportSettings', () => {
         row({ id: 'exp-bad', status: 'failed', error: 'Export build failed: disk full' }),
       ]),
     );
+    // The completed row's single fetch SUCCEEDS but finds no stored
+    // manifest — the definitive-absence case the legacy note rests on.
+    // (An unmocked/failed fetch must render the retryable load error,
+    // not this note — see the retryable-fetch tests below.)
+    mocks.getDataExport.mockResolvedValue(
+      ok(
+        row({
+          id: 'exp-done',
+          status: 'completed',
+          artifactRef: 'inline-manifest:exp-done',
+          completedAt: '2026-10-09T10:05:00.000Z',
+        }),
+      ),
+    );
 
     await renderSection();
 
@@ -357,5 +371,95 @@ describe('QM-UIUX-091 DataExportSettings', () => {
     expect(text()).toContain('inline-manifest:exp-old');
     expect(text()).toContain('no longer available');
     expect(text()).toContain('request a new export');
+  });
+
+  it('a failed (5xx) manifest fetch is a retryable load error — never the legacy note — and retry recovers', async () => {
+    mocks.listDataExports.mockResolvedValue(
+      ok([
+        row({
+          id: 'exp-done',
+          status: 'completed',
+          artifactRef: 'inline-manifest:exp-done',
+          completedAt: '2026-10-09T10:05:00.000Z',
+        }),
+      ]),
+    );
+    mocks.getDataExport.mockResolvedValueOnce(fail('Service unavailable'));
+
+    await renderSection();
+
+    expect(mocks.getDataExport).toHaveBeenCalledWith('exp-done');
+    expect(text()).toContain('could not be loaded');
+    expect(text()).toContain('Service unavailable');
+    expect(text()).not.toContain('no longer available');
+
+    // Retry re-fetches the single row and renders the stored counts.
+    mocks.getDataExport.mockResolvedValueOnce(
+      ok(
+        row({
+          id: 'exp-done',
+          status: 'completed',
+          artifactRef: 'inline-manifest:exp-done',
+          completedAt: '2026-10-09T10:05:00.000Z',
+          manifest: MANIFEST,
+        }),
+      ),
+    );
+    await click(buttonByText('Retry loading inventory'));
+
+    expect(text()).toContain('Emails');
+    expect(text()).toContain('12');
+    expect(text()).not.toContain('could not be loaded');
+  });
+
+  it('a failed (401) manifest fetch is a retryable load error — never the legacy note', async () => {
+    mocks.listDataExports.mockResolvedValue(
+      ok([
+        row({
+          id: 'exp-done',
+          status: 'completed',
+          artifactRef: 'inline-manifest:exp-done',
+          completedAt: '2026-10-09T10:05:00.000Z',
+        }),
+      ]),
+    );
+    mocks.getDataExport.mockResolvedValue({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required', statusCode: 401 },
+    });
+
+    await renderSection();
+
+    expect(text()).toContain('could not be loaded');
+    expect(text()).toContain('Authentication required');
+    expect(text()).not.toContain('no longer available');
+    expect(buttonByText('Retry loading inventory')).toBeTruthy();
+  });
+
+  it('a failed (offline) manifest fetch stays retryable on Refresh — no once-per-mount block', async () => {
+    mocks.listDataExports.mockResolvedValue(
+      ok([
+        row({
+          id: 'exp-done',
+          status: 'completed',
+          artifactRef: 'inline-manifest:exp-done',
+          completedAt: '2026-10-09T10:05:00.000Z',
+        }),
+      ]),
+    );
+    mocks.getDataExport.mockResolvedValue(fail('Network offline'));
+
+    await renderSection();
+
+    expect(mocks.getDataExport).toHaveBeenCalledTimes(1);
+    expect(text()).toContain('could not be loaded');
+    expect(text()).not.toContain('no longer available');
+
+    // Refresh re-reads the list AND retries the failed single fetch.
+    await click(buttonByText('Refresh'));
+
+    expect(mocks.getDataExport).toHaveBeenCalledTimes(2);
+    expect(text()).toContain('could not be loaded');
+    expect(text()).not.toContain('no longer available');
   });
 });
