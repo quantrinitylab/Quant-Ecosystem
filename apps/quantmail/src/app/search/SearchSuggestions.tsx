@@ -104,6 +104,14 @@ export function SearchSuggestions({ sections, activeIndex, onSelect, id }: Searc
                   <button
                     key={`${item.kind}:${item.label}`}
                     type="button"
+                    // Stable per-position id: the input's aria-activedescendant
+                    // points here for the highlighted option, and nowhere when
+                    // nothing is highlighted. tabIndex -1 keeps focus in the
+                    // input — arrow keys move the highlight, Tab never lands
+                    // on an option (mouse click still works: it needs no tab
+                    // stop, and mousedown-preventDefault keeps input focus).
+                    id={`${id}-option-${flatIndex}`}
+                    tabIndex={-1}
                     role="option"
                     aria-selected={isActive}
                     // mousedown fires before the input's blur: preventDefault

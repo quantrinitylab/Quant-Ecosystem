@@ -238,9 +238,16 @@ export default function SearchPage() {
    */
   const seededRef = useRef(false);
   useEffect(() => {
+    // Seed EXACTLY once. runSearchString's identity changes when the auth
+    // account hydrates (accountKey '' -> user id), which used to re-fire
+    // this effect and resurrect the stale ?q= value over text the user had
+    // since typed — a stale committed query surviving a live edit. The
+    // guard makes the second firing a no-op; the URL-sync effect below
+    // still runs, driven by the live search text.
+    if (seededRef.current) return;
+    seededRef.current = true;
     const seed = new URLSearchParams(window.location.search).get('q');
     if (seed) runSearchString(seed);
-    seededRef.current = true;
   }, [runSearchString]);
 
   /**
@@ -288,6 +295,31 @@ export default function SearchPage() {
 
   const flatSuggestions = useMemo(() => flattenSuggestions(suggestionSections), [suggestionSections]);
   const hasSuggestions = countSuggestions(suggestionSections) > 0;
+  // The dropdown's single source of open truth: the intent flag AND a
+  // non-empty list. aria-expanded, aria-controls, aria-activedescendant
+  // and the rendered listbox all derive from this one value, so they can
+  // never disagree (an "open" flag with nothing to show used to be masked
+  // only by the && in aria-expanded — now the state itself is honest).
+  const dropdownOpen = suggestionsOpen && hasSuggestions;
+  // Guarded by the length check: a highlight left over from a longer list
+  // must never point activedescendant at an option id that no longer
+  // exists (the clamp effect below resets it; this keeps the one render
+  // before the effect honest too).
+  const activeOptionId =
+    dropdownOpen && activeSuggestion >= 0 && activeSuggestion < flatSuggestions.length
+      ? `${suggestionsId}-option-${activeSuggestion}`
+      : undefined;
+
+  /**
+   * Clamp a stale highlight: sections recompute when labels / recents load
+   * async, and a list that shrinks below the arrow-key index used to leave
+   * activeSuggestion pointing past the end — Enter then silently submitted
+   * raw text while the user believed an option was highlighted, and the
+   * next ArrowDown skipped index 0. Reset to "none highlighted".
+   */
+  useEffect(() => {
+    if (activeSuggestion >= flatSuggestions.length) setActiveSuggestion(-1);
+  }, [activeSuggestion, flatSuggestions.length]);
 
   /**
    * Apply a mail filter chip, replacing any existing chip of the same type
@@ -352,12 +384,28 @@ export default function SearchPage() {
       } else if (e.key === 'Escape') {
         setSuggestionsOpen(false);
         setActiveSuggestion(-1);
-      } else if (e.key === 'ArrowDown' && suggestionsOpen && flatSuggestions.length > 0) {
+      } else if (e.key === 'ArrowDown' && flatSuggestions.length > 0) {
         e.preventDefault();
-        setActiveSuggestion((i) => (i + 1) % flatSuggestions.length);
-      } else if (e.key === 'ArrowUp' && suggestionsOpen && flatSuggestions.length > 0) {
+        // A closed list reopens on the first option (standard combobox:
+        // Escape-then-ArrowDown used to be dead — the closed flag gated
+        // navigation entirely). From no highlight, (i + 1) % len is 0.
+        if (!suggestionsOpen) {
+          setSuggestionsOpen(true);
+          setActiveSuggestion(0);
+        } else {
+          setActiveSuggestion((i) => (i + 1) % flatSuggestions.length);
+        }
+      } else if (e.key === 'ArrowUp' && flatSuggestions.length > 0) {
         e.preventDefault();
-        setActiveSuggestion((i) => (i - 1 + flatSuggestions.length) % flatSuggestions.length);
+        // From no highlight ArrowUp lands on the LAST option. The old
+        // (i - 1 + len) % len from i = -1 gave len - 2 (and -0 for len 1
+        // only by accident) — a highlight the user never asked for.
+        if (!suggestionsOpen) {
+          setSuggestionsOpen(true);
+          setActiveSuggestion(flatSuggestions.length - 1);
+        } else {
+          setActiveSuggestion((i) => (i <= 0 ? flatSuggestions.length - 1 : i - 1));
+        }
       }
     },
     [activeSuggestion, flatSuggestions, suggestionsOpen, selectSuggestion, handleSearch],
@@ -368,7 +416,10 @@ export default function SearchPage() {
     // Typing resumes the as-you-type stream: any explicit commit is stale
     // the moment the text differs from it.
     setCommittedQuery('');
-    setSuggestionsOpen(true);
+    // Honest open intent: an emptied field is closed, not "open with
+    // nothing to show" (the old unconditional true left suggestionsOpen
+    // true for an empty query, masked only by the hasSuggestions &&).
+    setSuggestionsOpen(value.trim().length > 0);
     setActiveSuggestion(-1);
   }, []);
 
@@ -514,14 +565,21 @@ export default function SearchPage() {
                 }
                 aria-label={scope === 'mail' ? 'Search mail' : 'Search everything'}
                 role="combobox"
-                aria-expanded={suggestionsOpen && hasSuggestions}
-                aria-controls={suggestionsId}
+                aria-expanded={dropdownOpen}
+                // Points at the listbox only while it is rendered: a
+                // reference to an unmounted id is a dangling IDREF, not a
+                // control relationship. Likewise activedescendant is set
+                // only for a highlighted option that currently exists, and
+                // absent otherwise (closed, or nothing highlighted).
+                aria-controls={dropdownOpen ? suggestionsId : undefined}
+                aria-activedescendant={activeOptionId}
+                aria-haspopup="listbox"
                 aria-autocomplete="list"
                 autoFocus
                 className="h-11 w-full rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface)] pl-11 pr-10 text-sm outline-none transition-colors placeholder:text-[var(--quant-muted-foreground)]/60 focus:border-[var(--brand-primary)]/60 focus:ring-2 focus:ring-[var(--brand-primary)]/25"
               />
               {query && <SearchClearButton onClear={handleResetSearch} variant="ghost" />}
-              {suggestionsOpen && hasSuggestions && (
+              {dropdownOpen && (
                 <SearchSuggestions
                   id={suggestionsId}
                   sections={suggestionSections}
