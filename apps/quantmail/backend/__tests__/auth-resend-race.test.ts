@@ -1,6 +1,11 @@
 /**
  * POST /auth/resend-verification — concurrent-burn race.
  *
+ * UNIT COVERAGE ONLY: the prisma below is an in-memory fake emulating
+ * Postgres semantics. It does NOT substitute for the real-Postgres proofs
+ * in auth-resend-race.postgres.test.ts (PR #1495), which run against a
+ * migrated database when DATABASE_URL is set and are skipped otherwise.
+ *
  * Regression: burn-pending `updateMany` then `create` ran as sequential
  * awaits OUTSIDE any transaction, so two concurrent resends interleaved
  * (A burns, A creates A1, B burns A1, B creates B1) and the code in A's
