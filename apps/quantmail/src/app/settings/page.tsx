@@ -21,9 +21,15 @@
  *   through to `dark` for it, so the card sat selected over an Obsidian canvas.
  *   A stored `midnight` is migrated to `dark` on mount.
  * - **Composer & Delivery Rules** entire section — Undo Send Delay
- *   (`quant-undo-delay`, no reader), Default Reply Action (no persistence at
- *   all), Conversation Threading and Automatic Read Receipts (neither persisted
- *   nor read). The undo window is currently owned by the outbox, not by this.
+ *   (`quant-undo-delay`, no reader), Conversation Threading and Automatic Read
+ *   Receipts (neither persisted nor read). The undo window is currently owned
+ *   by the outbox, not by this. The section's Default Reply Action is the one
+ *   exception that came back: it had no persistence at all, so it was removed
+ *   — and the gap it left (no way to pin Reply-all-first) is now closed by a
+ *   real "Default reply behavior" control below, persisted under
+ *   `quant-default-reply-behavior` and read by the thread view's Reply button
+ *   and quick-reply bar (`lib/reply-behavior-preference.ts`). A control with a
+ *   reader is the difference between this one and the ones still gone.
  * - **"When something is slow or down"** entire section — the rerouting toggle
  *   (`quant-ai-failover`, no reader) and the three temperature pills
  *   (`quant-ai-creativity`, no reader) over a backend that hardcodes `0.7`.
@@ -84,6 +90,12 @@ import { useMailNotificationMode } from '../../hooks/useMailNotificationMode';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { writeAIIntent } from '../../lib/ai-intent-preference';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
+import {
+  REPLY_BEHAVIOR_OPTIONS,
+  readReplyBehavior,
+  writeReplyBehavior,
+  type ReplyBehavior,
+} from '../../lib/reply-behavior-preference';
 import { buildHelpGroups, dimNoteFor, helpGroupHeading } from '../../lib/keyboard/help-model';
 import {
   MAIL_NOTIFICATION_MODE_OPTIONS,
@@ -300,6 +312,7 @@ export default function SettingsPage() {
   >('loading');
   const [theme, setTheme] = useState<Theme>('dark');
   const [density, setDensity] = useState<Density>('comfortable');
+  const [defaultReplyBehavior, setDefaultReplyBehavior] = useState<ReplyBehavior>('reply');
   const [selectedAIModel, setSelectedAIModel] = useState<AIIntent>('auto');
 
   const desktopNotifications = useDesktopNotifications();
@@ -332,6 +345,10 @@ export default function SettingsPage() {
       setDensity(
         storedDensity === 'compact' || storedDensity === 'cozy' ? storedDensity : 'comfortable',
       );
+      // Default reply behavior: same shape as the theme/density reads above —
+      // an unknown stored value falls back to sender-only reply, never to a
+      // reply-all the user did not choose (see reply-behavior-preference.ts).
+      setDefaultReplyBehavior(readReplyBehavior());
       const storedIntent = localStorage.getItem(AI_INTENT_STORAGE_KEY);
       // Same migration shape as the theme above, for the same reason. Browsers
       // that used the app before this key had any reader hold `auto-router` (the
@@ -518,6 +535,21 @@ export default function SettingsPage() {
    * `:root[data-density='compact']` rules; this sets the attribute they key on,
    * in the same tick as the click.
    */
+  /**
+   * Default reply behavior (Gmail's Settings → General → "Default reply
+   * behavior"). The write goes through `reply-behavior-preference` — the
+   * same module the thread view reads — so this control cannot exist
+   * without a reader again: the value it stores is the value the thread
+   * Reply button and quick-reply bar act on. State is set first so the
+   * choice renders even in a browser that refuses the write.
+   */
+  const changeReplyBehavior = useCallback((next: ReplyBehavior) => {
+    setDefaultReplyBehavior(next);
+    writeReplyBehavior(next);
+    const label = REPLY_BEHAVIOR_OPTIONS.find((option) => option.value === next)?.label ?? next;
+    showToast({ text: `Default reply set to ${label}`, type: 'info' });
+  }, []);
+
   const changeDensity = useCallback((next: Density) => {
     setDensity(next);
     try {
@@ -832,6 +864,19 @@ export default function SettingsPage() {
                     )}
                   </div>
                 )}
+              </SettingsSection>
+
+              <SettingsSection
+                title="Default reply behavior"
+                description="What one tap on Reply does on a thread — the same choice Gmail offers under Settings → General. It changes the thread's Reply button and the quick-reply bar, not the compose screen you open by hand."
+              >
+                <SettingsChoice<ReplyBehavior>
+                  legend="When I tap Reply"
+                  value={defaultReplyBehavior}
+                  options={REPLY_BEHAVIOR_OPTIONS}
+                  onChange={(next) => changeReplyBehavior(next)}
+                  columns={2}
+                />
               </SettingsSection>
 
               <VacationResponderSettings />
