@@ -19,6 +19,7 @@ import { useSafeEmailHtml } from '../lib/safe-html';
 import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useDraftAutosave, draftSaveStateLabel } from './useDraftAutosave';
+import { PendingAttachmentReads } from '../lib/pending-attachment-reads';
 import { ServerDraftRef, saveServerDraft } from '../lib/serverDraft';
 import { DraftBroadcast, draftShareKey } from '../lib/draftBroadcast';
 import { parseEmailString, dedupeRecipientPayload, type RecipientOption } from './RecipientChipInput';
@@ -566,12 +567,37 @@ export function EmailComposer({
   // in-flight reads in a closure-local `pending` counter inside the file
   // input's onChange, so Send never knew a read was running and snapshotted
   // `attachments` without the still-reading file — it sent without the
-  // file and said nothing. This state is the single source of truth: Send
-  // (and schedule-send, via the same handleSend) is disabled while it is
-  // non-empty, and handleSend refuses as belt-and-braces for the
-  // Cmd/Ctrl+Enter path, which bypasses the button's disabled state.
+  // file and said nothing. Send (and schedule-send, via the same
+  // handleSend) is disabled while reads are pending, and handleSend
+  // refuses as belt-and-braces for the Cmd/Ctrl+Enter path, which bypasses
+  // the button's disabled state. PR #1572 corrective: save draft, autosave
+  // and back/close now share the same gate through `pendingReadsRef`
+  // below — save paths WAIT for the reads, discard paths CONFIRM naming
+  // the still-attaching files — so no path snapshots before bytes exist.
   const [pendingAttachmentNames, setPendingAttachmentNames] = useState<string[]>([]);
   const pendingAttachmentReads = pendingAttachmentNames.length;
+  // Gate authority for pending reads (PR #1572 corrective): the state above
+  // is only the render/display list — its closure goes stale across the
+  // awaits in handleSend/handleBack, but this ref is read at call time, so
+  // a pre-snapshot re-check or a save wait can never observe a stale "0
+  // pending" while a read is in flight. Reads are keyed by id inside the
+  // controller, so duplicate filenames settle one at a time.
+  const pendingReadsRef = useRef(new PendingAttachmentReads());
+  const waitForPendingAttachmentReads = useCallback(
+    () => pendingReadsRef.current.waitForSettled(),
+    [],
+  );
+  // Synchronous mirror of `attachments` for save snapshots: a
+  // `setAttachments` issued by a FileReader onload does not re-render
+  // synchronously, so a save that waits for the reads and then reads the
+  // `attachments` closure would still miss the file. The mirror is updated
+  // synchronously in onload and by effect for every other mutation (Drive
+  // picker, removals, draft restore), so a post-wait snapshot always
+  // carries the bytes that just landed.
+  const attachmentsRef = useRef<Attachment[]>([]);
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Unsaved-changes guard for back/close/discard. The branded confirm dialog
@@ -1175,6 +1201,22 @@ export function EmailComposer({
       return;
     }
 
+    // PR #1572 corrective, second half of the send guard: the entry guard
+    // above ran BEFORE the empty-body confirm and the Drive permission
+    // check, both of which await — a file picked while either dialog was
+    // open starts a read the entry guard never saw, and the snapshot below
+    // would omit it. Re-check from the ref (fresh at call time; the state
+    // closure is stale across those awaits) and refuse before anything is
+    // dismissed or queued, so the draft stays exactly as it was and the
+    // user retries once the "Attaching…" indicator clears.
+    if (pendingReadsRef.current.hasPending()) {
+      showToast({
+        text: `Still attaching ${pendingReadsRef.current.pendingCount()} file(s) — please wait for the upload to finish before sending.`,
+        type: 'error',
+      });
+      return;
+    }
+
     // 1. Capture current form draft (to, subject, body, attachments)
     const draftSnapshot = {
       to: to.trim(),
@@ -1515,6 +1557,16 @@ export function EmailComposer({
   }, [fallbackShareKey]);
 
   const saveDraftToServer = async (): Promise<boolean> => {
+    // PR #1572 corrective — save paths WAIT: this is the shared write for
+    // the manual "Save draft" button, the autosave timer AND the back/close
+    // flush, so waiting here covers all three. A snapshot taken while a
+    // FileReader read is in flight would persist the draft WITHOUT the
+    // still-reading file; waiting first, and snapshotting from the
+    // synchronous `attachmentsRef` mirror below, means the saved draft
+    // always carries the bytes that just landed (a read that errors or
+    // aborts settles without an attachment, and its error toast already
+    // told the user — the save then honestly persists the rest).
+    await waitForPendingAttachmentReads();
     const { bodyText, bodyHtml } = buildOutgoingBodies();
     // Compose validation: malformed chips are EXCLUDED from every wire
     // payload — the backend's compose/updateDraft schemas are
@@ -1558,7 +1610,10 @@ export function EmailComposer({
           body: bodyText,
           bodyText,
           bodyHtml,
-          attachments,
+          // Post-wait snapshot from the mirror, not the `attachments`
+          // closure: the closure predates any read that settled during the
+          // wait above (its setAttachments has not re-rendered yet).
+          attachments: attachmentsRef.current,
           inReplyTo: inReplyTo || initialReplyToId,
           // fix/qm-composer-open-tracking-2: persist the tracking choice with
           // the draft so send() honors it without extra plumbing.
@@ -1574,7 +1629,7 @@ export function EmailComposer({
           subject: subject.trim(),
           bodyText,
           bodyHtml,
-          attachments: attachments as any,
+          attachments: attachmentsRef.current as any,
           inReplyTo: inReplyTo || initialReplyToId,
           messageKind: initialMessageKind,
           // fix/qm-composer-open-tracking-2: per-composer beacon opt-out.
@@ -1704,15 +1759,27 @@ export function EmailComposer({
     // Nothing to keep: empty, or untouched since it opened and never saved.
     // A resumed draft stays exactly as it is on the server, and an untouched
     // reply/prefill leaves no junk draft behind.
+    // PR #1572 corrective: a still-reading file counts as content to keep
+    // even though `attachments` is still empty and the snapshot still
+    // equals the opened one — otherwise back/close would silently leave a
+    // pending attachment behind with no save and no warning.
+    const hasPendingReads = pendingReadsRef.current.hasPending();
     if (
-      !hasUnsavedContent ||
-      (draftSnapshot === openedSnapshotRef.current && !hasSavedDraftOnce())
+      !hasPendingReads &&
+      (!hasUnsavedContent ||
+        (draftSnapshot === openedSnapshotRef.current && !hasSavedDraftOnce()))
     ) {
       leaveComposer();
       return;
     }
     closingRef.current = true;
     try {
+      // PR #1572 corrective — back/close WAITS, like save: the flush below
+      // must persist the file that was still being read, not a snapshot
+      // taken before its bytes existed. (flushDraft -> saveDraftToServer
+      // waits again internally; the double wait is harmless and keeps this
+      // path correct even if the flush short-circuits on an in-flight save.)
+      await waitForPendingAttachmentReads();
       const missing = getDraftUnsavableReason(to);
       if (!missing && (await flushDraft())) {
         quantyReact('mail:draftSaved');
@@ -1726,11 +1793,19 @@ export function EmailComposer({
       // generic "couldn't save" — the user can fix the chip, remove it, or
       // leave without saving.
       const invalidReason = getInvalidRecipientReason(allRecipients);
+      // PR #1572 corrective: if a read started while the dialog was being
+      // reached (or the save above raced one), leaving without saving
+      // discards that file too — name it, so the choice is explicit.
+      const pendingNow = pendingReadsRef.current.pendingNames();
+      const pendingNotice =
+        pendingNow.length > 0
+          ? ` Still attaching ${pendingNow.join(', ')} — leaving without saving discards ${pendingNow.length > 1 ? 'them' : 'it'}.`
+          : '';
       const leave = await confirm(
         missing
           ? {
               title: 'Discard this message?',
-              message: `Drafts need ${missing} before they can be saved. Discard this message, or keep editing?`,
+              message: `Drafts need ${missing} before they can be saved. Discard this message, or keep editing?${pendingNotice}`,
               confirmLabel: 'Discard',
               cancelLabel: 'Keep editing',
               variant: 'destructive',
@@ -1738,7 +1813,7 @@ export function EmailComposer({
           : invalidReason
             ? {
                 title: 'Fix the recipient address?',
-                message: `${invalidReason}. Drafts can't be saved until every recipient address is valid. Leave without saving, or keep editing?`,
+                message: `${invalidReason}. Drafts can't be saved until every recipient address is valid. Leave without saving, or keep editing?${pendingNotice}`,
                 confirmLabel: 'Leave without saving',
                 cancelLabel: 'Keep editing',
                 variant: 'destructive',
@@ -1746,7 +1821,7 @@ export function EmailComposer({
             : {
                 title: "Couldn't save draft",
                 message:
-                  'Your latest changes were not saved. Leave without saving, or keep editing and try again?',
+                  `Your latest changes were not saved. Leave without saving, or keep editing and try again?${pendingNotice}`,
                 confirmLabel: 'Leave without saving',
                 cancelLabel: 'Keep editing',
                 variant: 'destructive',
@@ -1762,12 +1837,21 @@ export function EmailComposer({
   const handleDiscardDraft = async () => {
     if (closingRef.current || isSending) return;
     const savedOnServer = hasSavedDraftOnce();
-    if (hasUnsavedContent || savedOnServer) {
+    // PR #1572 corrective — discard CONFIRMS naming pending reads: a
+    // still-reading file is work the user is about to throw away, so the
+    // confirm-skip for "nothing to keep" must not swallow it, and the
+    // message must name it. Discard does not wait — discard means discard.
+    const pendingDiscardNames = pendingReadsRef.current.pendingNames();
+    const pendingDiscardNotice =
+      pendingDiscardNames.length > 0
+        ? ` Still attaching ${pendingDiscardNames.join(', ')} — discarding drops ${pendingDiscardNames.length > 1 ? 'them' : 'it'}.`
+        : '';
+    if (hasUnsavedContent || savedOnServer || pendingDiscardNames.length > 0) {
       const discard = await confirm({
         title: 'Discard draft?',
         message: savedOnServer
-          ? "This deletes the saved draft. This can't be undone."
-          : "This message hasn't been saved. Discard it?",
+          ? `This deletes the saved draft. This can't be undone.${pendingDiscardNotice}`
+          : `This message hasn't been saved. Discard it?${pendingDiscardNotice}`,
         confirmLabel: 'Discard',
         cancelLabel: 'Keep editing',
         variant: 'destructive',
@@ -2698,42 +2782,63 @@ export function EmailComposer({
                 // The latch ALSO feeds `pendingAttachmentNames` state (not just
                 // this closure): that state is what disables Send while any
                 // read is in flight — the 2026-10-22 P1 send race.
+                // PR #1572 corrective: the same begin/settle ALSO feeds the
+                // `pendingReadsRef` controller — the gate authority for the
+                // save/autosave/back waits and the pre-snapshot send
+                // re-check. Every terminal outcome settles exactly once
+                // (load, error, abort, synchronous readAsDataURL throw):
+                // abort previously had NO handler, so an aborted read left
+                // Send disabled forever and would hang every save wait.
                 quantyReact('file:uploading');
                 setPendingAttachmentNames((prev) => [
                   ...prev,
                   ...accepted.map((f) => f.name),
                 ]);
-                let pending = accepted.length;
-                const settle = (fileName: string) => {
-                  pending -= 1;
-                  setPendingAttachmentNames((prev) =>
-                    dropOnePendingAttachmentName(prev, fileName),
-                  );
-                  if (pending === 0) quantyReact('file:uploaded');
-                };
 
                 for (const file of accepted) {
+                  const readId = pendingReadsRef.current.begin(file.name);
+                  let settled = false;
+                  const settle = (fileName: string) => {
+                    if (settled) return;
+                    settled = true;
+                    pendingReadsRef.current.settle(readId);
+                    setPendingAttachmentNames((prev) =>
+                      dropOnePendingAttachmentName(prev, fileName),
+                    );
+                    if (!pendingReadsRef.current.hasPending()) quantyReact('file:uploaded');
+                  };
                   const reader = new FileReader();
                   reader.onload = () => {
-                    setAttachments((prev) => [
-                      ...prev,
-                      {
-                        id: `att_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                        name: file.name,
-                        filename: file.name,
-                        size: file.size,
-                        type: file.type || 'application/octet-stream',
-                        mimeType: file.type || 'application/octet-stream',
-                        url: reader.result as string,
-                      },
-                    ]);
+                    const attachment: Attachment = {
+                      id: `att_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                      name: file.name,
+                      filename: file.name,
+                      size: file.size,
+                      type: file.type || 'application/octet-stream',
+                      mimeType: file.type || 'application/octet-stream',
+                      url: reader.result as string,
+                    };
+                    // Synchronous mirror write FIRST: a save that is
+                    // already waiting on this read snapshots the mirror the
+                    // moment settle wakes it, before React re-renders.
+                    attachmentsRef.current = [...attachmentsRef.current, attachment];
+                    setAttachments((prev) => [...prev, attachment]);
                     settle(file.name);
                   };
                   reader.onerror = () => {
                     showToast({ text: `Could not read ${file.name}`, type: 'error' });
                     settle(file.name);
                   };
-                  reader.readAsDataURL(file);
+                  reader.onabort = () => {
+                    showToast({ text: `Could not read ${file.name}`, type: 'error' });
+                    settle(file.name);
+                  };
+                  try {
+                    reader.readAsDataURL(file);
+                  } catch {
+                    showToast({ text: `Could not read ${file.name}`, type: 'error' });
+                    settle(file.name);
+                  }
                 }
               }}
             />
