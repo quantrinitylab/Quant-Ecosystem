@@ -173,7 +173,7 @@ export function PeopleHome() {
                   : 'Every person you talk to, in one place — your whole conversation with each of them.'}
               </p>
             </div>
-            <MailboxViewToggle isInbox={false} />
+            <MailboxViewToggle isInbox={false} lens={isSpamLens ? 'spam' : undefined} />
           </div>
         </header>
 
