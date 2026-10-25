@@ -14,7 +14,12 @@ vi.mock('../../services/api-client', () => ({
   },
 }));
 
-import { ContactCardAction, findContactByEmail } from '../GroupInfoModal';
+import {
+  ContactCardAction,
+  findContactByEmail,
+  isSameContactEmail,
+  resolveContactLookup,
+} from '../GroupInfoModal';
 
 /**
  * P2 competitor gap — "Add to Contacts" from the mail view.
@@ -77,6 +82,40 @@ describe('ContactCardAction', () => {
     expect(html).not.toContain('Add to Contacts');
   });
 
+  it('renders an unknown lookup honestly: no Add, no Edit, retry offered', () => {
+    // CODEX corrective: a failed lookup is UNKNOWN, never "not saved".
+    const html = renderToStaticMarkup(
+      <ContactCardAction
+        savedContactId={null}
+        saving={false}
+        error={null}
+        onAdd={() => {}}
+        lookupFailed
+        onRetryLookup={() => {}}
+      />,
+    );
+    expect(html).toContain('Couldn');
+    expect(html).toContain('already saved');
+    expect(html).toContain('Try again');
+    expect(html).not.toContain('Add to Contacts');
+    expect(html).not.toContain('Edit Contact');
+  });
+
+  it('unknown lookup without a retry handler still never offers Add', () => {
+    const html = renderToStaticMarkup(
+      <ContactCardAction
+        savedContactId={null}
+        saving={false}
+        error={null}
+        onAdd={() => {}}
+        lookupFailed
+      />,
+    );
+    expect(html).toContain('already saved');
+    expect(html).not.toContain('Add to Contacts');
+    expect(html).not.toContain('Try again');
+  });
+
   it('renders a failed create honestly instead of pretending success', () => {
     const html = renderToStaticMarkup(
       <ContactCardAction
@@ -88,5 +127,75 @@ describe('ContactCardAction', () => {
     );
     expect(html).toContain('Could not add this contact');
     expect(html).toContain('role="alert"');
+  });
+});
+
+describe('resolveContactLookup', () => {
+  const err = (statusCode: number) => ({
+    code: 'ERR',
+    message: 'failed',
+    statusCode,
+  });
+
+  it.each([401, 403, 500, 504])(
+    'a failed envelope (status %s) is unknown, never "not saved"',
+    (statusCode) => {
+      expect(
+        resolveContactLookup(
+          { success: false, data: [], error: err(statusCode) },
+          'ada@example.com',
+        ),
+      ).toEqual({ status: 'unknown', savedContactId: null });
+    },
+  );
+
+  it('a failed envelope with no data at all is unknown', () => {
+    expect(
+      resolveContactLookup({ success: false, error: err(500) }, 'ada@example.com'),
+    ).toEqual({ status: 'unknown', savedContactId: null });
+    expect(resolveContactLookup(null, 'ada@example.com')).toEqual({
+      status: 'unknown',
+      savedContactId: null,
+    });
+    expect(resolveContactLookup(undefined, 'ada@example.com')).toEqual({
+      status: 'unknown',
+      savedContactId: null,
+    });
+  });
+
+  it('a successful envelope with no exact match is unsaved', () => {
+    expect(
+      resolveContactLookup(
+        {
+          success: true,
+          data: [{ id: 'other', email: 'adana@example.com' }],
+        },
+        'ada@example.com',
+      ),
+    ).toEqual({ status: 'unsaved', savedContactId: null });
+  });
+
+  it('a successful envelope with an exact case-insensitive match is saved with its id', () => {
+    expect(
+      resolveContactLookup(
+        {
+          success: true,
+          data: [{ id: 'c-9', email: 'Ada@Example.com' }],
+        },
+        'ada@example.com',
+      ),
+    ).toEqual({ status: 'saved', savedContactId: 'c-9' });
+  });
+});
+
+describe('isSameContactEmail', () => {
+  it('ignores case and surrounding whitespace', () => {
+    expect(isSameContactEmail(' Ada@Example.com ', 'ada@example.com')).toBe(true);
+  });
+
+  it('rejects a different address and an empty address', () => {
+    expect(isSameContactEmail('a@example.com', 'b@example.com')).toBe(false);
+    expect(isSameContactEmail('', '')).toBe(false);
+    expect(isSameContactEmail('a@example.com', '')).toBe(false);
   });
 });
