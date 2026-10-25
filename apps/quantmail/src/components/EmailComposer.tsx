@@ -59,6 +59,7 @@ import {
 } from './drive-compose-share';
 import type { DriveFile } from '../hooks/useDrive';
 import { useUndoSend } from './UndoSendCountdownBar';
+import { resolveUndoScheduledAt, formatScheduledSendTime } from './composeSchedule';
 import { apiClient } from '../services/api-client';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
 import { AvailabilityInserter } from './AvailabilityInserter';
@@ -216,6 +217,13 @@ export interface EmailComposerProps {
   initialTo?: string | Array<{ email: string; name?: string }>;
   initialSubject?: string;
   initialBody?: string;
+  /**
+   * Schedule restored after an undone send (fix/qm-compose-undo-schedule):
+   * the /compose page passes the undo draft's `scheduledAt` back in, so the
+   * reopened composer shows — and keeps — the chosen time instead of
+   * silently dropping it. Only a future time is ever adopted as state.
+   */
+  initialScheduledAt?: string;
   initialReplyToId?: string;
   inReplyTo?: string;
   onSend?: (data: any) => Promise<void>;
@@ -433,6 +441,7 @@ export function EmailComposer({
   initialTo = '',
   initialSubject = '',
   initialBody = '',
+  initialScheduledAt,
   initialReplyToId,
   inReplyTo,
   onSend,
@@ -471,6 +480,18 @@ export function EmailComposer({
   const [bccRecipients, setBccRecipients] = useState<RecipientOption[]>([]);
   const [subject, setSubject] = useState(initialSubject);
 
+  // fix/qm-compose-undo-schedule: the schedule is composer STATE, not just a
+  // send-call argument. Before this, no `scheduledAt` state variable existed
+  // at all — undo restored every field except the one that decides WHEN the
+  // message goes out, and the reopened composer showed no schedule, so a
+  // re-send delivered immediately. Only future times are ever stored (the
+  // undo path and the initial-prop path both filter through
+  // resolveUndoScheduledAt); the schedule modal already blocks past picks
+  // and the backend 400s them as backstop.
+  const [scheduledAt, setScheduledAt] = useState<string | undefined>(() =>
+    resolveUndoScheduledAt(initialScheduledAt),
+  );
+
   const to = toRecipients.map((r) => r.email).join(', ');
   const cc = ccRecipients.map((r) => r.email).join(', ');
   const bcc = bccRecipients.map((r) => r.email).join(', ');
@@ -501,6 +522,16 @@ export function EmailComposer({
       setBody(initialBody);
     }
   }, [initialBody]);
+
+  useEffect(() => {
+    // A restored schedule (undo draft reopened on /compose) arrives via
+    // props: adopt it as state so the chip shows and a plain Send keeps it.
+    // Past/invalid values resolve to undefined — never render a stale
+    // schedule as if it were still live.
+    if (initialScheduledAt !== undefined) {
+      setScheduledAt(resolveUndoScheduledAt(initialScheduledAt));
+    }
+  }, [initialScheduledAt]);
 
   useEffect(() => {
     if (isOpen) {
@@ -1097,7 +1128,14 @@ export function EmailComposer({
   // deliberately are not error events — an unfinished draft is `worried`, not
   // `error`, because the user has not done anything wrong yet.
   // Send Handler with 10s Recall Window & Undo-Send Integration
-  const handleSend = async (scheduledAt?: string) => {
+  // fix/qm-compose-undo-schedule: a plain Send after an undone scheduled
+  // send must KEEP the restored schedule — the parameter is only the
+  // schedule modal's fresh pick, so with no fresh pick the composer's
+  // restored `scheduledAt` state is the schedule. (The modal and the
+  // backend still reject past times; this fallback only ever carries a
+  // future time, by the state invariant above.)
+  const handleSend = async (requestedScheduledAt?: string) => {
+    const effectiveScheduledAt = requestedScheduledAt ?? scheduledAt;
     if (sendBlockReason) {
       // QM-UIUX-025: announce the field that is actually missing — subject
       // and recipient blocks must not fire each other's reaction.
@@ -1151,7 +1189,7 @@ export function EmailComposer({
       bodyText,
       bodyHtml,
       attachments: [...attachments],
-      scheduledAt,
+      scheduledAt: effectiveScheduledAt,
       replyToId: inReplyTo || initialReplyToId,
     };
 
@@ -1382,6 +1420,11 @@ export function EmailComposer({
       to: draftSnapshot.to,
       subject: draftSnapshot.subject,
       body: draftSnapshot.bodyText || draftSnapshot.body,
+      // The recall bar's copy must be honest about a scheduled send too
+      // ("Scheduling…", "Email scheduled!") — same convention as
+      // DockedComposer/ThreadComposer, which already pass both fields.
+      scheduledAt: draftSnapshot.scheduledAt,
+      successLabel: draftSnapshot.scheduledAt ? 'Email scheduled!' : undefined,
       onUndo: async () => {
         // If user clicks "Undo" (or presses Z): reopen EmailComposer with the exact draft preserved (to, subject, body)
         setIsDismissed(false);
@@ -1401,6 +1444,20 @@ export function EmailComposer({
         setSubject(draftSnapshot.subject);
         setBody(draftSnapshot.body);
         setAttachments(draftSnapshot.attachments);
+        // fix/qm-compose-undo-schedule: the schedule is part of the draft —
+        // restore it, so the reopened composer shows it and a re-send keeps
+        // the chosen time (via handleSend's state fallback above). A time
+        // that has already passed while the recall window ran (scheduled
+        // <10s out, undone late) can no longer be honored: drop it AND say
+        // so plainly, instead of silently sending immediately.
+        const restoredSchedule = resolveUndoScheduledAt(draftSnapshot.scheduledAt);
+        setScheduledAt(restoredSchedule);
+        if (draftSnapshot.scheduledAt && !restoredSchedule) {
+          showToast({
+            text: 'The scheduled time has passed, so the schedule was dropped — sending now will deliver immediately.',
+            type: 'warning',
+          });
+        }
         quantyReact('mail:undone');
 
         if (onReopen) {
@@ -3138,6 +3195,36 @@ export function EmailComposer({
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* fix/qm-compose-undo-schedule: a restored schedule must be VISIBLE,
+              or the next Send silently becomes an immediate send. The chip
+              names the time and what Send will do; Clear drops the schedule
+              so Send goes back to delivering immediately. Sits above the
+              toolbar (not inside its horizontal scroll) so it is never
+              clipped on narrow screens. */}
+          {scheduledAt && (
+            <div
+              role="status"
+              className="print:hidden flex items-center gap-2 px-3 sm:px-5 py-2 bg-[var(--quant-surface-elevated)] text-xs text-[var(--quant-foreground)]"
+            >
+              <IconClock
+                className="size-3.5 shrink-0 text-[var(--quant-primary)]"
+                aria-hidden="true"
+              />
+              <span className="min-w-0 flex-1 truncate">
+                Scheduled to send {formatScheduledSendTime(scheduledAt)} — Send will keep this
+                schedule.
+              </span>
+              <button
+                type="button"
+                onClick={() => setScheduledAt(undefined)}
+                aria-label="Clear scheduled send"
+                className="shrink-0 inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg px-2 font-semibold text-[var(--quant-primary)] hover:bg-[var(--quant-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              >
+                Clear schedule
+              </button>
+            </div>
+          )}
 
           {/* Bottom Unified Action Toolbar (Hidden during Print).
               Horizontally scrollable on narrow screens: Send + 5x44px touch
