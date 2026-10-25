@@ -260,12 +260,17 @@ describe('ThreadComposer undo-send through the shared queue (with provider)', ()
     });
 
     expect(composeMock).toHaveBeenCalledTimes(1);
+    // fix/qm-read-receipts: the thread bar now carries its per-message
+    // read-receipts toggle explicitly — the default-ON state rides the
+    // payload instead of relying on the server default (same effective
+    // behaviour, now visible in the request).
     expect(composeMock).toHaveBeenCalledWith({
       to: [{ email: 'ada@x.com' }],
       subject: 'Re: Hi there',
       bodyText: 'hello after window',
       messageKind: 'chat',
       inReplyTo: 'msg-9',
+      trackOpens: true,
     });
     expect(sendMock).toHaveBeenCalledTimes(1);
     expect(sendMock).toHaveBeenCalledWith('draft-7');

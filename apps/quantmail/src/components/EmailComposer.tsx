@@ -30,6 +30,7 @@ import {
 } from './composeValidation';
 import { ContactAutocomplete, type ContactSuggestion } from './ContactAutocomplete';
 import { useContactSuggestions } from '../hooks/useContactSuggestions';
+import { useReadReceiptsPreference } from '../hooks/useReadReceiptsPreference';
 import {
   IconArrowRight,
   IconChevronDown,
@@ -664,11 +665,21 @@ export function EmailComposer({
   const [showThreeDotsMenu, setShowThreeDotsMenu] = useState(false);
   const [showSendOptionsDropdown, setShowSendOptionsDropdown] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  // Open tracking (fix/qm-composer-open-tracking-2): per-composer opt-out for
-  // the invisible open beacon. Default ON (Superhuman parity) — but NEVER
-  // invisible: the Send-options dropup carries a clearly-labeled one-tap
-  // toggle, and the choice rides every compose/draft/save payload below.
+  // Open tracking (fix/qm-composer-open-tracking-2, seeded by
+  // fix/qm-read-receipts): per-composer opt-out for the invisible open
+  // beacon. The toggle starts from the user's persisted read-receipts
+  // default (Settings › General › "Composer & delivery") once it loads —
+  // never from a hardcoded true again — and a tap on the toggle wins over
+  // the seed, so a choice made before the preference lands is never
+  // overwritten by it.
   const [trackOpens, setTrackOpens] = useState(true);
+  const readReceiptsPreference = useReadReceiptsPreference();
+  const trackOpensTouchedRef = useRef(false);
+  useEffect(() => {
+    if (readReceiptsPreference.loaded && !trackOpensTouchedRef.current) {
+      setTrackOpens(readReceiptsPreference.enabled);
+    }
+  }, [readReceiptsPreference.loaded, readReceiptsPreference.enabled]);
   // Saved email templates (backend /email-templates CRUD, via the
   // EmailTemplates picker). Anchored to the toolbar button via a portaled
   // popover (fixed positioning) so the scrollable toolbar's overflow can
@@ -3247,7 +3258,10 @@ export function EmailComposer({
                         type="button"
                         role="menuitemcheckbox"
                         aria-checked={trackOpens}
-                        onClick={() => setTrackOpens((prev) => !prev)}
+                        onClick={() => {
+                          trackOpensTouchedRef.current = true;
+                          setTrackOpens((prev) => !prev);
+                        }}
                         className="flex items-center gap-2.5 w-full px-3.5 py-2 min-h-[44px] min-w-[44px] text-left text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)]"
                         title="When on, a tiny invisible image tells you when recipients open this email. Turn off to send without tracking."
                       >

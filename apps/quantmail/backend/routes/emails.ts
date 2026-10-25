@@ -4,6 +4,7 @@ import type { PrismaClient, Prisma } from '@quant/database';
 import { createAppError, enableIdempotency, handleIdempotentTransaction } from '@quant/server-core';
 import type { IdempotencyDatabase } from '@quant/server-core';
 import { EmailService, toMessageKind, toPriority } from '../services/email.service';
+import { readUserReadReceiptsEnabled } from '../services/read-receipts-preference.service';
 import type { EmailSearchFilters } from '../services/email.service';
 import type { LearnedInboxCategoryStore } from '../services/learned-inbox-category.service';
 import { SmartInboxBackfillService } from '../services/smart-inbox-backfill.service';
@@ -422,10 +423,13 @@ export default async function emailsRoutes(
       attachments: d.attachments,
       messageKind: toMessageKind(d.messageKind),
       priority: d.priority,
-      // fix/qm-composer-open-tracking: per-message beacon opt-out; default ON
-      // (applied here so every compose path — /emails, /emails/compose —
-      // behaves identically even when the client omits the flag).
-      trackOpens: d.trackOpens ?? true,
+      // fix/qm-composer-open-tracking + fix/qm-read-receipts: per-message
+      // beacon opt-out. An explicit flag always wins; an omitted flag falls
+      // back to the user's persisted read-receipts default (which itself
+      // fails open to true), so the Settings toggle changes real sends
+      // instead of only seeding new composers.
+      trackOpens:
+        d.trackOpens ?? (await readUserReadReceiptsEnabled(prisma, userId)),
       // QM-BACK-002: correlate the draftCreated outbox event with this request.
       requestId: mutationOpts(request, reply).requestId,
     });
@@ -1032,9 +1036,11 @@ export default async function emailsRoutes(
       threadId: targetThreadId ?? undefined,
       inReplyTo: original.id,
       messageKind,
-          // fix/qm-composer-open-tracking: replies carry the same per-message
-          // beacon opt-out as composed mail (default ON).
-          trackOpens: parsed.data.trackOpens ?? true,
+          // fix/qm-composer-open-tracking + fix/qm-read-receipts: replies
+          // carry the same per-message beacon opt-out as composed mail;
+          // an omitted flag falls back to the user's read-receipts default.
+          trackOpens:
+            parsed.data.trackOpens ?? (await readUserReadReceiptsEnabled(prisma, userId)),
           // QM-BACK-002: correlate the draftCreated outbox event with this request.
       requestId: mutationOpts(request, reply).requestId,
 });
