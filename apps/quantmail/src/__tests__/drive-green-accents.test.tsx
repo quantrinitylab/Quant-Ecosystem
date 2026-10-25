@@ -243,6 +243,72 @@ describe('qm-drive-pressed-accent: New button pressed state uses the per-app tok
   });
 });
 
+describe('qm-drive-new-touch-target: New button meets the >=44px floor on mobile', () => {
+  // 2026-10-25 (wave-plan item on PR #1554): the Drive "New" button was
+  // `h-8` — 32px tall — on every viewport, below the 44px touch floor
+  // (WCAG 2.5.8 / Apple HIG / Material; see globals.css min-h-touch = 44px
+  // and tailwind.config.ts touch: '44px'). jsdom does no layout, so no
+  // rendered-pixel assertion is possible here; instead these tests pin the
+  // exact classes whose Tailwind values NECESSARILY yield >=44px, plus the
+  // arithmetic that proves it. Loaded-mobile evidence (real phone: press
+  // shows the green pressed state, target comfortably tappable) is owed to
+  // the merge pipeline / QA loop, not claimed here.
+  //
+  // Sizing math (Tailwind spacing scale, 1 unit = 0.25rem = 4px at 16px root):
+  //  - height: h-8 = 32px, but on coarse pointers min-h-11 = 2.75rem = 44px
+  //    wins (min-height overrides height) -> rendered height 44px >= 44px.
+  //  - width: mobile content = IconUpload 14 + gap-1 4 + IconChevronDown 12
+  //    = 30px, plus px-2 (16px) = 46px already >= 44px, and min-w-11 = 44px
+  //    floors it regardless of icon metrics -> rendered width >= 44px.
+  //  - desktop (fine pointer): the coarse-pointer variants do not apply, so
+  //    h-8 / md:px-3 are untouched and the toolbar layout is unchanged.
+  const NEW_BUTTON_CLASS = (() => {
+    const m = PAGE.match(
+      /aria-label="New: upload files, create a document or a folder"\s+className="([^"]+)"/,
+    );
+    return m?.[1] ?? '';
+  })();
+
+  it('the New button element is found in drive/page.tsx', () => {
+    expect(NEW_BUTTON_CLASS.length).toBeGreaterThan(0);
+  });
+
+  it('carries a coarse-pointer min-height of 44px (min-h-11)', () => {
+    expect(NEW_BUTTON_CLASS).toContain('[@media(pointer:coarse)]:min-h-11');
+  });
+
+  it('carries a coarse-pointer min-width of 44px (min-w-11)', () => {
+    expect(NEW_BUTTON_CLASS).toContain('[@media(pointer:coarse)]:min-w-11');
+  });
+
+  it('keeps the desktop sizing untouched: h-8 + md:px-3, no unconditional 44px height', () => {
+    expect(NEW_BUTTON_CLASS).toContain('h-8');
+    expect(NEW_BUTTON_CLASS).toContain('md:px-3');
+    // An unconditional min-h-11 / h-11 would grow the desktop toolbar; the
+    // floor must arrive via the coarse-pointer variant only.
+    expect(NEW_BUTTON_CLASS).not.toMatch(/(^|\s)(min-h-11|h-11)(\s|$)/);
+  });
+
+  it('the chevron is an icon inside this one button, not a separate tappable target', () => {
+    // Everything from the New button's aria-label to its closing tag must
+    // contain the chevron icon, and there must be no second button carrying
+    // a New/chevron affordance of its own.
+    const buttonBlock = PAGE.slice(
+      PAGE.indexOf('aria-label="New: upload files, create a document or a folder"'),
+    ).split('</button>')[0];
+    expect(buttonBlock).toContain('IconChevronDown');
+    expect(PAGE).not.toContain('aria-label="Show New options"');
+    expect(PAGE).not.toContain('aria-label="Toggle New menu"');
+  });
+
+  it('the sizing change keeps the accent chain intact on this same button', () => {
+    expect(NEW_BUTTON_CLASS).toContain('bg-[var(--app-accent)]');
+    expect(NEW_BUTTON_CLASS).toContain('hover:bg-[var(--app-accent-hover)]');
+    expect(NEW_BUTTON_CLASS).toContain('active:bg-[var(--app-accent-pressed)]');
+    expect(NEW_BUTTON_CLASS).not.toContain('var(--quant-primary)');
+  });
+});
+
 describe('qm-drive-orange-accent: no Mail-orange spinners in components/drive lib', () => {
   // R4-NEW-2: the loading spinners in these drive-lib files leaked the
   // Mail-orange var(--quant-primary) token; they now resolve through
