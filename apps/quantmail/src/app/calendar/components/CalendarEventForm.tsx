@@ -147,7 +147,7 @@ export function CalendarEventForm({
   type FindTimeState =
     | { status: 'idle' }
     | { status: 'loading' }
-    | { status: 'ready'; slots: FreeSlot[] }
+    | { status: 'ready'; slots: FreeSlot[]; partialData: boolean }
     | { status: 'error'; message: string };
 
   const [findTime, setFindTime] = React.useState<FindTimeState>({ status: 'idle' });
@@ -183,7 +183,10 @@ export function CalendarEventForm({
         throw new Error(`Availability check failed (${res.status})`);
       }
       const json: {
-        data?: { busy?: Array<{ start?: unknown; end?: unknown }> };
+        data?: {
+          busy?: Array<{ start?: unknown; end?: unknown }>;
+          partialData?: unknown;
+        };
       } = await res.json();
       const busy = Array.isArray(json?.data?.busy)
         ? json.data.busy.filter(
@@ -199,7 +202,14 @@ export function CalendarEventForm({
         stepMin: 30,
         maxSlots: 6,
       });
-      setFindTime({ status: 'ready', slots });
+      setFindTime({
+        status: 'ready',
+        slots,
+        // When the backend could not expand a recurring series, its
+        // occurrences are missing from `busy` — these slots are suggestions,
+        // not proof the time is free. The panel says so below.
+        partialData: json?.data?.partialData === true,
+      });
     } catch (error) {
       setFindTime({
         status: 'error',
@@ -632,6 +642,13 @@ export function CalendarEventForm({
                               calendar — guest calendars aren&apos;t visible to
                               QuantMail yet, so confirm with them before sending.
                             </p>
+                            {findTime.partialData && (
+                              <p className="text-[11px] text-amber-400">
+                                Some recurring events couldn&apos;t be read, so
+                                these slots may overlap a real meeting — confirm
+                                before sending.
+                              </p>
+                            )}
                             {findTime.slots.length > 0 ? (
                               <div className="flex flex-wrap gap-1.5">
                                 {findTime.slots.map((slot) => (
