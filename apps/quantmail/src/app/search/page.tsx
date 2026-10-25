@@ -140,6 +140,17 @@ export default function SearchPage() {
     setRecentSearches(getRecentSearches(store, accountKey));
   }, [accountKey]);
 
+  // Mail-scope pagination: page 1 is the default and Load more advances it.
+  // A new query or filter set is a new result set, so it restarts at 1.
+  // (Typing re-searches live on this page — the input is bound to `query`
+  // and searchParams already follows it — so a query edit restarting the
+  // pages is the existing behaviour, not a new one.)
+  const [searchPage, setSearchPage] = useState(1);
+  const searchIdentity = JSON.stringify([query, activeFilters]);
+  useEffect(() => {
+    setSearchPage(1);
+  }, [searchIdentity]);
+
   const searchParams: Partial<SearchEmailRequest> | null =
     hasSearched && query.trim()
       ? {
@@ -149,10 +160,21 @@ export default function SearchPage() {
           hasAttachment: activeFilters.some((f) => f.type === 'has') ? true : undefined,
           label: activeFilters.find((f) => f.type === 'in')?.value,
           dateFrom: activeFilters.find((f) => f.type === 'date')?.value,
+          page: searchPage,
         }
       : null;
 
-  const { data: results, isLoading, error, localHits, refetch } = useSearchEmails(searchParams);
+  const {
+    data: results,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    localHits,
+    refetch,
+    totalCount,
+    hasMore,
+  } = useSearchEmails(searchParams);
 
   // Universal search fans out to the real per-source backends; the mail scope
   // keeps the dedicated Gmail-style search above (with its filters) untouched.
@@ -166,9 +188,52 @@ export default function SearchPage() {
   // failure (it never did before, which made the ErrorState below dead
   // code). With an empty local index the failure surfaces as an error; with
   // local hits those hits render honestly labeled as offline/partial.
-  const mailSearchOffline = scope === 'mail' && hasSearched && !!error;
+  //
+  // A failure is an APPEND failure, not an offline failure, when a page
+  // beyond the first fails while earlier pages are already on screen: the
+  // accumulated server results stay visible (never replaced by local hits),
+  // the Load more button stays as a same-page Retry, and the banner in the
+  // results block says the list is partial. Only a failure with nothing
+  // loaded — the initial search — takes the offline/ErrorState path.
+  // (searchPage > 1 alone is not enough: a fresh query resets the page to 1
+  // but the hook's accumulation resets on the search identity, so a failed
+  // first page of a new search must still read as an initial failure even
+  // if a stale accumulation were briefly on screen.)
+  const hasLoadedResults = (results ?? []).length > 0;
+  const isAppendFailure =
+    scope === 'mail' && hasSearched && !!error && searchPage > 1 && hasLoadedResults;
+  const mailSearchOffline = scope === 'mail' && hasSearched && !!error && !isAppendFailure;
   const offlineHits = mailSearchOffline ? (localHits ?? []) : [];
-  const visibleResults = mailSearchOffline ? offlineHits : results;
+  // Always an array: the hook's `data` is undefined before the first page
+  // resolves, and every count/branch below reads .length unguarded.
+  const visibleResults = mailSearchOffline ? offlineHits : (results ?? []);
+
+  // The count line must never present the loaded length as the total — that
+  // was the bug ("50 results" for a 200-hit query). With a backend total,
+  // show "Showing X of N" until every page is loaded, then the plain total.
+  // With no total (offline, or a backend that reports none) fall back to the
+  // loaded count with no total claim at all.
+  const resultCountLine = mailSearchOffline
+    ? `${visibleResults.length} offline result${visibleResults.length !== 1 ? 's' : ''} for “${query}”`
+    : totalCount !== null && totalCount !== undefined
+      ? visibleResults.length < totalCount
+        ? `Showing ${visibleResults.length} of ${totalCount} results for “${query}”`
+        : `${totalCount} result${totalCount !== 1 ? 's' : ''} for “${query}”`
+      : `${visibleResults.length} result${visibleResults.length !== 1 ? 's' : ''} for “${query}”`;
+
+  // Load more appends the next page; if the last page fetch failed, the same
+  // button retries it instead of advancing past the failed page. This retry
+  // path is reachable only because an append failure is not offline: the
+  // button below stays rendered (mailSearchOffline is false) and refetch()
+  // re-runs the current page's query, which the hook appends deduped by id
+  // — so a retry can neither duplicate page 1 nor skip the failed page.
+  const handleLoadMore = useCallback(() => {
+    if (isError) {
+      void refetch();
+      return;
+    }
+    setSearchPage((p) => p + 1);
+  }, [isError, refetch]);
 
   const runSearchString = useCallback(
     (search: string) => {
@@ -610,8 +675,10 @@ export default function SearchPage() {
             />
           )}
 
-          {/* Mail scope: the dedicated Gmail-style search */}
-          {scope === 'mail' && hasSearched && isLoading && (
+          {/* Mail scope: the dedicated Gmail-style search. The skeleton only
+              shows when nothing is on screen yet — during a Load more fetch
+              the accumulated list stays visible instead of flashing away. */}
+          {scope === 'mail' && hasSearched && isLoading && visibleResults.length === 0 && (
             <div className="space-y-2 p-4">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} variant="rect" width="100%" height="72px" />
@@ -622,7 +689,7 @@ export default function SearchPage() {
           {/* Backend search failed with an empty local index: surface the
               failure instead of the false "No results" claim. This branch was
               dead code while the hook's queryFn never threw. */}
-          {scope === 'mail' && hasSearched && !isLoading && error && offlineHits.length === 0 && (
+          {scope === 'mail' && hasSearched && !isLoading && error && offlineHits.length === 0 && visibleResults.length === 0 && (
             <ErrorState
               title="Search unavailable"
               message={error.message}
@@ -632,7 +699,7 @@ export default function SearchPage() {
 
           {/* Backend search failed but the device has local hits: show them
               honestly labeled as offline/partial, never as full results. */}
-          {scope === 'mail' && hasSearched && !isLoading && error && offlineHits.length > 0 && (
+          {scope === 'mail' && hasSearched && !isLoading && error && !isAppendFailure && offlineHits.length > 0 && (
             <div className="p-4 pb-0" role="alert">
               <div className="flex items-start gap-3 rounded-xl border border-[var(--quant-border)] bg-black p-3">
                 <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-orange-500" />
@@ -651,7 +718,7 @@ export default function SearchPage() {
             </div>
           )}
 
-          {scope === 'mail' && hasSearched && !isLoading && !error && (!results || results.length === 0) && (
+          {scope === 'mail' && hasSearched && !isLoading && !error && visibleResults.length === 0 && (
             <EmptyState
               title="No results"
               description={`Nothing matched “${query}”. Try a broader phrase, remove filters, or search by sender or subject.`}
@@ -660,16 +727,42 @@ export default function SearchPage() {
             />
           )}
 
-          {/* Results */}
-          {scope === 'mail' && hasSearched && !isLoading && visibleResults && visibleResults.length > 0 && (
+          {/* Results — kept on screen during a Load more fetch (the list is
+              the accumulated pages, not just the page in flight). */}
+          {scope === 'mail' && hasSearched && visibleResults && visibleResults.length > 0 && (
             <motion.div
               variants={listContainerVariants}
               initial="hidden"
               animate="visible"
               className="p-4"
             >
+              {isAppendFailure && (
+                <div
+                  className="mb-2 flex items-start gap-3 rounded-xl border border-[var(--quant-border)] bg-black p-3"
+                  role="alert"
+                >
+                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-orange-500" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-[var(--quant-foreground)]">
+                      Couldn’t load the next page
+                    </p>
+                    <p className="mt-0.5 text-xs text-[var(--quant-muted-foreground)]">
+                      Showing the {visibleResults.length} results loaded so far — the
+                      rest are not lost, this page just failed to load.
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    onClick={handleLoadMore}
+                    disabled={isFetching}
+                    className="shrink-0"
+                  >
+                    {isFetching ? 'Loading…' : 'Retry'}
+                  </Button>
+                </div>
+              )}
               <p className="mb-2 px-1 text-xs text-[var(--quant-muted-foreground)]">
-                {visibleResults.length}{' '}{mailSearchOffline ? 'offline ' : ''}result{visibleResults.length !== 1 ? 's' : ''}{' '}for “{query}”
+                {resultCountLine}
               </p>
               <div className="overflow-hidden rounded-xl border border-[var(--quant-border)]">
                 {visibleResults.map((email) => {
@@ -729,6 +822,17 @@ export default function SearchPage() {
                   );
                 })}
               </div>
+              {hasMore && !mailSearchOffline && (
+                <div className="mt-3 flex justify-center">
+                  <Button
+                    variant="secondary"
+                    onClick={handleLoadMore}
+                    disabled={isFetching}
+                  >
+                    {isFetching ? 'Loading…' : isError ? 'Try loading more again' : 'Load more'}
+                  </Button>
+                </div>
+              )}
             </motion.div>
           )}
         </div>

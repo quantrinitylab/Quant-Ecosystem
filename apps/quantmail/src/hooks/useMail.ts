@@ -1231,9 +1231,72 @@ export function matchesSearchFilters(
 }
 
 /**
+ * One page of mail search results with the backend's own pagination envelope
+ * preserved. Both search backends count the whole filtered match set
+ * (GET /emails/search: prisma count; GET /search/emails: SearchQueryService
+ * total) — never the page slice. The hook used to throw that envelope away
+ * and return only the Email[], so the /search page printed the page length
+ * as if it were the total ("50 results" for a 200-hit query) and deeper
+ * pages were unreachable.
+ */
+export interface SearchEmailPage {
+  emails: Email[];
+  /** Full filtered match count from the backend, or null when it reports none. */
+  totalCount: number | null;
+  totalPages: number | null;
+  page: number;
+  pageSize: number;
+  /** True when another page exists. */
+  hasMore: boolean;
+}
+
+/**
+ * Reads the backend's pagination envelope. The mail backends report the total
+ * three ways across routes — top-level totalCount, metadata.total, or
+ * hasNext/hasMore/totalPages — so every shape is accepted and a missing
+ * total stays null (unknown) rather than being faked from the page length.
+ * The last-resort full-page hint only applies when the backend reports no
+ * total at all: a full page may hide more rows, an empty one cannot.
+ * Exported for unit tests.
+ */
+export function searchPageMeta(
+  response: unknown,
+  fallbackPage: number,
+  fallbackPageSize: number,
+  pageLength: number,
+): Omit<SearchEmailPage, 'emails'> {
+  const r = (response ?? {}) as Record<string, unknown>;
+  const meta = (r.metadata ?? {}) as Record<string, unknown>;
+  const num = (v: unknown): number | null =>
+    typeof v === 'number' && Number.isFinite(v) ? v : null;
+  const totalCount = num(r.totalCount) ?? num(meta.total);
+  const totalPages = num(r.totalPages) ?? num(meta.totalPages);
+  const page = num(r.page) ?? fallbackPage;
+  const pageSize = num(r.pageSize) ?? num(meta.pageSize) ?? fallbackPageSize;
+  const hasNext =
+    typeof r.hasNext === 'boolean'
+      ? r.hasNext
+      : typeof r.hasMore === 'boolean'
+        ? r.hasMore
+        : null;
+  let hasMore: boolean;
+  if (hasNext !== null) hasMore = hasNext;
+  else if (totalPages !== null) hasMore = page < totalPages;
+  else if (totalCount !== null) hasMore = page * pageSize < totalCount;
+  else hasMore = pageSize > 0 && pageLength >= pageSize;
+  return { totalCount, totalPages, page, pageSize, hasMore };
+}
+
+/**
  * Superhuman local-first email search hook.
  * Instantly queries local SQLite FTS5 index,
  * while concurrently querying the background server search and unifying hits.
+ *
+ * The returned `data` is the ACCUMULATED list across fetched pages (deduped
+ * by id), so a Load more UI appends instead of replacing; `totalCount` is
+ * the backend's full match count (null while unknown) and `hasMore` says
+ * whether another page exists. The per-page cache entry stays keyed by
+ * params (including page), so a single page can be refetched on its own.
  */
 export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
   const queryClient = useQueryClient();
@@ -1313,11 +1376,58 @@ export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
     filterDateTo,
   ]);
 
-  const searchQuery = useQuery<Email[]>({
+  // Pagination: params.page rides in the query key, so each page is its own
+  // cache entry, while `data` below accumulates fetched pages (deduped by
+  // id) for Load more. The accumulation resets whenever the search itself
+  // changes (query text or filters) — a new search starts back at page 1.
+  const requestedPage = params?.page ?? 1;
+  const searchIdentity = JSON.stringify([
+    queryText,
+    filterFrom,
+    filterTo,
+    filterSubject,
+    filterHasAttachment,
+    filterLabel,
+    filterDateFrom,
+    filterDateTo,
+  ]);
+  const [accumulatedEmails, setAccumulatedEmails] = useState<Email[]>([]);
+  const [lastPageMeta, setLastPageMeta] = useState<Omit<SearchEmailPage, 'emails'> | null>(
+    null,
+  );
+  useEffect(() => {
+    setAccumulatedEmails([]);
+    setLastPageMeta(null);
+  }, [searchIdentity]);
+
+  // Instant local hits are only a placeholder for page 1: page 2+ has no
+  // local equivalent, and reusing page-1 hits there would masquerade as
+  // page-2 results while the fetch is in flight.
+  const placeholderPage = useMemo<SearchEmailPage | undefined>(() => {
+    if (requestedPage > 1 || localHits.length === 0) return undefined;
+    return {
+      emails: localHits,
+      totalCount: null,
+      totalPages: null,
+      page: 1,
+      pageSize: params?.pageSize ?? 50,
+      hasMore: false,
+    };
+  }, [localHits, requestedPage, params?.pageSize]);
+
+  const searchQuery = useQuery<SearchEmailPage>({
     queryKey: mailQueryKeys.search(params),
-    placeholderData: localHits.length > 0 ? localHits : undefined,
+    placeholderData: placeholderPage,
     queryFn: async () => {
-      if (!params || !queryText) return localHits;
+      if (!params || !queryText)
+        return {
+          emails: localHits,
+          totalCount: null,
+          totalPages: null,
+          page: requestedPage,
+          pageSize: params?.pageSize ?? 50,
+          hasMore: false,
+        };
       // A failed backend search must surface, never silently degrade to
       // local-only: the search page's ErrorState (and its offline/partial
       // banner) keys off the query error. Returning localHits here made
@@ -1338,27 +1448,78 @@ export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
       } catch {
         // Best-effort local index; the search result stands without it.
       }
+      // Local hits are page-1 candidates only (the FTS5 query runs with a
+      // page-size limit and no page offset). Merging them into page 2+ would
+      // re-surface page-1 rows as if they belonged to a later page.
       const seen = new Set(serverEmails.map((e) => e.id));
       const combined = [...serverEmails];
-      for (const local of localHits) {
-        if (!seen.has(local.id)) {
-          combined.push(local);
-          seen.add(local.id);
+      if (requestedPage <= 1) {
+        for (const local of localHits) {
+          if (!seen.has(local.id)) {
+            combined.push(local);
+            seen.add(local.id);
+          }
         }
       }
       // Belt-and-suspenders: the backend applies every filter it can, but the
       // `to` bare-fragment case is intentionally client-side (Postgres Json
       // arrays only support exact element matches), so re-apply the chips to
       // the unified set. With no active filters this is a no-op pass.
-      return hasActiveFilters
+      const emails = hasActiveFilters
         ? combined.filter((e) => matchesSearchFilters(e, clientFilters))
         : combined;
+      // The envelope is the fix: totalCount is the backend's full filtered
+      // match count, not this page's length. It used to be discarded here.
+      return {
+        emails,
+        ...searchPageMeta(response, requestedPage, params.pageSize ?? 50, emails.length),
+      };
     },
     enabled: !!params && !!queryText,
   });
 
+  // Append each resolved page (placeholder page 1 included, so instant local
+  // hits still render before the server answers) to the accumulated list,
+  // deduped by id. The last-known-good envelope survives a later page's
+  // failure, so a failed Load more keeps the total and the retry path
+  // instead of blanking them.
+  useEffect(() => {
+    const page = searchQuery.data;
+    if (!page) return;
+    setLastPageMeta({
+      totalCount: page.totalCount,
+      totalPages: page.totalPages,
+      page: page.page,
+      pageSize: page.pageSize,
+      hasMore: page.hasMore,
+    });
+    setAccumulatedEmails((prev) => {
+      const seen = new Set(prev.map((e) => e.id));
+      let changed = false;
+      const next = [...prev];
+      for (const email of page.emails) {
+        if (!seen.has(email.id)) {
+          seen.add(email.id);
+          next.push(email);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [searchQuery.data]);
+
   return {
     ...searchQuery,
+    // Accumulated across fetched pages (see above), NOT the current page
+    // alone — the /search page's Load more appends to this list.
+    data: accumulatedEmails,
+    // The backend's full match count, or null while no page has resolved.
+    // The page must never fall back to data.length here: that was the bug.
+    totalCount: lastPageMeta?.totalCount ?? null,
+    totalPages: lastPageMeta?.totalPages ?? null,
+    hasMore: lastPageMeta?.hasMore ?? false,
+    page: lastPageMeta?.page ?? requestedPage,
+    pageSize: lastPageMeta?.pageSize ?? (params?.pageSize ?? 50),
     // Instant local SQLite FTS5 hits (also the placeholderData). Exposed so
     // the search page can label them as offline/partial when the backend
     // search fails, instead of silently presenting them as full results.

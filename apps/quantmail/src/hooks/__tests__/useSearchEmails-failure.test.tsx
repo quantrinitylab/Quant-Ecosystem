@@ -172,7 +172,16 @@ describe('useSearchEmails backend-failure honesty', () => {
 
     expect(query.state.status).toBe('success');
     expect(query.state.error).toBeNull();
-    expect(query.state.data).toEqual([serverEmail]);
+    // The cache entry is now the page object (emails + backend envelope),
+    // not the bare array — the hook's `data` still exposes just the emails.
+    expect(query.state.data).toEqual({
+      emails: [serverEmail],
+      totalCount: null,
+      totalPages: null,
+      page: 1,
+      pageSize: 50,
+      hasMore: false,
+    });
     expect(ftsIndexMock).toHaveBeenCalledWith([serverEmail]);
   });
 
