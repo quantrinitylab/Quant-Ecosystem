@@ -566,13 +566,102 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
 
       expect(onLensSelect).toHaveBeenCalledWith('important');
       expect(onLensChange).toHaveBeenCalledWith('important', 'mail');
-      expect(mockPush).toHaveBeenCalledWith('/?lens=important');
+      // Mail lenses carry view=inbox (see 5b): a bare `/?lens=important`
+      // lands on PeopleHome, where the filter never applies.
+      expect(mockPush).toHaveBeenCalledWith('/?view=inbox&lens=important');
       expect(dispatchSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'quant:lens-change',
           detail: { pillar: 'mail', lensId: 'important' },
         }),
       );
+    });
+  });
+
+  // ==========================================================================
+  // 5b. Mail lens clicks must land on the classic inbox (view=inbox carry)
+  // ==========================================================================
+  describe('Mail lens clicks land on the classic inbox (view=inbox carry)', () => {
+    // RootPage renders PeopleHome unless ?view=inbox (app/page.tsx), and
+    // PeopleHome drops every lens except spam — so a bare `/?lens=important`
+    // lands on the unfiltered People home and the Important filter never
+    // applies. That is the same bare-lens defect the dead Priority tile had,
+    // alive in the live handler: the fix carries view=inbox, exactly as the
+    // inbox's own inboxLensTarget does (lib/inbox-nav.ts).
+    it('Important lens navigates to the classic inbox with the lens carried', () => {
+      const importantLens = PILLAR_LENSES.mail.find((l) => l.id === 'important')!;
+
+      executeLensClick(importantLens, 'mail', {
+        pathname: '/',
+        router: { push: mockPush },
+      });
+
+      expect(mockPush).toHaveBeenCalledWith('/?view=inbox&lens=important');
+    });
+
+    it('All lens navigates to the bare classic inbox (no lens param)', () => {
+      const allLens = PILLAR_LENSES.mail.find((l) => l.id === 'all')!;
+
+      executeLensClick(allLens, 'mail', {
+        pathname: '/',
+        router: { push: mockPush },
+      });
+
+      expect(mockPush).toHaveBeenCalledWith('/?view=inbox');
+    });
+
+    it('switching mail lenses replaces the old lens param instead of appending a duplicate', () => {
+      // String-append would push `...&lens=all&lens=important`, and
+      // URLSearchParams.get returns the FIRST value — the stale filter wins.
+      const importantLens = PILLAR_LENSES.mail.find((l) => l.id === 'important')!;
+
+      executeLensClick(importantLens, 'mail', {
+        pathname: '/?view=inbox&lens=all',
+        router: { push: mockPush },
+      });
+
+      const target = mockPush.mock.calls[0][0] as string;
+      const query = new URL(target, 'https://quantmail.in').searchParams;
+      expect(query.getAll('lens')).toEqual(['important']);
+      expect(query.get('view')).toBe('inbox');
+    });
+
+    it('Spam lens keeps the People-view landing PeopleHome deliberately honors', () => {
+      // Exception, not an oversight: PeopleHome reads lens=spam (spam people
+      // view, backed by the real SPAM folder query) and the sidebar Spam
+      // entry relies on it — so the topbar Spam lens keeps the bare target.
+      const spamLens = PILLAR_LENSES.mail.find((l) => l.id === 'spam')!;
+
+      executeLensClick(spamLens, 'mail', {
+        pathname: '/',
+        router: { push: mockPush },
+      });
+
+      expect(mockPush).toHaveBeenCalledWith('/?lens=spam');
+    });
+
+    it('non-mail lenses keep their pillar-local filter targets', () => {
+      const todayLens = PILLAR_LENSES.calendar.find((l) => l.id === 'today')!;
+
+      executeLensClick(todayLens, 'calendar', {
+        pathname: '/calendar',
+        router: { push: mockPush },
+      });
+
+      expect(mockPush).toHaveBeenCalledWith('/calendar?filter=today');
+    });
+
+    it('re-tapping a non-mail lens replaces rather than duplicates the filter param', () => {
+      const todayLens = PILLAR_LENSES.calendar.find((l) => l.id === 'today')!;
+
+      executeLensClick(todayLens, 'calendar', {
+        pathname: '/calendar?filter=upcoming',
+        router: { push: mockPush },
+      });
+
+      const target = mockPush.mock.calls[0][0] as string;
+      const query = new URL(target, 'https://quantmail.in').searchParams;
+      expect(query.getAll('filter')).toEqual(['today']);
     });
   });
 

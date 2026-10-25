@@ -527,8 +527,39 @@ export function executeLensClick(
   }
 
   if (lens.queryParam) {
-    const sep = options.pathname.includes('?') ? '&' : '?';
-    options.router.push(`${options.pathname}${sep}${lens.queryParam.key}=${lens.queryParam.value}`);
+    // Build the target with URLSearchParams.set, never string-append: an
+    // appended duplicate (`...&lens=all&lens=important`) leaves the STALE
+    // value winning, because readers take the first value (URLSearchParams
+    // .get / Next useSearchParams().get both return the first match).
+    const [base, existingQuery] = options.pathname.split('?');
+    const params = new URLSearchParams(existingQuery ?? '');
+    if (
+      currentPillar === 'mail' &&
+      lens.queryParam.key === 'lens' &&
+      lens.queryParam.value !== 'spam'
+    ) {
+      // Mail lenses live in the classic inbox: the root route renders
+      // PeopleHome unless ?view=inbox (app/page.tsx), and PeopleHome drops
+      // every lens except spam — so a bare `/?lens=important` lands on the
+      // unfiltered People home and the filter never applies. That is the
+      // same bare-lens defect the dead Priority tile had, in this live
+      // handler. Carry view=inbox, mirroring the inbox's own inboxLensTarget
+      // (lib/inbox-nav.ts): 'all' → bare `/?view=inbox`, anything else →
+      // `/?view=inbox&lens=<value>`.
+      // Spam is the deliberate exception: PeopleHome reads lens=spam (spam
+      // people view, backed by the real SPAM folder query) and the sidebar
+      // Spam entry relies on it — so the Spam lens keeps the bare target.
+      params.delete('view');
+      params.delete('lens');
+      params.set('view', 'inbox');
+      if (lens.queryParam.value !== 'all') {
+        params.set('lens', lens.queryParam.value);
+      }
+    } else {
+      params.set(lens.queryParam.key, lens.queryParam.value);
+    }
+    const query = params.toString();
+    options.router.push(query ? `${base}?${query}` : base);
   }
 }
 
