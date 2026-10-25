@@ -18,15 +18,17 @@
 //
 // Mounted once in AppShell so the watch is active on every app surface, not
 // just the notifications page. Polling runs only while the user opted in and
-// the browser granted permission (re-evaluated every render); otherwise this
-// hook costs nothing.
+// the browser granted permission, tracked via a subscription to the
+// preference (see `useDesktopNotificationsAllowed`) so a Settings toggle
+// starts/stops the 30s poll immediately, without waiting for a remount;
+// otherwise this hook costs nothing.
 // ============================================================================
 
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { browserApiRequest } from '../services/browser-api-request';
-import { showDesktopNotification, desktopNotificationsAllowed } from './useDesktopNotifications';
+import { showDesktopNotification, useDesktopNotificationsAllowed } from './useDesktopNotifications';
 import type { AppNotification } from './useNotifications';
 
 const POLL_MS = 30_000;
@@ -64,7 +66,12 @@ export function useNewMailDesktopAlerts(): void {
   const primed = useRef(false);
   const seenNewestId = useRef<string | null>(null);
 
-  const watchEnabled = typeof window !== 'undefined' && desktopNotificationsAllowed();
+  // Reactive gate, not a per-render read: AppShell does not re-render when
+  // Settings toggles the preference, so the old `desktopNotificationsAllowed()`
+  // read stayed stale until navigation remounted the shell — enabling left
+  // the query `enabled: false` (zero alerts), disabling kept the 30s poll
+  // running. This subscription flips `enabled` in the same tick as the toggle.
+  const watchEnabled = useDesktopNotificationsAllowed();
 
   const { data } = useQuery({
     queryKey: ['notifications', 'desktop-watch', WATCH_LIMIT],
