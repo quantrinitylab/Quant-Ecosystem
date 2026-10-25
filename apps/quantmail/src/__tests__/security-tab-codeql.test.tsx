@@ -10,7 +10,7 @@ vi.mock('@quant/api-client', () => ({
 }));
 
 import { apiFetchRaw } from '@quant/api-client';
-import { SecurityTab, applyCodeqlFixOnServer } from '../app/quantgit/components/SecurityTab';
+import { SecurityTab, applyCodeqlFixOnServer, codeqlDiffHeaderLabel } from '../app/quantgit/components/SecurityTab';
 
 const successEnvelope = {
   success: true,
@@ -147,6 +147,38 @@ describe('SecurityTab codeql fix wiring (fix/qm-quantgit-codeql-toast)', () => {
       // The old fabricated success copy must not appear on the surface.
       expect(html).not.toContain('Applied recommended code patch');
       expect(html).not.toContain('Fix Applied');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Honest copy (fix/qm-quantgit-securitytab-copy): the diff header must not
+  // claim an automated patch is ready — the fix endpoint refuses with 501
+  // until patch generation is wired up — and the status-checks row must not
+  // claim CodeQL/Vitest enforcement that the backend never performs (it only
+  // gates on the latest generic CI run reporting SUCCESS, with no per-check
+  // selection anywhere in the UI or the branch-protection API).
+  // ---------------------------------------------------------------------------
+  describe('codeqlDiffHeaderLabel', () => {
+    it('labels an open alert as a suggestion, never an automated patch', () => {
+      expect(codeqlDiffHeaderLabel('open')).toBe('Suggested fix — not applied');
+      expect(codeqlDiffHeaderLabel('dismissed')).toBe('Suggested fix — not applied');
+    });
+
+    it('labels a server-confirmed fixed alert as applied', () => {
+      expect(codeqlDiffHeaderLabel('fixed')).toBe('Applied fix');
+    });
+  });
+
+  describe('SecurityTab policy sub-tab (static render)', () => {
+    it('describes status checks honestly, without CodeQL/Vitest enforcement claims', () => {
+      const html = renderToStaticMarkup(<SecurityTab initialSubTab="policy" repoId="repo-9" />);
+
+      expect(html).toContain('Require status checks to pass before merging');
+      expect(html).toContain('does not by itself run CodeQL SAST or Vitest');
+      expect(html).not.toContain('Automated Patch Ready');
+      expect(html).not.toContain('Enforces');
+      expect(html).not.toContain('100% green');
+      expect(html).not.toContain('Choose which status checks must pass');
     });
   });
 });
