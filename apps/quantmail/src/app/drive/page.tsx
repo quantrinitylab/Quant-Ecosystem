@@ -54,6 +54,10 @@ import { docsEngineKindFor } from '../../lib/docs-engine/formats';
 import { browserApiRequest } from '../../services/browser-api-request';
 import { browserAuthSession } from '../../services/browser-auth-session';
 import { fetchDriveMemoryItems, forgetDriveMemory } from '../../services/drive-memory';
+import {
+  DriveMoveDialog,
+  moveDestinations,
+} from './components/DriveMoveDialog';
 
 type DriveItem = {
   id: string;
@@ -465,30 +469,51 @@ function DrivePageContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewModeState] = useState<'grid' | 'list'>('grid');
   const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
-  const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
-  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
-
+  // QM-DRIVE-MOVE: handleMoveFile used to be dead code — defined here but
+  // never called by any UI. It is now the single move path for both the
+  // "Move to…" picker and drag-onto-folder, for files AND folders (the old
+  // useDrive.moveFiles sent only fileIds, so folder moves silently did
+  // nothing). targetFolderId null = My Drive. Documents (doc: projections)
+  // are not Drive files and are never offered a Move action upstream.
   const handleMoveFile = useCallback(
-    async (fileId: string, targetFolderId: string) => {
+    async (fileId: string, targetFolderId: string | null, isFolder = false) => {
       if (fileId === targetFolderId) return;
-      const fileToMove = files.find((f) => f.id === fileId);
-      const targetFolder = files.find((f) => f.id === targetFolderId);
+      const itemToMove = files.find((f) => f.id === fileId);
+      const targetFolder = targetFolderId
+        ? files.find((f) => f.id === targetFolderId)
+        : undefined;
+      const destinationName = targetFolder?.name ?? 'My Drive';
       try {
-        await moveFiles([fileId], targetFolderId);
+        await moveFiles(
+          isFolder ? [] : [fileId],
+          targetFolderId,
+          isFolder ? [fileId] : [],
+        );
         showToast({
-          text: `Moved "${fileToMove?.name || 'file'}" to "${targetFolder?.name || 'folder'}"`,
+          text: `Moved "${itemToMove?.name || 'item'}" to "${destinationName}"`,
           type: 'success',
         });
         await fetchFiles(currentFolderId, activeFilter);
       } catch (err: unknown) {
         showToast({
-          text: err instanceof Error ? err.message : 'Failed to move file',
+          text:
+            err instanceof Error && err.message && err.message !== 'Move failed'
+              ? err.message
+              : `Failed to move "${itemToMove?.name || 'item'}"`,
           type: 'error',
         });
       }
     },
     [files, moveFiles, fetchFiles, currentFolderId, activeFilter],
   );
+
+  const handleOpenMove = useCallback((item: DriveItem) => {
+    // Documents are editor projections (doc:<id>), not Drive files — the
+    // backend move would match no file row. The sub-views never offer Move
+    // for them; this is the backstop.
+    if (item.type === 'document') return;
+    setMoveTarget(item);
+  }, []);
 
   useEffect(() => {
     try {
@@ -523,6 +548,8 @@ function DrivePageContent() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [renameTarget, setRenameTarget] = useState<DriveItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  // QM-DRIVE-MOVE: destination-picker target (null = picker closed).
+  const [moveTarget, setMoveTarget] = useState<DriveItem | null>(null);
   const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
   const [receivedShares, setReceivedShares] = useState<ReceivedShare[]>([]);
   // QM-M39-001 — "Shared by me": owned items the user has shared.
@@ -1948,6 +1975,10 @@ function DrivePageContent() {
               onOpenRename={handleOpenRename}
               onOpenVersionHistory={(item) => setVersionHistoryFile(item as any)}
               onOpenAiSummary={(item) => setAiSummaryFile(item as any)}
+              onOpenMove={handleOpenMove}
+              onMoveItem={(itemId, targetFolderId, isFolder) =>
+                void handleMoveFile(itemId, targetFolderId, isFolder)
+              }
               onNavigateToFolder={(folderId, folderName) =>
                 navigateToFolder(folderId, folderName)
               }
@@ -2541,6 +2572,28 @@ function DrivePageContent() {
             </div>
           </div>
         </Modal>
+
+        {/* QM-DRIVE-MOVE: destination picker for the Move action. Destinations
+            come from the UNFILTERED current-folder items (not `folders`,
+            which the header pills filter down) plus My Drive; moving back to
+            My Drive from a folder is the un-move. */}
+        <DriveMoveDialog
+          open={!!moveTarget}
+          itemName={moveTarget?.name ?? ''}
+          itemType={moveTarget?.type === 'folder' ? 'folder' : 'file'}
+          destinations={moveDestinations(
+            items
+              .filter((i) => i.type === 'folder')
+              .map((f) => ({ id: f.id, name: f.name })),
+            moveTarget?.id ?? null,
+            currentFolderId,
+          )}
+          onSelect={(destinationId) => {
+            if (moveTarget) void handleMoveFile(moveTarget.id, destinationId, moveTarget.type === 'folder');
+            setMoveTarget(null);
+          }}
+          onClose={() => setMoveTarget(null)}
+        />
 
         {/* Drive File Version History Modal */}
         <FileVersionHistoryModal
