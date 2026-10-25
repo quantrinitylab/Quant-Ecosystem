@@ -15,22 +15,32 @@ import { useChromeVisible } from './useScrollChrome';
  * so the finish, the geometry and the offset above `MobileBottomNav` live
  * here, once, and the glyph is always `+`.
  *
- * Single action, direct tap — by design, not by omission (2026-10-24):
- * `AppShell`'s fab table returns at most one action on every route (empty
+ * Single action, direct tap — by type, not by convention (2026-10-25):
+ * `AppShell`'s fab table returns at most one action on every route (null
  * on `/calendar`, `/compose`, `/thread`, `/quantgit` and settings screens;
  * exactly one elsewhere), and no other caller exists. The multi-action dial
  * branch this file used to carry (menu-role rows, arrow-key nav,
  * Escape/outside-press close, focus restore) therefore had zero callers:
- * dial mode needed `actions.length > 1`, which nothing ever passed, so it
- * shipped unexercised. It was deleted rather than left as dead code, along
- * with the dial-only `icon`/`tone` action fields. A mail app that made
- * Compose two taps to look symmetrical with a calendar dial would be
- * trading the most frequent action in the product for tidiness.
+ * dial mode needed more than one action, which nothing ever passed, so it
+ * shipped unexercised. It was deleted on 2026-10-24 rather than left as
+ * dead code, along with the dial-only `icon`/`tone` action fields.
+ *
+ * The 2026-10-24 deletion left a contract hole, closed here: the prop was
+ * still an array of actions, so a caller could pass two actions while
+ * the button fired only the first — a silently dropped second action, with
+ * a test pinning that drop as if it were intended behaviour. An array prop
+ * on a single button is a lie about what the button does. So the prop is
+ * now a single action, `action: FabAction | null`: more than one action
+ * is unrepresentable, not merely unrendered. `null` is how a route opts
+ * out. There is no `label` fallback prop either: the action's own label
+ * is the trigger's accessible name, and `AppShell` always supplies one.
+ * A mail app that made Compose two taps to look symmetrical with a
+ * calendar dial would be trading the most frequent action in the product
+ * for tidiness.
  *
  * If a real multi-action caller ever arrives, it must bring the dial back
- * WITH a test that renders it open (see `QuantFabDialRemoved.test.tsx`,
- * which pins that no dial markup exists today) — never re-add the branch
- * on the strength of a comment alone. That is exactly how the dead branch
+ * WITH a test that renders it open — never re-add the branch on the
+ * strength of a comment alone. That is exactly how the dead branch
  * survived: a stale AppShell comment kept claiming `/calendar` mounted its
  * own four-entry `QuantFab` long after that mount was gone.
  *
@@ -47,25 +57,41 @@ export interface FabAction {
 }
 
 export interface QuantFabProps {
-  /** Empty renders nothing — that is how a route opts out. */
-  actions: FabAction[];
   /**
-   * Fallback trigger name when the single action has no label. Kept for
-   * call-site compatibility; `AppShell` always passes a labelled action.
+   * The single action this button fires, or `null` to render nothing
+   * (how a route opts out). Deliberately NOT an array: a second action
+   * has nowhere to go on a direct-tap button, so it must not be passable.
    */
-  label?: string;
+  action: FabAction | null;
 }
 
-export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
+export function QuantFab(props: QuantFabProps) {
   const { isDrawerPresented } = useShellChrome();
   const chromeVisible = useChromeVisible();
 
   /*
-   * Two ways out, and both belong here rather than at the call sites. Empty
-   * actions is how a route opts out. A presented drawer is modal: the FAB
+   * Migration guard, not a feature: the pre-2026-10-25 prop was an array
+   * of actions. A stale caller passing that shape (or an array
+   * as `action` through plain JS) must fail loudly here, never render a
+   * button that quietly ignores everything past the first action. The
+   * TypeScript type already rejects both shapes; this is the runtime
+   * backstop for untyped callers.
+   */
+  const legacy = (props as unknown as { actions?: unknown }).actions;
+  if (legacy !== undefined || Array.isArray(props.action)) {
+    throw new Error(
+      'QuantFab takes a single `action` (or null) — it no longer accepts an `actions` array. ' +
+        'A second action cannot be honoured by a direct-tap button; bring the dial back with a test if a multi-action caller ever arrives.',
+    );
+  }
+  const { action } = props;
+
+  /*
+   * Two ways out, and both belong here rather than at the call sites. Null
+   * action is how a route opts out. A presented drawer is modal: the FAB
    * must not stay hittable over the backdrop.
    */
-  if (actions.length === 0 || isDrawerPresented) return null;
+  if (action === null || isDrawerPresented) return null;
 
   return (
     <div
@@ -100,13 +126,13 @@ export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
     >
       <button
         type="button"
-        onClick={() => actions[0]?.onSelect()}
+        onClick={() => action.onSelect()}
         style={{
           background: 'linear-gradient(135deg, var(--app-accent-hover) 0%, var(--app-accent) 55%, var(--app-accent-pressed) 100%)',
           boxShadow: '0 4px 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.18)',
         }}
         className="flex size-14 items-center justify-center rounded-full font-black text-[#111111] transition-transform duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)]"
-        aria-label={actions[0]?.label ?? label}
+        aria-label={action.label}
       >
         <svg
           className="size-6"

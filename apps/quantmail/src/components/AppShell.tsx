@@ -569,9 +569,13 @@ export function AppShell({
 
   /*
    * What the shell's create button does, per route. `QuantFab` renders nothing
-   * for an empty list, so this table is also the opt-out list:
+   * for a null action, so this table is also the opt-out list. The value is
+   * a single action, not a list (narrowed 2026-10-25): `QuantFab` is a
+   * direct-tap button and a second action would have nowhere to go, so the
+   * type makes passing two unrepresentable rather than silently dropping
+   * all but the first:
    *
-   *  - `/calendar` returns an empty list: it has its own create entry in the
+   *  - `/calendar` returns null: it has its own create entry in the
    *    calendar header (`NewEntrySplitButton`, "New event") plus week-view
    *    quick-create, so no FAB is wanted there. (CORRECTED 2026-10-24: this
    *    comment used to claim `/calendar` mounted its own four-entry
@@ -588,7 +592,7 @@ export function AppShell({
    *    mobile home in the toolbar and group creation lives in the inbox's
    *    Groups lens; neither needs a dial.
    */
-  const fabActions: FabAction[] = useMemo(() => {
+  const fabAction: FabAction | null = useMemo(() => {
     if (
       pathname.startsWith('/calendar') ||
       pathname.startsWith('/compose') ||
@@ -596,30 +600,26 @@ export function AppShell({
       pathname.startsWith('/quantgit') ||
       pathname.includes('/settings')
     ) {
-      return [];
+      return null;
     }
     if (onFabClick) {
-      return [{ id: 'primary', label: fabLabel ?? 'Compose email', onSelect: onFabClick }];
+      return { id: 'primary', label: fabLabel ?? 'Compose email', onSelect: onFabClick };
     }
     if (pathname.startsWith('/drive')) {
-      return [
-        {
-          id: 'upload',
-          label: 'Upload files',
-          onSelect: () => window.dispatchEvent(new CustomEvent('quant:drive:upload')),
-        },
-      ];
+      return {
+        id: 'upload',
+        label: 'Upload files',
+        onSelect: () => window.dispatchEvent(new CustomEvent('quant:drive:upload')),
+      };
     }
     if (pathname.startsWith('/contacts')) {
-      return [
-        {
-          id: 'contact',
-          label: 'New contact',
-          onSelect: () => window.dispatchEvent(new CustomEvent('quant:contacts:create')),
-        },
-      ];
+      return {
+        id: 'contact',
+        label: 'New contact',
+        onSelect: () => window.dispatchEvent(new CustomEvent('quant:contacts:create')),
+      };
     }
-    return [{ id: 'compose', label: 'Compose email', onSelect: () => router.push('/compose') }];
+    return { id: 'compose', label: 'Compose email', onSelect: () => router.push('/compose') };
   }, [pathname, onFabClick, fabLabel, router]);
 
   const semanticTheme = effectiveTheme === 'dark' ? quantMailDarkSemanticTheme : undefined;
@@ -771,8 +771,8 @@ export function AppShell({
                     onQuantyOpen={openQuanty}
                     pillar={pillarForApp(currentApp)}
                     composeAction={
-                      fabActions[0]
-                        ? { label: fabActions[0].label, onSelect: fabActions[0].onSelect }
+                      fabAction
+                        ? { label: fabAction.label, onSelect: fabAction.onSelect }
                         : null
                     }
                     badgeCounts={{ inbox: unreadCount, teams: mailLensCounts.teams }}
@@ -1067,7 +1067,7 @@ export function AppShell({
             />
           )}
 
-          <QuantFab actions={fabActions} />
+          <QuantFab action={fabAction} />
 
           {/*
         Out here rather than in the header on purpose: `customHeader` replaces
