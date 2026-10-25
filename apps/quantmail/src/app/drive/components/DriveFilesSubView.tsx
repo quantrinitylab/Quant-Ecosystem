@@ -286,7 +286,7 @@ export function DriveFilesSubView({
           onClick={() => setTypeFilter(typeFilter === 'code' ? 'all' : 'code')}
           className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-success)] ${
             typeFilter === 'code'
-              ? 'bg-[var(--quant-success)]/15 border-[var(--quant-success)]/60 shadow-[0_0_16px_rgba(34,197,94,0.2)]'
+              ? 'bg-[var(--quant-success)]/15 border-[var(--quant-success)]/60 shadow-[0_0_16px_color-mix(in_srgb,var(--quant-success)_20%,transparent)]'
               : 'bg-[var(--quant-surface)] border-[var(--quant-border)] hover:border-[var(--quant-success)]/40 hover:bg-[var(--quant-success)]/5'
           }`}
         >
