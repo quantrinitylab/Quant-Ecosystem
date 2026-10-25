@@ -279,34 +279,20 @@ export class DriveAISearchManager {
         // owner-scoped operator the semantic index cannot honor)
         let results: AISearchResultItem[] = [];
         const res = await this.apiFetch(this.buildNameSearchUrl(trimmed));
-        if (res.ok) {
-          const data = await res.json();
-          results = this.mapNameSearchResults(data);
-        } else if (parsed.text) {
-          // Fallback to AI search endpoint if name search route unavailable
-          const fallbackRes = await this.apiFetch('/api/drive/ai/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: parsed.text, limit: 10 }),
-          });
-          if (fallbackRes.ok) {
-            const data = await fallbackRes.json();
-            const rawItems = Array.isArray(data) ? data : data.results || [];
-            results = rawItems.map((item: any) => ({
-              fileId: item.fileId || item.id || '',
-              fileName: item.fileName || item.name || 'Untitled File',
-              mimeType: item.mimeType || 'application/octet-stream',
-              score:
-                typeof item.score === 'number'
-                  ? item.score
-                  : typeof item.relevanceScore === 'number'
-                    ? item.relevanceScore
-                    : null,
-              snippet: item.snippet || item.matchSnippet || '',
-              matchedLine: item.matchedLine ?? item.line,
-            }));
-          }
+        if (!res.ok) {
+          // Honest error, never a silent fallback: falling back to the
+          // semantic endpoint would drop every operator filter
+          // (owner:/type:/name:/before:/after:) and present wrong-scope
+          // results — e.g. the viewer's own unshared files answering an
+          // `owner:shared` query, or non-PDF files answering a `type:pdf`
+          // query — as if they answered the query. A metadata-search
+          // failure is an error, distinct from "no matches" (the catch
+          // below surfaces it and clears results instead of showing a
+          // stale or empty list as a successful answer).
+          throw new Error(`Drive search failed with status ${res.status}`);
         }
+        const data = await res.json();
+        results = this.mapNameSearchResults(data);
 
         this.state.results = results;
         this.state.selectedIndex = results.length > 0 ? 0 : -1;

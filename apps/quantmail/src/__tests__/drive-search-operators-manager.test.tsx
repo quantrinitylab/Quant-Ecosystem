@@ -128,6 +128,44 @@ describe('DriveAISearchManager search operators', () => {
     expect(results[0].score).toBeNull();
   });
 
+  it('surfaces a metadata-search failure as an honest error instead of falling back to AI search', async () => {
+    // A metadata failure must never degrade into a filter-dropping semantic
+    // search: the fallback would present wrong-scope rows (e.g. the
+    // viewer's own unshared files answering `owner:shared`) as if they
+    // answered the query. One fetch, one honest error, no results.
+    const apiFetch = vi.fn(async () => ({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    })) as unknown as ApiFetch;
+    const manager = new DriveAISearchManager({ apiFetch, debounceMs: 0 });
+
+    const results = await manager.search('owner:shared budget');
+
+    expect(results).toEqual([]);
+    expect(manager.getState().results).toEqual([]);
+    expect(manager.getState().error).toMatch(/500/);
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(String((apiFetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0])).toContain(
+      '/api/drive/search?',
+    );
+  });
+
+  it('a pure-operator query failure is an error, not a silent empty list', async () => {
+    const apiFetch = vi.fn(async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+    })) as unknown as ApiFetch;
+    const manager = new DriveAISearchManager({ apiFetch, debounceMs: 0 });
+
+    const results = await manager.search('type:pdf');
+
+    expect(results).toEqual([]);
+    expect(manager.getState().error).toMatch(/503/);
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('removeSearchOperator drops one operator and re-searches the rest', async () => {
     const apiFetch = mockApiFetch(() => ({ results: [] }));
     const manager = new DriveAISearchManager({ apiFetch, debounceMs: 0 });

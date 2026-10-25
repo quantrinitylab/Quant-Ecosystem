@@ -1209,19 +1209,34 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
 
     // `owner:` → share-scoped unions. `owner:me` is the default search scope
     // (own items only), so it needs no extra constraint.
+    //
+    // CODEX (revoked shares must not surface in search): share standing is
+    // enforced at query time on BOTH sides of the union. Revocation keeps
+    // the row with status='revoked' (see the revoke endpoint below), so a
+    // share lookup without a standing predicate returns files the viewer
+    // can no longer open (incoming side) and files no longer shared with
+    // the named recipient (outgoing side). The `not: 'revoked'` predicate
+    // below is the same one the shares/sent, shares/received and
+    // decoration queries already use; pending shares still surface, exactly
+    // as they do in the Shared tab (only revocation removes a row here —
+    // the open itself stays gated by fileAccess, which requires 'accepted').
     const wantShared = ownerFilter === 'shared' || ownerFilter.includes('@');
     let sharedByMeFileIds: string[] | null = null;
     let sharedByMeFolderIds: string[] | null = null;
+    // Resolved owner id for `owner:<email>` — used by the incoming side so
+    // that operator also surfaces items that owner shared WITH the viewer.
+    let sharedWithMeOwnerId: string | null = null;
     if (wantShared) {
       const outgoing = await prisma.share.findMany({
-        where: { ownerUserId: userId },
+        where: { ownerUserId: userId, status: { not: 'revoked' } },
         select: { fileId: true, folderId: true, sharedWithUserId: true },
       });
       if (ownerFilter.includes('@')) {
         const target = await prisma.user.findUnique({
-          where: { email: ownerFilter },
+          where: { email: { equals: ownerFilter, mode: 'insensitive' } },
           select: { id: true },
         });
+        if (target) sharedWithMeOwnerId = target.id;
         if (!target) return reply.send({ files: [] }); // honest: no such user
         const toTarget = outgoing.filter(
           (s: { sharedWithUserId: string }) => s.sharedWithUserId === target.id,
@@ -1286,7 +1301,11 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
             },
             take: 50,
           }),
-      folderTypeOnly || !documentTypeOk
+      // Share-scoped queries (`owner:shared` / `owner:<email>`) never
+      // include documents: documents have no share rows, so no document can
+      // satisfy a share filter — without this exclusion every own document
+      // matching the text leaked into share-scoped results unfiltered.
+      folderTypeOnly || !documentTypeOk || wantShared
         ? Promise.resolve([])
         : prisma.document.findMany({
             where: {
@@ -1313,19 +1332,37 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     ]);
 
     // `owner:shared` also surfaces items others shared WITH me (outside the
-    // own-user scope of the queries above). Folders are never mime rows, so
-    // `type:folder` skips them here as well.
+    // own-user scope of the queries above), and `owner:<email>` surfaces
+    // items that owner shared with me alongside the items I shared with
+    // them. Both sides are standing-filtered (see above), and standing is
+    // re-checked AFTER the file fetch so a revocation landing between the
+    // share lookup and the file fetch cannot resurrect a row: only files
+    // with a still-valid share at send time survive. Folders are never
+    // mime rows, so `type:folder` skips them here as well.
+    // NOTE: incoming folders are not surfaced by this path (pre-existing
+    // gap — the incoming lookup selects fileId only); they never leak, they
+    // are simply absent from `owner:shared` results.
     let incomingFiles: FileRow[] = [];
-    if (ownerFilter === 'shared' && !folderTypeOnly) {
+    const wantIncoming = ownerFilter === 'shared' || ownerFilter.includes('@');
+    if (wantIncoming && !folderTypeOnly) {
+      const incomingWhere: Record<string, unknown> = {
+        sharedWithUserId: userId,
+        status: { not: 'revoked' },
+      };
+      if (sharedWithMeOwnerId) incomingWhere.ownerUserId = sharedWithMeOwnerId;
       const incoming = await prisma.share.findMany({
-        where: { sharedWithUserId: userId },
+        where: incomingWhere,
         select: { fileId: true },
       });
-      const incomingIds = incoming
-        .map((s: { fileId: string | null }) => s.fileId)
-        .filter((id: string | null): id is string => Boolean(id));
+      const incomingIds = [
+        ...new Set(
+          incoming
+            .map((s: { fileId: string | null }) => s.fileId)
+            .filter((id: string | null): id is string => Boolean(id)),
+        ),
+      ];
       if (incomingIds.length) {
-        incomingFiles = await prisma.file.findMany({
+        const candidates = await prisma.file.findMany({
           where: {
             id: { in: incomingIds },
             isDeleted: false,
@@ -1333,6 +1370,19 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
           },
           take: 50,
         });
+        const recheck = await prisma.share.findMany({
+          where: {
+            ...incomingWhere,
+            fileId: { in: candidates.map((file: FileRow) => file.id) },
+          },
+          select: { fileId: true },
+        });
+        const stillValid = new Set(
+          recheck
+            .map((s: { fileId: string | null }) => s.fileId)
+            .filter((id: string | null): id is string => Boolean(id)),
+        );
+        incomingFiles = candidates.filter((file: FileRow) => stillValid.has(file.id));
       }
     }
 

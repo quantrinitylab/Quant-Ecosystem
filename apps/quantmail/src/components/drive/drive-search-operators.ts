@@ -12,7 +12,9 @@
  *   name:<text>        — restricts the match to file/folder names
  *   owner:me           — items owned by the current user (default search scope)
  *   owner:shared       — items with any share activity (shared by me / with me)
- *   owner:<email>      — items shared with that email address
+ *   owner:<email>      — items with share activity with that email, either
+ *                        direction (shared by me with them, or shared with me
+ *                        by them); revoked shares never surface on either side
  *   before:YYYY-MM-DD  — modified before this date
  *   after:YYYY-MM-DD   — modified after this date
  *
