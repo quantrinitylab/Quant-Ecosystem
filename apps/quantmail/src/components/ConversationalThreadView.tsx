@@ -81,6 +81,7 @@ import {
   type ThreadTypingPeer,
 } from '../hooks/useThreadRealtime';
 import { isCoarsePointer } from './SwipeableEmailRow';
+import type { AdjacentThreads } from '../lib/auto-advance-preference';
 
 /**
  * The thread reader is what a mail click lands on, so its chunk is on the
@@ -379,6 +380,16 @@ export interface ConversationalThreadViewProps {
    */
   onNavigateToThread?: (threadId: string) => void;
   /**
+   * Auto-advance plumbing: the view already computes the current thread's
+   * neighbours for swipe-between-conversations, but the page — which owns
+   * the post-triage navigation — cannot see them. This callback reports
+   * them (same `{ previous: newer, next: older }` shape the swipe uses) so
+   * the page's archive/delete handlers can advance to a neighbour instead
+   * of always leaving to the list. Hosts that do not pass it keep today's
+   * behaviour exactly; the view itself never navigates on triage.
+   */
+  onAdjacentThreadsChange?: (adjacent: AdjacentThreads) => void;
+  /**
    * BB-P2-6: label for the header back button. The thread page derives it
    * from `returnTo` — "Back to archived" when the thread was opened from the
    * archived view — instead of the header always claiming the inbox.
@@ -432,6 +443,7 @@ export function ConversationalThreadView({
   isSpam = false,
   onNotSpam,
   onNavigateToThread,
+  onAdjacentThreadsChange,
   backLabel = 'Back to inbox',
   leaveGuardRef,
 }: ConversationalThreadViewProps) {
@@ -1021,6 +1033,16 @@ export function ConversationalThreadView({
     },
     [onNavigateToThread, router, threadId, variant, confirmLeaveIfNeeded],
   );
+
+  /*
+   * Auto-advance: report the neighbours to the host whenever they change, so
+   * a post-triage advance targets the list as it stands now — not a stale
+   * snapshot from mount. The host stores them in a ref (no re-render), and
+   * a host that never passes the callback pays nothing for this effect.
+   */
+  useEffect(() => {
+    onAdjacentThreadsChange?.(adjacentThreadIds);
+  }, [adjacentThreadIds, onAdjacentThreadsChange]);
 
   /**
    * Pull-to-load-older: at the very top of the stream, a downward pull asks the

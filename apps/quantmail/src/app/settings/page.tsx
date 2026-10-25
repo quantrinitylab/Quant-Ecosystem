@@ -83,6 +83,12 @@ import { useDesktopNotifications } from '../../hooks/useDesktopNotifications';
 import { useMailNotificationMode } from '../../hooks/useMailNotificationMode';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { writeAIIntent } from '../../lib/ai-intent-preference';
+import {
+  AUTO_ADVANCE_OPTIONS,
+  readAutoAdvance,
+  writeAutoAdvance,
+  type AutoAdvance,
+} from '../../lib/auto-advance-preference';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
 import { buildHelpGroups, dimNoteFor, helpGroupHeading } from '../../lib/keyboard/help-model';
 import {
@@ -300,6 +306,7 @@ export default function SettingsPage() {
   >('loading');
   const [theme, setTheme] = useState<Theme>('dark');
   const [density, setDensity] = useState<Density>('comfortable');
+  const [autoAdvance, setAutoAdvance] = useState<AutoAdvance>('list');
   const [selectedAIModel, setSelectedAIModel] = useState<AIIntent>('auto');
 
   const desktopNotifications = useDesktopNotifications();
@@ -343,6 +350,10 @@ export default function SettingsPage() {
       const intent = normalizeStoredIntent(storedIntent);
       setSelectedAIModel(intent);
       if (storedIntent !== null && storedIntent !== intent) writeAIIntent(intent);
+      // Auto-advance: read through the same normaliser the thread page reads
+      // through, so a legacy or hand-edited value renders as the fallback
+      // ('list') here instead of leaving the group with nothing selected.
+      setAutoAdvance(readAutoAdvance());
     } catch {
       /* ignore */
     }
@@ -518,6 +529,20 @@ export default function SettingsPage() {
    * `:root[data-density='compact']` rules; this sets the attribute they key on,
    * in the same tick as the click.
    */
+  /**
+   * Auto-advance (Gmail's "Auto-advance" under General). This is a real
+   * control, not a stored-but-unread key — the class this page was rebuilt
+   * to stop shipping: `/thread/<id>` reads the same key at triage time and
+   * opens the neighbour this names, or leaves to the list for 'list'.
+   * Stored on this browser, like theme and density, not on the account.
+   */
+  const changeAutoAdvance = useCallback((next: AutoAdvance) => {
+    setAutoAdvance(next);
+    writeAutoAdvance(next);
+    const label = AUTO_ADVANCE_OPTIONS.find((option) => option.value === next)?.label ?? next;
+    showToast({ text: `After delete or archive: ${label}`, type: 'info' });
+  }, []);
+
   const changeDensity = useCallback((next: Density) => {
     setDensity(next);
     try {
@@ -835,6 +860,24 @@ export default function SettingsPage() {
               </SettingsSection>
 
               <VacationResponderSettings />
+
+              <SettingsSection
+                title="After delete or archive"
+                description="Where you land after archiving or deleting a conversation from its thread view — or moving an archived one back to the inbox. “Back to conversation list” is today's behaviour. Mute and move-to-folder are not thread-view actions yet, so this setting does not claim to cover them."
+              >
+                <SettingsChoice<AutoAdvance>
+                  legend="Auto-advance"
+                  value={autoAdvance}
+                  options={AUTO_ADVANCE_OPTIONS}
+                  onChange={(next) => changeAutoAdvance(next)}
+                  columns={3}
+                />
+                <p className="text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
+                  At the first or last conversation, or when the thread was opened from outside
+                  the inbox list, there is no neighbour in the chosen direction — you return to
+                  the list instead, never silently to the opposite neighbour.
+                </p>
+              </SettingsSection>
             </>
           )}
 
