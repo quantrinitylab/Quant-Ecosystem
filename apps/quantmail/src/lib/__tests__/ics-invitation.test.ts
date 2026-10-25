@@ -13,6 +13,7 @@ import {
   extractIcsProperty,
   findInvitationAttachment,
   isCalendarMimeType,
+  isRsvpableInvitation,
   parseInvitationIcs,
   quantmailEventIdFromUid,
   unfoldIcsLines,
@@ -143,5 +144,25 @@ describe('parseInvitationIcs', () => {
     expect(parseInvitationIcs('BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nEND:VCALENDAR')).toBeNull();
     expect(parseInvitationIcs(null)).toBeNull();
     expect(parseInvitationIcs('')).toBeNull();
+  });
+});
+
+describe('isRsvpableInvitation', () => {
+  it('admits ONLY a genuine METHOD:REQUEST invitation mapped to our event', () => {
+    expect(isRsvpableInvitation(parseInvitationIcs(INVITE_ICS))).toBe(true);
+  });
+  it('rejects CANCEL even though its UID maps to our event', () => {
+    expect(isRsvpableInvitation(parseInvitationIcs(INVITE_ICS.replace('METHOD:REQUEST', 'METHOD:CANCEL')))).toBe(false);
+  });
+  it('rejects REPLY and PUBLISH even though their UIDs map to our event', () => {
+    expect(isRsvpableInvitation(parseInvitationIcs(INVITE_ICS.replace('METHOD:REQUEST', 'METHOD:REPLY')))).toBe(false);
+    expect(isRsvpableInvitation(parseInvitationIcs(INVITE_ICS.replace('METHOD:REQUEST', 'METHOD:PUBLISH')))).toBe(false);
+  });
+  it('rejects a missing METHOD', () => {
+    expect(isRsvpableInvitation(parseInvitationIcs(INVITE_ICS.replace('METHOD:REQUEST\r\n', '')))).toBe(false);
+  });
+  it('rejects foreign-calendar invitations (no mappable event id) and null', () => {
+    expect(isRsvpableInvitation(parseInvitationIcs(INVITE_ICS.replace('evt_abc123@quantmail.in', 'xyz789@google.com')))).toBe(false);
+    expect(isRsvpableInvitation(null)).toBe(false);
   });
 });

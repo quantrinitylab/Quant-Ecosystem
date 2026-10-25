@@ -15,11 +15,12 @@
 // (POST /api/events/:id/rsvp via useRsvpEvent, attendee-gated GET
 // /api/events/:id, and the v1 occurrence-vs-series pre-write gate).
 //
-// Honest absence: the card renders ONLY when the ICS attachment resolves
-// to a QuantMail event the signed-in viewer is invited to (backend gates
-// both read and write by attendee). Cancellations, foreign-calendar
-// invitations, unreadable ICS bytes, and the organizer's own sent copy
-// render nothing — the .ics attachment preview stays the fallback.
+// Honest absence: the card renders ONLY for a genuine METHOD:REQUEST ICS
+// that resolves to a QuantMail event the signed-in viewer is invited to
+// (backend gates both read and write by attendee). Cancellations,
+// replies, publishes, a missing METHOD, foreign-calendar invitations,
+// unreadable ICS bytes, and the organizer's own sent copy render nothing
+// — the .ics attachment preview stays the fallback.
 //
 // Pure-black, no divider lines, Calendar blue accent (#4285F4).
 // ============================================================================
@@ -28,6 +29,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Email } from '../types';
 import {
   findInvitationAttachment,
+  isRsvpableInvitation,
   parseInvitationIcs,
 } from '../lib/ics-invitation';
 import {
@@ -226,6 +228,14 @@ export function InlineEventRsvp({
   } | null>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
   const gateRef = useRef<ReturnType<typeof createRsvpWriteGate> | null>(null);
+  // Latest resolved event id. A previous invitation's RSVP POST can settle
+  // AFTER the component has moved on to a new invitation (rerender with a
+  // different message); its confirmation/error must never land on the new
+  // invitation's card — postRsvp checks this ref before touching state.
+  const eventIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    eventIdRef.current = eventId;
+  }, [eventId]);
 
   useEffect(() => {
     // The message changed (thread navigation reuses this component):
@@ -252,9 +262,12 @@ export function InlineEventRsvp({
         if (cancelled) return;
         const text = new TextDecoder('utf-8').decode(bytes);
         const parsed = parseInvitationIcs(text);
-        // Cancellations get no chips; foreign-calendar UIDs have no
-        // eventId to RSVP against — both stay honestly absent.
-        if (parsed && parsed.method !== 'CANCEL' && parsed.eventId) {
+        // ONLY a genuine METHOD:REQUEST invitation whose UID maps to a
+        // QuantMail event gets chips. Cancellations, replies, publishes,
+        // a missing METHOD, and foreign-calendar UIDs all stay honestly
+        // absent — eventId alone is NOT the gate (CANCEL/REPLY payloads
+        // carry a mappable eventId too).
+        if (isRsvpableInvitation(parsed)) {
           setEventId(parsed.eventId);
         }
         setResolved(true);
@@ -277,15 +290,21 @@ export function InlineEventRsvp({
 
   async function postRsvp(status: RsvpStatus): Promise<void> {
     if (!eventId) return;
+    const postedId = eventId;
     setRsvpError(null);
     setConfirmation(null);
     try {
       const result = await rsvp.mutateAsync({ id: eventId, status });
+      // The invitation may have changed while this POST was in flight
+      // (rerender with a different message). Its outcome belongs to the
+      // old invitation only — never paint it onto the new card.
+      if (eventIdRef.current !== postedId) return;
       const scope: RsvpScopeInfo =
         (result as { rsvpScope?: RsvpScopeInfo } | undefined)?.rsvpScope ??
         fallbackRsvpScope(eventId, event?.recurrence ?? null);
       setConfirmation({ status, scope });
     } catch (err) {
+      if (eventIdRef.current !== postedId) return;
       setRsvpError(err instanceof Error ? err.message : 'Could not update your response.');
     }
   }

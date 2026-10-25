@@ -113,6 +113,23 @@ export function quantmailEventIdFromUid(uid: string | null | undefined): string 
 }
 
 /**
+ * The ONLY shape that may offer RSVP chips: a genuine METHOD:REQUEST
+ * invitation whose UID maps to a QuantMail event. Everything else is
+ * honestly chipless — METHOD:CANCEL (a cancellation, not an invitation),
+ * METHOD:REPLY / METHOD:PUBLISH (an attendee's reply / a published
+ * calendar, neither asks the viewer to respond), a missing METHOD, and
+ * foreign-calendar UIDs (no QuantMail event to RSVP against). Callers
+ * must gate on this, never on `parsed.eventId` alone: eventId is present
+ * for CANCEL and REPLY payloads too, and chips on those would be a fake
+ * RSVP affordance.
+ */
+export function isRsvpableInvitation(
+  parsed: ParsedInvitation | null,
+): parsed is ParsedInvitation & { eventId: string } {
+  return parsed !== null && parsed.method === 'REQUEST' && parsed.eventId !== null;
+}
+
+/**
  * Parse the invitation ICS. Returns null when there is no VEVENT UID at
  * all (not an invitation we can act on); METHOD:CANCEL is reported as-is
  * so the caller can suppress the chips for cancellations.
