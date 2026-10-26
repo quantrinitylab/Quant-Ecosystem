@@ -2375,7 +2375,7 @@ export function EmailComposer({
                 placeholder={
                   isTemplateMode
                     ? 'Write your core message, details, deliverables, action items, or bullet points here...'
-                    : 'Write your message here... Type freely, drag and drop files, or ask Quanty AI Copilot.'
+                    : 'Write your message here... Type freely, attach files, or ask Quanty AI Copilot.'
                 }
                 rows={isTemplateMode ? 8 : 12}
                 style={{
