@@ -510,6 +510,102 @@ describe('POST /webhook/inbound — the recipient is one the message named, or n
     expect(ingestCall().options.userId).toBe('u-alias');
   });
 
+  it('delivers only to the exact-spelling twin when case twins collide', async () => {
+    // The @unique constraints are case-sensitive, so `Bob@` and `bob@` can
+    // both exist. The sender literally addressed `bob@`, so only that row
+    // gets the message — never both.
+    state.users.push(
+      localUser({ id: 'u-bob-upper', email: 'Bob@quantmail.in', username: 'bobupper' }),
+      localUser({ id: 'u-bob-lower', email: 'bob@quantmail.in', username: 'bob' }),
+    );
+    s3ReturnsRawEmail(plainEmail('bob@quantmail.in'));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ recipients: ['bob@quantmail.in'] }),
+    });
+
+    expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+    expect(ingest).toHaveBeenCalledTimes(1);
+    expect(ingestCall().options.userId).toBe('u-bob-lower');
+  });
+
+  it('holds a message whose address matches two case twins and no exact spelling', async () => {
+    // Neither twin is the literal spelling the sender used, so there is no
+    // uniquely-resolved subject: delivering to either — let alone both —
+    // would leak the message into a stranger's inbox. The message stays in
+    // S3 for replay after the collision is resolved, and the webhook still
+    // answers 2xx because SNS redelivery cannot disambiguate.
+    state.users.push(
+      localUser({ id: 'u-twin-a', email: 'Bob@quantmail.in', username: 'twin-a' }),
+      localUser({ id: 'u-twin-b', email: 'BOB@quantmail.in', username: 'twin-b' }),
+    );
+    s3ReturnsRawEmail(plainEmail('bob@quantmail.in'));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ recipients: ['bob@quantmail.in'] }),
+    });
+
+    expect(response.json()).toEqual({
+      ok: true,
+      key: KEY,
+      delivered: 0,
+      skipped: 'ambiguous-recipient',
+      ambiguous: ['bob@quantmail.in'],
+    });
+    expect(ingest).not.toHaveBeenCalled();
+  });
+
+  it('holds a message when an email row and a username row both exactly match', async () => {
+    // One row's email is `bob@quantmail.in` and another row's username is
+    // `bob`: the address is exactly both, so neither is the unique subject.
+    state.users.push(
+      localUser({ id: 'u-mail', email: 'bob@quantmail.in', username: 'bobmail' }),
+      localUser({ id: 'u-handle', email: 'other@quantmail.in', username: 'bob' }),
+    );
+    s3ReturnsRawEmail(plainEmail('bob@quantmail.in'));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ recipients: ['bob@quantmail.in'] }),
+    });
+
+    expect(response.json()).toMatchObject({
+      ok: true,
+      delivered: 0,
+      skipped: 'ambiguous-recipient',
+      ambiguous: ['bob@quantmail.in'],
+    });
+    expect(ingest).not.toHaveBeenCalled();
+  });
+
+  it('delivers to unambiguous recipients while holding only the colliding address', async () => {
+    state.users.push(
+      localUser({ id: 'u-twin-a', email: 'Bob@quantmail.in', username: 'twin-a' }),
+      localUser({ id: 'u-twin-b', email: 'BOB@quantmail.in', username: 'twin-b' }),
+      localUser({ id: 'u-carol', email: 'carol@quantmail.in', username: 'carol' }),
+    );
+    s3ReturnsRawEmail(plainEmail('bob@quantmail.in'));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ recipients: ['bob@quantmail.in', 'carol@quantmail.in'] }),
+    });
+
+    expect(response.json()).toMatchObject({
+      ok: true,
+      delivered: 1,
+      ambiguous: ['bob@quantmail.in'],
+    });
+    expect(ingest).toHaveBeenCalledTimes(1);
+    expect(ingestCall().options.userId).toBe('u-carol');
+  });
+
   it('does not raise the paperclip for a cid: image that is part of the body', async () => {
     state.users.push(localUser());
     s3ReturnsRawEmail(inlineImageEmail());
