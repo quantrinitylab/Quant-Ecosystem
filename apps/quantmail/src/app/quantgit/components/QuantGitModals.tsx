@@ -957,7 +957,7 @@ export function QuantGitModals({
                     <span className="capitalize">{selectedPr.state}</span>
                   </span>
                   <span className="text-[11px] text-[#7D8590]">
-                    <span className="text-white font-semibold">{selectedPr.author}</span> wants to
+                    <span className="text-white font-semibold">{selectedPr.author || 'Unknown'}</span> wants to
                     merge into{' '}
                     <span className="px-1.5 py-0.5 rounded bg-[var(--quant-surface-elevated)] text-[#58A6FF] font-mono">
                       {selectedPr.branchTarget || selectedRepo?.defaultBranch || 'main'}
@@ -1072,7 +1072,7 @@ export function QuantGitModals({
                   </span>
                   <span className="text-[11px] text-[#7D8590]">
                     Opened by{' '}
-                    <span className="text-white font-semibold">{selectedIssue.author}</span> ·{' '}
+                    <span className="text-white font-semibold">{selectedIssue.author || 'Unknown'}</span> ·{' '}
                     {selectedIssue.createdAt}
                   </span>
                   {selectedIssue.labels?.map((lbl) => (

@@ -668,7 +668,7 @@ function toPullRequestPayload(
     body: pr.body ?? '',
     state: pr.status.toLowerCase(),
     status: pr.status.toLowerCase(),
-    author: pr.author?.username ?? 'user',
+    author: pr.author?.username ?? null,
     branchSource: pr.sourceBranch,
     branchTarget: pr.targetBranch,
     checksStatus: 'none',
@@ -1992,7 +1992,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           body: pull.body ?? '',
           state: pull.status.toLowerCase(),
           status: pull.status.toLowerCase(),
-          author: pull.author?.username ?? 'user',
+          author: pull.author?.username ?? null,
           branchSource: pull.sourceBranch,
           branchTarget: pull.targetBranch,
           checksStatus: 'none',
@@ -2194,7 +2194,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           body: pr.body ?? '',
           state: pr.status.toLowerCase(),
           status: pr.status.toLowerCase(),
-          author: pr.author?.username ?? 'user',
+          author: pr.author?.username ?? null,
           branchSource: pr.sourceBranch,
           branchTarget: pr.targetBranch,
           checksStatus: 'none',
@@ -2833,7 +2833,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           body: merged.body ?? '',
           state: 'merged',
           status: 'MERGED',
-          author: merged.author?.username ?? 'user',
+          author: merged.author?.username ?? null,
           branchSource: merged.sourceBranch,
           branchTarget: merged.targetBranch,
           checksStatus: 'none',
@@ -2996,7 +2996,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
             body: issue.body ?? '',
             state: issue.status.toLowerCase(),
             status: issue.status.toLowerCase(),
-            author: issue.author?.username ?? 'user',
+            author: issue.author?.username ?? null,
             labels: rawLabels.map((lbl: any) =>
               typeof lbl === 'string'
                 ? { name: lbl, color: lbl === 'bug' ? '#D73A4A' : '#1D76DB' }
@@ -3056,7 +3056,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         body: issue.body,
         state: issue.status.toLowerCase(),
         status: issue.status.toLowerCase(),
-        author: issue.author?.username ?? 'user',
+        author: issue.author?.username ?? null,
         labels: labelsList,
         // Genuinely 0: this issue was just created, so no comments exist yet.
         commentsCount: 0,

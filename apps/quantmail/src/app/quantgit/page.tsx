@@ -909,7 +909,7 @@ function QuantGitContent() {  const router = useRouter();
               id: item.number || item.id,
               title: item.title,
               state: item.status === 'closed' || item.state === 'closed' ? 'closed' : 'open',
-              author: item.author || 'user',
+              author: item.author ?? null,
               labels: Array.isArray(item.labels)
                 ? item.labels
                 : [{ name: 'bug', color: '#D73A4A' }],
@@ -963,7 +963,7 @@ function QuantGitContent() {  const router = useRouter();
               title: item.title,
               state:
                 item.status === 'merged' ? 'merged' : item.status === 'closed' ? 'closed' : 'open',
-              author: item.author || 'user',
+              author: item.author ?? null,
               branchSource: item.branchSource || 'main',
               branchTarget: item.branchTarget || 'main',
               // checksStatus honesty (#1071): normalize unrecognized values to 'unknown'

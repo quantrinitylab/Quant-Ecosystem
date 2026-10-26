@@ -252,7 +252,7 @@ export function PullRequestsTab({
             json.data.map((r: any) => ({
               id: String(r.id),
               author:
-                r.reviewer?.username || r.reviewer?.displayName || currentUsername || 'Unknown',
+                r.reviewer?.username || r.reviewer?.displayName || 'Unknown',
               state: r.status as PRReviewItem['state'],
               body: r.body ?? '',
               createdAt: r.createdAt ? new Date(r.createdAt).toLocaleString() : '',
@@ -759,7 +759,7 @@ export function PullRequestsTab({
               {selectedPR.state === 'merged' ? (
                 <span data-testid="pr-merged-info">
                   Merged by{' '}
-                  <strong className="text-[#E6EDF3]">{selectedPR.author || currentUsername}</strong>{' '}
+                  <strong className="text-[#E6EDF3]">{selectedPR.author || 'Unknown'}</strong>{' '}
                   into{' '}
                   <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchTarget || 'main'}
@@ -771,7 +771,7 @@ export function PullRequestsTab({
                 </span>
               ) : (
                 <span>
-                  <strong className="text-[#E6EDF3]">{selectedPR.author}</strong> wants to merge
+                  <strong className="text-[#E6EDF3]">{selectedPR.author || 'Unknown'}</strong> wants to merge
                   into{' '}
                   <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchTarget || 'main'}
@@ -1085,7 +1085,7 @@ export function PullRequestsTab({
                   <QuantGitCheckIcon size={16} />
                   <span className="font-semibold text-xs">
                     Pull request #{(selectedPR as any).number || selectedPR.id} was successfully
-                    merged and closed. Merged by {selectedPR.author || currentUsername} into{' '}
+                    merged and closed. Merged by {selectedPR.author || 'Unknown'} into{' '}
                     {selectedPR.branchTarget || 'main'}.
                   </span>
                 </div>
@@ -1278,7 +1278,7 @@ export function PullRequestsTab({
                         </span>
                       </div>
                       <p className="text-xs text-[#8D96A0]">
-                        #{pr.id} by {pr.author} was {pr.state} {pr.createdAt}
+                        #{pr.id} by {pr.author || 'Unknown'} was {pr.state} {pr.createdAt}
                         {/* Diff stats only when actually known — never invented. */}
                         {(pr.additions != null || pr.deletions != null) && (
                           <>

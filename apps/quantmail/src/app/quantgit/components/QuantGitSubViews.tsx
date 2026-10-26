@@ -28,7 +28,8 @@ export interface PullRequestItem {
   id: string;
   prNumber: number;
   title: string;
-  author: string;
+  // null = author relation missing — render 'Unknown', never invent a name.
+  author: string | null;
   sourceBranch: string;
   targetBranch: string;
   status: 'approved_ready' | 'review_in_progress' | 'ci_passing' | 'merged' | 'closed';
@@ -53,7 +54,8 @@ export interface IssueTrackItem {
   priorityColor?: string;
   labels: string[];
   state: 'open' | 'closed';
-  author: string;
+  // null = author relation missing — render 'Unknown', never invent a name.
+  author: string | null;
   createdAt: string;
   commentsCount: number;
 }
@@ -714,7 +716,7 @@ export function QuantGitPrsSubView({
 
                   {/* Branch and Author metadata */}
                   <div className="flex flex-wrap items-center gap-3 text-xs text-[#8B949E]">
-                    <span className="font-semibold text-[#C9D1D9]">@{pr.author}</span>
+                    <span className="font-semibold text-[#C9D1D9]">@{pr.author || 'Unknown'}</span>
                     <span>wants to merge</span>
                     <span className="px-2 py-0.5 rounded bg-[#181C28] border border-[#232938] text-[#C9D1D9] font-mono text-[11px]">
                       {pr.sourceBranch}
@@ -912,7 +914,7 @@ export function QuantGitIssuesSubView({
 
                 {/* Labels and Author */}
                 <div className="flex flex-wrap items-center gap-2 text-xs text-[#8B949E]">
-                  <span>by @{issue.author} · {issue.createdAt}</span>
+                  <span>by @{issue.author || 'Unknown'} · {issue.createdAt}</span>
                   <span className="text-[#484F58]">·</span>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {issue.labels.map((lbl) => (
