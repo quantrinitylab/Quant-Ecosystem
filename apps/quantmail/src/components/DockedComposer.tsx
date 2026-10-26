@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation';
 import { formatBytes } from '../lib/format-bytes';
 import { showToast } from './InboxToast';
+import { decideAttachmentFiles, dragCarriesFiles } from './composeAttachments';
 import { useContacts } from '../hooks/useContacts';
 import { useConfirm } from '../hooks/useConfirm';
 import { apiClient } from '../services/api-client';
@@ -746,27 +747,29 @@ export function DockedComposer({
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    let runningTotal = totalAttachmentBytes;
-    const accepted: File[] = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (file.size > MAX_ATTACHMENT_BYTES) {
-        showToast({
-          text: `"${file.name}" exceeds the 20MB per-file limit. Consider sharing via QuantDrive.`,
-          type: 'error',
-        });
-        continue;
-      }
-      if (runningTotal + file.size > MAX_TOTAL_ATTACHMENTS_BYTES) {
-        showToast({
-          text: 'Total attachments exceed the 25MB limit. Please remove some files.',
-          type: 'error',
-        });
-        break;
-      }
-      runningTotal += file.size;
-      accepted.push(file);
+    // Same admission rules as drag-and-drop (see addDroppedFiles):
+    // decideAttachmentFiles with stopAtBudget=true reproduces this
+    // picker's old loop exactly (per-file toast + continue, total toast
+    // + break at the first over-budget file).
+    const decision = decideAttachmentFiles(
+      files,
+      totalAttachmentBytes,
+      MAX_ATTACHMENT_BYTES,
+      MAX_TOTAL_ATTACHMENTS_BYTES,
+      true,
+    );
+    const accepted = decision.accepted;
+    for (const file of decision.tooBig) {
+      showToast({
+        text: `"${file.name}" exceeds the 20MB per-file limit. Consider sharing via QuantDrive.`,
+        type: 'error',
+      });
+    }
+    if (decision.stoppedAtBudget) {
+      showToast({
+        text: 'Total attachments exceed the 25MB limit. Please remove some files.',
+        type: 'error',
+      });
     }
 
     if (accepted.length === 0) {
@@ -809,6 +812,99 @@ export function DockedComposer({
       type: 'info',
     });
   };
+
+  /*
+   * Drag-and-drop attachments (fix/qm-compose-drag-drop): same admission
+   * rules and reader loop as handleFileChange above (20 MB per file,
+   * 25 MB total, decideAttachmentFiles with stopAtBudget=true so the
+   * scan stops at the first over-budget file, exactly like the picker).
+   * The depth counter exists because dragenter/dragleave fire per child
+   * boundary; only file drags show the overlay (dragCarriesFiles), so
+   * dragging selected body text never flashes the dropzone. The root
+   * div is `fixed` (positioned), so the absolute overlay anchors to it.
+   * preventDefault on dragover AND drop stops the browser navigating
+   * away to the dropped file. The minimized badge has no drop target:
+   * restore the composer first, then drop.
+   */
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const dragDepthRef = useRef(0);
+  const handleComposerDragEnter = (e: React.DragEvent) => {
+    if (!dragCarriesFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDraggingFiles(true);
+  };
+  const handleComposerDragOver = (e: React.DragEvent) => {
+    if (!dragCarriesFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+  const handleComposerDragLeave = (e: React.DragEvent) => {
+    if (!dragCarriesFiles(e.dataTransfer)) return;
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDraggingFiles(false);
+  };
+  const handleComposerDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDraggingFiles(false);
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+    addDroppedFiles(files);
+  };
+  function addDroppedFiles(files: FileList | File[]) {
+    const decision = decideAttachmentFiles(
+      files,
+      totalAttachmentBytes,
+      MAX_ATTACHMENT_BYTES,
+      MAX_TOTAL_ATTACHMENTS_BYTES,
+      true,
+    );
+    for (const file of decision.tooBig) {
+      showToast({
+        text: `"${file.name}" exceeds the 20MB per-file limit. Consider sharing via QuantDrive.`,
+        type: 'error',
+      });
+    }
+    if (decision.stoppedAtBudget) {
+      showToast({
+        text: 'Total attachments exceed the 25MB limit. Please remove some files.',
+        type: 'error',
+      });
+    }
+    if (decision.accepted.length === 0) return;
+    let pending = decision.accepted.length;
+    const settle = () => {
+      pending -= 1;
+    };
+    decision.accepted.forEach((file, i) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAttachments((prev) => [
+          ...prev,
+          {
+            id: `att-${Date.now()}-${i}`,
+            name: file.name,
+            filename: file.name,
+            size: file.size,
+            type: file.type,
+            mimeType: file.type || 'application/octet-stream',
+            url: reader.result as string,
+          },
+        ]);
+        settle();
+      };
+      reader.onerror = () => {
+        showToast({ text: `Could not read ${file.name}`, type: 'error' });
+        settle();
+      };
+      reader.readAsDataURL(file);
+    });
+    showToast({
+      text: `Attached ${decision.accepted.length} file${decision.accepted.length > 1 ? 's' : ''}`,
+      type: 'info',
+    });
+  }
 
   const handleRemoveAttachment = (id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
@@ -1263,9 +1359,29 @@ export function DockedComposer({
       data-testid="docked-composer"
       ref={composerRef}
       onKeyDown={handleKeyDown}
+      onDragEnter={handleComposerDragEnter}
+      onDragOver={handleComposerDragOver}
+      onDragLeave={handleComposerDragLeave}
+      onDrop={handleComposerDrop}
       className={containerClasses}
       style={!isExpanded && customHeightPx ? { height: customHeightPx } : undefined}
     >
+      {/* Drag-and-drop overlay: shown only while files hover the
+          composer. Pure-black veil + Mail-orange dashed frame (an
+          affordance, not a layout divider). pointer-events-none so
+          the drop still lands on the root handler above. */}
+      {isDraggingFiles && (
+        <div
+          aria-hidden="true"
+          data-testid="composer-drop-overlay"
+          className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-1 bg-black/70 border-2 border-dashed border-[var(--quant-primary)] rounded-[inherit] pointer-events-none"
+        >
+          <span className="text-sm font-semibold text-white">Drop files to attach</span>
+          <span className="text-xs text-[var(--quant-muted-foreground)]">
+            Up to {formatBytes(MAX_ATTACHMENT_BYTES)} per file · {formatBytes(MAX_TOTAL_ATTACHMENTS_BYTES)} total
+          </span>
+        </div>
+      )}
       {/* Drag-to-resize handle on the top edge (docked mode only) */}
       {!isExpanded && (
         <div
