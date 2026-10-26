@@ -88,6 +88,27 @@ describe('UniversalSearchResults', () => {
     expect(html).toContain('mail, people, calendar, or drive');
   });
 
+  it('names only the searched source in copy on a single-source scope', () => {
+    // qm-search-scope-queries: a narrowed scope searches ONLY that source,
+    // so the empty state and result header must not claim all four.
+    const html = renderToStaticMarkup(
+      <UniversalSearchResults results={results()} scope="people" onOpenMail={noop} />,
+    );
+    expect(html).toContain('Nothing across people matched');
+    expect(html).not.toContain('mail, people, calendar, or drive');
+    const withHit = renderToStaticMarkup(
+      <UniversalSearchResults
+        results={results({
+          people: { items: [{ id: 'p1', name: 'Ada', email: 'ada@x.co' } as never], error: null },
+        })}
+        scope="people"
+        onOpenMail={noop}
+      />,
+    );
+    expect(withHit).toContain('across people.');
+    expect(withHit).not.toContain('across mail, people, calendar, drive');
+  });
+
   it('never claims QuantGit coverage', () => {
     const html = renderToStaticMarkup(
       <UniversalSearchResults results={results()} scope="all" onOpenMail={noop} />,

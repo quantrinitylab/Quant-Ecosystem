@@ -338,11 +338,16 @@ export function UniversalSearchResults({
   const anyError =
     results.mail.error || results.people.error || results.calendar.error || results.drive.error;
 
+  // Scope-aware coverage copy (qm-search-scope-queries): a narrowed scope
+  // now searches ONLY that source, so the copy must not claim all four.
+  const coverage = scope === 'all' ? 'mail, people, calendar, or drive' : scope;
+  const coverageList = scope === 'all' ? 'mail, people, calendar, drive' : scope;
+
   if (totalHits === 0 && !anyError) {
     return (
       <EmptyState
         title="No results"
-        description={`Nothing across mail, people, calendar, or drive matched “${results.query}”.`}
+        description={`Nothing across ${coverage} matched “${results.query}”.`}
       />
     );
   }
@@ -351,7 +356,7 @@ export function UniversalSearchResults({
     <div className="p-4">
       <p className="mb-3 px-1 text-xs text-[var(--quant-muted-foreground)]">
         {totalHits}{' '}result{totalHits !== 1 ? 's' : ''}{' '}for “{results.query}”
-        {anyError ? ' — some sources could not be searched' : ''} across mail, people, calendar, drive.
+        {anyError ? ' — some sources could not be searched' : ''} across {coverageList}.
       </p>
       {sections}
     </div>
