@@ -252,7 +252,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
   const statusConfig = {
     normal: {
       badgeBg: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-      barColor: 'bg-[#60A5FA]',
+      barColor: 'bg-[var(--app-accent)]',
       textColor: 'text-slate-300',
     },
     warning: {
@@ -276,7 +276,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <svg
-            className="w-4 h-4 text-[#60A5FA]"
+            className="w-4 h-4 text-[var(--app-accent)]"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -293,7 +293,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
           </span>
           {isLoading && (
             <svg
-              className="w-3.5 h-3.5 animate-spin text-[#60A5FA]"
+              className="w-3.5 h-3.5 animate-spin text-[var(--app-accent)]"
               fill="none"
               viewBox="0 0 24 24"
             >

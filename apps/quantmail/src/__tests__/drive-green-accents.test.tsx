@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { DriveMobileTabStrip } from '../app/drive/components/DriveMobileTabStrip';
 import { DriveContextTabsHeader } from '../app/drive/components/DriveContextTabsHeader';
 import { DriveSharedByMeSubView } from '../app/drive/components/DriveSharedByMeSubView';
+import { StorageQuotaBar } from '../components/drive/StorageQuotaBar';
 import type { SentShareItem } from '../hooks/useDrive';
 
 /**
@@ -48,8 +49,18 @@ const PAGE = readFileSync(new URL('../app/drive/page.tsx', import.meta.url), 'ut
 // QM-SCREEN-010/011 R3: these drive-lib files had #60A5FA leaks that are now
 // driven to var(--app-accent) (drive green on /drive routes). DriveSubViews
 // holds the cross-app pillar chips aligned to PILLAR_ACCENTS.
+// 2026-10-26 fix/qm-drive-blue-accent-leak: StorageQuotaBar was the last
+// #60A5FA holdout in this dir (its 3 tokens were outside every scan scope:
+// the app/drive scan never covered src/components/drive, and this R3 list
+// excluded it as "dead in production"). It is fixed to var(--app-accent)
+// here, and the full-dir scan below pins the whole lib so a future revival
+// or new file cannot reintroduce a hardcoded blue unchallenged.
+const DRIVE_LIB_DIR = new URL('../components/drive', import.meta.url).pathname;
 const readDriveLib = (name: string) =>
   readFileSync(new URL(`../components/drive/${name}`, import.meta.url), 'utf8');
+const DRIVE_LIB_FILES: { name: string; src: string }[] = readdirSync(DRIVE_LIB_DIR)
+  .filter((f) => f.endsWith('.tsx'))
+  .map((name) => ({ name: `drive/${name}`, src: readDriveLib(name) }));
 const R3_TOUCHED: { name: string; src: string }[] = [
   'DriveAISearchBar.tsx',
   'FileAISummaryDrawer.tsx',
@@ -133,8 +144,7 @@ describe('qm-drive-blue-accent: drive page shared-mode tabs use the token', () =
 
 describe('qm-drive-blue-accent: no #60A5FA leaks in R3-touched drive lib files', () => {
   // #60A5FA (blue) leaks on drive surfaces are routed through var(--app-accent),
-  // which resolves to drive green (#34A853) on /drive routes. StorageQuotaBar is
-  // intentionally not in this list (dead in production; its own test owns it).
+  // which resolves to drive green (#34A853) on /drive routes.
   const LEAK_TOKEN = '#60A5FA';
   for (const { name, src } of R3_TOUCHED) {
     it(`components/${name} does not contain "${LEAK_TOKEN}"`, () => {
@@ -152,6 +162,34 @@ describe('qm-drive-blue-accent: no #60A5FA leaks in R3-touched drive lib files',
     // Note: #10B981 (memory sync-status badge) and #EC4899 (Videos category
     // chip) remain elsewhere in this file by design — those are not pillar
     // chips and are out of the R3 scope.
+  });
+});
+
+describe('qm-drive-blue-accent: full components/drive lib has no hardcoded blue', () => {
+  // 2026-10-26: the app/drive-only scan scope is what let StorageQuotaBar's
+  // #60A5FA tokens render unchallenged. Every .tsx file under
+  // src/components/drive is now scanned for both the sky-blue family and
+  // the blue-400 #60A5FA leak token, so no future file can hide here.
+  const BLUE_TOKENS = [...FORBIDDEN_TOKENS, '#60A5FA', '#60a5fa'];
+  for (const { name, src } of DRIVE_LIB_FILES) {
+    for (const token of BLUE_TOKENS) {
+      it(`components/${name} does not contain "${token}"`, () => {
+        expect(src).not.toContain(token);
+      });
+    }
+  }
+
+  it('StorageQuotaBar renders its normal-state bar + icons with the accent token, not blue', () => {
+    const html = renderToStaticMarkup(
+      <StorageQuotaBar
+        initialQuota={{ usedBytes: 1.5 * 1024 ** 3, limitBytes: 15 * 1024 ** 3, tier: 'FREE', percentUsed: 10 }}
+        onUpgradeClick={() => {}}
+      />,
+    );
+    expect(html).toContain('bg-[var(--app-accent)]');
+    expect(html).toContain('text-[var(--app-accent)]');
+    expect(html).not.toContain('60A5FA');
+    expect(html).not.toContain('60a5fa');
   });
 });
 
