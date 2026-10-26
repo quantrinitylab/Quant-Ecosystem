@@ -24,6 +24,7 @@ import { receiptStatusOf, openStatusOf } from '../lib/readReceipt';
 import { attachmentServiceId } from '../lib/mail-attachments';
 import { showToast } from './InboxToast';
 import { useRegisterCommands } from '../lib/keyboard/hooks';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import type { Command } from '../lib/keyboard/command-registry';
 import { THREAD_KEYBOARD_SCOPE } from '../hooks/useThreadViewKeyboard';
 import {
@@ -41,6 +42,13 @@ export interface PersonThreadProps {
   currentUserEmail: string;
   /** Reply surface rendered below the messages. Never rendered in the Updates world. */
   renderComposer?: React.ReactNode;
+  /**
+   * fix/qm-people-pull-to-refresh — the thread's real refresh, supplied by
+   * the owning page (its useInbox refetch). Absent → the pull gesture is
+   * disabled entirely, so existing consumers that render PersonThread
+   * without a data layer keep exactly their old behaviour.
+   */
+  onRefresh?: () => Promise<unknown> | void;
   /**
    * fix/qm-calendar-nlp-quickadd — one-key event-from-email. The parent
    * receives the draft built from this conversation's messages (attendees
@@ -388,8 +396,29 @@ export function PersonThread({
   currentUserEmail,
   renderComposer,
   onEventDraft,
+  onRefresh,
 }: PersonThreadProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * fix/qm-people-pull-to-refresh — the person thread had no pull gesture
+   * at all: the shared hook was wired only into the classic surfaces.
+   * Semantics note, stated so nobody "fixes" it later: this thread renders
+   * newest-last, so the reader normally sits at the BOTTOM; the hook arms
+   * only at scrollTop 0 (the oldest end, where "Load earlier messages"
+   * lives), exactly like the classic thread view's pull-to-load-older.
+   * Pulling down there refreshes the thread's real data via the page's
+   * refetch; rows stay mounted under the spinner. Touch-only, horizontal
+   * intent latches out, so it can never fire from a sideways swipe.
+   */
+  const {
+    listProps: ptrListProps,
+    pullDistance: ptrPullDistance,
+    isRefreshing: ptrRefreshing,
+  } = usePullToRefresh({
+    onRefresh: onRefresh ?? (() => {}),
+    disabled: !onRefresh,
+  });
   const [showNewMessagesPill, setShowNewMessagesPill] = useState(false);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_MESSAGES);
   const prevLengthRef = useRef<number | null>(null);
@@ -500,11 +529,41 @@ export function PersonThread({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
+          onTouchStart={ptrListProps.onTouchStart}
+          onTouchMove={ptrListProps.onTouchMove}
+          onTouchEnd={ptrListProps.onTouchEnd}
+          onTouchCancel={ptrListProps.onTouchCancel}
           className="h-full space-y-1.5 overflow-y-auto px-3 py-2 sm:px-4"
           data-testid="thread-scroll"
           role="log"
           aria-label={`Conversation with ${conversation.name}`}
         >
+          {/*
+            Pull-to-refresh indicator, Mail-orange on pure black, no divider
+            lines. Sits at the top of the thread (the end the gesture arms
+            at), above "Load earlier messages".
+          */}
+          {(ptrPullDistance > 0 || ptrRefreshing) && (
+            <div
+              data-testid="ptr-indicator"
+              className="flex items-center justify-center gap-2 overflow-hidden bg-black text-xs font-semibold text-[#F97316] transition-[height]"
+              style={{ height: ptrRefreshing ? 44 : ptrPullDistance }}
+              aria-hidden="true"
+            >
+              <span
+                className={`size-4 rounded-full border-2 border-[#F97316]/30 border-t-[#F97316] ${
+                  ptrRefreshing ? 'animate-spin' : ''
+                }`}
+              />
+              <span>
+                {ptrRefreshing
+                  ? 'Refreshing conversation…'
+                  : ptrPullDistance >= 56
+                    ? 'Release to refresh'
+                    : 'Pull down to refresh'}
+              </span>
+            </div>
+          )}
           {messages.length === 0 && (
             <div className="py-10 text-center text-sm text-zinc-500">No messages yet.</div>
           )}

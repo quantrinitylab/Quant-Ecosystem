@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from './AppShell';
 import { AppSidebar } from './AppSidebar';
 import { useInbox } from '../hooks/useInbox';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { useMailMutations } from '../hooks/useMailMutations';
 import { usePeopleKeyboard } from '../hooks/usePeopleKeyboard';
 import { useAuth } from '../providers/auth-provider';
@@ -61,6 +62,27 @@ export function PeopleHome() {
   } = useInbox(isSpamLens ? { folderType: 'SPAM' } : undefined);
   const mutations = useMailMutations();
   const [searchQuery, setSearchQuery] = useState('');
+
+  /**
+   * fix/qm-people-pull-to-refresh — the People home had no pull gesture:
+   * the shared `usePullToRefresh` hook was wired only into the classic
+   * inbox and classic thread view, so on the default mobile home the only
+   * recovery from a stale or failed list was the error state's Retry
+   * button. The gesture reuses the real inbox refetch (same source the
+   * list renders from), so rows stay mounted under the spinner and morph
+   * in place when new data lands — no skeleton wall. Touch-only and armed
+   * only at scrollTop 0, so row swipes and desktop scroll are untouched;
+   * the hook latches out on horizontal intent. The Retry button stays as
+   * the keyboard / assistive-technology fallback — the gesture is an
+   * addition, not a replacement.
+   */
+  const {
+    listProps: ptrListProps,
+    pullDistance: ptrPullDistance,
+    isRefreshing: ptrRefreshing,
+  } = usePullToRefresh({
+    onRefresh: () => refetch(),
+  });
 
   const conversations = useMemo<PersonConversation[]>(
     () => groupEmailsByPerson(emails ?? [], currentUserEmail),
@@ -181,7 +203,44 @@ export function PeopleHome() {
           <PeopleWorldTabs world={world} onChange={setWorld} counts={counts} />
         </div>
 
-        <div ref={listScrollRef} className="mt-2 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
+        <div
+          ref={listScrollRef}
+          data-testid="people-scroll"
+          className="mt-2 flex-1 overflow-y-auto px-4 pb-6 sm:px-6"
+          onTouchStart={ptrListProps.onTouchStart}
+          onTouchMove={ptrListProps.onTouchMove}
+          onTouchEnd={ptrListProps.onTouchEnd}
+          onTouchCancel={ptrListProps.onTouchCancel}
+        >
+          {/*
+            Pull-to-refresh indicator, Mail-orange on pure black, no divider
+            lines (same contract as the classic inbox indicator, without its
+            border). Rendered at the top of the scroll container so it
+            pushes the list down as the finger pulls; it also renders over
+            the error state, so a failed list can be refreshed by gesture
+            as well as by the Retry button below.
+          */}
+          {(ptrPullDistance > 0 || ptrRefreshing) && (
+            <div
+              data-testid="ptr-indicator"
+              className="flex items-center justify-center gap-2 overflow-hidden bg-black text-xs font-semibold text-[#F97316] transition-[height]"
+              style={{ height: ptrRefreshing ? 44 : ptrPullDistance }}
+              aria-hidden="true"
+            >
+              <span
+                className={`size-4 rounded-full border-2 border-[#F97316]/30 border-t-[#F97316] ${
+                  ptrRefreshing ? 'animate-spin' : ''
+                }`}
+              />
+              <span>
+                {ptrRefreshing
+                  ? 'Refreshing conversations…'
+                  : ptrPullDistance >= 56
+                    ? 'Release to refresh'
+                    : 'Pull down to refresh'}
+              </span>
+            </div>
+          )}
           <p className="sr-only" role="status" aria-live="polite">
             {cursorAnnouncement}
           </p>
