@@ -1483,7 +1483,12 @@ function QuantGitContent() {  const router = useRouter();
           branchSource,
           branchTarget: currentBranch || 'main',
           checksStatus: 'unknown',
-          commentsCount: 0,
+          // Pass through honestly: the server returns the real review-comment
+          // count (or null when unknown) — on the idempotent dedup path the
+          // returned PR may already have discussion, so a hardcoded 0 here
+          // would overwrite the real count with an invented zero. Same
+          // convention as the diff-stats passthrough below.
+          commentsCount: item.commentsCount ?? null,
           createdAt: 'just now',
           // Diff stats: pass through honestly — null/undefined stays
           // unknown ('—' in the UI), never invented +12/-2 counts.
@@ -1567,7 +1572,12 @@ function QuantGitContent() {  const router = useRouter();
             branchSource: params.sourceBranch,
             branchTarget: targetBranch,
             checksStatus: 'unknown',
-            commentsCount: 0,
+            // Pass through honestly: the server returns the real review-comment
+            // count (or null when unknown) — on the idempotent dedup path the
+            // returned PR may already have discussion, so a hardcoded 0 here
+            // would overwrite the real count with an invented zero. Same
+            // convention as the diff-stats passthrough below.
+            commentsCount: item.commentsCount ?? null,
             createdAt: 'just now',
             // Diff stats: pass through honestly — null/undefined stays
             // unknown ('—' in the UI), never invented +12/-2 counts.
