@@ -1267,6 +1267,21 @@ export function ContextBottomNavBar({
     return null;
   }
 
+  // QM-DRIVE-MOBILE-TAB-DEDUP: on the /drive page itself the page renders
+  // DriveMobileTabStrip on mobile — the full 9-section drive tab set (Home,
+  // Recent, Feed, AI Memory, Vault, Files, Shared, Starred, Cleaner) — so
+  // the shell bottom bar's My Drive / Recent / Starred slots (plus the
+  // active overflow tab) would duplicate it: Recent and Starred appear twice,
+  // both wired to the same ?tab= param. The strip must stay, not the bar:
+  // bottom-bar overflow tabs only join the bar while active, so the bar
+  // alone cannot reach Feed / AI Memory / Vault / Shared / Cleaner
+  // (QM-UIUX-019 — that unreachability is why the strip exists). The bar is
+  // therefore suppressed only on the exact /drive route; drive sub-routes
+  // (/drive/doc/*, /drive/share/*) render no strip and keep the bar.
+  if (pathname === '/drive') {
+    return null;
+  }
+
   const handleTabClick = (tab: ContextSubTab) => {
     // The Quanty tab opens a cockpit overlay, not a view: it must not steal
     // the active slot, so the bar keeps telling the truth about where the
