@@ -13,6 +13,59 @@ interface StoredAccount {
   token?: string;
 }
 
+/**
+ * Minimum vertical travel for an avatar swipe to count as an account switch
+ * (px). Below this the gesture is a tap, which must keep opening the menu.
+ */
+export const ACCOUNT_SWIPE_MIN_DISTANCE = 24;
+
+/** Vertical avatar-swipe direction: 'down' cycles forward, 'up' cycles back. */
+export type AvatarSwipeDirection = 'down' | 'up';
+
+/**
+ * Classify a touch drag on the avatar trigger as an account-switch swipe
+ * (Gmail's avatar-swipe gesture: swipe up or down on the profile picture to
+ * switch accounts). Returns null for taps and for horizontal drags, so taps
+ * still open the menu and horizontal drags still scroll the page.
+ */
+export function classifyAvatarSwipe(
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+): AvatarSwipeDirection | null {
+  const dx = endX - startX;
+  const dy = endY - startY;
+  if (Math.abs(dy) < ACCOUNT_SWIPE_MIN_DISTANCE) return null;
+  if (Math.abs(dx) >= Math.abs(dy)) return null;
+  return dy > 0 ? 'down' : 'up';
+}
+
+/**
+ * Pick the account an avatar swipe lands on: 'down' moves to the next account
+ * in known-accounts order (wrapping to the first), 'up' to the previous
+ * (wrapping to the last). Returns null when there is nothing to switch to
+ * (fewer than two known accounts) — a single-account user never gets a
+ * phantom switch. An unknown current account anchors at the list ends.
+ */
+export function accountForAvatarSwipe(
+  accounts: StoredAccount[],
+  currentEmail: string,
+  direction: AvatarSwipeDirection,
+): StoredAccount | null {
+  if (accounts.length < 2) return null;
+  const currentIdx = accounts.findIndex(
+    (a) => a.email.toLowerCase() === currentEmail.toLowerCase(),
+  );
+  if (currentIdx === -1) {
+    return direction === 'down' ? accounts[0] : accounts[accounts.length - 1];
+  }
+  if (direction === 'down') {
+    return accounts[(currentIdx + 1) % accounts.length] ?? null;
+  }
+  return accounts[(currentIdx - 1 + accounts.length) % accounts.length] ?? null;
+}
+
 const STORAGE_ACCOUNTS_KEY = 'quant_known_accounts';
 
 /**
@@ -250,6 +303,45 @@ export function AccountBadge({
     router.push(`/login?switch_to=${encodeURIComponent(account.email)}`);
   };
 
+  /*
+    Gmail-style avatar-swipe account switch (mobile-inbox finding): swiping up
+    or down on the avatar cycles through known accounts with one gesture,
+    instead of opening the menu and tapping through it. Touch-only, so mouse
+    users are unaffected. A swipe must NOT also toggle the menu — the browser
+    fires a click after touchend, so the swipe sets `swipeConsumedRef` and the
+    click handler swallows exactly that one click.
+  */
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const swipeConsumedRef = useRef(false);
+
+  const handleAvatarTouchStart = (event: React.TouchEvent) => {
+    const touch = event.touches[0];
+    if (touch) touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleAvatarTouchEnd = (event: React.TouchEvent) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start) return;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    const direction = classifyAvatarSwipe(start.x, start.y, touch.clientX, touch.clientY);
+    if (!direction) return;
+    const target = accountForAvatarSwipe(accounts, user.email, direction);
+    if (!target || target.email.toLowerCase() === user.email.toLowerCase()) return;
+    swipeConsumedRef.current = true;
+    setOpen(false);
+    router.push(`/login?switch_to=${encodeURIComponent(target.email)}`);
+  };
+
+  const handleAvatarClick = () => {
+    if (swipeConsumedRef.current) {
+      swipeConsumedRef.current = false;
+      return;
+    }
+    setOpen((value) => !value);
+  };
+
   const handleAddAccount = () => {
     setOpen(false);
     router.push('/login?add_account=true');
@@ -260,11 +352,22 @@ export function AccountBadge({
       <button
         type="button"
         ref={triggerRef}
-        onClick={() => setOpen((value) => !value)}
+        onClick={handleAvatarClick}
+        onTouchStart={handleAvatarTouchStart}
+        onTouchEnd={handleAvatarTouchEnd}
+        onTouchCancel={() => {
+          touchStartRef.current = null;
+        }}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={`Account menu: ${name}`}
         aria-controls={open ? 'account-badge-menu' : undefined}
+        data-testid="account-badge-trigger"
+        title={
+          accounts.length > 1
+            ? 'Swipe up or down to switch account'
+            : undefined
+        }
         className={
           compact
             ? `flex items-center justify-center rounded-full border border-[var(--quant-surface-elevated)] hover:border-[var(--quant-primary)]/50 hover:bg-[#161922] transition-all outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
