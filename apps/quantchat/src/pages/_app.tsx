@@ -22,7 +22,8 @@ import { PagesAuthGate } from '../providers/auth-gate-pages';
  *  - UNSTYLED (fixed earlier): without this file's globals.css import the
  *    pages had no stylesheet at all; the per-page custom class names that
  *    were never defined anywhere have since been replaced with the app's
- *    Tailwind/token system page by page (calls, then settings/discover).
+ *    Tailwind/token system page by page (calls, then settings/discover,
+ *    bitmoji — QC-F-002 fast-follow, 2026-10-25).
  */
 export default function QuantChatPagesApp({ Component, pageProps }: AppProps) {
   return (
