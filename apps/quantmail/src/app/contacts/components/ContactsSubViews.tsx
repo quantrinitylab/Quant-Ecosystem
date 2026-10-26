@@ -1254,7 +1254,7 @@ export function ContactDetailSheet({
 
           <button
             type="button"
-            onClick={() => onScheduleMeeting ? onScheduleMeeting(contact.email) : (window.location.href = `/calendar?attendee=${encodeURIComponent(contact.email)}`)}
+            onClick={() => onScheduleMeeting ? onScheduleMeeting(contact.email) : (window.location.href = `/calendar?attendee=${encodeURIComponent(contact.email || '')}`)}
             className="flex items-center gap-1 text-[11px] font-semibold text-[var(--quant-warning)] hover:underline"
           >
             <span>+ Schedule Meeting</span>
@@ -1289,7 +1289,7 @@ export function ContactDetailSheet({
                 type="button"
                 onClick={() => {
                   if (typeof window !== 'undefined') {
-                    window.location.href = `/calendar?attendee=${encodeURIComponent(contact.email)}`;
+                    window.location.href = `/calendar?attendee=${encodeURIComponent(contact.email || '')}`;
                   }
                 }}
                 className="px-2.5 py-1 rounded-lg border border-[var(--quant-warning)]/30 bg-[var(--quant-warning)]/10 text-[var(--quant-warning)] text-xs font-semibold hover:bg-[var(--quant-warning)]/20 transition-colors shrink-0"
