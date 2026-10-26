@@ -1109,14 +1109,23 @@ export function DriveHomeSubView({
                         <span className="block text-[10px] text-[#64748B]">Folder</span>
                       </span>
                     </button>
-                    <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity">
+                    {/*
+                     * Folder actions are ALWAYS visible — never hover-gated.
+                     * The previous `opacity-0 group-hover:opacity-100` hid
+                     * rename/delete on touchscreens (no hover), leaving
+                     * mobile/tablet users with no path to rename or delete
+                     * a folder from the home view. Google Drive shows a
+                     * per-folder overflow affordance on every card; these
+                     * two always-visible buttons are this surface's version.
+                     */}
+                    <div className="flex items-center gap-0.5 shrink-0">
                       {onOpenRename && (
                         <button
                           type="button"
                           aria-label={`Rename folder ${folder.name}`}
                           title="Rename"
                           onClick={(e) => onOpenRename(folder, e)}
-                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F8FAFC] hover:bg-[#21262D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                          className="size-8 rounded grid place-items-center text-[#64748B] hover:text-[#F8FAFC] hover:bg-[#21262D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
                         >
                           <PencilIcon className="size-3.5" />
                         </button>
@@ -1127,7 +1136,7 @@ export function DriveHomeSubView({
                           aria-label={`Delete folder ${folder.name}`}
                           title="Delete"
                           onClick={(e) => onDeleteItem(folder.id, folder.name, e)}
-                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-rose-300 hover:bg-rose-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                          className="size-8 rounded grid place-items-center text-[#64748B] hover:text-rose-300 hover:bg-rose-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                         >
                           <TrashIcon className="size-3.5" />
                         </button>
