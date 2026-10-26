@@ -132,6 +132,17 @@ interface LocalUser {
   username: string;
 }
 
+interface ResolvedLocalUsers {
+  /** Users who are the single case-insensitive match for at least one address. */
+  users: LocalUser[];
+  /**
+   * Normalized addresses whose case-insensitive match is ambiguous — two or
+   * more distinct users match the same address. Nothing is delivered for
+   * these addresses: see below.
+   */
+  ambiguousAddresses: string[];
+}
+
 /**
  * The users this message is genuinely addressed to.
  *
@@ -141,8 +152,24 @@ interface LocalUser {
  * between an alias system and the previous behaviour, which took the handle out of
  * any address at all — including an attacker-controlled one — and appended
  * `@quantmail.in` to it.
+ *
+ * AMBIGUITY IS A HOLD, NOT A FAN-OUT. The match is case-insensitive so legacy
+ * mixed-case rows keep receiving mail, but that means two rows that differ only
+ * by case (`Bob@quantmail.in` and `bob@quantmail.in`), or an email row and a
+ * username row sharing one handle, both match the same normalized address.
+ * The previous version returned every match and the caller ingested a copy into
+ * each one — a message addressed to one person landed in a stranger's inbox.
+ * So resolution is per address: an address with exactly one distinct matching
+ * user resolves to that user; an address with two or more resolves to nobody
+ * and is reported as ambiguous. A user who is the unique match for one address
+ * still receives their copy even when another address on the same message is
+ * ambiguous, and a user who matches only ambiguously receives nothing.
+ * No exact-case tie-break is attempted: the sender's casing is not a reliable
+ * statement of which twin they meant, and guessing wrong is the leak itself.
+ * The underlying collision (two live rows for one normalized identity) needs a
+ * data cleanup, not a delivery guess.
  */
-async function resolveLocalUsers(addresses: string[]): Promise<LocalUser[]> {
+async function resolveLocalUsers(addresses: string[]): Promise<ResolvedLocalUsers> {
   const local = [
     ...new Set(
       addresses
@@ -151,7 +178,7 @@ async function resolveLocalUsers(addresses: string[]): Promise<LocalUser[]> {
     ),
   ];
   if (local.length === 0) {
-    return [];
+    return { users: [], ambiguousAddresses: [] };
   }
   const handles = [...new Set(local.map((address) => address.split('@')[0] ?? ''))].filter(Boolean);
   const db = prisma as unknown as {
@@ -164,7 +191,7 @@ async function resolveLocalUsers(addresses: string[]): Promise<LocalUser[]> {
   // would never hit with an exact-match `in` — dropping their SES-delivered
   // mail with "no local recipient". New rows are normalized at register, so
   // the case-sensitive @unique constraints keep enforcing real uniqueness.
-  return db.user.findMany({
+  const candidates = await db.user.findMany({
     where: {
       deletedAt: null,
       OR: [
@@ -174,6 +201,27 @@ async function resolveLocalUsers(addresses: string[]): Promise<LocalUser[]> {
     },
     select: { id: true, email: true, username: true },
   });
+  const users: LocalUser[] = [];
+  const seenUserIds = new Set<string>();
+  const ambiguousAddresses: string[] = [];
+  for (const address of local) {
+    const handle = address.split('@')[0] ?? '';
+    const matches = candidates.filter(
+      (user) =>
+        user.email.toLowerCase() === address || user.username.toLowerCase() === handle,
+    );
+    const distinct = [...new Map(matches.map((user) => [user.id, user])).values()];
+    if (distinct.length === 1) {
+      const user = distinct[0]!;
+      if (!seenUserIds.has(user.id)) {
+        seenUserIds.add(user.id);
+        users.push(user);
+      }
+    } else if (distinct.length > 1) {
+      ambiguousAddresses.push(address);
+    }
+  }
+  return { users, ambiguousAddresses };
 }
 
 // ---------------------------------------------------------------------------
@@ -390,7 +438,9 @@ interface DeliveryOutcome {
   key: string;
   delivered: number;
   /** Set when the message was intentionally not delivered to anyone. */
-  skipped?: 'no-local-recipient';
+  skipped?: 'no-local-recipient' | 'ambiguous-recipient';
+  /** Normalized addresses held back because their match was ambiguous. */
+  held?: number;
 }
 
 /**
@@ -416,13 +466,35 @@ async function deliverStoredMessage(
   // anything, and a Bcc'd recipient appears in neither To nor Cc — reading only the
   // headers is how blind copies get dropped.
   const addressed = [...(receipt?.recipients ?? []), ...parsed.toAddresses, ...parsed.ccAddresses];
-  const users = await resolveLocalUsers(addressed);
+  const { users, ambiguousAddresses } = await resolveLocalUsers(addressed);
   if (users.length === 0) {
+    if (ambiguousAddresses.length > 0) {
+      // Held, not delivered and not bounced back for redelivery: the
+      // collision will not resolve itself on retry, and redelivering would
+      // only re-raise the same ambiguity. The counts — never the addresses
+      // themselves — go in the log so the collision is visible to operators.
+      log.warn(
+        { key, addressed: addressed.length, ambiguous: ambiguousAddresses.length },
+        '[inbound] ambiguous recipient — message held, delivered to nobody',
+      );
+      return {
+        key,
+        delivered: 0,
+        skipped: 'ambiguous-recipient',
+        held: ambiguousAddresses.length,
+      };
+    }
     log.warn(
       { key, addressed: addressed.length },
       '[inbound] no local recipient — message dropped',
     );
     return { key, delivered: 0, skipped: 'no-local-recipient' };
+  }
+  if (ambiguousAddresses.length > 0) {
+    log.warn(
+      { key, addressed: addressed.length, ambiguous: ambiguousAddresses.length },
+      '[inbound] ambiguous recipient address held — unique recipients still delivered',
+    );
   }
 
   const verdict = verdictFromReceipt(receipt, parsed.fromAddress);
@@ -472,8 +544,15 @@ async function deliverStoredMessage(
   if (failures.length > 0) {
     throw new Error(`ingest failed for ${failures.length} of ${users.length} recipients`);
   }
-  log.info({ key, delivered, quarantine, dmarc: verdict.dmarc }, '[inbound] delivered');
-  return { key, delivered };
+  log.info(
+    { key, delivered, held: ambiguousAddresses.length, quarantine, dmarc: verdict.dmarc },
+    '[inbound] delivered',
+  );
+  return {
+    key,
+    delivered,
+    ...(ambiguousAddresses.length > 0 ? { held: ambiguousAddresses.length } : {}),
+  };
 }
 
 /**
@@ -952,6 +1031,7 @@ export default async function inboundWebhookRoutes(
 
     let delivered = 0;
     let skipped = 0;
+    let held = 0;
     const failed: string[] = [];
     for (const key of keys) {
       try {
@@ -964,6 +1044,7 @@ export default async function inboundWebhookRoutes(
           inboundAttachments,
         );
         delivered += outcome.delivered;
+        held += outcome.held ?? 0;
         if (outcome.skipped) {
           skipped += 1;
         }
@@ -974,7 +1055,7 @@ export default async function inboundWebhookRoutes(
     }
 
     app.log.info(
-      { actorId, scanned: keys.length, delivered, skipped, failed: failed.length },
+      { actorId, scanned: keys.length, delivered, skipped, held, failed: failed.length },
       '[inbound] sync-all complete',
     );
     return reply.send({
@@ -983,6 +1064,7 @@ export default async function inboundWebhookRoutes(
       delivered,
       skipped,
       failed: failed.length,
+      ...(held > 0 ? { held } : {}),
     });
   });
 }
