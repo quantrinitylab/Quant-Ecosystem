@@ -3597,12 +3597,41 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         select: { id: true, displayName: true, email: true, avatarUrl: true },
       });
     } else if (parsed.data.email) {
-      if (typeof prisma.user?.findFirst === 'function') {
+      if (typeof prisma.user?.findMany === 'function') {
+        // Resolve-exactly-one-or-409: case-colliding legacy rows
+        // (person@example.com vs Person@example.com) must fail closed, not
+        // grant repo access to whichever row the DB returns first. Mirrors
+        // the drive share-link audience fix (AUDIENCE_AMBIGUOUS) and
+        // routes/auth.ts findUserByEmailInsensitive: the lookup stays
+        // case-insensitive, but it must resolve to exactly one account.
+        // `take: 2` is enough to detect a collision without scanning the
+        // whole match set. A colliding address can still be invited
+        // unambiguously by userId (the branch above).
+        const matches = await prisma.user.findMany({
+          where: { email: { equals: parsed.data.email, mode: 'insensitive' } },
+          select: { id: true, displayName: true, email: true, avatarUrl: true },
+          take: 2,
+        });
+        if (matches.length > 1) {
+          throw createAppError(
+            `More than one account matches ${parsed.data.email} — the address is ` +
+              'registered with different capitalisation on multiple accounts. ' +
+              'Invite by userId instead, so the grant goes to exactly the intended person.',
+            409,
+            'COLLABORATOR_EMAIL_AMBIGUOUS',
+          );
+        }
+        targetUser = matches[0] ?? null;
+      }
+      if (!targetUser && typeof prisma.user?.findFirst === 'function') {
         // Case-insensitive match: legacy User rows predate email normalization
         // and may carry mixed case (e.g. `LegacyCase@quantmail.in`), so a
         // case-exact lookup 404s a real account. Mirrors
         // routes/auth.ts findUserByEmailInsensitive and the drive share-link
-        // audience fix (PR #1336).
+        // audience fix (PR #1336). Only reached when the client/double has
+        // no findMany to prove uniqueness — a real Prisma client always
+        // takes the findMany branch above, so this path can never silently
+        // pick one of several case-colliding rows in production.
         targetUser = await prisma.user.findFirst({
           where: { email: { equals: parsed.data.email, mode: 'insensitive' } },
           select: { id: true, displayName: true, email: true, avatarUrl: true },
