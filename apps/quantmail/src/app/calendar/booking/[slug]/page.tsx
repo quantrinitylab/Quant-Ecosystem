@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TIMEZONES } from '../../types';
-import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolvePostSubmitDeadLink, resolveSlotsResponse, resolveSlotsLoadFailure, slotsWithinGuestDay, guestDayKeyToYmd, compareGuestDayKeys, todayInTimeZone, weekdayInTimeZone, isGuestDayEnabled, formatGuestDayHeader, formatGuestDayShort, defaultSelectedGuestDay, daysIn1BasedMonth } from './booking-utils';
+import { generateGoogleCalendarUrl, generateIcsContent, applyBookingLinkResponse, resolveBookingFailureMessage, resolveLinkLoadFailure, resolvePostSubmitDeadLink, resolveSlotsResponse, resolveSlotsLoadFailure, slotsWithinGuestDay, guestDayKeyToYmd, compareGuestDayKeys, todayInTimeZone, weekdayInTimeZone, isGuestDayEnabled, formatGuestDayHeader, formatGuestDayShort, defaultSelectedGuestDay, daysIn1BasedMonth, formatSlotTimeLabelInTz, shouldResetSelectionOnTimezoneChange } from './booking-utils';
 import type { BookingLinkDetails, BookingLinkLoadStatus, BookingSlotItem, GuestDayKey } from './booking-utils';
 import {
   IconClock,
@@ -413,6 +413,20 @@ export default function PublicBookingPage(props: PageProps) {
     setCurrentStep(2);
   };
 
+  // Timezone change (fix/qm-calendar-booking-tz-day): the new zone
+  // reinterprets the picked day, so a slot chosen under the old zone must
+  // not survive into steps 1–2 — confirming it would book an instant that
+  // can land on a different guest day at the zone edges. Drop the
+  // selection and return to date/slot picking; step 3 (booking complete)
+  // keeps its absolute instants and only relabels. Form input is kept.
+  const handleTimezoneChange = (tz: string) => {
+    setSelectedTimezone(tz);
+    if (shouldResetSelectionOnTimezoneChange(currentStep)) {
+      setSelectedSlot(null);
+      setCurrentStep(1);
+    }
+  };
+
   // Handle Booking Form Submission
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -682,7 +696,7 @@ export default function PublicBookingPage(props: PageProps) {
                     </div>
                     <div className="text-xs text-[var(--quant-muted-foreground)] flex items-center gap-1.5">
                       <IconClock size={13} />
-                      <span>{selectedSlot.timeLabel} ({meetingDetails.duration}m)</span>
+                      <span>{formatSlotTimeLabelInTz(selectedSlot.start, selectedTimezone)} ({meetingDetails.duration}m)</span>
                     </div>
                   </div>
                 )}
@@ -699,7 +713,7 @@ export default function PublicBookingPage(props: PageProps) {
                   <select
                     id="booking-timezone"
                     value={selectedTimezone}
-                    onChange={(e) => setSelectedTimezone(e.target.value)}
+                    onChange={(e) => handleTimezoneChange(e.target.value)}
                     className="w-full appearance-none rounded-xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] pl-8 pr-8 py-2 text-xs text-white focus:outline-none focus:border-[var(--app-accent)] cursor-pointer"
                   >
                     {TIMEZONES.map((tz) => (
@@ -793,7 +807,14 @@ export default function PublicBookingPage(props: PageProps) {
                             key={idx}
                             type="button"
                             disabled={!isAvailable}
-                            onClick={() => setSelectedDate(item.key)}
+                            onClick={() => {
+                              // A new picked day invalidates any slot chosen
+                              // for the previous day (fix/qm-calendar-booking-tz-day):
+                              // after Back-from-step-2 the old selection would
+                              // otherwise linger under the new day's header.
+                              setSelectedDate(item.key);
+                              setSelectedSlot(null);
+                            }}
                             className={`size-9 rounded-xl text-xs font-semibold flex items-center justify-center transition-all ${
                               isSelected
                                 ? 'bg-[var(--app-accent)] text-[var(--quant-background)] font-black shadow-md shadow-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] scale-105'
@@ -1016,7 +1037,7 @@ export default function PublicBookingPage(props: PageProps) {
                     <div className="flex items-center gap-2">
                       <IconClock size={14} />
                       <span>
-                        {selectedSlot?.timeLabel} ({meetingDetails.duration} min)
+                        {formatSlotTimeLabelInTz(confirmedBooking.startTime, selectedTimezone)} ({meetingDetails.duration} min)
                       </span>
                     </div>
 
