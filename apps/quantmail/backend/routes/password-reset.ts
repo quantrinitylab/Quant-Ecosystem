@@ -19,7 +19,12 @@
  * Two properties are deliberate and easy to break later:
  *   1. The request endpoint answers identically whether or not the address
  *      exists, and does not wait for SES, so neither the body nor the latency
- *      says who has an account.
+ *      says who has an account. The one exception is the corrupted
+ *      case-collision state (two live rows differing only by case): that
+ *      answers 409 EMAIL_CASE_CONFLICT, exactly like login does for the same
+ *      address, so it reveals nothing login does not already reveal — and it
+ *      is strictly safer than mailing a live reset link to whichever twin the
+ *      database happens to return first.
  *   2. A reset never touches the second factor and never issues a session. Both
  *      would turn "I control this mailbox" into a 2FA bypass.
  */
@@ -38,6 +43,13 @@ import {
   resetUrl,
   sendPasswordResetEmail,
 } from '../lib/password-reset';
+
+/** The answer for a case-collision: mirrors routes/auth.ts, which fails closed
+ *  on the same state instead of silently picking one account. The wording says
+ *  "reset" rather than "sign-in" because this is the reset entry point. */
+const EMAIL_CASE_CONFLICT_MESSAGE =
+  'This email address is registered on more than one account with different capitalisation. ' +
+  'Password reset is paused for these accounts until the addresses are merged — contact support.';
 
 /** The one answer the request endpoint ever gives. */
 const NON_COMMITTAL = {
@@ -103,12 +115,27 @@ export async function passwordResetRoutes(fastify: FastifyInstance) {
 
       // Case-insensitive because people capitalise their own address; the mail
       // still goes to the stored spelling.
-      const user = await prisma.user.findFirst({
+      //
+      // findMany, NOT findFirst, with take: 2: under the case-sensitive
+      // @unique index, legacy rows can collide on case (person@example.com
+      // vs Person@example.com). findFirst would mail the reset link to
+      // whichever twin the database returns first — a live credential to
+      // the wrong mailbox — while login already fails closed on the same
+      // state (409 EMAIL_CASE_CONFLICT, routes/auth.ts
+      // findUserByEmailInsensitive). So this entry point fails closed too:
+      // more than one live match answers 409 and sends nothing, and the
+      // take: 2 cap is all the proof needed — a third twin changes nothing.
+      const matches = await prisma.user.findMany({
         where: {
           email: { equals: normalized, mode: 'insensitive' },
           deletedAt: null,
         },
+        take: 2,
       });
+      if (matches.length > 1) {
+        return fail(reply, 409, 'EMAIL_CASE_CONFLICT', EMAIL_CASE_CONFLICT_MESSAGE);
+      }
+      const user = matches[0] ?? null;
 
       if (user) {
         // One live link per account: without the burn, repeated requests
