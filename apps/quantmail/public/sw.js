@@ -23,7 +23,10 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body: payload.body || '',
-      icon: '/quanty-ghost.png',
+      // Brand lock (fix/qm-brandwordmark-vector-r2): the notification
+      // icon is the QuantMail "M" mark, never the Quanty ghost — the ghost
+      // is the mascot, not an app icon (same rule as layout.tsx favicon).
+      icon: '/favicon.svg',
       tag: payload.tag || undefined,
       data: { url },
     }),
