@@ -1142,16 +1142,6 @@ export function executeContextTabClick(
     return;
   }
 
-  // Quanty AI logo tab: open the autonomous developer cockpit. The quantgit
-  // page opens its copilot view on `quant:copilot:open`; navigating with
-  // ?tab=copilot covers the not-yet-on-quantgit case via initialSubTab.
-  if (tab.id === 'quanty' && pillar === 'quantgit') {
-    if (canWindow) {
-      window.dispatchEvent(new CustomEvent('quant:copilot:open'));
-      window.dispatchEvent(new CustomEvent('quant:quanty:open'));
-    }
-  }
-
   if (canWindow) {
     window.dispatchEvent(
       new CustomEvent('quant:subtab-change', {
