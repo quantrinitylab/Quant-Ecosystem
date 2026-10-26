@@ -81,12 +81,15 @@ import { showToast } from '../../components/InboxToast';
 import { ShortcutKeys } from '../../components/ShortcutKeys';
 import { useDesktopNotifications } from '../../hooks/useDesktopNotifications';
 import { useMailNotificationMode } from '../../hooks/useMailNotificationMode';
+import { useMailNotificationLabelOverrides } from '../../hooks/useMailNotificationLabelOverrides';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { writeAIIntent } from '../../lib/ai-intent-preference';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
 import { buildHelpGroups, dimNoteFor, helpGroupHeading } from '../../lib/keyboard/help-model';
 import {
+  MAIL_NOTIFICATION_LABEL_OVERRIDE_OPTIONS,
   MAIL_NOTIFICATION_MODE_OPTIONS,
+  type MailNotificationLabelOverride,
   type MailNotificationMode,
 } from '../../lib/mail-notification-mode';
 import { useCommandList } from '../../lib/keyboard/hooks';
@@ -305,6 +308,11 @@ export default function SettingsPage() {
   const desktopNotifications = useDesktopNotifications();
   const pushNotifications = usePushNotifications();
   const mailNotificationMode = useMailNotificationMode();
+  const mailNotificationLabelOverrides = useMailNotificationLabelOverrides();
+  const [notificationLabels, setNotificationLabels] = useState<
+    Array<{ id: string; name: string; color?: string }>
+  >([]);
+  const [notificationLabelsLoaded, setNotificationLabelsLoaded] = useState(false);
   const commands = useCommandList();
   const helpGroups = useMemo(() => buildHelpGroups(commands), [commands]);
   const helpNote = dimNoteFor(helpGroups, {
@@ -509,6 +517,59 @@ export default function SettingsPage() {
       });
     },
     [mailNotificationMode.setMode],
+  );
+
+  /**
+   * Per-label notification overrides, fetched only when the Notifications tab
+   * opens — the labels list is the only reason to call the labels endpoint
+   * here, and the tab is not the labels manager. The choice control needs a
+   * plain string value, so the "follow the global mode" option (null in the
+   * lib) is the 'default' choice here and maps back to null on save.
+   */
+  useEffect(() => {
+    if (activeTab !== 'notifications') return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await apiClient.getLabels();
+        if (!cancelled && response.success && Array.isArray(response.data)) {
+          setNotificationLabels(
+            response.data
+              .filter(
+                (label) =>
+                  !!label && typeof label.id === 'string' && typeof label.name === 'string',
+              )
+              .map((label) => ({ id: label.id, name: label.name, color: label.color })),
+          );
+        }
+      } catch {
+        // A failed labels read leaves the per-label section empty rather than
+        // faked; the global mode above still works.
+      } finally {
+        if (!cancelled) setNotificationLabelsLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
+
+  const changeMailNotificationLabelOverride = useCallback(
+    async (labelId: string, labelName: string, next: 'default' | MailNotificationLabelOverride) => {
+      const { ok, dropped } = await mailNotificationLabelOverrides.setOverride(
+        labelId,
+        next === 'default' ? null : next,
+      );
+      showToast({
+        text: ok
+          ? dropped.length > 0
+            ? `Saved for ${labelName}, but ${dropped.length} label override(s) were dropped because the label is gone`
+            : `Notifications for ${labelName} updated`
+          : `Could not save notifications for ${labelName}`,
+        type: ok ? 'info' : 'error',
+      });
+    },
+    [mailNotificationLabelOverrides.setOverride],
   );
 
   /**
@@ -1044,7 +1105,7 @@ export default function SettingsPage() {
           {activeTab === 'notifications' && (
             <SettingsSection
               title="Notifications"
-              description="One mode and two switches, and all three are real. The mode decides which mail creates a notification at all — it is enforced where notifications are born, so it covers the in-app bell, push and desktop alerts together. The switches below are per-device delivery gates: whether this browser may show what the mode lets through. Email digests, sound alerts and a mentions-only filter each wrote a preference nothing read — there is no digest job, no sound asset and no mention parser — so they are gone rather than sitting here pretending."
+              description="One mode, two switches, and per-label overrides — all real. The mode decides which mail creates a notification at all — it is enforced where notifications are born, so it covers the in-app bell, push and desktop alerts together. The switches below are per-device delivery gates: whether this browser may show what the mode lets through. A label override beats the mode for mail carrying that label (except when the mode is “Nothing”, which silences everything). Email digests, sound alerts and a mentions-only filter each wrote a preference nothing read — there is no digest job, no sound asset and no mention parser — so they are gone rather than sitting here pretending."
             >
               <SettingsChoice<MailNotificationMode>
                 legend="Notify me about"
@@ -1094,6 +1155,45 @@ export default function SettingsPage() {
                 onChange={(next) => void pushNotifications.setEnabled(next)}
                 status={pushNotificationStatus}
               />
+              <div className="mt-2 border-t border-[var(--quant-border)] pt-4">
+                <p className="text-[13px] font-medium text-[var(--quant-foreground)]">
+                  Per-label notifications
+                </p>
+                <p className="mt-1 text-xs text-[var(--quant-muted-foreground)]">
+                  A label&apos;s choice beats the mode above for mail carrying that label —
+                  “Notify for every message” even under “Important mail only”, “Never notify”
+                  even under “All new mail”. Mail with several labels stays silent if any of
+                  its labels says never. When the mode is “Nothing”, nothing notifies.
+                </p>
+                {!notificationLabelsLoaded ? (
+                  <p className="mt-3 text-xs text-[var(--quant-muted-foreground)]">
+                    Loading labels…
+                  </p>
+                ) : notificationLabels.length === 0 ? (
+                  <p className="mt-3 text-xs text-[var(--quant-muted-foreground)]">
+                    No labels yet — create one from Labels to set per-label notifications.
+                  </p>
+                ) : (
+                  <div className="mt-3 flex flex-col gap-4">
+                    {notificationLabels.map((label) => (
+                      <SettingsChoice<'default' | MailNotificationLabelOverride>
+                        key={label.id}
+                        legend={label.name}
+                        value={mailNotificationLabelOverrides.overrides[label.id] ?? 'default'}
+                        options={MAIL_NOTIFICATION_LABEL_OVERRIDE_OPTIONS.map((option) => ({
+                          value: option.value ?? 'default',
+                          label: option.label,
+                          description: option.description,
+                        }))}
+                        onChange={(next) =>
+                          void changeMailNotificationLabelOverride(label.id, label.name, next)
+                        }
+                        columns={3}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </SettingsSection>
           )}
 

@@ -49,8 +49,8 @@ import { InboundAttachmentKeeper } from '../services/inbound-attachments.service
 import { deliverPushToUser } from '../services/push-delivery.service';
 import { newMailNotificationExpiresAt } from '../services/notification-retention.service';
 import {
-  isImportantMail,
-  readUserMailNotificationMode,
+  readUserMailNotificationPreferences,
+  shouldNotifyForMail,
 } from '../services/mail-notification-mode.service';
 import { MailFilterService } from '../services/mail-filter.service';
 import { suppressionService } from '../services/suppression.service';
@@ -521,15 +521,17 @@ async function createNewMailNotification(
     fromName: string | null;
     fromAddress: string;
     snippet: string | null;
-    // Importance signals for the `important` notification mode. The real
-    // `ingest()` returns the full persisted row (aiCategory is written at
-    // ingest); harnesses may pass a partial shape and the mode helpers
-    // fail-open on anything missing.
+    // Importance signals for the notification decision. The real `ingest()`
+    // returns the full persisted row (aiCategory is written at ingest, and
+    // filter-applied label ids land on `labels`); harnesses may pass a
+    // partial shape and the decision helpers fail-open on anything missing.
     aiCategory?: string | null;
     category?: string | null;
     isStarred?: boolean | null;
     isImportant?: boolean | null;
     priority?: string | null;
+    /** `Email.labels` Json string array (label ids, incl. filter-applied). */
+    labels?: unknown;
   },
 ): Promise<void> {
   try {
@@ -546,24 +548,19 @@ async function createNewMailNotification(
         update(args: unknown): Promise<unknown>;
       };
     };
-    // The user's notification mode is the single filter on this path — it
+    // The user's notification preferences are the single filter on this path
+    // — one read covering the global mode plus per-label overrides — and it
     // covers the in-app row, the web push below, and the desktop watcher's
-    // feed (which polls the same rows). Stored in User.preferences, default
-    // 'all' preserves the old every-mail behaviour.
-    const mode = await readUserMailNotificationMode(db, userId, {
+    // feed (which polls the same rows). Default 'all' preserves the old
+    // every-mail behaviour; `shouldNotifyForMail` owns the precedence
+    // (off > label mute > label force-notify > mode).
+    const preferences = await readUserMailNotificationPreferences(db, userId, {
       warn: (obj, msg) => log.warn(obj as object, msg),
     });
-    if (mode === 'off') {
+    if (!shouldNotifyForMail(email, preferences)) {
       log.info(
-        { userId, emailId: email.id },
-        '[inbound] notification skipped — user notification mode is off',
-      );
-      return;
-    }
-    if (mode === 'important' && !isImportantMail(email)) {
-      log.info(
-        { userId, emailId: email.id, aiCategory: email.aiCategory ?? null },
-        '[inbound] notification skipped — not important under user notification mode',
+        { userId, emailId: email.id, mode: preferences.mode, aiCategory: email.aiCategory ?? null },
+        '[inbound] notification skipped — filtered by user notification preferences',
       );
       return;
     }
