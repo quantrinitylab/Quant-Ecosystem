@@ -17,6 +17,7 @@ import { QuickGroupChatDeck } from '../components/QuickGroupChatDeck';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
 import {
+  findPreselectThread,
   inboxLensTarget,
   inboxResetTarget,
   normalizeSearchFolderParam,
@@ -1424,23 +1425,10 @@ function InboxPageContent() {
     }
   }, [searchParams]);
 
-  /*
-   * CUST-P1-4: `x` (select) in a thread view navigates here with
-   * `?view=inbox&selected=<threadId>` (see inboxSelectTarget), plus
-   * `&lens=spam` when the source thread was opened in the spam lens — the
-   * pre-select only matches rows in the current lens corpus, so without the
-   * lens a spam-only thread would pre-select nothing. Pre-select that
-   * conversation for bulk actions, then drop the param so a refresh does not
-   * re-select.
-   */
-  useEffect(() => {
-    const selected = searchParams?.get('selected');
-    if (!selected) return;
-    setSelectedIds(new Set([selected]));
-    const url = new URL(window.location.href);
-    url.searchParams.delete('selected');
-    router.replace(url.pathname + url.search + url.hash, { scroll: false });
-  }, [searchParams, router]);
+  // CUST-P1-4 pre-select moved below the thread pools: resolving `?selected=`
+  // to a row id needs `threads`/`allArchivedThreads`/… and a deps array is
+  // evaluated during render, so naming those pools here would hit their
+  // temporal dead zone. See the relocated effect after allSnoozedThreads.
 
   useEffect(() => {
     const handleSubtabChange = (e: Event) => {
@@ -1764,9 +1752,14 @@ function InboxPageContent() {
   } = useInbox({
     folderType: 'INBOX',
   });
-  const { data: archivedEmails } = useInbox({ folderType: 'ARCHIVE' });
-  const { data: spamEmails, refetch: refetchSpam } = useInbox({ folderType: 'SPAM' });
-  const { data: snoozedEmails, refetch: refetchSnoozed } = useInbox({ folderType: 'SNOOZED' });
+  const { data: archivedEmails, isLoading: isArchivedLoading } = useInbox({
+    folderType: 'ARCHIVE',
+  });
+  const { data: spamEmails, isLoading: isSpamLoading, refetch: refetchSpam } = useInbox({
+    folderType: 'SPAM',
+  });
+  const { data: snoozedEmails, isLoading: isSnoozedLoading, refetch: refetchSnoozed } =
+    useInbox({ folderType: 'SNOOZED' });
   const { data: searchResults, isLoading: isSearching } = useSearchEmails(
     debouncedQuery ? { query: debouncedQuery } : null,
   );
@@ -2151,6 +2144,63 @@ function InboxPageContent() {
     () => filterThreadsByQuery(groupedSnoozedThreads, debouncedQuery, currentEmail, serverHitIds),
     [groupedSnoozedThreads, debouncedQuery, currentEmail, serverHitIds],
   );
+
+  /*
+   * CUST-P1-4: `x` (select) in a thread view navigates here with
+   * `?view=inbox&selected=<id>` (see inboxSelectTarget), plus `&lens=spam`
+   * when the source thread was opened in the spam lens — the pre-select only
+   * matches rows in the current lens corpus, so without the lens a spam-only
+   * thread would pre-select nothing.
+   *
+   * x-shortcut-preselect P2: the incoming id is NOT a row id. Rows check
+   * `selectedIds.has(thread.id)` where a row's id is its newest message's
+   * id, but the `x` shortcut carries `lastMessage.threadId || lastMessage.id`
+   * (people view) or a thread-page id — a server thread id matches no row,
+   * and a legacy fallback message id matches only when it happens to be the
+   * newest message of its row. The old code stored the raw value, so the
+   * user landed on the inbox with zero rows checked, silently. Resolve it
+   * through `findPreselectThread` (same grouping the rows came from) and
+   * select the resolved row's id — never `conversationIds`' output, which
+   * is message ids for bulk actions and would inflate the selection count.
+   *
+   * While any folder query is still loading and nothing resolved yet, do
+   * NOT consume the param: the effect re-runs when the pools settle, and
+   * consuming early would lock in the raw value before its row exists. Once
+   * loading has settled with no match, fall back to the raw value — today's
+   * behaviour for ids outside these pools — and drop the param so a refresh
+   * does not re-select.
+   */
+  useEffect(() => {
+    const selected = searchParams?.get('selected');
+    if (!selected) return;
+    const thread = findPreselectThread(selected, [
+      threads,
+      allArchivedThreads,
+      allSpamThreads,
+      allSnoozedThreads,
+    ]);
+    if (thread) {
+      setSelectedIds(new Set([thread.id]));
+    } else if (isLoading || isArchivedLoading || isSpamLoading || isSnoozedLoading) {
+      return;
+    } else {
+      setSelectedIds(new Set([selected]));
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete('selected');
+    router.replace(url.pathname + url.search + url.hash, { scroll: false });
+  }, [
+    searchParams,
+    router,
+    threads,
+    allArchivedThreads,
+    allSpamThreads,
+    allSnoozedThreads,
+    isLoading,
+    isArchivedLoading,
+    isSpamLoading,
+    isSnoozedLoading,
+  ]);
 
   const isGroupThread = useCallback((t: ConversationThread) => {
     if (t.category === 'forums') return true;
