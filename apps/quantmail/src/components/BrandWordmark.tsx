@@ -59,7 +59,11 @@ export function BrandWordmark({
       className={`inline-flex items-center gap-1.5 whitespace-nowrap select-none font-semibold tracking-tight ${chosenSize} ${className}`}
     >
       <span className="text-[var(--quant-foreground)] font-bold tracking-tight">{item.brand}</span>
-      <span className="text-[var(--quant-primary)] font-semibold tracking-tight">{item.name}</span>
+      {/* Per-app accent: --app-accent resolves to Mail orange by default
+          (globals.css) and to the active app's locked accent inside AppShell
+          (QuantGit purple on /quantgit). The old --quant-primary token made
+          every app's name render Mail-orange — "Git" in orange on QuantGit. */}
+      <span className="text-[var(--app-accent)] font-semibold tracking-tight">{item.name}</span>
     </span>
   );
 }
