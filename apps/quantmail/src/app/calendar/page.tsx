@@ -62,7 +62,6 @@ import {
   resolveMergedTab,
   type CalendarMergedTab,
 } from './components/CalendarContextSubTabs';
-import { CalendarMobileTabStrip } from './components/CalendarMobileTabStrip';
 import { CalendarDayView } from './components/CalendarDayView';
 // fix/qm-calendar-firstload-error-boundary: scoped boundary around the main
 // content surface. Before this, the only boundary above these sub-views was
@@ -1521,13 +1520,17 @@ function CalendarPageContent() {
           onSelectTab={handleSelectMergedTab}
         />
 
-        {/* Mobile view switcher (AUD-P0-C2): the desktop tab row above is
-            `hidden md:flex`, so without this strip the Month/Week/Trackers/
-            Schedule views were unreachable on phones. Same wiring, md:hidden. */}
-        <CalendarMobileTabStrip
-          activeTab={resolveMergedTab(activeContextTab, activeView)}
-          onSelectTab={handleSelectMergedTab}
-        />
+        {/*
+          fix/qm-calendar-switcher-dup: NO mobile pill strip here anymore.
+          The page used to render its own md:hidden pill strip with the same
+          Day/Week/Month/Feed/Trackers/Schedule set the shell bottom bar
+          already shows, so every view appeared twice on phones — two live
+          switchers doing the same ?tab= navigation. The shell bottom bar
+          (ContextBottomNavBar, md:hidden) is now the single mobile view
+          switcher: its calendar tabs are all primary slots, so every view
+          stays reachable without a second strip. Desktop keeps the single
+          CalendarContextSubTabs row above (hidden md:flex).
+        */}
 
         {/* 4 Sovereign Contextual Sub-Views.
             fix/qm-calendar-firstload-error-boundary: the boundary below is the

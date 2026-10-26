@@ -55,8 +55,16 @@ describe('QM-BOTTOM-NAV-SUBVIEWS — no dead active tab in real subviews', () =>
     );
   });
 
-  it('calendar: subview tabs are overflow slots with real query targets', () => {
+  it('calendar: view tabs are always-visible primary slots (single mobile switcher)', () => {
+    // fix/qm-calendar-switcher-dup: the calendar page's own mobile pill
+    // strip duplicated Day/Week/Month (and the active overflow view), so it
+    // was deleted and the bottom bar became the single mobile switcher.
+    // Feed/Trackers/Schedule therefore CANNOT stay mobileOverflow slots —
+    // an overflow slot only appears while already active, so from Day view
+    // those views would be unreachable on phones. Drive/contacts keep the
+    // overflow pattern below; only calendar promotes its views to primary.
     const tabs = PILLAR_SUB_CONFIGS.calendar.tabs;
+    expect(tabs.map((t) => t.id)).toEqual(['day', 'week', 'month', 'feed', 'events', 'schedule']);
     for (const [id, queryValue, label] of [
       ['feed', 'feed', 'Feed'],
       ['events', 'events', 'Trackers'],
@@ -65,7 +73,7 @@ describe('QM-BOTTOM-NAV-SUBVIEWS — no dead active tab in real subviews', () =>
       const tab = tabs.find((t) => t.id === id)!;
       expect(tab, `calendar tab '${id}' exists`).toBeDefined();
       expect(tab.label).toBe(label);
-      expect(tab.mobileOverflow).toBe(true);
+      expect(tab.mobileOverflow, `calendar tab '${id}' must be a primary slot`).toBeFalsy();
       expect(tab.targetPath).toBe('/calendar');
       expect(tab.queryParam).toEqual({ key: 'tab', value: queryValue });
       expect(typeof tab.icon).toBe('function');

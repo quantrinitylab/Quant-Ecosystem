@@ -829,21 +829,20 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         description: 'Month calendar',
       },
       {
-        // QM-BOTTOM-NAV-SUBVIEWS (2026-10-19): /calendar's real subviews
-        // (?tab=feed|events|schedule — backed by isValidContextTab in
-        // calendar/page.tsx and resolveActiveTab below) had IDs but no
-        // bottom-nav entry, so zero aria-current while the user was in them.
-        // These mobileOverflow tabs join the bar only while active (same
-        // pattern as the mail Scheduled/Spam/Trash overflow tabs), so the
-        // bar never lies about where the user is. Labels/icons mirror the
-        // desktop calendar config in desktopContextTabs.tsx.
+        // fix/qm-calendar-switcher-dup: these are PRIMARY slots, not
+        // mobileOverflow. The calendar page's own mobile pill strip was
+        // deleted because it duplicated Day/Week/Month (and the active
+        // overflow view) — the bottom bar is now the single mobile view
+        // switcher, so Feed/Trackers/Schedule must be always visible here
+        // or they would be unreachable on phones (overflow slots only
+        // appear while already active). Labels/icons mirror the desktop
+        // calendar config in desktopContextTabs.tsx.
         id: 'feed',
         label: 'Feed',
         icon: AgendaTimelineIcon,
         targetPath: '/calendar',
         queryParam: { key: 'tab', value: 'feed' },
         description: 'Upcoming events, milestones & tracker dates',
-        mobileOverflow: true,
       },
       {
         id: 'events',
@@ -852,7 +851,6 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         targetPath: '/calendar',
         queryParam: { key: 'tab', value: 'events' },
         description: 'Trackers hub: Period, Health & Life trackers',
-        mobileOverflow: true,
       },
       {
         id: 'schedule',
@@ -861,7 +859,6 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         targetPath: '/calendar',
         queryParam: { key: 'tab', value: 'schedule' },
         description: 'Meetings, Clock & Reminders',
-        mobileOverflow: true,
       },
     ],
   },
