@@ -151,6 +151,16 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^calendar\/booking\/[^/]+$/, methods: ['GET'] },
   { pattern: /^calendar\/booking\/[^/]+\/slots$/, methods: ['GET'] },
   { pattern: /^calendar\/booking\/[^/]+\/book$/, methods: ['POST'] },
+  // Slot lock (fix/qm-calendar-slot-lock-proxy). The backend registers POST
+  // /calendar/booking/:slug/lock (calendar.ts handleLockSlot) and the path is
+  // public in backend/app.ts publicPaths — but this allow-list had no /lock
+  // row, so the catch-all proxy answered 404 API_ROUTE_NOT_FOUND before the
+  // backend ever saw the request. Latent today (the booking page never calls
+  // /lock, so the book flow's lockId is always undefined), but lock→book is
+  // the designed shape — confirmBookingSchema accepts an optional lockId — so
+  // the door is opened rather than the endpoint removed. POST only: the
+  // backend has no GET/DELETE on this path.
+  { pattern: /^calendar\/booking\/[^/]+\/lock$/, methods: ['POST'] },
 
   // ── Mail filters ───────────────────────────────────────────────────────────
   // Mounted at /mail-filters, not /filters (backend/app.ts).
