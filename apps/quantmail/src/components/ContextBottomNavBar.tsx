@@ -1142,15 +1142,14 @@ export function executeContextTabClick(
     return;
   }
 
-  // Quanty AI logo tab: open the autonomous developer cockpit. The quantgit
-  // page opens its copilot view on `quant:copilot:open`; navigating with
-  // ?tab=copilot covers the not-yet-on-quantgit case via initialSubTab.
-  if (tab.id === 'quanty' && pillar === 'quantgit') {
-    if (canWindow) {
-      window.dispatchEvent(new CustomEvent('quant:copilot:open'));
-      window.dispatchEvent(new CustomEvent('quant:quanty:open'));
-    }
-  }
+  // NOTE (dead Quanty dispatch branch removed): the only Quanty tab in any
+  // pillar config (mail) carries `opensQuanty` and returns via the arm
+  // above, never navigating. A `tab.id === 'quanty' && pillar === 'quantgit'`
+  // branch used to sit here, but no quantgit tab has id 'quanty' (its tabs
+  // are 'repositories' and 'overview'), so it could never fire through a
+  // rendered tab — and it fell through to navigation instead of returning,
+  // breaking the never-navigates Quanty contract had it ever fired. A future
+  // Quanty tab must use `opensQuanty`, not a new dispatch arm here.
 
   if (canWindow) {
     window.dispatchEvent(
