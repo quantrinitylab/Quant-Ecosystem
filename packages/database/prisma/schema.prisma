@@ -78,6 +78,7 @@ model User {
   sessions           Session[]
   refreshTokens      RefreshToken[]
   twoFactorBackupCodes TwoFactorBackupCode[]
+  passkeyCredentials PasskeyCredential[]
   passwordResetTokens  PasswordResetToken[]
   emailVerificationCodes EmailVerificationCode[]
   recoveryEmailVerifications RecoveryEmailVerification[]
@@ -286,6 +287,37 @@ model RefreshToken {
 ///
 /// `usedAt` rather than a delete, so "you have 3 codes left" is answerable and a
 /// replayed code is distinguishable from an unknown one in the audit trail.
+/// A registered WebAuthn passkey for one account (fix/qm-passkey-webauthn-r2).
+///
+/// Only the PUBLIC key is stored — the private key never leaves the
+/// authenticator, and no flow here ever asks for it, so a leaked table
+/// cannot sign anything. `credentialId` is globally unique: one physical
+/// credential registers to one account, and a second registration attempt
+/// for the same credential answers 409 instead of silently shadowing the
+/// first row. `counter` is the authenticator's signature counter at the
+/// last accepted assertion; an assertion that does not advance it past a
+/// nonzero stored value is a clone/replay signal and fails closed.
+/// Challenges are NOT stored here: they ride in signed short-lived JWTs
+/// (backend/lib/passkeys.ts) so ceremonies survive restarts and replicas.
+model PasskeyCredential {
+  id           String    @id @default(cuid())
+  userId       String
+  credentialId String    @unique
+  publicKey    String
+  counter      Int       @default(0)
+  transports   String[]  @default([])
+  name         String?
+  deviceType   String?
+  backedUp     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("passkey_credentials")
+}
+
 model TwoFactorBackupCode {
   id        String    @id @default(cuid())
   userId    String

@@ -849,6 +849,35 @@ export class QuantMailApiClient {
   }
 
   // --------------------------------------------------------------------------
+  // Passkeys (WebAuthn) — passwordless sign-in.
+  //
+  // The list returns display metadata only: the server never sends a public
+  // key to the client, and nothing here needs one. Registration runs the
+  // browser ceremony through lib/passkey-client in the caller, so these
+  // methods only carry the server legs.
+  // --------------------------------------------------------------------------
+
+  async getPasskeys(): Promise<
+    ApiResponse<{
+      passkeys: {
+        id: string;
+        name: string | null;
+        deviceType: string | null;
+        backedUp: boolean;
+        transports: string[];
+        createdAt: string;
+        lastUsedAt: string | null;
+      }[];
+    }>
+  > {
+    return this.get('/auth/passkeys');
+  }
+
+  async deletePasskey(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.delete(`/auth/passkeys/${encodeURIComponent(id)}`);
+  }
+
+  // --------------------------------------------------------------------------
   // OAuth grants (Connected Applications)
   //
   // The security page used to hardcode "No third-party apps connected" and

@@ -33,6 +33,7 @@ import { quantyMcpRoutes } from './routes/quanty-mcp';
 // Phone OTP login was REMOVED per the locked 2026-10-05 / 2026-10-11 SSO design:
 // `routes/phone.ts` (SMS send-otp/verify) was deleted; OTP is email-based only.
 import { authRoutes } from './routes/auth';
+import { passkeyRoutes } from './routes/passkeys';
 import { twoFactorRoutes } from './routes/two-factor';
 import { twoFactorRecoveryRoutes } from './routes/two-factor-recovery';
 import { passwordResetRoutes } from './routes/password-reset';
@@ -412,6 +413,7 @@ export async function buildApp(config?: AppConfig) {
   app.decorate('repositoryMutation', new GitMutationAdapter());
 
   await app.register(authRoutes);
+  await app.register(passkeyRoutes);
   await app.register(twoFactorRoutes);
   await app.register(twoFactorRecoveryRoutes);
   await app.register(passwordResetRoutes);

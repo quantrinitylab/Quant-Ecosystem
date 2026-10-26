@@ -9,6 +9,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { QUANT_MAIL_DOMAIN, toQuantAddress } from '../../config/identity';
+import {
+  isPasskeySupported,
+  startPasskeyAuthentication,
+  type PasskeyAuthenticationOptionsJSON,
+} from '../../lib/passkey-client';
 import { safeReturnPath } from '../../lib/safe-return-path';
 import { useAuth } from '../../providers/auth-provider';
 import { browserAuthSession } from '../../services/browser-auth-session';
@@ -31,7 +36,7 @@ const formatCountdown = (seconds: number): string => {
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isAuthenticated, login, completeTwoFactor, cancelTwoFactor, isLoading } = useAuth();
+  const { user, isAuthenticated, login, loginWithPasskey, completeTwoFactor, cancelTwoFactor, isLoading } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -46,6 +51,14 @@ export function LoginForm() {
   const [deadline, setDeadline] = useState<number | null>(null);
   // Post-recovery notice shown on the credentials stage after 2FA is turned off.
   const [notice, setNotice] = useState<string | null>(null);
+  // WebAuthn support is a browser capability, not a render fact: it is
+  // detected after mount so server HTML and first client paint agree, and
+  // browsers without it never see a passkey button that cannot work.
+  const [passkeySupported, setPasskeySupported] = useState(false);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  useEffect(() => {
+    setPasskeySupported(isPasskeySupported());
+  }, []);
   const codeInputRef = useRef<HTMLInputElement | null>(null);
 
   const successMessage = searchParams?.get('success');
@@ -181,6 +194,47 @@ export function LoginForm() {
       navigateToDestination();
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Sign-in failed. Try again.');
+    }
+  }
+
+  // Passwordless sign-in: options leg -> browser ceremony -> verify leg.
+  // The address must be typed first — the server addresses the ceremony
+  // to that account's registered credentials, and an empty field cannot
+  // produce a meaningful ceremony. A TOTP-protected account whose assertion
+  // carried no user verification stops at the 2FA stage, exactly like a
+  // password sign-in does.
+  async function handlePasskeySignIn() {
+    setError(null);
+    setNotice(null);
+    const trimmedIdentifier = identifier.trim();
+    if (!trimmedIdentifier) {
+      setError('Enter your email address first, then use your passkey.');
+      return;
+    }
+    const email = trimmedIdentifier.includes('@')
+      ? trimmedIdentifier
+      : toQuantAddress(trimmedIdentifier);
+    setPasskeyBusy(true);
+    try {
+      const optionsResponse = await browserAuthSession.passkeyLoginOptions(email);
+      if (!optionsResponse.success || !optionsResponse.data) {
+        throw new Error(optionsResponse.error?.message || 'Passkey sign-in failed.');
+      }
+      const assertion = await startPasskeyAuthentication(
+        optionsResponse.data.options as PasskeyAuthenticationOptionsJSON,
+      );
+      const outcome = await loginWithPasskey(email, assertion, optionsResponse.data.challengeToken);
+      if (outcome.status === 'two-factor-required') {
+        setDeadline(Date.now() + outcome.expiresIn * 1000);
+        setSecondsLeft(outcome.expiresIn);
+        setStage('two-factor');
+        return;
+      }
+      navigateToDestination();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Passkey sign-in failed. Try again.');
+    } finally {
+      setPasskeyBusy(false);
     }
   }
 
@@ -377,11 +431,31 @@ export function LoginForm() {
 
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || passkeyBusy}
             className="auth-primary-action w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
           >
             {isLoading ? 'Authenticating…' : 'Sign in'}
           </button>
+
+          {passkeySupported ? (
+            <>
+              <p className="pt-1 text-center text-xs text-zinc-500">
+                or sign in without a password
+              </p>
+              <button
+                type="button"
+                onClick={handlePasskeySignIn}
+                disabled={isLoading || passkeyBusy}
+                className="w-full rounded-xl border border-white/[0.08] bg-[var(--quant-surface)]/90 px-4 py-3 text-sm font-semibold text-zinc-100 transition-colors hover:border-[var(--quant-primary)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {passkeyBusy ? 'Waiting for your passkey…' : 'Sign in with a passkey'}
+              </button>
+              <p className="text-center text-xs text-zinc-500">
+                Fingerprint, face, or PIN — no password needed. Add one in Security settings after
+                signing in.
+              </p>
+            </>
+          ) : null}
         </form>
       ) : stage === 'recovery' ? (
         <TwoFactorRecoveryPanel

@@ -53,6 +53,20 @@ interface AuthContextValue {
   /** True between a password accepted and its second factor answered. */
   isTwoFactorPending: boolean;
   login: (email: string, password: string) => Promise<LoginOutcome>;
+  /**
+   * Passwordless sign-in with a registered passkey. The browser ceremony
+   * itself (navigator.credentials.get) runs in the caller — this provider
+   * only owns the server legs — so the caller passes the finished
+   * assertion response plus the challenge token from the options leg.
+   * The outcome shape is exactly `login`'s: a TOTP-protected account whose
+   * assertion carried no user verification stops at 'two-factor-required'
+   * instead of a session.
+   */
+  loginWithPasskey: (
+    email: string,
+    response: unknown,
+    challengeToken: string,
+  ) => Promise<LoginOutcome>;
   completeTwoFactor: (code: string) => Promise<void>;
   cancelTwoFactor: () => void;
   logout: () => Promise<void>;
@@ -299,6 +313,38 @@ export function AuthProvider({
     [clearMemorySession, applySessionUser],
   );
 
+  const loginWithPasskey = useCallback(
+    async (email: string, response: unknown, challengeToken: string): Promise<LoginOutcome> => {
+      setError(null);
+      setIsLoading(true);
+      cleanupLegacyBrowserTokens();
+      try {
+        const session = await browserAuthSession.passkeyLoginVerify(email, response, challengeToken);
+        if (!session.success || !session.data) {
+          throw new Error(session.error?.message || 'Passkey sign-in failed');
+        }
+        if (isTwoFactorChallenge(session.data)) {
+          challengeRef.current = session.data.challenge;
+          setIsTwoFactorPending(true);
+          return { status: 'two-factor-required', expiresIn: session.data.expiresIn };
+        }
+        if (!session.data.accessToken) {
+          throw new Error('Passkey sign-in failed');
+        }
+        await applySessionUser(session.data);
+        return { status: 'signed-in' };
+      } catch (caught) {
+        clearMemorySession();
+        const message = caught instanceof Error ? caught.message : 'Passkey sign-in failed';
+        setError(message);
+        throw caught;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [clearMemorySession, applySessionUser],
+  );
+
   const cancelTwoFactor = useCallback(() => {
     challengeRef.current = null;
     setIsTwoFactorPending(false);
@@ -348,6 +394,7 @@ export function AuthProvider({
     error,
     isTwoFactorPending,
     login,
+    loginWithPasskey,
     completeTwoFactor,
     cancelTwoFactor,
     logout,
