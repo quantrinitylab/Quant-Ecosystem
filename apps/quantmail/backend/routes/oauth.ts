@@ -28,6 +28,58 @@ function endpoint(path: string): string {
   return `${getIssuer().replace(/\/$/, '')}${path}`;
 }
 
+/**
+ * Plain-language descriptions for the consent screen's permission list.
+ *
+ * Google-grade trust presentation, without inventing anything: the titles
+ * and descriptions below describe exactly what each OIDC scope discloses
+ * (openid = identity proof only, profile = name/username, email = address).
+ * Any scope NOT in this map gets an honest fallback from
+ * `describeConsentScope` — the raw token plus a warning that QuantMail has
+ * no plain-language description for it — never a fabricated description.
+ *
+ * HONESTY NOTE on verification status: the OAuthClient schema has NO
+ * verification field (no verified flag, no logo URI), so this file must not
+ * render a "verified" badge for any third-party client. The only trust
+ * signal the schema carries is `isFirstParty`: first-party clients render
+ * as "Built by QuantMail", every other client renders as "Not verified by
+ * QuantMail". Adding a real verification badge needs a schema field plus a
+ * review process — it cannot be faked from the client_id or the name.
+ */
+export const OAUTH_CONSENT_SCOPE_DESCRIPTIONS: Record<
+  string,
+  { title: string; description: string }
+> = {
+  openid: {
+    title: 'Sign you in',
+    description:
+      'Confirm your identity so the app knows you signed in with QuantMail. It does not by itself reveal your profile or email address.',
+  },
+  profile: {
+    title: 'See your personal info',
+    description: 'See your name and username from your QuantMail profile.',
+  },
+  email: {
+    title: 'See your email address',
+    description: 'See the email address on your QuantMail account.',
+  },
+};
+
+/** Plain-language title + description for one requested scope token. */
+export function describeConsentScope(scope: string): {
+  title: string;
+  description: string;
+} {
+  return (
+    OAUTH_CONSENT_SCOPE_DESCRIPTIONS[scope] ?? {
+      title: `Permission "${scope}"`,
+      description:
+        `This app asked for an additional permission ("${scope}") that QuantMail ` +
+        'does not have a plain-language description for. Only approve it if you trust this app.',
+    }
+  );
+}
+
 const ACCESS_TOKEN_TTL_SECONDS = 900;
 
 export async function oauthRoutes(fastify: FastifyInstance) {
@@ -555,32 +607,72 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       userId,
       clientId: String(client_id ?? ''),
       redirectUri: String(redirect_uri ?? ''),
-      scope: String(scope || 'openid profile email'),
+      scope: requestedScopes.join(' '),
       state: String(state || ''),
       codeChallenge: String(code_challenge || ''),
       codeChallengeMethod: String(code_challenge_method || ''),
       nonce: String(nonce || ''),
     });
+    // Trust presentation (fix for the raw-client_id / raw-scope-token screen):
+    // the identity shown is the REGISTERED display name from the client's
+    // own registration row — never the raw client_id as the heading, so a
+    // client_id cannot impersonate any name. The raw client_id is still
+    // shown, but only as a small technical identifier. Verification status
+    // is honest: first-party rows say "Built by QuantMail"; every other
+    // client says "Not verified by QuantMail" (the schema has no verified
+    // flag to claim anything stronger). The signed-in user is read from
+    // the real user row, falling back to the bearer token's email.
+    const consentClient: any = await prisma.oAuthClient.findUnique({
+      where: { clientId: client_id },
+    });
+    const consentUser: any = await prisma.user.findUnique({ where: { id: userId } });
+    const appDisplayName =
+      (typeof consentClient?.name === 'string' && consentClient.name) || String(client_id ?? '');
+    const appDescription =
+      typeof consentClient?.description === 'string' ? consentClient.description : '';
+    const isFirstParty = consentClient?.isFirstParty === true;
+    const verificationLine = isFirstParty
+      ? 'Built by QuantMail — first-party app'
+      : 'Third-party app · Not verified by QuantMail — only continue if you trust this app.';
+    const signedInAs =
+      consentUser?.displayName ||
+      consentUser?.username ||
+      consentUser?.email ||
+      (request.user as any)?.email ||
+      (request.user as any)?.username ||
+      String(userId);
+    const scopeRows = requestedScopes
+      .map((s: string, i: number) => {
+        const d = describeConsentScope(s);
+        return (
+          `<label style="display: block; background: #111; padding: 12px 16px; border-radius: 8px; margin: 0 0 10px 0; cursor: pointer;">` +
+          `<input type="checkbox" name="grant_${i}" value="${esc(s)}" checked style="margin-right: 10px;">` +
+          `<strong>${esc(d.title)}</strong><br>` +
+          `<span style="color: #bbb;">${esc(d.description)}</span>` +
+          `</label>`
+        );
+      })
+      .join('');
     const consentHtml = `
       <html>
-        <head><title>QuantMail - Authorize Application</title></head>
+        <head><title>QuantMail - Authorize ${esc(appDisplayName)}</title></head>
         <body style="font-family: system-ui; background: #000; color: #fff; max-width: 520px; margin: 60px auto; padding: 20px; line-height: 1.6;">
-          <h2>Authorize Application</h2>
-          <p><strong>${esc(client_id)}</strong> wants to access your QuantMail account.</p>
+          <p style="color: #888; margin: 0;">Sign in with QuantMail</p>
+          <h2 style="margin: 8px 0;">${esc(appDisplayName)} wants to access your QuantMail account</h2>
+          <p style="color: ${isFirstParty ? '#bbb' : '#ffb020'}; margin: 0 0 4px 0;">${esc(verificationLine)}</p>
+          ${appDescription ? `<p style="color: #bbb; margin: 0 0 4px 0;">${esc(appDescription)}</p>` : ''}
+          <p style="color: #888; font-size: 13px; margin: 0;">App ID: ${esc(client_id)}</p>
+          <p style="color: #888; font-size: 13px; margin: 0 0 20px 0;">After approval you will be sent back to: ${esc(safeRedirectUri)}</p>
 
-          <div style="background: #111; padding: 16px; border-radius: 8px; margin: 20px 0;">
-            <strong>Permissions requested:</strong><br>
-            ${(scope || 'openid profile email')
-              .split(' ')
-              .map((s: string) => `• ${esc(s)}`)
-              .join('<br>')}
-          </div>
-
+          <p style="margin: 0 0 12px 0;">Signed in as <strong>${esc(signedInAs)}</strong></p>
+          <p style="margin: 0 0 12px 0;"><strong>This app will be able to:</strong></p>
           <form method="POST" action="/api/oauth/consent">
+            ${scopeRows}
+            <p style="color: #888; font-size: 13px;">Uncheck any permission you do not want to grant. Approving with no permission selected cancels the request.</p>
             <input type="hidden" name="consent_token" value="${esc(consentToken)}">
             <input type="hidden" name="client_id" value="${esc(client_id)}">
             <input type="hidden" name="redirect_uri" value="${esc(redirect_uri)}">
-            <input type="hidden" name="scope" value="${esc(scope || 'openid profile email')}">
+            <input type="hidden" name="scope" value="${esc(requestedScopes.join(' '))}">
             <input type="hidden" name="state" value="${esc(state || '')}">
             <input type="hidden" name="code_challenge" value="${esc(code_challenge || '')}">
             <input type="hidden" name="code_challenge_method" value="${esc(code_challenge_method || '')}">
@@ -588,11 +680,11 @@ export async function oauthRoutes(fastify: FastifyInstance) {
 
             <button type="submit" name="action" value="approve"
                     style="background: #ff6a00; color: #000; padding: 14px 28px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: 600;">
-              Approve
+              Continue as ${esc(signedInAs)}
             </button>
 
             <button type="submit" name="action" value="deny"
-                    style="background: #222; color: #fff; padding: 14px 28px; border: 1px solid #444; border-radius: 8px; font-size: 16px; cursor: pointer; margin-left: 12px;">
+                    style="background: #222; color: #fff; padding: 14px 28px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin-left: 12px;">
               Cancel
             </button>
           </form>
@@ -655,7 +747,29 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'invalid_client' });
     }
 
-    const requestedScopes = (scope || 'openid profile email').split(' ').filter(Boolean);
+    const sessionScopes = (scope || 'openid profile email').split(' ').filter(Boolean);
+    // Per-scope selection (browser form only): the consent screen renders
+    // one INDEXED checkbox per requested scope (grant_0, grant_1, ...).
+    // Indexed names — not one shared name — because the Next proxy
+    // collapses duplicate urlencoded keys via Object.fromEntries, keeping
+    // only the last value. A checkbox value is honored only when it equals
+    // the session scope at the same index, so a tampered value grants
+    // nothing. When no grant_* key is present (older form, API caller),
+    // the full session scope is granted, exactly as before.
+    let requestedScopes = sessionScopes;
+    if (consentSession) {
+      const grantKeys = Object.keys(body).filter((k: string) => /^grant_\d+$/.test(k));
+      if (grantKeys.length > 0) {
+        requestedScopes = sessionScopes.filter(
+          (s: string, i: number) => body[`grant_${i}`] === s,
+        );
+        if (requestedScopes.length === 0) {
+          // Everything unchecked = denied: no consent row, no code.
+          const errorUrl = `${safeRedirectUri}?error=access_denied${state ? `&state=${state}` : ''}`;
+          return reply.redirect(errorUrl);
+        }
+      }
+    }
     const clientAllowed = Array.isArray(oauthClient.allowedScopes) ? oauthClient.allowedScopes : [];
     if (
       clientAllowed.length > 0 &&
@@ -711,7 +825,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
   // POST /oauth/register
   fastify.post('/oauth/register', async (request, reply) => {
     const body = request.body as any;
-    const { name, redirect_uris, scopes, is_confidential } = body;
+    const { name, redirect_uris, scopes, is_confidential, description } = body;
 
     if (!name || !redirect_uris?.length) {
       return reply.code(400).send({ error: 'invalid_request' });
@@ -728,6 +842,10 @@ export async function oauthRoutes(fastify: FastifyInstance) {
         clientId,
         clientSecretHash,
         name,
+        // Related fix: the consent screen renders the registered description,
+        // but /oauth/register previously dropped it, so no client could ever
+        // set one (the field stayed at its "" default). Accept it here.
+        description: typeof description === 'string' ? description : '',
         redirectUris: redirect_uris,
         allowedScopes: scopes || ['openid', 'profile', 'email'],
         isConfidential: is_confidential ?? true,
@@ -739,6 +857,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       client_id: client.clientId,
       client_secret: clientSecret,
       name: client.name,
+      description: client.description ?? '',
     });
   });
 
