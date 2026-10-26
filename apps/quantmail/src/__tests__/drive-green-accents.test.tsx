@@ -66,6 +66,25 @@ const DRIVE_SUB_VIEWS = readFileSync(
 /** Sky-blue tokens that must never appear in Drive UI again. */
 const FORBIDDEN_TOKENS = ['#38BDF8', '#38bdf8', '#0284C7', 'rgba(56,189,248'];
 
+/**
+ * Class-form blue/sky Tailwind utilities that must never appear in Drive UI.
+ *
+ * qm-drive-sky-accent (finding 2026-10-12, P2): DriveSharedByMeSubView once
+ * rendered its "Link on" chip as `bg-sky-500/15 text-sky-400
+ * border-sky-500/35` and its "Public link: on…" text as `text-sky-400`.
+ * Tailwind sky-400 IS #38BDF8, so the class form rendered the exact blue the
+ * hex/rgba ban purged — and the old ban scanned only hex/rgba literals, so
+ * the class form slipped through undetected. Both spots now resolve through
+ * `var(--app-accent)` (drive green on /drive routes); this regex pins the
+ * class form out everywhere the hex ban already scans, including variant
+ * prefixes (`hover:bg-sky-500` still contains the `bg-sky-500` substring).
+ * It deliberately matches only utility-prefix + shade-number forms, so the
+ * word "blue" in comments (e.g. the DriveFilesSubView "DOC blue" type-card
+ * comment) does not trip it.
+ */
+const FORBIDDEN_CLASS_BLUE =
+  /(?:bg|text|border|from|to|via|ring|divide|outline|decoration|shadow|accent|caret|fill|stroke)-(?:sky|blue)-\d+/;
+
 describe('qm-drive-blue-accent: no hardcoded blue in any drive surface', () => {
   for (const { name, src } of TSX_FILES) {
     describe(`components/${name}`, () => {
@@ -83,6 +102,70 @@ describe('qm-drive-blue-accent: no hardcoded blue in any drive surface', () => {
         expect(PAGE).not.toContain(token);
       });
     }
+  });
+});
+
+describe('qm-drive-sky-accent: no class-form blue/sky utilities in any drive surface', () => {
+  for (const { name, src } of TSX_FILES) {
+    it(`components/${name} has no sky/blue Tailwind utility class`, () => {
+      expect(src).not.toMatch(FORBIDDEN_CLASS_BLUE);
+    });
+  }
+
+  it('drive/page.tsx has no sky/blue Tailwind utility class', () => {
+    expect(PAGE).not.toMatch(FORBIDDEN_CLASS_BLUE);
+  });
+
+  for (const { name, src } of R3_TOUCHED) {
+    it(`components/${name} has no sky/blue Tailwind utility class`, () => {
+      expect(src).not.toMatch(FORBIDDEN_CLASS_BLUE);
+    });
+  }
+
+  it('components/DriveSubViews.tsx has no sky/blue Tailwind utility class', () => {
+    expect(DRIVE_SUB_VIEWS).not.toMatch(FORBIDDEN_CLASS_BLUE);
+  });
+});
+
+describe('qm-drive-sky-accent: DriveSharedByMeSubView link chips use the green accent', () => {
+  const sharedByMeSrc = TSX_FILES.find(
+    (f) => f.name === 'DriveSharedByMeSubView.tsx',
+  )!.src;
+
+  it('source: "Link on" chip + "Public link: on" text resolve through var(--app-accent), never sky/blue', () => {
+    expect(sharedByMeSrc).not.toMatch(FORBIDDEN_CLASS_BLUE);
+    // The "Link on" chip (rendered whenever an unexpired linkShare exists).
+    expect(sharedByMeSrc).toContain('Link on');
+    // The expanded "Public link: on…" line.
+    expect(sharedByMeSrc).toContain('Public link:');
+    // Both spots carry the accent token, not a hardcoded blue class
+    // (the chip's className precedes its "Link on" label in the JSX).
+    expect(sharedByMeSrc).toMatch(/text-\[var\(--app-accent\)\][\s\S]{0,400}Link on/);
+  });
+
+  const linkItem: SentShareItem = {
+    id: 'item-link-1',
+    name: 'shared-deck.pdf',
+    type: 'file',
+    mimeType: 'application/pdf',
+    size: 98765,
+    updatedAt: '2026-10-01T10:00:00.000Z',
+    sharedCount: 1,
+    scanStatus: 'unknown',
+    scanReason: null,
+    sharedWith: [
+      { email: 'teammate@example.com', name: 'Teammate', permission: 'view', status: 'accepted', sharedAt: '2026-10-01T10:00:00.000Z' },
+    ],
+    linkShare: { role: 'view', requiresPassword: false, expiresAt: null },
+  };
+
+  it('renders the "Link on" chip with the accent token and no sky/blue class', () => {
+    const html = renderToStaticMarkup(
+      <DriveSharedByMeSubView items={[linkItem]} loading={false} />,
+    );
+    expect(html).toContain('Link on');
+    expect(html).toContain('text-[var(--app-accent)]');
+    expect(html).not.toMatch(FORBIDDEN_CLASS_BLUE);
   });
 });
 
