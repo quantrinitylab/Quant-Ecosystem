@@ -45,6 +45,17 @@ export function PeopleHome() {
   const currentUserEmail = user?.email ?? '';
   const [world, setWorld] = useState<ConversationWorld>('log');
 
+  /**
+   * fix/qm-peopleworldtabs-aria: the world tabs' single panel. One panel
+   * serves all three tabs — they swap one list in place — so it is the
+   * scroll container, the element that always exists (loading, error and
+   * empty states all come and go inside it). Its label follows the active
+   * tab, mirroring the inbox lens tablist in app/page.tsx. Previously the
+   * tabs carried aria-controls="world-panel-<key>" with no such element
+   * anywhere, so assistive tech announced controls pointing at nothing.
+   */
+  const worldPanelId = 'people-world-panel';
+
   // The sidebar's Spam entry links to `/?lens=spam`, which renders this People
   // view (not the classic inbox). Honor the lens here: spam shows the people
   // with spam threads, backed by the real SPAM folder query. Any other lens
@@ -178,10 +189,17 @@ export function PeopleHome() {
         </header>
 
         <div className="px-4 sm:px-6">
-          <PeopleWorldTabs world={world} onChange={setWorld} counts={counts} />
+          <PeopleWorldTabs world={world} onChange={setWorld} counts={counts} panelId={worldPanelId} />
         </div>
 
-        <div ref={listScrollRef} className="mt-2 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
+        <div
+          ref={listScrollRef}
+          role="tabpanel"
+          id={worldPanelId}
+          aria-labelledby={`world-tab-${world}`}
+          tabIndex={0}
+          className="mt-2 flex-1 overflow-y-auto px-4 pb-6 sm:px-6"
+        >
           <p className="sr-only" role="status" aria-live="polite">
             {cursorAnnouncement}
           </p>
