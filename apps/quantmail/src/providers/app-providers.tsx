@@ -1,6 +1,7 @@
 'use client';
 
 import { QuantSidekickProvider, ThemeProvider } from '@quant/shared-ui';
+import { DisplaySettingsSync } from '../components/DisplaySettingsSync';
 
 /**
  * Global, non-keyboard providers.
@@ -40,7 +41,17 @@ import { QuantSidekickProvider, ThemeProvider } from '@quant/shared-ui';
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider defaultTheme="dark">
-      <QuantSidekickProvider>{children}</QuantSidekickProvider>
+      <QuantSidekickProvider>
+        {/*
+          Account-roaming display settings (queue 2026-10-12 P2 [settings]):
+          one reconciliation pass per session so a theme/density/Assistant
+          choice made on another device reaches this browser without waiting
+          for a visit to Settings. Renders nothing and never toasts; a failed
+          round trip just leaves the local copy for the next pass.
+        */}
+        <DisplaySettingsSync />
+        {children}
+      </QuantSidekickProvider>
     </ThemeProvider>
   );
 }

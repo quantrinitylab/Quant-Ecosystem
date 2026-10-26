@@ -46,6 +46,14 @@
  * real `PATCH`, `changeTheme` mirrors the boot script's three attributes, and
  * `changeDensity` applies `data-density` in the same tick.
  *
+ * Theme, density and the Assistant intent now also roam with the account
+ * (queue 2026-10-12 P2 [settings]): each change PUTs to
+ * `/api/settings/display` on top of the local write, and the mount effect
+ * reconciles the browser's copy with the account's. `localStorage` stays as
+ * the boot cache and offline fallback — a failed PUT keeps the local change
+ * and says so, and the next sync pushes it up — never again as the only
+ * copy, which is how a phone-set theme used to die on the desktop.
+ *
  * Cards, toggle rows and choice groups come from `./SettingsPrimitives` — ART
  * LAW 18. The AI engine-mode radiogroup below is deliberately NOT folded into
  * `SettingsChoice`: it is already a correct `role="radiogroup"` with per-option
@@ -83,6 +91,12 @@ import { useDesktopNotifications } from '../../hooks/useDesktopNotifications';
 import { useMailNotificationMode } from '../../hooks/useMailNotificationMode';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { writeAIIntent } from '../../lib/ai-intent-preference';
+import {
+  saveDisplaySettingToAccount,
+  stampLocalDisplaySettingsField,
+  syncDisplaySettingsWithAccount,
+  writeLocalDisplaySettings,
+} from '../../lib/display-settings';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
 import { buildHelpGroups, dimNoteFor, helpGroupHeading } from '../../lib/keyboard/help-model';
 import {
@@ -301,6 +315,13 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<Theme>('dark');
   const [density, setDensity] = useState<Density>('comfortable');
   const [selectedAIModel, setSelectedAIModel] = useState<AIIntent>('auto');
+  /**
+   * Fields the user changed since mount. The mount sync resolves
+   * asynchronously; a change made while its PUT is in flight must win over
+   * the sync's pre-change snapshot, so the sync result below skips every
+   * field touched here rather than painting a stale value over a fresh one.
+   */
+  const displayTouchedRef = useRef({ theme: false, density: false, aiIntent: false });
 
   const desktopNotifications = useDesktopNotifications();
   const pushNotifications = usePushNotifications();
@@ -346,6 +367,19 @@ export default function SettingsPage() {
     } catch {
       /* ignore */
     }
+    // Reconcile with the account: a theme/density/intent set on another
+    // device wins over this browser's copy when it is newer, and a local
+    // non-default value the account never saw migrates up. The global
+    // DisplaySettingsSync already ran this pass on session start; running it
+    // here too is idempotent, and it is what makes this page show the
+    // account's values rather than a stale browser's on first open.
+    void syncDisplaySettingsWithAccount().then((result) => {
+      if (result.status !== 'applied-server') return;
+      const touched = displayTouchedRef.current;
+      if (!touched.theme) setTheme(result.settings.theme);
+      if (!touched.density) setDensity(result.settings.density);
+      if (!touched.aiIntent) setSelectedAIModel(result.settings.aiIntent);
+    });
   }, []);
 
   /**
@@ -468,29 +502,48 @@ export default function SettingsPage() {
   }, [defaultSignatureId, hasSignatureChanges, signature]);
 
   const handleSelectAIModel = (modelId: AIIntent) => {
+    displayTouchedRef.current.aiIntent = true;
     setSelectedAIModel(modelId);
     // `writeAIIntent` owns the key and the try/catch, and is the same function the
     // drawer, the composer and the build chat read through — the string
     // `quant-ai-model-mode` was hand-written in three places while it had no
     // readers at all, which is how it came to have none.
     writeAIIntent(modelId);
+    stampLocalDisplaySettingsField('aiIntent');
     const found = AI_ENGINE_MODES.find((m) => m.id === modelId);
-    showToast({
-      text: `Assistant set to ${found?.name || modelId}`,
-      type: 'success',
+    // The account copy, on top of the local one: a failed PUT keeps the
+    // local change (its stamp stays newer, so the next sync pushes it up)
+    // and says so, rather than claiming the account saved it.
+    void saveDisplaySettingToAccount({ aiIntent: modelId }).then(({ ok, updatedAt }) => {
+      if (ok) {
+        if (updatedAt) writeLocalDisplaySettings({ aiIntent: modelId }, { aiIntent: updatedAt });
+        showToast({ text: `Assistant set to ${found?.name || modelId}`, type: 'success' });
+      } else {
+        showToast({
+          text: `Assistant set to ${found?.name || modelId} on this browser — account sync failed, it will retry`,
+          type: 'error',
+        });
+      }
     });
   };
 
   const changeTheme = useCallback((next: Theme) => {
+    displayTouchedRef.current.theme = true;
     setTheme(next);
-    try {
-      localStorage.setItem('quant-theme', next);
-    } catch {
-      /* ignore */
-    }
+    writeLocalDisplaySettings({ theme: next });
     paintTheme(resolveTheme(next));
     const label = THEME_OPTIONS.find((option) => option.value === next)?.label ?? next;
-    showToast({ text: `Theme set to ${label}`, type: 'info' });
+    void saveDisplaySettingToAccount({ theme: next }).then(({ ok, updatedAt }) => {
+      if (ok) {
+        if (updatedAt) writeLocalDisplaySettings({ theme: next }, { theme: updatedAt });
+        showToast({ text: `Theme set to ${label}`, type: 'info' });
+      } else {
+        showToast({
+          text: `Theme set to ${label} on this browser — account sync failed, it will retry`,
+          type: 'error',
+        });
+      }
+    });
   }, []);
 
   /**
@@ -519,21 +572,22 @@ export default function SettingsPage() {
    * in the same tick as the click.
    */
   const changeDensity = useCallback((next: Density) => {
+    displayTouchedRef.current.density = true;
     setDensity(next);
-    try {
-      localStorage.setItem('quant-density', next);
-    } catch {
-      /* ignore */
-    }
+    writeLocalDisplaySettings({ density: next });
     document.documentElement.setAttribute('data-density', next);
-    showToast({
-      text:
-        next === 'compact'
-          ? 'Rows are compact'
-          : next === 'cozy'
-            ? 'Rows are cozy'
-            : 'Rows are comfortable',
-      type: 'info',
+    const label =
+      next === 'compact' ? 'Rows are compact' : next === 'cozy' ? 'Rows are cozy' : 'Rows are comfortable';
+    void saveDisplaySettingToAccount({ density: next }).then(({ ok, updatedAt }) => {
+      if (ok) {
+        if (updatedAt) writeLocalDisplaySettings({ density: next }, { density: updatedAt });
+        showToast({ text: label, type: 'info' });
+      } else {
+        showToast({
+          text: `${label} on this browser — account sync failed, it will retry`,
+          type: 'error',
+        });
+      }
     });
   }, []);
 
@@ -852,7 +906,8 @@ export default function SettingsPage() {
                 }
               >
                 <p className="text-xs leading-relaxed text-[var(--quant-text-muted)]">
-                  Your choice is stored on this browser — not on your account — and is sent with
+                  Your choice is saved to your account, so it follows you to every device — this
+                  browser keeps a copy so it still applies offline — and is sent with
                   every Quanty conversation and every drafted reply. It does not name an engine:
                   Deep buys a longer, more thorough answer from whatever model this deployment runs,
                   not a smarter one.
@@ -1101,7 +1156,7 @@ export default function SettingsPage() {
             <>
               <SettingsSection
                 title="Theme"
-                description="Applies the moment you pick it, and survives a reload."
+                description="Applies the moment you pick it, and follows your account to every device."
               >
                 <SettingsChoice<Theme>
                   legend="Canvas"
@@ -1114,7 +1169,7 @@ export default function SettingsPage() {
 
               <SettingsSection
                 title="Density"
-                description="How much vertical room a conversation row gets in the list."
+                description="How much vertical room a conversation row gets in the list. Saved to your account, so it follows you across devices."
               >
                 <SettingsChoice<Density>
                   legend="Row height"

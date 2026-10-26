@@ -11,6 +11,10 @@
 // `@quant/common` beside the tier table, so the writer and the readers cannot
 // drift apart. Returns `'auto'` on the server, in a private-mode browser that
 // throws on `localStorage`, and for any value this build does not recognise.
+//
+// The value itself now roams with the account (`lib/display-settings.ts`
+// keeps this key current with `/api/settings/display`); this module stays the
+// synchronous read path, and the sync is what makes that read account-true.
 // ============================================================================
 
 import {
