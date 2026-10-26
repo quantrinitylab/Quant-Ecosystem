@@ -29,15 +29,6 @@ export interface SummarizeResult {
   cost: CostQuote;
 }
 
-export interface ComposeAssistResult {
-  content: string;
-  confidence: number;
-  /** QM-QUANTY-002: empty when the assist had no source mail; never fabricated. */
-  evidence: EvidenceRef[];
-  provenance: ProvenanceRecord;
-  cost: CostQuote;
-}
-
 export interface ClassifyPriorityResult {
   emailId: string;
   priority: 'high' | 'normal' | 'low';
@@ -140,37 +131,6 @@ export class AIEmailService {
         contextBytes,
         contextTruncated: false,
         sourceCount: 1,
-      }),
-      cost: quoteCost(capability),
-    };
-  }
-
-  async composeAssistant(
-    userId: string,
-    instructions: string,
-    context: { recipient?: string; subject?: string; tone?: string },
-  ): Promise<ComposeAssistResult> {
-    const capability = capabilityOrThrow('mail.ai.compose.assist');
-    const contextBytes = estimatePayloadBytes({ instructions, context });
-    assertQuantyContextBudget(
-      { instructions, context },
-      quantyContextBudgetFor(capability.riskTier),
-    );
-
-    const result = await this.mailAI.composeEmail(instructions, context, userId);
-
-    return {
-      content: result.content,
-      confidence: result.confidence,
-      // Compose assist has no source mail — evidence stays honestly empty
-      // rather than pointing at an unrelated message.
-      evidence: [],
-      provenance: recordProvenance({
-        producedBy: 'quanty-model',
-        capability,
-        contextBytes,
-        contextTruncated: false,
-        sourceCount: 0,
       }),
       cost: quoteCost(capability),
     };
