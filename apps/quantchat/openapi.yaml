@@ -722,10 +722,27 @@ paths:
     get:
       tags: [WebSocket]
       summary: Get online users
-      security: []
+      description: |
+        Presence snapshot, recipient-scoped (QC-F-524). Authentication is
+        required (the global BearerAuth applies; there is no anonymous
+        form of this endpoint). The response only ever contains ids that
+        were explicitly requested via `userIds` AND that the caller may
+        see: users who share an active conversation (direct, group or
+        channel) with the caller or a close-friend edge in either
+        direction, who have not blocked / been blocked by the caller in
+        either direction, and whose own showOnlineStatus setting is on.
+        With no `userIds` parameter the result is always an empty list —
+        the online roster is never returned as a directory.
+      parameters:
+        - name: userIds
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Comma-separated user ids to check; ids not listed here are never returned.
       responses:
         '200':
-          description: Online user list
+          description: Online user list (scoped to the caller, see above)
           content:
             application/json:
               schema:
