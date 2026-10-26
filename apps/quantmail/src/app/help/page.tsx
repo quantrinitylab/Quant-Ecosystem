@@ -28,7 +28,7 @@ const TOPICS: Topic[] = [
   },
   {
     title: 'Creating an address',
-    body: 'New to QuantMail? Pick an address during registration. One identity gives you access to all Quant apps.',
+    body: 'New to QuantMail? Pick an address during registration. One identity gives you access to selected Quant apps.',
     href: '/register',
     linkLabel: 'Create an address',
   },
