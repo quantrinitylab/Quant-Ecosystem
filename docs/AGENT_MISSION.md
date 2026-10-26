@@ -13,6 +13,7 @@ No mocks. No demos. World-class speed and quality.
 |-------|------|---------------|---------|
 | Muse | `apps/quantmail` (web + backend) | Phase 1: production-grade — 7 QA bugs fixed & merged (`d984e95a`); deploy pending | Issue #382 |
 | Fellow agent (army/* waves) | Flutter apps, backend waves | _Please fill in your current focus_ | Issue #382 |
+| CODEX (`codex/ci-calendar-dst`) | Narrow test-only CI repair; QuantMail ownership remains MUSE-ORCHESTRATOR | Pin Calendar seasonal-clock tests and verify UK/US transitions; no merge/deploy or shared dependency edits | Issue #382, comment 6408112403 |
 
 ## Shared rules
 
