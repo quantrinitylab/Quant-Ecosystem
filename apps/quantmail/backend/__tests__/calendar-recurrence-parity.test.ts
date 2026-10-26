@@ -674,6 +674,53 @@ describe('Wave 6 (Phase C) Calendar Recurrence Parity & Exceptions Suite', () =>
       expect(new Date(busy[1].start).toISOString()).toBe('2026-09-22T14:00:00.000Z');
       expect(new Date(busy[1].end).toISOString()).toBe('2026-09-22T15:00:00.000Z');
     });
+
+    it('GET /events/free-busy declares self-only scope and never returns another user\'s busy blocks, even when attendee/userId params are supplied (fix/qm-find-a-time-guest)', async () => {
+      // The caller's own block: 10:00 - 11:00.
+      await prisma.event.create({
+        data: {
+          id: 'busy-self',
+          userId: 'user-parity-1',
+          title: 'My Session',
+          startTime: new Date('2026-09-22T10:00:00.000Z'),
+          endTime: new Date('2026-09-22T11:00:00.000Z'),
+        },
+      });
+      // Another user's overlapping block: 10:30 - 11:30. Must never leak
+      // into the caller's free-busy answer, whatever the query claims.
+      await prisma.event.create({
+        data: {
+          id: 'busy-other',
+          userId: 'user-other',
+          title: 'Private Session',
+          startTime: new Date('2026-09-22T10:30:00.000Z'),
+          endTime: new Date('2026-09-22T11:30:00.000Z'),
+        },
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/events/free-busy?start=2026-09-22T00:00:00.000Z&end=2026-09-22T23:59:59.999Z&attendee=other%40example.com&userId=user-other',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const json = res.json();
+      expect(json.success).toBe(true);
+      // Scope is declared so no client can honestly present this as
+      // guest-checked availability.
+      expect(json.data.scope).toBe('self');
+      expect(json.data.guestCalendarsChecked).toBe(false);
+      // Only the caller's block counts — the other user's 10:30-11:30
+      // block would have merged/extended the busy window if it leaked.
+      expect(json.data.conflictsCount).toBe(1);
+      expect(json.data.busyBlocksCount).toBe(1);
+      expect(new Date(json.data.busy[0].start).toISOString()).toBe(
+        '2026-09-22T10:00:00.000Z',
+      );
+      expect(new Date(json.data.busy[0].end).toISOString()).toBe(
+        '2026-09-22T11:00:00.000Z',
+      );
+    });
   });
 
   describe('10. Conflict Detection & Warning (Task C24)', () => {
