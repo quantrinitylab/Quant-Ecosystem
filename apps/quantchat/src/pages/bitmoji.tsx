@@ -335,6 +335,7 @@ function AvatarPreview({ config, animation }: { config: AvatarConfig; animation:
     </div>
   );
 }
+
 export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
   const [config, setConfig] = useState<AvatarConfig>({
     faceShape: 'oval',
