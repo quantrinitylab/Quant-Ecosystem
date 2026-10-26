@@ -8,8 +8,10 @@ import { FileScanBadge } from './FileScanBadge';
 import {
   FolderIcon,
   HardDriveIcon,
+  PencilIcon,
   StarFilledIcon,
   StarIcon,
+  TrashIcon,
 } from './DriveIcons';
 
 export interface DriveItem {
@@ -374,6 +376,48 @@ export function DriveFilesSubView({
                     </p>
                     <p className="text-[10px] text-[#64748B]">Folder</p>
                   </div>
+                  {/*
+                   * Folder actions: ALWAYS visible, never hover-gated.
+                   * These cards previously rendered zero action affordances,
+                   * so on every viewport (and especially touchscreens, where
+                   * hover does not exist) a folder could not be renamed or
+                   * deleted from this view. Buttons stop propagation so the
+                   * tap does not also fire the card's navigate handler, and
+                   * they render only when the parent actually wires the
+                   * handler — same contract as DriveHomeSubView.
+                   */}
+                  {(onOpenRename || onDeleteItem) && (
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {onOpenRename && (
+                        <button
+                          type="button"
+                          aria-label={`Rename folder ${folder.name}`}
+                          title="Rename"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenRename(folder, e);
+                          }}
+                          className="size-8 rounded grid place-items-center text-[#64748B] hover:text-[#F8FAFC] hover:bg-[#21262D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                        >
+                          <PencilIcon className="size-3.5" />
+                        </button>
+                      )}
+                      {onDeleteItem && (
+                        <button
+                          type="button"
+                          aria-label={`Delete folder ${folder.name}`}
+                          title="Delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteItem(folder.id, folder.name, e);
+                          }}
+                          className="size-8 rounded grid place-items-center text-[#64748B] hover:text-rose-300 hover:bg-rose-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                        >
+                          <TrashIcon className="size-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
