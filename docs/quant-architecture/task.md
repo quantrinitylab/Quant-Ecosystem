@@ -6968,3 +6968,9 @@ Audit started: 2026-10-26 ~22:35 IST (lane-1 deep audit loop, ROUND 41)
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents (protocol P0/P1-only; subagent.list 0 active at run start and end). findings.md untouched.
 - LIVE HEALTHY, VISUAL VERIFIED: proxy 127.0.0.1:8888 healthy (PID 1984, no restart; / -> 307 in 1.51s); /notifications -> 307 /login?returnTo=%2Fnotifications; /api/notifications + /api/notifications/mail-notification-mode -> honest 401 x2 (byte-verified 'Missing or invalid authorization header') — all match R40 baseline. Desktop 1440x900 (9334, ConnectionRefused iter-0 retry launch as in prior runs) + mobile 390x844 (iPhone 14, MOBILE_CHROME_PORT=10131, wait_s=14 hydrated) /notifications shots REVIEWED: settled sign-in gate both viewports, hero 'Your work, back in focus.' + honest tri-cards (desktop), current clay M-mark, ONE IDENTITY footer, (c) 2026, pure black, mail-orange, zero old-logo flash; standing knowns re-seen not re-filed (white ghost 'AI triage' card on desktop, P3 'Quant Mail' wordmark spacing); mobile settled straight to sign-in form (no hero transient). Shots deleted; exactly my 2 run-created chrome dirs removed (pgrep-verified zero live chromes referencing them before rm; pre-existing 9334 orphans untouched); /tmp 3%. Signed-in notification center/delivery/push flows = needs-auth (protocol), not faked. #1243 deploy hold ACTIVE (cat-verified, non-empty, hidden_files/orchestrator/deploy-hold.txt) — nothing to deploy.
 Rotation -> QM-SCREEN-016 (settings) ROUND 41 regression, queued.
+
+## QM-SCREEN-016 R41 — Settings regression (ROUND 41)
+Status: [~] IN_PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-016r41
+Audit started: 2026-10-26 ~23:35 IST (lane-1 deep audit loop, ROUND 41)
