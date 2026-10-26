@@ -1875,7 +1875,11 @@ export function EmailComposer({
     }
   };
 
-  // Insert Link to Body
+  // Insert Link to Body. The body is a plain-text textarea, so a link can only
+  // be stored as `[text](url)` here — that is not what recipients get: the
+  // send pipeline (`linkifyMarkdownLinks` inside `plainTextToHtml` /
+  // `composeMessageBodies`) turns it into a real `<a>` in `bodyHtml`, so
+  // external recipients receive a clickable hyperlink, not literal Markdown.
   const handleInsertLink = (displayText: string, url: string) => {
     setBody((prev) => `${prev} [${displayText}](${url}) `);
   };
