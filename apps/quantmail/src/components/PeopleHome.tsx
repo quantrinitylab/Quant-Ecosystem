@@ -154,8 +154,31 @@ export function PeopleHome() {
     setCursorAnnouncement(`${conversation.name}. ${tail.join(', ')}`);
   }, [focusedId, keyboardRows]);
 
+  /*
+   * fix/qm-mobile-pillar-search (mobile-inbox P2): the People home used to
+   * pass NO search props to AppShell, so the shell's pinned pillar search
+   * field (mobile) / desktop sidebar field rendered with no backing state —
+   * typing into it filtered nothing and Enter was a no-op — while
+   * PeopleList rendered its own working in-list filter below it. Two search
+   * boxes, one of them dead. The home's filter state already lives here
+   * (`searchQuery`), so hand it to the shell exactly like calendar,
+   * contacts, drive and the inbox do: the pillar field is now the same live
+   * filter as the in-list box (one state, both boxes live), and the shell's
+   * `/` shortcut focuses the shell field on both viewports. The in-list box
+   * stays: `/people` is not a main-suite route, so no pillar bar renders
+   * there and the in-list box is that route's only tappable mobile search
+   * (the shell's collapsible row opens only from the `/` key).
+   */
   return (
-    <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell" aria-label="QuantMail people">
+    <AppShell
+      sidebar={<AppSidebar />}
+      theme="dark"
+      className="quantmail-shell"
+      aria-label="QuantMail people"
+      searchValue={searchQuery}
+      onSearchChange={setSearchQuery}
+      searchPlaceholder="Search people and messages"
+    >
       <div className="flex h-full flex-col bg-black">
         {/*
           Mailbox view switcher (People | Inbox), in-flow at the top-right of
