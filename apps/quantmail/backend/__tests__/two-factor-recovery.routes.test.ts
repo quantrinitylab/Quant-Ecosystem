@@ -33,7 +33,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
   const prisma: any = {
-    user: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    user: { findFirst: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     passwordResetToken: {
       create: vi.fn(),
       deleteMany: vi.fn(),
@@ -199,7 +199,7 @@ beforeEach(() => {
   mocks.isSesConfigured.mockReturnValue(true);
   mocks.sendViaSes.mockResolvedValue('ses-message-id');
   mocks.argon2Verify.mockResolvedValue(true);
-  mocks.prisma.user.findFirst.mockResolvedValue({ ...USER });
+  mocks.prisma.user.findMany.mockResolvedValue([{ ...USER }]);
   mocks.prisma.user.update.mockResolvedValue({});
   mocks.prisma.twoFactorRecoveryChallenge.create.mockImplementation(async (args: any) => ({
     id: 'tfr-1',
@@ -220,7 +220,7 @@ beforeEach(() => {
 
 describe('POST /auth/2fa/recover — the request', () => {
   it('answers the same non-committal 200 for an unknown address (no enumeration)', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue(null);
+    mocks.prisma.user.findMany.mockResolvedValue([]);
 
     const reply = await requestRecovery({ email: 'nobody@quantmail.in' });
     await settle();
@@ -232,7 +232,7 @@ describe('POST /auth/2fa/recover — the request', () => {
   });
 
   it('answers identically when 2FA is off — no challenge, no mail', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue({ ...USER, twoFactorEnabled: false });
+    mocks.prisma.user.findMany.mockResolvedValue([{ ...USER, twoFactorEnabled: false }]);
 
     const reply = await requestRecovery({ email: 'Kundan@quantmail.in' });
     await settle();
@@ -245,11 +245,11 @@ describe('POST /auth/2fa/recover — the request', () => {
   it('answers identically when 2FA was never armed (flag without a secret)', async () => {
     // The old enrolment bug's state: flag on, secret missing. Recovery must
     // not offer to reset what was never armed.
-    mocks.prisma.user.findFirst.mockResolvedValue({
+    mocks.prisma.user.findMany.mockResolvedValue([{
       ...USER,
       twoFactorEnabled: true,
       twoFactorSecret: null,
-    });
+    }]);
 
     const reply = await requestRecovery({ email: 'Kundan@quantmail.in' });
     await settle();
@@ -260,11 +260,11 @@ describe('POST /auth/2fa/recover — the request', () => {
   });
 
   it('answers identically for a legacy UNVERIFIED recovery address — it is inert', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue({
+    mocks.prisma.user.findMany.mockResolvedValue([{
       ...USER,
       recoveryEmail: 'backup@example.com',
       recoveryEmailVerifiedAt: null,
-    });
+    }]);
 
     const reply = await requestRecovery({ email: 'Kundan@quantmail.in' });
     await settle();
@@ -275,11 +275,11 @@ describe('POST /auth/2fa/recover — the request', () => {
   });
 
   it('answers identically when no recovery email is set', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue({
+    mocks.prisma.user.findMany.mockResolvedValue([{
       ...USER,
       recoveryEmail: null,
       recoveryEmailVerifiedAt: null,
-    });
+    }]);
 
     const reply = await requestRecovery({ email: 'Kundan@quantmail.in' });
     await settle();
@@ -299,7 +299,7 @@ describe('POST /auth/2fa/recover — the request', () => {
       expect(reply.statusCode).toBe(403);
       expect(reply.body.error.code).toBe('UNTRUSTED_ORIGIN');
     }
-    expect(mocks.prisma.user.findFirst).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.findMany).not.toHaveBeenCalled();
   });
 
   it('rejects a malformed email honestly', async () => {
@@ -307,7 +307,7 @@ describe('POST /auth/2fa/recover — the request', () => {
 
     expect(reply.statusCode).toBe(400);
     expect(reply.body.error.code).toBe('VALIDATION_ERROR');
-    expect(mocks.prisma.user.findFirst).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.findMany).not.toHaveBeenCalled();
   });
 
   it('mints a challenge and mails the code ONLY to the verified recovery address', async () => {
@@ -343,6 +343,25 @@ describe('POST /auth/2fa/recover — the request', () => {
     );
     expect(mailRecipients()).toEqual([['backup@example.com']]);
   });
+
+  it('mints nothing and mails nothing for case-colliding rows — still the non-committal 200', async () => {
+    // Two legacy rows differing only by case: there is no single account a
+    // challenge could belong to, so the request must not resolve
+    // first-row-wins — and the answer must stay non-committal, unlike login,
+    // so this endpoint never becomes an oracle for colliding rows.
+    mocks.prisma.user.findMany.mockResolvedValue([
+      { ...USER, id: 'user-1', email: 'Kundan@quantmail.in' },
+      { ...USER, id: 'user-2', email: 'kundan@quantmail.in' },
+    ]);
+
+    const reply = await requestRecovery({ email: 'Kundan@quantmail.in' });
+    await settle();
+
+    expect(reply.body).toEqual(NON_COMMITTAL);
+    expect(mocks.prisma.twoFactorRecoveryChallenge.create).not.toHaveBeenCalled();
+    expect(mocks.prisma.twoFactorRecoveryChallenge.deleteMany).not.toHaveBeenCalled();
+    expect(mocks.sendViaSes).not.toHaveBeenCalled();
+  });
 });
 
 describe('POST /auth/2fa/recover/confirm — the explicitly-confirmed reset', () => {
@@ -369,7 +388,7 @@ describe('POST /auth/2fa/recover/confirm — the explicitly-confirmed reset', ()
       expect(reply.statusCode).toBe(403);
       expect(reply.body.error.code).toBe('UNTRUSTED_ORIGIN');
     }
-    expect(mocks.prisma.user.findFirst).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.findMany).not.toHaveBeenCalled();
   });
 
   it('rejects malformed fields honestly', async () => {
@@ -384,11 +403,11 @@ describe('POST /auth/2fa/recover/confirm — the explicitly-confirmed reset', ()
       expect(reply.statusCode).toBe(400);
       expect(reply.body.error.code).toBe('VALIDATION_ERROR');
     }
-    expect(mocks.prisma.user.findFirst).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.findMany).not.toHaveBeenCalled();
   });
 
   it('answers 401 for an unknown address without checking the password', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue(null);
+    mocks.prisma.user.findMany.mockResolvedValue([]);
 
     const reply = await confirmRecovery(validConfirm());
 
@@ -409,8 +428,60 @@ describe('POST /auth/2fa/recover/confirm — the explicitly-confirmed reset', ()
     expect(mocks.prisma.twoFactorBackupCode.deleteMany).not.toHaveBeenCalled();
   });
 
+  it('409s EMAIL_CASE_CONFLICT for case-colliding rows before any password check', async () => {
+    // No single twin can own the password proof: resolving first-row-wins
+    // would let one twin's password reset the other twin's 2FA. Login
+    // already discloses this condition pre-password, so nothing new leaks.
+    mocks.prisma.user.findMany.mockResolvedValue([
+      { ...USER, id: 'user-1', email: 'Kundan@quantmail.in' },
+      { ...USER, id: 'user-2', email: 'kundan@quantmail.in' },
+    ]);
+
+    const reply = await confirmRecovery(validConfirm());
+
+    expect(reply.statusCode).toBe(409);
+    expect(reply.body.error.code).toBe('EMAIL_CASE_CONFLICT');
+    expect(mocks.argon2Verify).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+    expect(mocks.prisma.twoFactorBackupCode.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('401s for a suspended account after the password check — no 2FA reset', async () => {
+    mocks.prisma.user.findMany.mockResolvedValue([{ ...USER, status: 'SUSPENDED' }]);
+
+    const reply = await confirmRecovery(validConfirm());
+
+    expect(reply.statusCode).toBe(401);
+    expect(reply.body.error.code).toBe('ACCOUNT_SUSPENDED');
+    expect(mocks.argon2Verify).toHaveBeenCalled();
+    expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('401s for a deactivated account after the password check — no 2FA reset', async () => {
+    mocks.prisma.user.findMany.mockResolvedValue([{ ...USER, status: 'DEACTIVATED' }]);
+
+    const reply = await confirmRecovery(validConfirm());
+
+    expect(reply.statusCode).toBe(401);
+    expect(reply.body.error.code).toBe('ACCOUNT_DEACTIVATED');
+    expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('aborts inside the transaction when the account is suspended mid-flight', async () => {
+    // The pre-checks passed, then an admin suspended the account before the
+    // burn: the in-transaction re-validation refuses and writes nothing.
+    mocks.prisma.user.findUnique.mockResolvedValue({ ...USER, status: 'SUSPENDED' });
+
+    const reply = await confirmRecovery(validConfirm());
+
+    expect(reply.statusCode).toBe(401);
+    expect(reply.body.error.code).toBe('ACCOUNT_SUSPENDED');
+    expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+    expect(mocks.prisma.twoFactorBackupCode.deleteMany).not.toHaveBeenCalled();
+  });
+
   it('409s when 2FA is not on — there is nothing to recover', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue({ ...USER, twoFactorEnabled: false });
+    mocks.prisma.user.findMany.mockResolvedValue([{ ...USER, twoFactorEnabled: false }]);
 
     const reply = await confirmRecovery(validConfirm());
 
@@ -420,11 +491,11 @@ describe('POST /auth/2fa/recover/confirm — the explicitly-confirmed reset', ()
   });
 
   it('409s when the recovery address was never verified', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue({
+    mocks.prisma.user.findMany.mockResolvedValue([{
       ...USER,
       recoveryEmail: 'backup@example.com',
       recoveryEmailVerifiedAt: null,
-    });
+    }]);
 
     const reply = await confirmRecovery(validConfirm());
 
