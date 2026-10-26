@@ -18,6 +18,19 @@ import {
 } from '../lib/auth-session';
 import { signTwoFactorChallenge } from '../lib/two-factor';
 import {
+  MAX_NEW_DEVICE_ATTEMPTS,
+  NEW_DEVICE_CHALLENGE_TTL_SECONDS,
+  challengeDestination,
+  deviceFingerprint,
+  isFamiliarDevice,
+  isNewDeviceChallengeExpired,
+  listLiveBrowserSessions,
+  maskEmail,
+  newDeviceChallengeApi,
+  newDeviceChallengeExpiry,
+  sendNewDeviceChallengeEmail,
+} from '../lib/new-device-challenge';
+import {
   MAX_VERIFICATION_ATTEMPTS,
   generateVerificationCode,
   hashVerificationCode,
@@ -199,9 +212,283 @@ export async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
+      // NEW-DEVICE GATE (fix/qm-new-device-challenge): a correct password
+      // from a device matching no LIVE browser session gets no session.
+      // Familiarity is the exact ipAddress+userAgent pair on a live
+      // refresh-token row. Zero live rows is not gated (no trusted device on
+      // record yet — this login's session becomes the first one), and a
+      // TOTP second factor above already proved possession, so 2FA logins
+      // never reach this branch. The code goes to the verified recovery
+      // email when one exists, else to the account email itself; when SES
+      // cannot deliver it, the login fails closed honestly and the minted
+      // row is burned — a mail outage must never silently disable the gate.
+      const metadata = sessionMetadataFromRequest(request);
+      const priorSessions = await listLiveBrowserSessions(prisma, user.id);
+      if (priorSessions.length > 0 && !isFamiliarDevice(priorSessions, metadata)) {
+        const challengeApi = newDeviceChallengeApi(prisma);
+        if (!challengeApi) {
+          return fail(
+            reply,
+            503,
+            'NEW_DEVICE_GATE_UNAVAILABLE',
+            'This sign-in needs an extra check that is temporarily unavailable. Try again in a few minutes.',
+          );
+        }
+        const fingerprint = deviceFingerprint(metadata);
+        const code = generateVerificationCode();
+        const destination = challengeDestination(user);
+        let challengeRow: { id: string } | null = null;
+        try {
+          await challengeApi.updateMany({
+            where: { userId: user.id, usedAt: null },
+            data: { usedAt: new Date() },
+          });
+          challengeRow = (await challengeApi.create({
+            data: {
+              userId: user.id,
+              deviceFingerprint: fingerprint,
+              codeHash: hashVerificationCode(code),
+              expiresAt: newDeviceChallengeExpiry(),
+              requestedIp: typeof request.ip === 'string' ? request.ip : null,
+            },
+          })) as { id: string };
+        } catch {
+          return fail(
+            reply,
+            503,
+            'NEW_DEVICE_GATE_UNAVAILABLE',
+            'This sign-in needs an extra check that is temporarily unavailable. Try again in a few minutes.',
+          );
+        }
+        const emailSent = await sendNewDeviceChallengeEmail({
+          to: destination.to,
+          code,
+          name: user.displayName,
+          ipAddress: metadata.ipAddress ?? null,
+          userAgent: metadata.userAgent ?? null,
+        });
+        if (!emailSent) {
+          await challengeApi.update({
+            where: { id: challengeRow.id },
+            data: { usedAt: new Date() },
+          });
+          return fail(
+            reply,
+            503,
+            'NEW_DEVICE_EMAIL_FAILED',
+            'We could not send the sign-in code. Check your connection and try signing in again.',
+          );
+        }
+        return reply.send({
+          success: true,
+          data: {
+            newDeviceChallengeRequired: true,
+            challengeId: challengeRow.id,
+            maskedDestination: maskEmail(destination.to),
+            channel: destination.channel,
+            expiresIn: NEW_DEVICE_CHALLENGE_TTL_SECONDS,
+          },
+        });
+      }
+
       return reply.send(
-        await issueBrowserSession(tokenService, reply, user, sessionMetadataFromRequest(request)),
+        await issueBrowserSession(tokenService, reply, user, metadata),
       );
+    },
+  );
+
+  // Complete a new-device challenge: POST /auth/new-device/verify
+  // { email, code }. Public — the caller has no token yet — so a wrong
+  // code, a missing account, and an expired challenge all answer the same
+  // generic 400, and nothing here reveals whether an account exists beyond
+  // what /auth/register already reveals. The code is redeemable ONLY from
+  // the device whose fingerprint the login minted: a device mismatch fails
+  // WITHOUT burning an attempt (the legitimate user may simply be on a
+  // changed IP and must sign in again from the original device), while a
+  // wrong code from the right device increments the attempt cap. Success
+  // burns the row with a compare-and-set (exactly one winner) and issues
+  // the session — that session's refresh row becomes the trusted record
+  // for the next sign-in from this device.
+  fastify.post(
+    '/auth/new-device/verify',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      if (!requireTrustedOrigin(request, reply)) return;
+      const { email, code } = request.body as any;
+
+      if (!email || !looksLikeVerificationCode(code)) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Email and a 6-digit verification code are required.');
+      }
+      const normalizedEmail = normalizeIdentity(email);
+      if (!normalizedEmail) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Email and a 6-digit verification code are required.');
+      }
+
+      const lookup = await findUserByEmailInsensitive(normalizedEmail);
+      if (lookup.conflict) {
+        return fail(reply, 409, 'EMAIL_CASE_CONFLICT', EMAIL_CASE_CONFLICT_MESSAGE);
+      }
+      const user = lookup.user;
+      const challengeApi = newDeviceChallengeApi(prisma);
+      const row = user && challengeApi
+        ? ((await challengeApi.findFirst({
+            where: { userId: user.id, usedAt: null },
+            orderBy: { createdAt: 'desc' },
+          })) as {
+            id: string;
+            deviceFingerprint: string;
+            codeHash: string;
+            expiresAt: Date;
+            attempts: number;
+          } | null)
+        : null;
+
+      // No account, no live challenge, or an expired challenge: one answer.
+      if (!user || !row || isNewDeviceChallengeExpired(row.expiresAt)) {
+        return fail(reply, 400, 'INVALID_OR_EXPIRED_CODE', 'The verification code is wrong or has expired.');
+      }
+
+      const metadata = sessionMetadataFromRequest(request);
+      if (deviceFingerprint(metadata) !== row.deviceFingerprint) {
+        return fail(
+          reply,
+          401,
+          'NEW_DEVICE_MISMATCH',
+          'This code can only be entered on the device that started the sign-in. Sign in again on that device.',
+        );
+      }
+      if (row.attempts >= MAX_NEW_DEVICE_ATTEMPTS) {
+        return fail(
+          reply,
+          429,
+          'TOO_MANY_ATTEMPTS',
+          'Too many wrong codes. Sign in again to request a new code.',
+        );
+      }
+      if (!verificationCodeMatches(code, row.codeHash)) {
+        await challengeApi!.update({
+          where: { id: row.id },
+          data: { attempts: { increment: 1 } },
+        });
+        return fail(reply, 400, 'INVALID_CODE', 'The verification code is wrong.');
+      }
+
+      // Compare-and-set burn: two confirms racing on the same row cannot
+      // both mint a session.
+      const claimed = await challengeApi!.updateMany({
+        where: { id: row.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+      if (claimed.count !== 1) {
+        return fail(reply, 400, 'CODE_ALREADY_USED', 'This verification code has already been used.');
+      }
+      await challengeApi!.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+
+      return reply.send(
+        await issueBrowserSession(tokenService, reply, user, metadata),
+      );
+    },
+  );
+
+  // Re-send a pending new-device code: POST /auth/new-device/resend
+  // { email }. Only a pending challenge can be re-sent — there is no
+  // standing "send a code" endpoint for an arbitrary address, and the
+  // re-sent code is bound to THIS request's device fingerprint (the user
+  // is sitting at the browser asking for the re-send). A failed delivery
+  // burns the new row so no live code exists that was never mailed.
+  fastify.post(
+    '/auth/new-device/resend',
+    { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      if (!requireTrustedOrigin(request, reply)) return;
+      const { email } = request.body as any;
+
+      if (!email) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Email is required.');
+      }
+      const normalizedEmail = normalizeIdentity(email);
+      if (!normalizedEmail) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Email is required.');
+      }
+
+      const lookup = await findUserByEmailInsensitive(normalizedEmail);
+      if (lookup.conflict) {
+        return fail(reply, 409, 'EMAIL_CASE_CONFLICT', EMAIL_CASE_CONFLICT_MESSAGE);
+      }
+      const user = lookup.user;
+      if (!user) {
+        return fail(reply, 404, 'USER_NOT_FOUND', 'No account uses this email address.');
+      }
+      const challengeApi = newDeviceChallengeApi(prisma);
+      const pending = user && challengeApi
+        ? ((await challengeApi.findFirst({
+            where: { userId: user.id, usedAt: null },
+            orderBy: { createdAt: 'desc' },
+          })) as { id: string; expiresAt: Date } | null)
+        : null;
+      if (!pending || isNewDeviceChallengeExpired(pending.expiresAt)) {
+        return fail(
+          reply,
+          400,
+          'NO_PENDING_CHALLENGE',
+          'No sign-in code is waiting for this account. Sign in again to request one.',
+        );
+      }
+
+      const metadata = sessionMetadataFromRequest(request);
+      const code = generateVerificationCode();
+      const destination = challengeDestination(user);
+      let row: { id: string } | null = null;
+      try {
+        await challengeApi!.updateMany({
+          where: { userId: user.id, usedAt: null },
+          data: { usedAt: new Date() },
+        });
+        row = (await challengeApi!.create({
+          data: {
+            userId: user.id,
+            deviceFingerprint: deviceFingerprint(metadata),
+            codeHash: hashVerificationCode(code),
+            expiresAt: newDeviceChallengeExpiry(),
+            requestedIp: typeof request.ip === 'string' ? request.ip : null,
+          },
+        })) as { id: string };
+      } catch {
+        return fail(
+          reply,
+          503,
+          'NEW_DEVICE_GATE_UNAVAILABLE',
+          'The sign-in check is temporarily unavailable. Sign in again in a few minutes.',
+        );
+      }
+      const emailSent = await sendNewDeviceChallengeEmail({
+        to: destination.to,
+        code,
+        name: user.displayName,
+        ipAddress: metadata.ipAddress ?? null,
+        userAgent: metadata.userAgent ?? null,
+      });
+      if (!emailSent) {
+        await challengeApi!.update({ where: { id: row.id }, data: { usedAt: new Date() } });
+        return fail(
+          reply,
+          503,
+          'NEW_DEVICE_EMAIL_FAILED',
+          'We could not send the sign-in code. Try signing in again.',
+        );
+      }
+      return reply.send({
+        success: true,
+        data: {
+          emailSent: true,
+          maskedDestination: maskEmail(destination.to),
+          channel: destination.channel,
+          expiresIn: NEW_DEVICE_CHALLENGE_TTL_SECONDS,
+        },
+      });
     },
   );
 
