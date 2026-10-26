@@ -69,6 +69,15 @@ export interface QuantMailSuperAppHeaderProps {
   userInitials?: string;
   /** User full name */
   userName?: string;
+  /**
+   * Real presence signal for the profile avatar. The presence dot renders
+   * ONLY when this is explicitly `true` — i.e. a real presence source has
+   * confirmed the user is online. Omitted or `false` renders NO dot: the
+   * avatar must never claim "online" without a presence signal (the dot
+   * used to render unconditionally whenever userName/userInitials were
+   * passed, fabricating an online status no source exists for).
+   */
+  isOnline?: boolean;
   /** Priority mail unread count */
   priorityMailCount?: number;
   /** Priority mail latest subject */
@@ -494,6 +503,7 @@ export function QuantMailSuperAppHeader({
   quantCredits,
   userInitials,
   userName,
+  isOnline,
   priorityMailCount,
   priorityMailSubject,
   nextMeetingTitle,
@@ -841,10 +851,14 @@ export function QuantMailSuperAppHeader({
             title={`${userName} (${userEmail})`}
           >
             <span>{userInitials}</span>
+            {/* Presence dot ONLY from a real presence signal (isOnline === true).
+                No signal → no dot; never claim "online" by default. */}
+            {isOnline === true && (
             <span
               className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-500 ring-2 ring-[var(--quant-background)]"
-              aria-label="Online status"
+              aria-label="Online"
             />
+            )}
           </button>
           )}
         </div>
