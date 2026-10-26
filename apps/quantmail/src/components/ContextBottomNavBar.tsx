@@ -788,6 +788,22 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         queryParam: { key: 'lens', value: 'spam' },
       },
       {
+        // QM-IMPORTANT-LENS-ACTIVE-TAB: `/?lens=important` is a real inbox
+        // view (page.tsx `important` lens, high-priority/starred mail), but
+        // `resolveActiveTab` mapped it to phantom id 'priority' — no mail
+        // tab had that id, so the bar highlighted the wrong slot (index-0
+        // fallback) while the desktop sidebar highlighted nothing. This
+        // overflow slot mirrors the Spam lens tab: it joins the bar only
+        // while Important is the active view, and StarredIcon is the
+        // existing star mark (Important = high-priority or starred mail).
+        id: 'important',
+        mobileOverflow: true,
+        label: 'Important',
+        icon: StarredIcon,
+        targetPath: '/',
+        queryParam: { key: 'lens', value: 'important' },
+      },
+      {
         id: 'trash',
         mobileOverflow: true,
         label: 'Trash',
@@ -1062,7 +1078,12 @@ export function resolveActiveTab(
     if (pathname.startsWith('/drafts') || tabParam === 'drafts') return 'drafts';
     if (pathname.startsWith('/trash') || tabParam === 'trash') return 'trash';
     if (lensParam === 'spam') return 'spam';
-    if (lensParam === 'important' || tabParam === 'priority') return 'priority';
+    // QM-IMPORTANT-LENS-ACTIVE-TAB: 'priority' was a phantom id — no mail
+    // tab carried it, so the resolvers returned an unhighlightable tab.
+    // The Important lens now has its own 'important' tab (above); the
+    // legacy ?tab=priority alias collapses onto it instead of stranding
+    // the nav with no active tab.
+    if (lensParam === 'important' || tabParam === 'priority') return 'important';
     return 'inbox';
   }
 
@@ -1286,7 +1307,7 @@ export function ContextBottomNavBar({
   const primaryTabs = pillarConfig.tabs.filter((t) => !t.mobileOverflow);
   const activeOverflow = pillarConfig.tabs.find((t) => t.mobileOverflow && t.id === activeTabId);
   const visibleTabs = activeOverflow ? [...primaryTabs, activeOverflow] : primaryTabs;
-  // A view with no slot of its own (the inbox's Important lens, say) lives
+  // A view with no slot of its own (a custom folder lens, say) lives
   // under the first tab, so the raised tab still says where the user is.
   const foundIndex = visibleTabs.findIndex((t) => t.id === activeTabId);
   const activeIndex = foundIndex >= 0 ? foundIndex : 0;

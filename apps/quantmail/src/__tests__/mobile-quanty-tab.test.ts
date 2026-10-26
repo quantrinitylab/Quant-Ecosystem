@@ -54,6 +54,7 @@ describe('QM-MOBILE-QUANTY-TAB — Quanty in the mobile Mail bottom bar', () => 
       'drafts',
       'archive',
       'spam',
+      'important',
       'trash',
     ]);
     const quanty = tabs[1];
