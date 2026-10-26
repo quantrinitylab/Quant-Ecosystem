@@ -24,6 +24,7 @@ import { groupEmailsIntoThreads } from '../lib/threading';
 import type { Email } from '../types';
 import { SearchClearButton } from './SearchClearButton';
 import { QuantFab, type FabAction } from './QuantFab';
+import { resetChromeVisible } from './useScrollChrome';
 import { ShellChromeProvider } from './ShellChromeContext';
 import { QuantyDrawerHost } from './QuantyLauncher';
 import { DesktopContextSidebar } from './DesktopContextSidebar';
@@ -525,6 +526,21 @@ export function AppShell({
    */
   useEffect(() => {
     setIsMobileSearchOpen(false);
+  }, [pathname]);
+
+  /*
+   * A route change resets the scroll chrome to visible (fix/qm-scroll-chrome-
+   * route-reset). The chrome store in useScrollChrome.ts is module-level, so
+   * it survives navigation while AppShell itself mounts once for the suite:
+   * scroll down on the inbox (FAB hidden), switch pillars to /drive, and
+   * without this the fresh pillar paints with its FAB hidden until some
+   * scroll event re-evaluates — and a page whose container never scrolls
+   * never fires one. Same pathname-dependency shape as the search-row close
+   * above, deliberately NOT search params: a ?tab= switch inside one view
+   * keeps its scroll container, so its chrome state stays.
+   */
+  useEffect(() => {
+    resetChromeVisible();
   }, [pathname]);
 
   /**
