@@ -64,6 +64,7 @@ import { interpretMergeResult, mergeFailureToast } from './mergeOutcome';
 import { resolveBlobLoadOutcome } from './blobLoadOutcome';
 import { assertBranchCreated, BranchExistsError } from './branchCreate';
 import { assertCommitResponse, toCommitFailure } from './commitBlob';
+import { describeDeployedAgentDesk } from './agentDesk';
 import {
   headShaFromBlobPayload,
   newBranchBaseSha,
@@ -2013,7 +2014,7 @@ function QuantGitContent() {  const router = useRouter();
                   role: res.role || 'Autonomous Developer',
                   pod: 'SWARM',
                   status: 'idle',
-                  currentTask: `Stationed at Desk #${res.deskNumber || 1}`,
+                  currentTask: describeDeployedAgentDesk(res.deskNumber),
                   initial: String(res.name || 'S')
                     .charAt(0)
                     .toUpperCase(),
