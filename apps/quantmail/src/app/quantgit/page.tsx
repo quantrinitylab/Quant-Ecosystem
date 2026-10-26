@@ -1061,8 +1061,8 @@ function QuantGitContent() {  const router = useRouter();
               isDefault: false,
               isProtected: false,
               protection: 'none',
-              aheadBy: 0,
-              behindBy: 0,
+              // No aheadBy/behindBy: divergence vs the default branch is
+              // not computed — never a fake "behind 0 / ahead 0" badge.
               lastCommitAuthor: currentUsername,
               lastCommitMessage: `Branch created from ${source}`,
               lastCommitTime: 'just now',
@@ -2510,8 +2510,8 @@ function QuantGitContent() {  const router = useRouter();
                           sha: selectedRepo.latestCommitSha || '',
                           isDefault: b === selectedRepo.defaultBranch,
                           isProtected: b === selectedRepo.defaultBranch,
-                          aheadBy: 0,
-                          behindBy: 0,
+                          // No aheadBy/behindBy: the name-only list carries
+                          // no divergence data — never a fake "0 / 0" badge.
                           // Honest fallback: the name-only list carries no
                           // per-branch commit data, so leave the author empty
                           // and let BranchesTab render its 'Unknown' fallback.

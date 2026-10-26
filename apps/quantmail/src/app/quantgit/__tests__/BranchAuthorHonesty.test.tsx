@@ -32,8 +32,9 @@ const TEST_REPO: Repo = {
 // backend payload with `lastCommitAuthor: b.lastCommitAuthor ||
 // currentUsername` and `lastCommitMessage: b.lastCommitMessage || 'Update
 // branch'` — but the branches endpoint returns NO per-branch last-commit
-// fields at all (only name/sha/isDefault/isProtected/protection/aheadBy/
-// behindBy), so EVERY branch row misattributed its last commit to the VIEWER
+// fields at all (only name/sha/isDefault/isProtected/protection — the
+// endpoints deliberately omit the uncomputed aheadBy/behindBy fields), so
+// EVERY branch row misattributed its last commit to the VIEWER
 // and printed a fabricated commit message, pre-empting BranchesTab's own
 // honest 'Unknown' fallback. Same invented-data defect family as the Commits
 // tab's 'Sep 26, 2026' hardcoded-date fallback (PR #926).
