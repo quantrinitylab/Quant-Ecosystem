@@ -324,13 +324,41 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
           />,
         );
 
-        // Zone codes are DST-aware (computed via Intl): Oct 2026 -> PDT/EDT,
-        // Asia/Kolkata -> GMT+5:30 style code, London -> GMT+1 style code
+        // Zone codes/offsets are DST-aware (computed via Intl by the
+        // component, see tzLabelInfo in CalendarSubViews.tsx), so the test
+        // must derive the expected values the same way instead of hardcoding
+        // one season's values. Regression (2026-10-27, PR #1702 full-sweep):
+        // the hardcoded 'UTC+1' assumed London on BST, but UK clocks went
+        // back on 2026-10-25, so London renders 'UTC+0' in winter and the
+        // test failed every run from then on. Same seasonal trap applies to
+        // PDT/EDT (PST/EST in winter), so all DST zones are derived here.
+        // Asia/Kolkata has no DST, so IST / UTC+5:30 stay literal.
         expect(html).toContain('IST');
         expect(html).toContain('UTC+5:30');
-        expect(html).toContain('PDT');
-        expect(html).toContain('EDT');
-        expect(html).toContain('UTC+1');
+        const at = new Date();
+        const expectedFor = (tz: string): { code: string; offset: string } => {
+          const code =
+            new Intl.DateTimeFormat('en-US', {
+              timeZone: tz,
+              timeZoneName: 'short',
+            })
+              .formatToParts(at)
+              .find((p) => p.type === 'timeZoneName')?.value ?? '';
+          const offset = (
+            new Intl.DateTimeFormat('en-US', {
+              timeZone: tz,
+              timeZoneName: 'shortOffset',
+            })
+              .formatToParts(at)
+              .find((p) => p.type === 'timeZoneName')?.value ?? ''
+          ).replace(/^GMT/, 'UTC');
+          return { code, offset };
+        };
+        for (const tz of ['America/Los_Angeles', 'America/New_York', 'Europe/London']) {
+          const { code, offset } = expectedFor(tz);
+          expect(html).toContain(code);
+          expect(html).toContain(offset);
+        }
         expect(html).toContain('Hourly Time Blocking Schedule');
       });
 
