@@ -119,4 +119,12 @@ describe('brand icons are the M mark, never the ghost', () => {
     expect(src).toContain("icon: '/favicon.svg'");
     expect(src).not.toContain('quanty-ghost');
   });
+
+  it('the desktop notification icon is the M mark, not the ghost', () => {
+    // r6 gap: r5 fixed the service worker icon but missed this hook, so
+    // desktop notifications still showed the ghost mascot as the app icon.
+    const src = readSource('src/hooks/useDesktopNotifications.ts');
+    expect(src).toContain("icon: '/favicon.svg'");
+    expect(src).not.toContain('quanty-ghost');
+  });
 });
