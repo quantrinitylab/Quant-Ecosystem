@@ -3652,7 +3652,9 @@ Finding: the live Drive trash endpoint uses the shared `folderTree()` helper to 
 
 ## QM-SCREEN-061 — QuantMail Flutter composer attachment picker must use real files, not invented attachment metadata
 
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-screen-061-real-attachment-picker
 
 Finding: the live Flutter QuantMail composer exposes an "Attach File" action, but `_showAttachmentPicker()` in `flutter_apps/apps/quant_mail/lib/screens/composer/email_composer_modal.dart` does not open a device/file picker or a Drive attachment contract. It renders four hardcoded choices such as `Architecture Specification (PDF)`, `Impeller Benchmark Traces (ZIP)`, `System Topology Schema (PNG)` and `Raw Sensor Recording (MP4)`. Selecting one immediately constructs an `EmailAttachment` containing an invented ID, filename, byte size and MIME type and adds it to the draft; no file bytes, URI, Drive file ID, upload operation or backend attachment reference is established.
 
