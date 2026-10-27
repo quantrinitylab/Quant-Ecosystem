@@ -324,13 +324,36 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
           />,
         );
 
-        // Zone codes are DST-aware (computed via Intl): Oct 2026 -> PDT/EDT,
-        // Asia/Kolkata -> GMT+5:30 style code, London -> GMT+1 style code
-        expect(html).toContain('IST');
-        expect(html).toContain('UTC+5:30');
-        expect(html).toContain('PDT');
-        expect(html).toContain('EDT');
-        expect(html).toContain('UTC+1');
+        // Zone codes/offsets are DST-aware (the component derives them from
+        // Intl at render time), so the expectations must be derived the same
+        // way — never hardcoded. The old hardcoded PDT/EDT/UTC+1 broke the
+        // week London left BST (BST ended 2026-10-25, so London is GMT/UTC
+        // now) and would break again when US DST ends 2026-11-01
+        // (fix/qm-brandwordmark-vector-r5: this was full-sweep's only
+        // quantmail failure on PR #1708, unrelated to that PR's change).
+        // Independent Intl derivation (does not import the component's
+        // tzLabelInfo): short name, GMT-style codes mapped to IST for
+        // Kolkata exactly as the component's STATIC_ZONE_CODES does, and
+        // shortOffset normalised GMT->UTC.
+        const zoneLabel = (tz: string) => {
+          const at = new Date();
+          let code =
+            new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' })
+              .formatToParts(at)
+              .find((p) => p.type === 'timeZoneName')?.value ?? '';
+          if (tz === 'Asia/Kolkata' && code.startsWith('GMT')) code = 'IST';
+          const rawOffset =
+            new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })
+              .formatToParts(at)
+              .find((p) => p.type === 'timeZoneName')?.value ?? '';
+          return { code, offset: rawOffset.replace(/^GMT/, 'UTC') };
+        };
+        for (const tz of ['Asia/Kolkata', 'America/Los_Angeles', 'America/New_York', 'Europe/London']) {
+          const { code, offset } = zoneLabel(tz);
+          expect(code).not.toBe('');
+          expect(html).toContain(code);
+          expect(html).toContain(offset);
+        }
         expect(html).toContain('Hourly Time Blocking Schedule');
       });
 
