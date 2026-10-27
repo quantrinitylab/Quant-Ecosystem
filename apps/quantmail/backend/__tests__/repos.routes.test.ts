@@ -2799,6 +2799,172 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       }
     });
 
+    it('POST /repos/:id/pulls/:number/merge blocked when a reviewer has an outstanding CHANGES_REQUESTED verdict even though requiredApprovals is satisfied', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockResolvedValue([
+        {
+          id: 'bp-1',
+          repoId: 'repo-1',
+          branchPattern: 'main',
+          requiredApprovals: 1,
+          requireStatusChecks: false,
+        },
+      ]);
+      // Approval count satisfied (1 approver) yet the merge must still
+      // block: one outstanding changes-request overrides the count.
+      prisma.review.count.mockResolvedValue(1);
+      prisma.review.findMany.mockResolvedValue([
+        {
+          id: 'review-3',
+          prId: 'pr-1',
+          reviewerId: 'user-3',
+          status: 'CHANGES_REQUESTED',
+          dismissed: false,
+          createdAt: new Date('2026-09-05T00:00:00.000Z'),
+          reviewer: { username: 'carol' },
+        },
+        {
+          id: 'review-2',
+          prId: 'pr-1',
+          reviewerId: 'user-2',
+          status: 'APPROVED',
+          dismissed: false,
+          createdAt: new Date('2026-09-04T00:00:00.000Z'),
+          reviewer: { username: 'bob' },
+        },
+      ]);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/merge',
+      });
+
+      expect(res.statusCode).toBe(403);
+      const body = res.json();
+      expect(body.success).toBe(false);
+      expect(body.error.code).toBe('CHANGES_REQUESTED');
+      expect(body.error.message).toContain('carol');
+      // The block must come from the latest decisive verdict per reviewer:
+      // COMMENTED/PENDING never qualify, dismissed reviews never block,
+      // and the PR author is excluded like the approval count.
+      expect(prisma.review.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            prId: 'pr-1',
+            status: { in: ['APPROVED', 'CHANGES_REQUESTED'] },
+            reviewerId: { not: 'user-1' },
+            dismissed: { not: true },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+      );
+      expect(prisma.pullRequest.update).not.toHaveBeenCalled();
+    });
+
+    it('POST /repos/:id/pulls/:number/merge succeeds once the changes-requester later approves', async () => {
+      await ensureMergeFixture();
+      try {
+        const app = await buildApp('user-1');
+        prisma.branchProtection.findMany.mockResolvedValue([
+          {
+            id: 'bp-1',
+            repoId: 'repo-1',
+            branchPattern: 'main',
+            requiredApprovals: 1,
+            requireStatusChecks: false,
+          },
+        ]);
+        prisma.review.count.mockResolvedValue(2);
+        // Newest first: the same reviewer's later APPROVED supersedes the
+        // earlier CHANGES_REQUESTED — only the latest decisive verdict
+        // per reviewer may block.
+        prisma.review.findMany.mockResolvedValue([
+          {
+            id: 'review-3b',
+            prId: 'pr-1',
+            reviewerId: 'user-3',
+            status: 'APPROVED',
+            dismissed: false,
+            createdAt: new Date('2026-09-06T00:00:00.000Z'),
+            reviewer: { username: 'carol' },
+          },
+          {
+            id: 'review-3',
+            prId: 'pr-1',
+            reviewerId: 'user-3',
+            status: 'CHANGES_REQUESTED',
+            dismissed: false,
+            createdAt: new Date('2026-09-05T00:00:00.000Z'),
+            reviewer: { username: 'carol' },
+          },
+          {
+            id: 'review-2',
+            prId: 'pr-1',
+            reviewerId: 'user-2',
+            status: 'APPROVED',
+            dismissed: false,
+            createdAt: new Date('2026-09-04T00:00:00.000Z'),
+            reviewer: { username: 'bob' },
+          },
+        ]);
+
+        const res = await app.inject({
+          method: 'POST',
+          url: '/repos/repo-1/pulls/1/merge',
+        });
+
+        expect(res.statusCode).toBe(200);
+        const body = res.json();
+        expect(body.success).toBe(true);
+        expect(body.data.state).toBe('merged');
+      } finally {
+        await destroyMergeFixture();
+      }
+    });
+
+    it('POST /repos/:id/pulls/:number/merge succeeds when the only CHANGES_REQUESTED review is dismissed', async () => {
+      await ensureMergeFixture();
+      try {
+        const app = await buildApp('user-1');
+        prisma.branchProtection.findMany.mockResolvedValue([
+          {
+            id: 'bp-1',
+            repoId: 'repo-1',
+            branchPattern: 'main',
+            requiredApprovals: 1,
+            requireStatusChecks: false,
+          },
+        ]);
+        prisma.review.count.mockResolvedValue(1);
+        // The real query filters dismissed: { not: true }, so a dismissed
+        // changes-request never reaches the route — the mock returns what
+        // that query would return.
+        prisma.review.findMany.mockResolvedValue([
+          {
+            id: 'review-2',
+            prId: 'pr-1',
+            reviewerId: 'user-2',
+            status: 'APPROVED',
+            dismissed: false,
+            createdAt: new Date('2026-09-04T00:00:00.000Z'),
+            reviewer: { username: 'bob' },
+          },
+        ]);
+
+        const res = await app.inject({
+          method: 'POST',
+          url: '/repos/repo-1/pulls/1/merge',
+        });
+
+        expect(res.statusCode).toBe(200);
+        const body = res.json();
+        expect(body.success).toBe(true);
+        expect(body.data.state).toBe('merged');
+      } finally {
+        await destroyMergeFixture();
+      }
+    });
+
     it('POST /repos/:id/pulls/:number/merge blocked when requireStatusChecks: true and CI has not passed', async () => {
       const app = await buildApp('user-1');
       prisma.branchProtection.findMany.mockResolvedValue([
