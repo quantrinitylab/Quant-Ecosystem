@@ -55,11 +55,20 @@ describe('app-lock', () => {
   it('never stores the raw PIN', async () => {
     await setAppLockPin('9876');
     const raw = window.localStorage.getItem(KEY) ?? '';
-    expect(raw).not.toContain('9876');
-    expect(raw).toContain('salt');
-    expect(raw).toContain('hash');
+    // Structural check, not a raw substring check: salt and hash are random
+    // hex, so the PIN digits can appear by chance inside them (e.g. a hash
+    // containing "…1998767…" without the PIN ever being stored. That made
+    // this test flaky on PR #1712's full-sweep. The property that matters is
+    // that no stored VALUE is the PIN: JSON values are quoted, so '"9876"'
+    // can only match a whole stored PIN value, never a hex substring.
+    const record = JSON.parse(raw) as { salt: string; hash: string };
+    expect(record.salt).toMatch(/^[0-9a-f]{32}$/);
+    expect(record.hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(record.salt).not.toBe('9876');
+    expect(record.hash).not.toBe('9876');
+    expect(raw).not.toContain('"9876"');
   });
-
+  
   it('changes the PIN only with the correct current PIN', async () => {
     await setAppLockPin('1111');
     await expect(changeAppLockPin('0000', '2222')).rejects.toThrow(/incorrect/i);
