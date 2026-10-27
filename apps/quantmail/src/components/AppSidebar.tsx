@@ -191,8 +191,10 @@ function Icon({ name, className = 'h-4 w-4' }: { name: IconName; className?: str
   Five mail folders, flat, in the order the keyboard registry already declares
   them (`g i`, `g s`, `g d`, `g *`, `g b`, `g e`, `g t`, `g !` —
   KeyboardProvider.tsx:138-209). Spam is a `lens` entry rather than a route:
-  the drawer links straight to `/?lens=spam`, the inbox page's spam view over
-  the real `useInbox({ folderType: 'SPAM' })` query.
+  the drawer links straight to `/?view=inbox&lens=spam`, the inbox page's spam
+  view over the real `useInbox({ folderType: 'SPAM' })` query — RootPage
+  renders PeopleHome unless `?view=inbox` is present, so a bare `/?lens=spam`
+  would land on the People spam list instead (QM-INBOX-NAV-SPAM-VIEW).
 
   Five of these routes were fully built and completely unreachable by pointer.
   `/sent` (a 271-line delivery-trail page with per-row send status and Resend),
@@ -226,10 +228,13 @@ export const NAV_GROUPS: Array<{
     icon: IconName;
     path: string;
     /**
-     * Lens items live on `/` with `?lens=` set: the Spam folder is the inbox
-     * page's spam lens, backed by the real `useInbox({ folderType: 'SPAM' })`
-     * query — the same query the old lens pill used. It is a drawer entry,
-     * not a route, so it never touches the `/spam` redirect shim.
+     * Lens items live on `/?view=inbox` with `?lens=` set: the Spam folder is
+     * the inbox page's spam lens, backed by the real `useInbox({ folderType:
+     * 'SPAM' })` query — the same query the old lens pill used. It is a
+     * drawer entry, not a route, so it never touches the `/spam` redirect
+     * shim. `view=inbox` is load-bearing here: RootPage renders PeopleHome
+     * unless it is present, so a bare `/?lens=spam` lands on the People
+     * spam list instead of this lens (QM-INBOX-NAV-SPAM-VIEW).
      */
     lens?: string;
     /**
@@ -260,7 +265,7 @@ export const NAV_GROUPS: Array<{
       { id: 'scheduled', label: 'Scheduled', icon: 'clock', path: '/scheduled' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
       { id: 'archive', label: 'Archive', icon: 'archive', path: '/?view=inbox&tab=archive', tab: 'archive' },
-      { id: 'spam', label: 'Spam', icon: 'spam', path: '/?lens=spam', lens: 'spam' },
+      { id: 'spam', label: 'Spam', icon: 'spam', path: '/?view=inbox&lens=spam', lens: 'spam' },
       { id: 'trash', label: 'Trash', icon: 'trash', path: '/trash' },
     ],
   },
