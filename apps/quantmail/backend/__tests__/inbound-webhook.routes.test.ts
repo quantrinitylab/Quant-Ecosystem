@@ -510,6 +510,80 @@ describe('POST /webhook/inbound — the recipient is one the message named, or n
     expect(ingestCall().options.userId).toBe('u-alias');
   });
 
+  it('holds a case-collision instead of delivering to every match', async () => {
+    // Two legacy rows are case-variants of the same address. The old code
+    // returned every case-insensitive match and ingested a copy into each —
+    // the message meant for one twin landed in the stranger's inbox too.
+    state.users.push(
+      localUser({ id: 'u-alice-upper', email: 'Alice@quantmail.in', username: 'alice-upper' }),
+      localUser({ id: 'u-alice-lower', email: 'alice@quantmail.in', username: 'alice-lower' }),
+    );
+    s3ReturnsRawEmail(plainEmail('alice@quantmail.in'));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ recipients: ['alice@quantmail.in'] }),
+    });
+
+    // Held, not guessed: answered 2xx so SNS does not redeliver a message
+    // that no retry can place, and ingested into nobody's mailbox.
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      ok: true,
+      key: KEY,
+      delivered: 0,
+      skipped: 'ambiguous-recipient',
+      ambiguousRecipients: ['alice@quantmail.in'],
+    });
+    expect(ingest).not.toHaveBeenCalled();
+  });
+
+  it('holds a handle collision while still delivering to a unique recipient', async () => {
+    // Two users carry case-variant usernames, so the alias address matches
+    // both — but bob's own address resolves uniquely and must still arrive.
+    state.users.push(
+      localUser(),
+      localUser({ id: 'u-bob-upper', email: 'other-bob@quantmail.in', username: 'Bob' }),
+      localUser({ id: 'u-bob-lower', email: 'another-bob@quantmail.in', username: 'bob' }),
+    );
+    s3ReturnsRawEmail(plainEmail('bob@quantrinity.in'));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ recipients: ['bob@quantmail.in', 'bob@quantrinity.in'] }),
+    });
+
+    expect(response.json()).toMatchObject({
+      ok: true,
+      delivered: 1,
+      ambiguousRecipients: ['bob@quantrinity.in'],
+    });
+    expect(ingest).toHaveBeenCalledTimes(1);
+    expect(ingestCall().options.userId).toBe('u-bob');
+  });
+
+  it('prefers an exact email match over a handle-alias match for another user', async () => {
+    // The address is literally one user's registered email; a different user
+    // who happens to share the handle must not also receive it — and the
+    // email owner must not lose mail because the handle twin exists.
+    state.users.push(
+      localUser(),
+      localUser({ id: 'u-handle-twin', email: 'twin@quantmail.in', username: 'bob' }),
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ recipients: ['bob@quantmail.in'] }),
+    });
+
+    expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+    expect(ingest).toHaveBeenCalledTimes(1);
+    expect(ingestCall().options.userId).toBe('u-bob');
+  });
+
   it('does not raise the paperclip for a cid: image that is part of the body', async () => {
     state.users.push(localUser());
     s3ReturnsRawEmail(inlineImageEmail());
