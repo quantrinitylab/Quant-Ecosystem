@@ -7108,3 +7108,9 @@ Status: [x] DONE (Owner: LANE-1, Branch: lane1-audit-017r42, R42 regression audi
 - NEW FINDINGS: 0 P0 + 0 P1 + 0 P2 + 0 P3. No fix agents (protocol P0/P1-only; subagent.list 0 active at run start and end). findings.md untouched.
 - LIVE HEALTHY, VISUAL VERIFIED: proxy 127.0.0.1:8888 healthy (PID 1731, no restart; / -> 307 in 1.57s); /admin -> 307 /login?returnTo=%2Fadmin; /api/admin/{accounts/count, mail/domains, mail/dlp/policies, audit/logs} -> honest 401 x4 (byte-verified 'Missing or invalid authorization header'); /api/domains -> 404 API_ROUTE_NOT_FOUND; POST /api/data-lifecycle/retention/sweep -> 404; /api/retention/policies -> honest 401 — all match R41 baseline. Desktop 1440x900 (9334, ConnectionRefused iter-0 retry launch as in prior runs) + mobile 390x844 (iPhone 14, MOBILE_CHROME_PORT=10331) /admin sign-in-gate shots REVIEWED: settled sign-in gate both viewports, hero 'Your work, back in focus.' + tri-cards (desktop), current clay M-mark, ONE IDENTITY footer, (c) 2026, pure black, mail-orange, zero old-logo flash; standing knowns re-seen not re-filed (white ghost 'AI triage' card, P3 'Quant Mail' wordmark spacing in desktop + mobile header); mobile settled straight to sign-in form (no hero transient). Shots deleted; exactly my run-created chrome dirs removed (pgrep-verified zero live chromes referencing them before rm; pre-existing dirs untouched); /tmp 3%. Signed-in staff/non-staff admin flows = needs-auth (protocol), not faked. #1243 deploy hold ACTIVE (cat-verified, non-empty, hidden_files/orchestrator/deploy-hold.txt) — nothing to deploy.
 - Rotation -> QM-SCREEN-018 (help) ROUND 42 regression, queued.
+
+## QM-SCREEN-018 R42 — Help regression (ROUND 42)
+Status: [~] IN PROGRESS
+Owner: LANE-1
+Branch: lane1-audit-018r42
+Audit started: 2026-10-27 ~11:35 IST (lane-1 deep audit loop, ROUND 42)
