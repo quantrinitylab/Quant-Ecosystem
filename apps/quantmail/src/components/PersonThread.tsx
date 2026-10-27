@@ -24,6 +24,7 @@ import { receiptStatusOf, openStatusOf } from '../lib/readReceipt';
 import { attachmentServiceId } from '../lib/mail-attachments';
 import { showToast } from './InboxToast';
 import { useRegisterCommands } from '../lib/keyboard/hooks';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import type { Command } from '../lib/keyboard/command-registry';
 import { THREAD_KEYBOARD_SCOPE } from '../hooks/useThreadViewKeyboard';
 import {
@@ -41,6 +42,13 @@ export interface PersonThreadProps {
   currentUserEmail: string;
   /** Reply surface rendered below the messages. Never rendered in the Updates world. */
   renderComposer?: React.ReactNode;
+  /**
+   * fix/qm-people-pull-to-refresh-r4 — the real refetch the pull gesture
+   * fires (the people page passes its useInbox refetch). Absent → the
+   * gesture stays disabled and no indicator renders, so bare renders
+   * (tests, embeds) never gain a dead gesture.
+   */
+  onRefresh?: () => Promise<unknown> | void;
   /**
    * fix/qm-calendar-nlp-quickadd — one-key event-from-email. The parent
    * receives the draft built from this conversation's messages (attendees
@@ -388,11 +396,29 @@ export function PersonThread({
   currentUserEmail,
   renderComposer,
   onEventDraft,
+  onRefresh,
 }: PersonThreadProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showNewMessagesPill, setShowNewMessagesPill] = useState(false);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_MESSAGES);
   const prevLengthRef = useRef<number | null>(null);
+
+  /**
+   * fix/qm-people-pull-to-refresh-r4 — the person thread had no pull
+   * gesture: the shared hook was wired only into the classic thread view.
+   * The hook arms only at scrollTop 0, so a reader mid-thread never
+   * triggers it by accident; at the very top, a pull past the 56px line
+   * fires the page's real refetch and the spinner holds until it settles.
+   * Disabled outright when no onRefresh is passed.
+   */
+  const {
+    listProps: ptrListProps,
+    pullDistance: ptrPullDistance,
+    isRefreshing: ptrIsRefreshing,
+  } = usePullToRefresh({
+    onRefresh: onRefresh ?? (() => undefined),
+    disabled: !onRefresh,
+  });
 
   // NaN-guard comparator (messageSortTime/compareMessagesChronologically):
   // an unparseable receivedAt sorts to the start of the thread so the
@@ -500,11 +526,33 @@ export function PersonThread({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
+          {...ptrListProps}
           className="h-full space-y-1.5 overflow-y-auto px-3 py-2 sm:px-4"
           data-testid="thread-scroll"
           role="log"
           aria-label={`Conversation with ${conversation.name}`}
         >
+          {/*
+            Pull-to-refresh indicator (fix/qm-people-pull-to-refresh-r4):
+            same spinner language as the classic thread view's pull
+            indicator — Mail-orange ring on pure black. Sits at the top of
+            the scroll container, above "Load earlier messages", so it only
+            ever appears when the reader is already at the very top.
+          */}
+          {(ptrPullDistance > 0 || ptrIsRefreshing) && (
+            <div
+              data-testid="thread-ptr-indicator"
+              className="flex items-center justify-center overflow-hidden"
+              style={{ height: ptrIsRefreshing ? 44 : ptrPullDistance }}
+              aria-hidden="true"
+            >
+              <span
+                className={`size-5 rounded-full border-2 border-[#F97316]/30 border-t-[#F97316] ${
+                  ptrIsRefreshing ? 'animate-spin' : ''
+                }`}
+              />
+            </div>
+          )}
           {messages.length === 0 && (
             <div className="py-10 text-center text-sm text-zinc-500">No messages yet.</div>
           )}
