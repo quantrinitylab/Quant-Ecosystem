@@ -104,7 +104,14 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
         </div>
 
         <footer>
-          <span>One identity. Access to all Quant apps.</span>
+          {/*
+            Copy-honesty note (2026-10-27): "selected", not "all" — QuantMail
+            is the SSO root and QuantAI consumes tickets, but there is no live
+            end-to-end SSO proof per app for all 8 Quant apps, only code
+            wiring in the sibling apps. Restore the unqualified claim only
+            once SSO is live-verified per app.
+          */}
+          <span>One identity. Access to selected Quant apps.</span>
           <span>© 2026</span>
         </footer>
       </div>

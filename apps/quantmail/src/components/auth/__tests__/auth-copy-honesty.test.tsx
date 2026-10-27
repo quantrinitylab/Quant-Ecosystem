@@ -288,3 +288,89 @@ describe('Auth brand-subtitle "assisted drafting" copy honesty', () => {
     expect(registerUserFacing).toMatch(/mail and scheduling/i);
   });
 });
+
+// ============================================================================
+// Auth SSO scope copy honesty (2026-10-27, P2 copy-audit finding).
+//
+// The auth brand footer (rendered on every AuthBrandPanel surface: /login,
+// /register, /help, /terms) and the help "Creating an address" topic claimed
+// one identity gives access to ALL Quant apps. QuantMail IS the SSO root
+// (ticket mint/resolve routes, OAuth authorize, login SSO handoff) and
+// QuantAI consumes tickets, but there is no live end-to-end SSO proof per
+// app for all 8 Quant apps — only code wiring in the sibling apps. Per the
+// provable-truth rule the absolute claim was qualified to "selected Quant
+// apps"; restoring "all" is valid only once SSO is live-verified per app.
+//
+// These tests pin the qualified copy so the absolute claim cannot come
+// back. The panel's audit comment names the removed claim to explain the
+// restore condition — comments are stripped before asserting, so only
+// user-facing copy is subject to the rule (same convention as the blocks
+// above).
+// ============================================================================
+
+describe('Auth SSO scope copy honesty', () => {
+  // Locate sources from wherever vitest was invoked (same walk-up
+  // convention as the tests above).
+  const findSource = (...rels: string[]): string => {
+    let dir = process.cwd();
+    for (let depth = 0; depth < 8; depth++) {
+      for (const rel of rels) {
+        const candidate = join(dir, rel);
+        if (existsSync(candidate)) return candidate;
+      }
+      const parent = join(dir, '..');
+      if (parent === dir) break;
+      dir = parent;
+    }
+    throw new Error(
+      `auth-copy-honesty: could not locate ${rels[0]} from ${process.cwd()}`,
+    );
+  };
+
+  const stripComments = (src: string): string =>
+    src
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+      .replace(/(^|\s)\/\/[^\n]*/g, '');
+
+  const panelUserFacing = stripComments(
+    readFileSync(
+      findSource(
+        'src/components/auth/AuthBrandPanel.tsx',
+        'apps/quantmail/src/components/auth/AuthBrandPanel.tsx',
+      ),
+      'utf8',
+    ),
+  );
+
+  const helpUserFacing = stripComments(
+    readFileSync(
+      findSource(
+        'src/app/help/page.tsx',
+        'apps/quantmail/src/app/help/page.tsx',
+      ),
+      'utf8',
+    ),
+  );
+
+  it('never claims access to all Quant apps in the brand panel footer', () => {
+    expect(panelUserFacing).not.toMatch(/access to all Quant apps/i);
+  });
+
+  it('keeps the qualified selected-apps claim in the brand panel footer', () => {
+    expect(panelUserFacing).toMatch(/access to selected Quant apps/i);
+  });
+
+  it('renders the qualified claim in the panel DOM', () => {
+    const el = renderPanel();
+    expect(el.textContent).not.toMatch(/access to all Quant apps/i);
+    expect(el.textContent).toMatch(/access to selected Quant apps/i);
+  });
+
+  it('never claims access to all Quant apps in the help topic', () => {
+    expect(helpUserFacing).not.toMatch(/access to all Quant apps/i);
+  });
+
+  it('keeps the qualified selected-apps claim in the help topic', () => {
+    expect(helpUserFacing).toMatch(/access to selected Quant apps/i);
+  });
+});
