@@ -240,6 +240,16 @@ export const NAV_GROUPS: Array<{
      * silently lands on the plain People home.
      */
     tab?: string;
+    /**
+     * View items live on `/?view=<view>` (the classic inbox power layer).
+     * RootPage renders PeopleHome unless `?view=inbox` is present, so a
+     * view item's path must carry the full query — a bare `/` path silently
+     * lands on the People home (the drawer Inbox defect: it pushed `/` while
+     * labelled "Inbox", the same `view=inbox`-drop class as the fixed
+     * sidebar/bottom-nav Inbox tabs). `lens=all` is explicit: the inbox
+     * normalizes it to the default all lens, same as an absent `lens`.
+     */
+    view?: string;
     shortcut?: string;
     desktopOnly?: boolean;
   }>;
@@ -251,7 +261,11 @@ export const NAV_GROUPS: Array<{
       // labelled "Inbox", matching the desktop context sidebar
       // (PILLAR_SUB_CONFIGS mail tabs: Inbox, Sent, Drafts, Archive, Spam,
       // Trash). The group header stays "Mail" (the app's name).
-      { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/' },
+      // Drawer-Inbox fix: the entry used to push bare `/`, which RootPage
+      // renders as the People home — the classic inbox needs `?view=inbox`.
+      // `lens=all` is explicit (normalized to the default all lens) so the
+      // target matches the fixed tabs' contract, not the People home.
+      { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/?view=inbox&lens=all', view: 'inbox' },
       { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
       // QM-SCHEDULED: scheduled sends are real queued rows now (GET
       // /emails?folderType=SCHEDULED), so the folder gets a drawer entry —
@@ -332,8 +346,18 @@ export function SidebarNavGroups() {
     if (item.tab) {
       return pathname === '/' && searchParams.get('tab') === item.tab;
     }
-    if (item.path === '/') {
-      return pathname === '/' && !currentLens && !searchParams.get('tab');
+    if (item.view) {
+      // The classic inbox, all lens, inbox tab: `lens=all` and an absent
+      // lens both normalize to the default lens, so both count as active.
+      // (The old `item.path === '/'` branch died with the drawer-Inbox fix:
+      // no nav item points at bare `/` anymore, and matching on the bare
+      // path would wrongly light Inbox up on the People home.)
+      return (
+        pathname === '/' &&
+        searchParams.get('view') === item.view &&
+        !searchParams.get('tab') &&
+        (!currentLens || currentLens === 'all')
+      );
     }
     return pathname.startsWith(item.path);
   };
