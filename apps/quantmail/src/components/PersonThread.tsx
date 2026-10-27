@@ -82,6 +82,59 @@ function formatMessageTime(receivedAt: Date): string {
 }
 
 // ---------------------------------------------------------------------------
+// Sender identity actions (mobile-thread parity with Gmail mobile)
+// ---------------------------------------------------------------------------
+
+/** The identity a sender panel / sender menu acts on — always a real address. */
+export interface SenderIdentity {
+  name: string;
+  email: string;
+}
+
+function normalizeAddress(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/** True when the address belongs to the signed-in user (never a panel target). */
+function isSelfAddress(email: string | undefined, currentUserEmail: string): boolean {
+  if (!email) return true;
+  return normalizeAddress(email) === normalizeAddress(currentUserEmail);
+}
+
+/** How long a press must be held before it counts as a long-press (ms). */
+const LONG_PRESS_MS = 550;
+
+/** Clipboard write with a textarea fallback for browsers without the API. */
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    if (
+      typeof navigator !== 'undefined' &&
+      navigator.clipboard &&
+      typeof navigator.clipboard.writeText === 'function'
+    ) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fall through to the textarea path.
+  }
+  try {
+    if (typeof document === 'undefined') return false;
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand('copy');
+    area.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // One message row
 // ---------------------------------------------------------------------------
 
@@ -92,6 +145,7 @@ function MessageRow({
   showSubjectChange,
   senderLabel,
   currentUserEmail,
+  onSenderAction,
 }: {
   message: Email;
   fromMe: boolean;
@@ -101,7 +155,24 @@ function MessageRow({
   senderLabel: string;
   /** The signed-in user's address — drives the external-sender indicator. */
   currentUserEmail: string;
+  /** Fired by tap, long-press, or right-click on another person's sender name. */
+  onSenderAction?: (sender: SenderIdentity) => void;
 }) {
+  // Long-press bookkeeping: a press that turns into a scroll or a release
+  // before LONG_PRESS_MS cancels — a tap never opens the menu by accident.
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+  useEffect(() => clearLongPressTimer, []);
+  const senderEmail = message.from?.email || '';
+  const senderActionTarget: SenderIdentity | null =
+    showSenderName && senderEmail && !isSelfAddress(senderEmail, currentUserEmail)
+      ? { name: senderLabel, email: senderEmail }
+      : null;
   const [expanded, setExpanded] = useState(false);
   // P1-F: the htmlToPlainText scanner runs once per message identity, not on
   // every parent re-render (polls, typing in the composer, pill toggles).
@@ -191,11 +262,39 @@ function MessageRow({
               : 'rounded-bl-md bg-zinc-900 text-zinc-200'
           }`}
         >
-          {showSenderName && (
-            <div dir="auto" className="mb-1 text-[11px] font-medium text-zinc-400">
-              {senderLabel}
-            </div>
-          )}
+          {showSenderName &&
+            (senderActionTarget ? (
+              <button
+                type="button"
+                data-testid="thread-sender-name"
+                dir="auto"
+                title="Long-press for sender actions"
+                aria-label={`Sender actions for ${senderLabel}`}
+                className="mb-1 cursor-pointer select-none px-2 py-2 -ml-2 text-left text-[11px] font-medium text-zinc-400 active:text-zinc-200"
+                onClick={() => onSenderAction?.(senderActionTarget)}
+                onPointerDown={() => {
+                  clearLongPressTimer();
+                  longPressTimerRef.current = setTimeout(() => {
+                    longPressTimerRef.current = null;
+                    onSenderAction?.(senderActionTarget);
+                  }, LONG_PRESS_MS);
+                }}
+                onPointerUp={clearLongPressTimer}
+                onPointerCancel={clearLongPressTimer}
+                onPointerLeave={clearLongPressTimer}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  clearLongPressTimer();
+                  onSenderAction?.(senderActionTarget);
+                }}
+              >
+                {senderLabel}
+              </button>
+            ) : (
+              <div dir="auto" className="mb-1 text-[11px] font-medium text-zinc-400">
+                {senderLabel}
+              </div>
+            ))}
           {fullText ? (
             <div dir="auto" className="whitespace-pre-wrap break-words text-sm leading-relaxed">
               {visibleText}
@@ -272,11 +371,16 @@ function MessageRow({
 
 function ThreadHeader({
   conversation,
+  currentUserEmail,
   onCreateEvent,
+  onSenderPanel,
 }: {
   conversation: PersonConversation;
+  currentUserEmail: string;
   /** fix/qm-calendar-nlp-quickadd: one-key event-from-email entry point. */
   onCreateEvent?: () => void;
+  /** fix/qm-mobile-sender-identity: avatar tap opens the sender panel. */
+  onSenderPanel: (sender: SenderIdentity) => void;
 }) {
   const headerAction = onCreateEvent ? (
     <button
@@ -310,10 +414,24 @@ function ThreadHeader({
     const extra = participants.length - shown.length;
     return (
       <div className="flex items-center gap-3 px-4 py-3">
-        <div className="flex -space-x-2" aria-hidden="true">
-          {shown.map((email) => (
-            <IdentityAvatar key={email} name={email} size="sm" className="ring-2 ring-black" />
-          ))}
+        <div className="flex -space-x-2">
+          {shown.map((email) =>
+            isSelfAddress(email, currentUserEmail) ? (
+              <IdentityAvatar key={email} name={email} size="sm" className="ring-2 ring-black" />
+            ) : (
+              <button
+                key={email}
+                type="button"
+                data-testid="sender-avatar-button"
+                data-sender-email={email}
+                aria-label={`Contact panel for ${email}`}
+                className="rounded-full transition-transform active:scale-95"
+                onClick={() => onSenderPanel({ name: email, email })}
+              >
+                <IdentityAvatar name={email} size="sm" className="ring-2 ring-black" />
+              </button>
+            ),
+          )}
         </div>
         <div className="min-w-0">
           <div dir="auto" className="truncate text-sm font-semibold text-zinc-100">
@@ -329,9 +447,27 @@ function ThreadHeader({
     );
   }
 
+  // Self conversations ("You") have no other sender to act on.
+  const panelTarget = isSelfAddress(conversation.email, currentUserEmail)
+    ? null
+    : { name: conversation.name || conversation.email, email: conversation.email };
+
   return (
     <div className="flex items-center gap-3 px-4 py-3">
-      <IdentityAvatar name={conversation.name || conversation.email} size="md" />
+      {panelTarget ? (
+        <button
+          type="button"
+          data-testid="sender-avatar-button"
+          data-sender-email={conversation.email}
+          aria-label={`Contact panel for ${conversation.name || conversation.email}`}
+          className="rounded-full transition-transform active:scale-95"
+          onClick={() => onSenderPanel(panelTarget)}
+        >
+          <IdentityAvatar name={conversation.name || conversation.email} size="md" />
+        </button>
+      ) : (
+        <IdentityAvatar name={conversation.name || conversation.email} size="md" />
+      )}
       <div className="min-w-0">
         <div dir="auto" className="truncate text-sm font-semibold text-zinc-100">
           {conversation.name}
@@ -339,6 +475,223 @@ function ThreadHeader({
         <div className="truncate text-xs text-zinc-500">{conversation.email}</div>
       </div>
       {headerAction}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sender contact panel + sender actions menu
+// ---------------------------------------------------------------------------
+
+/**
+ * Gmail-mobile parity panel, opened by tapping the thread header avatar.
+ * Wired actions use real routes only: compose honours `?to=` (compose
+ * page), contacts POST accepts `{ name, email }` (backend contacts
+ * schema), and schedule reuses the thread's existing event-from-email
+ * draft (`onEventDraft` → /calendar?emailDraft=) when the parent wires
+ * it. The actions QuantMail cannot honestly wire — in-app Chat
+ * (QuantChat is a separate app with no in-QuantMail chat route) and
+ * calling (a thread carries no phone number) — stay disabled with the
+ * reason stated, never faked.
+ */
+function SenderContactPanel({
+  sender,
+  copied,
+  copyFailed,
+  onCopy,
+  onClose,
+  addState,
+  onAddToContacts,
+  onScheduleEvent,
+}: {
+  sender: SenderIdentity;
+  copied: boolean;
+  copyFailed: boolean;
+  onCopy: () => void;
+  onClose: () => void;
+  addState: 'idle' | 'saving' | 'added' | 'error';
+  onAddToContacts: () => void;
+  /** Absent when the parent did not wire onEventDraft — then honestly disabled. */
+  onScheduleEvent?: () => void;
+}) {
+  return (
+    <div
+      data-testid="sender-contact-panel"
+      role="dialog"
+      aria-label={`Contact panel for ${sender.name || sender.email}`}
+      className="mx-3 mb-2 rounded-2xl bg-zinc-900 px-4 py-3 sm:mx-4"
+    >
+      <div className="flex items-center gap-3">
+        <IdentityAvatar name={sender.name || sender.email} size="md" />
+        <div className="min-w-0 flex-1">
+          <div dir="auto" className="truncate text-sm font-semibold text-zinc-100">
+            {sender.name}
+          </div>
+          <div dir="auto" className="truncate text-xs text-zinc-400">
+            {sender.email}
+          </div>
+        </div>
+        <button
+          type="button"
+          data-testid="sender-panel-close"
+          aria-label="Close contact panel"
+          onClick={onClose}
+          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-sm text-zinc-400 hover:text-zinc-100 active:bg-zinc-800"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="mt-3 space-y-1">
+        <button
+          type="button"
+          data-testid="sender-action-copy-email"
+          onClick={onCopy}
+          className="flex min-h-[44px] w-full items-center rounded-xl px-3 text-left text-sm font-medium text-zinc-100 hover:bg-zinc-800 active:bg-zinc-700"
+        >
+          {copied ? 'Copied' : 'Copy email address'}
+        </button>
+        {copyFailed && (
+          <p className="px-3 text-xs text-zinc-500">
+            Couldn&apos;t copy automatically — select the address above to copy it.
+          </p>
+        )}
+        <a
+          data-testid="sender-action-new-email"
+          href={`/compose?to=${encodeURIComponent(sender.email)}`}
+          className="flex min-h-[44px] w-full items-center rounded-xl px-3 text-sm font-medium text-zinc-100 hover:bg-zinc-800 active:bg-zinc-700"
+        >
+          New email
+        </a>
+        <button
+          type="button"
+          data-testid="sender-action-add-contact"
+          onClick={onAddToContacts}
+          disabled={addState === 'saving' || addState === 'added'}
+          className="flex min-h-[44px] w-full items-center rounded-xl px-3 text-left text-sm font-medium text-zinc-100 hover:bg-zinc-800 active:bg-zinc-700 disabled:opacity-60"
+        >
+          {addState === 'saving'
+            ? 'Adding…'
+            : addState === 'added'
+              ? 'Added to contacts'
+              : 'Add to contacts'}
+        </button>
+        {addState === 'error' && (
+          <p className="px-3 text-xs text-zinc-500">Couldn&apos;t add this contact — try again.</p>
+        )}
+        {onScheduleEvent ? (
+          <button
+            type="button"
+            data-testid="sender-action-schedule-event"
+            onClick={onScheduleEvent}
+            className="flex min-h-[44px] w-full items-center rounded-xl px-3 text-left text-sm font-medium text-zinc-100 hover:bg-zinc-800 active:bg-zinc-700"
+          >
+            Schedule event
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled
+            title="Not available in this view — the parent did not wire event drafts"
+            className="flex min-h-[44px] w-full items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-zinc-500 disabled:opacity-60"
+          >
+            <span>Schedule event</span>
+            <span className="text-xs">Not available here</span>
+          </button>
+        )}
+        <button
+          type="button"
+          disabled
+          title="Not wired yet — QuantChat is a separate app with no in-QuantMail chat route"
+          className="flex min-h-[44px] w-full items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-zinc-500 disabled:opacity-60"
+        >
+          <span>Chat</span>
+          <span className="text-xs">Not wired yet</span>
+        </button>
+        <button
+          type="button"
+          disabled
+          title="No number on file — this thread carries no phone number"
+          className="flex min-h-[44px] w-full items-center justify-between rounded-xl px-3 text-left text-sm font-medium text-zinc-500 disabled:opacity-60"
+        >
+          <span>Call</span>
+          <span className="text-xs">No number on file</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Long-press / right-click menu on a sender name: the two actions Gmail
+ * mobile offers there — copy the address, or start a new thread — plus a
+ * hop into the full contact panel.
+ */
+function SenderActionsMenu({
+  sender,
+  copied,
+  copyFailed,
+  onCopy,
+  onOpenPanel,
+  onClose,
+}: {
+  sender: SenderIdentity;
+  copied: boolean;
+  copyFailed: boolean;
+  onCopy: () => void;
+  onOpenPanel: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      data-testid="sender-actions-menu"
+      role="menu"
+      aria-label={`Sender actions for ${sender.name || sender.email}`}
+      className="mx-3 mb-2 rounded-2xl bg-zinc-900 px-4 py-3 sm:mx-4"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div dir="auto" className="min-w-0 truncate text-sm font-semibold text-zinc-100">
+          {sender.name}
+        </div>
+        <button
+          type="button"
+          data-testid="sender-menu-close"
+          aria-label="Close sender menu"
+          onClick={onClose}
+          className="inline-flex min-h-[44px] min-w-[44px] flex-none items-center justify-center rounded-full text-sm text-zinc-400 hover:text-zinc-100 active:bg-zinc-800"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="mt-2 space-y-1">
+        <button
+          type="button"
+          data-testid="sender-menu-copy-email"
+          onClick={onCopy}
+          className="flex min-h-[44px] w-full items-center rounded-xl px-3 text-left text-sm font-medium text-zinc-100 hover:bg-zinc-800 active:bg-zinc-700"
+        >
+          {copied ? 'Copied' : 'Copy email address'}
+        </button>
+        {copyFailed && (
+          <p className="px-3 text-xs text-zinc-500">
+            Couldn&apos;t copy automatically — select the address in the thread header to copy it.
+          </p>
+        )}
+        <a
+          data-testid="sender-menu-new-email"
+          href={`/compose?to=${encodeURIComponent(sender.email)}`}
+          className="flex min-h-[44px] w-full items-center rounded-xl px-3 text-sm font-medium text-zinc-100 hover:bg-zinc-800 active:bg-zinc-700"
+        >
+          New email
+        </a>
+        <button
+          type="button"
+          data-testid="sender-menu-contact-panel"
+          onClick={onOpenPanel}
+          className="flex min-h-[44px] w-full items-center rounded-xl px-3 text-left text-sm font-medium text-zinc-100 hover:bg-zinc-800 active:bg-zinc-700"
+        >
+          Contact panel
+        </button>
+      </div>
     </div>
   );
 }
@@ -394,6 +747,65 @@ export function PersonThread({
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_MESSAGES);
   const prevLengthRef = useRef<number | null>(null);
 
+  // fix/qm-mobile-sender-identity: avatar-tap panel + sender-name menu.
+  const [panelSender, setPanelSender] = useState<SenderIdentity | null>(null);
+  const [menuSender, setMenuSender] = useState<SenderIdentity | null>(null);
+  const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
+  const [addContactState, setAddContactState] = useState<'idle' | 'saving' | 'added' | 'error'>(
+    'idle',
+  );
+
+  const openPanelSender = (sender: SenderIdentity) => {
+    setMenuSender(null);
+    setPanelSender(sender);
+    setCopiedEmail(null);
+    setCopyFailed(false);
+    setAddContactState('idle');
+  };
+  const openMenuSender = (sender: SenderIdentity) => {
+    setPanelSender(null);
+    setMenuSender(sender);
+    setCopiedEmail(null);
+    setCopyFailed(false);
+  };
+  const copySenderEmail = async (sender: SenderIdentity) => {
+    const ok = await copyTextToClipboard(sender.email);
+    setCopiedEmail(ok ? sender.email : null);
+    setCopyFailed(!ok);
+  };
+  const addSenderToContacts = async (sender: SenderIdentity) => {
+    setAddContactState('saving');
+    try {
+      const response = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // Backend add schema requires name + email; the thread's display
+        // name is real, the local-part fallback only fills a blank name.
+        body: JSON.stringify({
+          name: sender.name.trim() || sender.email.split('@')[0] || sender.email,
+          email: sender.email,
+        }),
+      });
+      setAddContactState(response.ok ? 'added' : 'error');
+    } catch {
+      setAddContactState('error');
+    }
+  };
+
+  // Escape closes whichever sender surface is open.
+  useEffect(() => {
+    if (!panelSender && !menuSender) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setPanelSender(null);
+        setMenuSender(null);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [panelSender, menuSender]);
+
   // NaN-guard comparator (messageSortTime/compareMessagesChronologically):
   // an unparseable receivedAt sorts to the start of the thread so the
   // visible 50-message tail window never clips real messages around it.
@@ -443,6 +855,8 @@ export function PersonThread({
   useEffect(() => {
     setVisibleCount(INITIAL_VISIBLE_MESSAGES);
     setShowNewMessagesPill(false);
+    setPanelSender(null);
+    setMenuSender(null);
     prevLengthRef.current = messages.length;
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -493,8 +907,35 @@ export function PersonThread({
     <div className="flex h-full w-full flex-col bg-black text-zinc-100">
       <ThreadHeader
         conversation={conversation}
+        currentUserEmail={currentUserEmail}
         onCreateEvent={onEventDraft ? () => handleCreateEventFromEmail('event') : undefined}
+        onSenderPanel={openPanelSender}
       />
+
+      {panelSender && (
+        <SenderContactPanel
+          sender={panelSender}
+          copied={copiedEmail === panelSender.email}
+          copyFailed={copyFailed}
+          onCopy={() => void copySenderEmail(panelSender)}
+          onClose={() => setPanelSender(null)}
+          addState={addContactState}
+          onAddToContacts={() => void addSenderToContacts(panelSender)}
+          onScheduleEvent={
+            onEventDraft ? () => handleCreateEventFromEmail('event') : undefined
+          }
+        />
+      )}
+      {menuSender && (
+        <SenderActionsMenu
+          sender={menuSender}
+          copied={copiedEmail === menuSender.email}
+          copyFailed={copyFailed}
+          onCopy={() => void copySenderEmail(menuSender)}
+          onOpenPanel={() => openPanelSender(menuSender)}
+          onClose={() => setMenuSender(null)}
+        />
+      )}
 
       <div className="relative min-h-0 flex-1">
         <div
@@ -539,6 +980,7 @@ export function PersonThread({
                     : message.from?.email || conversation.email
                 }
                 currentUserEmail={currentUserEmail}
+                onSenderAction={openMenuSender}
               />
             );
           })}
