@@ -1,0 +1,762 @@
+{
+  "meta": {
+    "harness": "perf-harness v1",
+    "targetUrl": "http://127.0.0.1:46243/",
+    "fixture": true,
+    "chrome": "Chrome/154.0.8037.97",
+    "startedAt": "2026-10-27T18:55:37.486Z",
+    "finishedAt": "2026-10-27T18:58:47.869Z"
+  },
+  "devices": [
+    {
+      "profile": {
+        "cpuThrottlingRate": 4,
+        "deviceScaleFactor": 2,
+        "height": 740,
+        "id": "VP-360",
+        "role": "BUDGET DEVICE — mid-range Android reference (design §2). Budgets bind here.",
+        "width": 360
+      },
+      "journeys": {
+        "_container": {
+          "selector": "[role='tabpanel']",
+          "scrollHeight": 7680,
+          "clientHeight": 636
+        },
+        "J1": {
+          "status": "run",
+          "runs": [
+            {
+              "frameCount": 587,
+              "p50Ms": 16.69999999999891,
+              "p95Ms": 16.799999999999272,
+              "p99Ms": 33.29999999999927,
+              "maxMs": 100,
+              "pctWithinBudget": 38.33049403747871,
+              "pctWithin17Ms": 98.9778534923339,
+              "framesOver33Ms": 4,
+              "framesOver50Ms": 1,
+              "longtaskCount": 1,
+              "maxLongtaskMs": 86,
+              "layoutShiftCount": 0,
+              "layoutShiftScore": 0,
+              "scroll": {
+                "scrollTop": 0,
+                "scrollHeight": 7680,
+                "wraps": 30
+              }
+            },
+            {
+              "frameCount": 593,
+              "p50Ms": 16.700000000000728,
+              "p95Ms": 16.799999999999272,
+              "p99Ms": 16.80000000000291,
+              "maxMs": 66.60000000000218,
+              "pctWithinBudget": 37.94266441821248,
+              "pctWithin17Ms": 99.15682967959528,
+              "framesOver33Ms": 4,
+              "framesOver50Ms": 1,
+              "longtaskCount": 1,
+              "maxLongtaskMs": 72,
+              "layoutShiftCount": 0,
+              "layoutShiftScore": 0,
+              "scroll": {
+                "scrollTop": 4584,
+                "scrollHeight": 7680,
+                "wraps": 29
+              }
+            },
+            {
+              "frameCount": 601,
+              "p50Ms": 16.69999999999709,
+              "p95Ms": 16.799999999995634,
+              "p99Ms": 16.80000000000291,
+              "maxMs": 16.80000000000291,
+              "pctWithinBudget": 38.10316139767055,
+              "pctWithin17Ms": 100,
+              "framesOver33Ms": 0,
+              "framesOver50Ms": 0,
+              "longtaskCount": 0,
+              "maxLongtaskMs": 0,
+              "layoutShiftCount": 0,
+              "layoutShiftScore": 0,
+              "scroll": {
+                "scrollTop": 4584,
+                "scrollHeight": 7680,
+                "wraps": 30
+              }
+            }
+          ],
+          "median": {
+            "p50Ms": 16.69999999999891,
+            "p95Ms": 16.799999999999272,
+            "p99Ms": 16.80000000000291,
+            "maxMs": 66.60000000000218,
+            "pctWithinBudget": 38.10316139767055,
+            "pctWithin17Ms": 99.15682967959528,
+            "framesOver33Ms": 4,
+            "longtaskCount": 1,
+            "maxLongtaskMs": 72,
+            "layoutShiftCount": 0,
+            "layoutShiftScore": 0
+          },
+          "budget": {
+            "pctWithinBudget": 95,
+            "p99MaxMs": 33.3,
+            "maxLongtasks": 0
+          }
+        },
+        "J2": {
+          "status": "run",
+          "perFilter": {
+            "All": {
+              "status": "run",
+              "tFirstPaintMedianMs": 8.899999999906868,
+              "tRowsMedianMs": 8.899999999906868,
+              "blankFramesMax": 0,
+              "runs": [
+                {
+                  "tFirstPaintMs": 14.600000000093132,
+                  "tRowsMs": 14.600000000093132,
+                  "blankFrames": 0,
+                  "frames": 124,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 5.5,
+                  "tRowsMs": 5.5,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 8.899999999906868,
+                  "tRowsMs": 8.899999999906868,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 11.100000000093132,
+                  "tRowsMs": 11.100000000093132,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 7.400000000139698,
+                  "tRowsMs": 7.400000000139698,
+                  "blankFrames": 0,
+                  "frames": 121,
+                  "firstKind": "rows"
+                }
+              ]
+            },
+            "Unread": {
+              "status": "run",
+              "tFirstPaintMedianMs": 13.899999999906868,
+              "tRowsMedianMs": 13.899999999906868,
+              "blankFramesMax": 0,
+              "runs": [
+                {
+                  "tFirstPaintMs": 14.099999999860302,
+                  "tRowsMs": 14.099999999860302,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 17.5999999998603,
+                  "tRowsMs": 17.5999999998603,
+                  "blankFrames": 0,
+                  "frames": 123,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 5.699999999953434,
+                  "tRowsMs": 5.699999999953434,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 4.5,
+                  "tRowsMs": 4.5,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 13.899999999906868,
+                  "tRowsMs": 13.899999999906868,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                }
+              ]
+            },
+            "Contacts": {
+              "status": "run",
+              "tFirstPaintMedianMs": 6.800000000046566,
+              "tRowsMedianMs": 6.800000000046566,
+              "blankFramesMax": 0,
+              "runs": [
+                {
+                  "tFirstPaintMs": 6.800000000046566,
+                  "tRowsMs": 6.800000000046566,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 12.800000000046566,
+                  "tRowsMs": 12.800000000046566,
+                  "blankFrames": 0,
+                  "frames": 123,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 0.19999999995343387,
+                  "tRowsMs": 0.19999999995343387,
+                  "blankFrames": 0,
+                  "frames": 123,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 3.699999999953434,
+                  "tRowsMs": 3.699999999953434,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 12.5,
+                  "tRowsMs": 12.5,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                }
+              ]
+            },
+            "Spam": {
+              "status": "run",
+              "tFirstPaintMedianMs": 7.599999999860302,
+              "tRowsMedianMs": 7.599999999860302,
+              "blankFramesMax": 0,
+              "runs": [
+                {
+                  "tFirstPaintMs": 7.599999999860302,
+                  "tRowsMs": 7.599999999860302,
+                  "blankFrames": 0,
+                  "frames": 123,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 4.599999999860302,
+                  "tRowsMs": null,
+                  "blankFrames": 0,
+                  "frames": 123,
+                  "firstKind": "empty"
+                },
+                {
+                  "tFirstPaintMs": 2.300000000046566,
+                  "tRowsMs": null,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "empty"
+                },
+                {
+                  "tFirstPaintMs": 15.5,
+                  "tRowsMs": null,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "empty"
+                },
+                {
+                  "tFirstPaintMs": 8.699999999953434,
+                  "tRowsMs": null,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "empty"
+                }
+              ]
+            }
+          },
+          "menuFilters": {
+            "status": "BLOCKED",
+            "reason": "U3.2 filter menu not built pre-Gate-1; menu filters (Flagged, Pinned, Has files, Mentions me, Events, Categories) measured after U3.2 lands."
+          },
+          "budget": {
+            "firstPaintMedianMaxMs": 200,
+            "maxBlankFrames": 0
+          }
+        },
+        "J3": {
+          "status": "run",
+          "filter": "Spam",
+          "rows": 0,
+          "emptyState": {
+            "found": true,
+            "textLength": 196,
+            "textHead": "Pull down to refresh\n        \n        \n          Nothing here\n          No messages match this filter. Your inbox is honestly empty for this view.\n          Search on server\n          Clear filter",
+            "actions": 2
+          },
+          "structurePresent": true,
+          "note": "Copy/art verdicts await Gate 1 D3; this journey asserts U4.1 structure presence only."
+        },
+        "J4": {
+          "status": "run",
+          "open": {
+            "medianMs": 63.47862299998815,
+            "p95Ms": 89.96672299999045,
+            "maxMs": 89.96672299999045
+          },
+          "back": {
+            "medianMs": 61.77510600000096,
+            "p95Ms": 146.92181700000947,
+            "maxMs": 146.92181700000947
+          },
+          "backBlocked": null,
+          "maxFrameDuringOpenMs": 16.80000000000291,
+          "budget": {
+            "medianMaxMs": 300,
+            "p95MaxMs": 450,
+            "threadOpenMaxFrameMs": 50
+          }
+        },
+        "J5": {
+          "status": "run",
+          "openMs": 380.0408890000108,
+          "closeMs": 390.5802660000045,
+          "closeSettled": true,
+          "close": {
+            "animated": true,
+            "distinctTransforms": 16,
+            "samples": 19
+          }
+        },
+        "J6": {
+          "status": "run",
+          "offsetTop": {
+            "before": [
+              0,
+              0,
+              0
+            ],
+            "during": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "after": 0
+          },
+          "noPush": {
+            "pass": true,
+            "maxDeltaPx": 0,
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "thresholds": {
+            "releaseThresholdPx": 56,
+            "maxPullPx": 84
+          },
+          "note": "Geometric assertion only: list offsetTop must not move during pull. Indicator art/behavior is owned by the W0-3 visual pass."
+        }
+      },
+      "blocked": [],
+      "skipped": []
+    },
+    {
+      "profile": {
+        "cpuThrottlingRate": 1,
+        "deviceScaleFactor": 3,
+        "height": 844,
+        "id": "VP-390",
+        "role": "REFERENCE PROFILE — large phone, unthrottled (runs alongside VP-360)",
+        "width": 390
+      },
+      "journeys": {
+        "_container": {
+          "selector": "[role='tabpanel']",
+          "scrollHeight": 7680,
+          "clientHeight": 740
+        },
+        "J1": {
+          "status": "run",
+          "runs": [
+            {
+              "frameCount": 600,
+              "p50Ms": 16.69999999999891,
+              "p95Ms": 16.700000000000728,
+              "p99Ms": 16.80000000000109,
+              "maxMs": 16.80000000000291,
+              "pctWithinBudget": 38.333333333333336,
+              "pctWithin17Ms": 100,
+              "framesOver33Ms": 0,
+              "framesOver50Ms": 0,
+              "longtaskCount": 0,
+              "maxLongtaskMs": 0,
+              "layoutShiftCount": 0,
+              "layoutShiftScore": 0,
+              "scroll": {
+                "scrollTop": 3996,
+                "scrollHeight": 7680,
+                "wraps": 35
+              }
+            },
+            {
+              "frameCount": 599,
+              "p50Ms": 16.700000000000728,
+              "p95Ms": 16.799999999999272,
+              "p99Ms": 16.80000000000291,
+              "maxMs": 33.30000000000291,
+              "pctWithinBudget": 38.397328881469114,
+              "pctWithin17Ms": 99.8330550918197,
+              "framesOver33Ms": 1,
+              "framesOver50Ms": 0,
+              "longtaskCount": 0,
+              "maxLongtaskMs": 0,
+              "layoutShiftCount": 0,
+              "layoutShiftScore": 0,
+              "scroll": {
+                "scrollTop": 5772,
+                "scrollHeight": 7680,
+                "wraps": 35
+              }
+            },
+            {
+              "frameCount": 600,
+              "p50Ms": 16.69999999999709,
+              "p95Ms": 16.799999999995634,
+              "p99Ms": 16.80000000000291,
+              "maxMs": 16.80000000000291,
+              "pctWithinBudget": 38.333333333333336,
+              "pctWithin17Ms": 100,
+              "framesOver33Ms": 0,
+              "framesOver50Ms": 0,
+              "longtaskCount": 0,
+              "maxLongtaskMs": 0,
+              "layoutShiftCount": 0,
+              "layoutShiftScore": 0,
+              "scroll": {
+                "scrollTop": 444,
+                "scrollHeight": 7680,
+                "wraps": 36
+              }
+            }
+          ],
+          "median": {
+            "p50Ms": 16.69999999999891,
+            "p95Ms": 16.799999999995634,
+            "p99Ms": 16.80000000000291,
+            "maxMs": 16.80000000000291,
+            "pctWithinBudget": 38.333333333333336,
+            "pctWithin17Ms": 100,
+            "framesOver33Ms": 0,
+            "longtaskCount": 0,
+            "maxLongtaskMs": 0,
+            "layoutShiftCount": 0,
+            "layoutShiftScore": 0
+          },
+          "budget": {
+            "pctWithinBudget": 95,
+            "p99MaxMs": 33.3,
+            "maxLongtasks": 0
+          }
+        },
+        "J2": {
+          "status": "run",
+          "perFilter": {
+            "All": {
+              "status": "run",
+              "tFirstPaintMedianMs": 4.7000000001862645,
+              "tRowsMedianMs": 4.7000000001862645,
+              "blankFramesMax": 0,
+              "runs": [
+                {
+                  "tFirstPaintMs": 10.699999999720603,
+                  "tRowsMs": 10.699999999720603,
+                  "blankFrames": 0,
+                  "frames": 124,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 2.400000000372529,
+                  "tRowsMs": 2.400000000372529,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 2.6000000000931323,
+                  "tRowsMs": 2.6000000000931323,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 4.7000000001862645,
+                  "tRowsMs": 4.7000000001862645,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 8.5,
+                  "tRowsMs": 8.5,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                }
+              ]
+            },
+            "Unread": {
+              "status": "run",
+              "tFirstPaintMedianMs": 9,
+              "tRowsMedianMs": 9,
+              "blankFramesMax": 0,
+              "runs": [
+                {
+                  "tFirstPaintMs": 9.100000000093132,
+                  "tRowsMs": 9.100000000093132,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 4.600000000093132,
+                  "tRowsMs": 4.600000000093132,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 6.399999999906868,
+                  "tRowsMs": 6.399999999906868,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 9.599999999627471,
+                  "tRowsMs": 9.599999999627471,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 9,
+                  "tRowsMs": 9,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                }
+              ]
+            },
+            "Contacts": {
+              "status": "run",
+              "tFirstPaintMedianMs": 5.5,
+              "tRowsMedianMs": 5.5,
+              "blankFramesMax": 0,
+              "runs": [
+                {
+                  "tFirstPaintMs": 11,
+                  "tRowsMs": 11,
+                  "blankFrames": 0,
+                  "frames": 119,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 2.6999999997206032,
+                  "tRowsMs": 2.6999999997206032,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 5.5,
+                  "tRowsMs": 5.5,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 7.5,
+                  "tRowsMs": 7.5,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 4.5,
+                  "tRowsMs": 4.5,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                }
+              ]
+            },
+            "Spam": {
+              "status": "run",
+              "tFirstPaintMedianMs": 8.600000000093132,
+              "tRowsMedianMs": 4.899999999906868,
+              "blankFramesMax": 0,
+              "runs": [
+                {
+                  "tFirstPaintMs": 4.899999999906868,
+                  "tRowsMs": 4.899999999906868,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "rows"
+                },
+                {
+                  "tFirstPaintMs": 8.600000000093132,
+                  "tRowsMs": null,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "empty"
+                },
+                {
+                  "tFirstPaintMs": 7.100000000093132,
+                  "tRowsMs": null,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "empty"
+                },
+                {
+                  "tFirstPaintMs": 10.800000000279397,
+                  "tRowsMs": null,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "empty"
+                },
+                {
+                  "tFirstPaintMs": 11.299999999813735,
+                  "tRowsMs": null,
+                  "blankFrames": 0,
+                  "frames": 122,
+                  "firstKind": "empty"
+                }
+              ]
+            }
+          },
+          "menuFilters": {
+            "status": "BLOCKED",
+            "reason": "U3.2 filter menu not built pre-Gate-1; menu filters (Flagged, Pinned, Has files, Mentions me, Events, Categories) measured after U3.2 lands."
+          },
+          "budget": {
+            "firstPaintMedianMaxMs": 200,
+            "maxBlankFrames": 0
+          }
+        },
+        "J3": {
+          "status": "run",
+          "filter": "Spam",
+          "rows": 0,
+          "emptyState": {
+            "found": true,
+            "textLength": 196,
+            "textHead": "Pull down to refresh\n        \n        \n          Nothing here\n          No messages match this filter. Your inbox is honestly empty for this view.\n          Search on server\n          Clear filter",
+            "actions": 2
+          },
+          "structurePresent": true,
+          "note": "Copy/art verdicts await Gate 1 D3; this journey asserts U4.1 structure presence only."
+        },
+        "J4": {
+          "status": "run",
+          "open": {
+            "medianMs": 46.72417899998254,
+            "p95Ms": 59.776287000015145,
+            "maxMs": 59.776287000015145
+          },
+          "back": {
+            "medianMs": 46.11401400002069,
+            "p95Ms": 51.02461299998686,
+            "maxMs": 51.02461299998686
+          },
+          "backBlocked": null,
+          "maxFrameDuringOpenMs": 16.69999999999709,
+          "budget": {
+            "medianMaxMs": 300,
+            "p95MaxMs": 450,
+            "threadOpenMaxFrameMs": 50
+          }
+        },
+        "J5": {
+          "status": "run",
+          "openMs": 369.30074199999217,
+          "closeMs": 413.96042200000375,
+          "closeSettled": true,
+          "close": {
+            "animated": true,
+            "distinctTransforms": 17,
+            "samples": 20
+          }
+        },
+        "J6": {
+          "status": "run",
+          "offsetTop": {
+            "before": [
+              0,
+              0,
+              0
+            ],
+            "during": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "after": 0
+          },
+          "noPush": {
+            "pass": true,
+            "maxDeltaPx": 0,
+            "samples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "thresholds": {
+            "releaseThresholdPx": 56,
+            "maxPullPx": 84
+          },
+          "note": "Geometric assertion only: list offsetTop must not move during pull. Indicator art/behavior is owned by the W0-3 visual pass."
+        }
+      },
+      "blocked": [],
+      "skipped": []
+    }
+  ]
+}
