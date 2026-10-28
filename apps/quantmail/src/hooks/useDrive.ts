@@ -110,7 +110,11 @@ export interface UseDriveReturn {
   createFolder: (name: string, parentId?: string | null) => Promise<DriveFile>;
   deleteFiles: (fileIds: string[]) => Promise<void>;
   renameFile: (fileId: string, newName: string) => Promise<void>;
-  moveFiles: (fileIds: string[], targetFolderId: string) => Promise<void>;
+  moveFiles: (
+    fileIds: string[],
+    targetFolderId: string | null,
+    folderIds?: string[],
+  ) => Promise<void>;
   copyFile: (fileId: string, targetFolderId: string) => Promise<DriveFile | null>;
   shareFile: (params: ShareParams) => Promise<void>;
   unshareFile: (fileId: string, email: string) => Promise<void>;
@@ -593,19 +597,26 @@ export function useDrive(): UseDriveReturn {
   );
 
   const moveFiles = useCallback(
-    async (fileIds: string[], targetFolderId: string) => {
+    async (fileIds: string[], targetFolderId: string | null, folderIds: string[] = []) => {
+      // QM-DRIVE-MOVE: the old body sent only fileIds, so moving a FOLDER
+      // silently moved nothing (backend movedFolders: 0) while the caller
+      // toasted success. Folders ride in folderIds; null target = My Drive.
+      // Failures are rethrown after the optimistic rollback so the caller
+      // can toast an honest error instead of a false "Moved".
       const prevFiles = [...files];
-      setFiles((prev) => prev.filter((f) => !fileIds.includes(f.id)));
+      const moving = new Set([...fileIds, ...folderIds]);
+      setFiles((prev) => prev.filter((f) => !moving.has(f.id)));
       try {
         const response = await apiRequest('/api/drive/move', {
           method: 'POST',
-          body: JSON.stringify({ fileIds, targetFolderId }),
+          body: JSON.stringify({ fileIds, folderIds, targetFolderId }),
         });
         if (!response.ok) throw new Error('Move failed');
       } catch (err) {
         setFiles(prevFiles);
         setError(getDriveErrorMessage(err, 'Move failed'));
         await fetchFiles();
+        throw err;
       }
     },
     [files, fetchFiles],

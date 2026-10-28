@@ -42,6 +42,8 @@ export interface DriveFilesSubViewProps {
   onOpenRename?: (item: DriveItem, e?: React.MouseEvent) => void;
   onOpenVersionHistory?: (item: DriveItem) => void;
   onOpenAiSummary?: (item: DriveItem) => void;
+  // QM-DRIVE-MOVE: opens the page's destination picker for this item.
+  onOpenMove?: (item: DriveItem, e?: React.MouseEvent) => void;
   onNavigateToFolder?: (folderId: string | null, folderName?: string) => void;
 }
 
@@ -59,6 +61,7 @@ export function DriveFilesSubView({
   onOpenRename,
   onOpenVersionHistory,
   onOpenAiSummary,
+  onOpenMove,
   onNavigateToFolder,
 }: DriveFilesSubViewProps) {
   const [typeFilter, setTypeFilter] = useState<'all' | 'pdf' | 'doc' | 'code' | 'zip'>('all');
@@ -454,6 +457,20 @@ export function DriveFilesSubView({
                     {/* R4-NEW-1 companion: per-file "CAS: 64KB" storage-internals
                         claim removed — same unprovable class as the badge. */}
                     <div className="flex items-center gap-1.5">
+                      {onOpenMove && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenMove(file, e);
+                          }}
+                          aria-label={`Move file ${file.name}`}
+                          title="Move to another folder"
+                          className="px-2 py-0.5 rounded bg-[var(--quant-surface-elevated)] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-[10px]"
+                        >
+                          Move
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -525,6 +542,20 @@ export function DriveFilesSubView({
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
+                    {onOpenMove && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenMove(file, e);
+                        }}
+                        aria-label={`Move file ${file.name}`}
+                        title="Move to another folder"
+                        className="px-2.5 py-1 rounded-lg bg-[var(--quant-surface-elevated)] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium"
+                      >
+                        Move
+                      </button>
+                    )}
                     <button
                       type="button"
                       aria-label={file.isStarred ? 'Unstar file' : 'Star file'}

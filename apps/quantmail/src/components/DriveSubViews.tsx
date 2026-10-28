@@ -256,6 +256,25 @@ function DownloadIcon({ className = 'size-4' }: { className?: string }) {
   );
 }
 
+// QM-DRIVE-MOVE: folder-with-arrow glyph for the Move action (no emoji).
+function MoveIcon({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+      <polyline points="12 11 12 17 9 14 15 14 12 17" />
+    </svg>
+  );
+}
+
 function ShareIcon({ className = 'size-4' }: { className?: string }) {
   return (
     <svg
@@ -705,6 +724,10 @@ export interface DriveHomeSubViewProps {
   onOpenRename?: (item: DriveItem, e?: React.MouseEvent) => void;
   onOpenVersionHistory?: (item: DriveItem) => void;
   onOpenAiSummary?: (item: DriveItem) => void;
+  // QM-DRIVE-MOVE: opens the destination picker (page) / performs a
+  // drag-onto-folder move. Documents are never offered these (see page).
+  onOpenMove?: (item: DriveItem, e?: React.MouseEvent) => void;
+  onMoveItem?: (itemId: string, targetFolderId: string | null, isFolder: boolean) => void;
   onNavigateToFolder?: (folderId: string | null, folderName?: string) => void;
   trashItems?: DriveItem[];
   onRestoreTrashItem?: (id: string, name: string, e?: React.MouseEvent) => void;
@@ -725,6 +748,8 @@ export function DriveHomeSubView({
   onOpenRename,
   onOpenVersionHistory,
   onOpenAiSummary,
+  onOpenMove,
+  onMoveItem,
   onNavigateToFolder,
   trashItems = [],
   onRestoreTrashItem,
@@ -733,6 +758,44 @@ export function DriveHomeSubView({
   const [selectedCategory, setSelectedCategory] = useState<DriveCategory | null>(null);
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+
+  // QM-DRIVE-MOVE: drag-onto-folder state. The dragged payload is an id +
+  // kind (folders move via folderIds, files via fileIds — the page routes
+  // them). Drag state lives here because both the cards and the folder
+  // tiles render in this view; the page only receives the completed move.
+  const [draggedItem, setDraggedItem] = useState<{
+    id: string;
+    isFolder: boolean;
+  } | null>(null);
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+  const handleDragStart = useCallback(
+    (item: DriveItem) => (e: React.DragEvent) => {
+      if (!onMoveItem) return;
+      e.dataTransfer.effectAllowed = 'move';
+      try {
+        e.dataTransfer.setData('text/plain', item.id);
+      } catch {
+        // Some browsers restrict setData outside a real gesture; the React
+        // state below is the real payload, so this is best-effort only.
+      }
+      setDraggedItem({ id: item.id, isFolder: item.type === 'folder' });
+    },
+    [onMoveItem],
+  );
+  const handleDragEnd = useCallback(() => {
+    setDraggedItem(null);
+    setDragOverFolderId(null);
+  }, []);
+  const handleFolderDrop = useCallback(
+    (folderId: string) => (e: React.DragEvent) => {
+      e.preventDefault();
+      if (!draggedItem || draggedItem.id === folderId) return;
+      onMoveItem?.(draggedItem.id, folderId, draggedItem.isFolder);
+      setDraggedItem(null);
+      setDragOverFolderId(null);
+    },
+    [draggedItem, onMoveItem],
+  );
 
   // Real storage quota — the gauge must reflect actual usage, never invented numbers.
   const { quota, known: quotaKnown } = useStorageQuota();
@@ -1084,7 +1147,24 @@ export function DriveHomeSubView({
                 {folders.map((folder) => (
                   <div
                     key={folder.id}
-                    className="group relative flex items-center gap-1 p-2 rounded-xl border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] transition-all"
+                    draggable={!!onMoveItem}
+                    onDragStart={handleDragStart(folder)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => {
+                      if (!draggedItem || draggedItem.id === folder.id) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      setDragOverFolderId(folder.id);
+                    }}
+                    onDragLeave={() =>
+                      setDragOverFolderId((prev) => (prev === folder.id ? null : prev))
+                    }
+                    onDrop={handleFolderDrop(folder.id)}
+                    className={`group relative flex items-center gap-1 p-2 rounded-xl border transition-all ${
+                      dragOverFolderId === folder.id
+                        ? 'border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)]'
+                        : 'border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)]'
+                    }`}
                   >
                     {/*
                      * A real <button>: keyboard-focusable, announced as a
@@ -1110,6 +1190,17 @@ export function DriveHomeSubView({
                       </span>
                     </button>
                     <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity">
+                      {onOpenMove && (
+                        <button
+                          type="button"
+                          aria-label={`Move folder ${folder.name}`}
+                          title="Move to another folder"
+                          onClick={(e) => onOpenMove(folder, e)}
+                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F8FAFC] hover:bg-[#21262D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+                        >
+                          <MoveIcon className="size-3.5" />
+                        </button>
+                      )}
                       {onOpenRename && (
                         <button
                           type="button"
@@ -1160,6 +1251,9 @@ export function DriveHomeSubView({
                 {recentOrderedFiles.slice(0, 8).map((file) => (
                   <div
                     key={file.id}
+                    draggable={!!onMoveItem && file.type !== 'document'}
+                    onDragStart={handleDragStart(file)}
+                    onDragEnd={handleDragEnd}
                     onClick={() => onPreviewItem?.(file)}
                     className="group rounded-xl p-3 border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-all flex flex-col justify-between"
                   >
@@ -1167,25 +1261,43 @@ export function DriveHomeSubView({
                       <div className="size-8 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
                         <DocumentIcon className="size-4" />
                       </div>
-                      {/* QM-UIUX-079: documents have no star flag (their star
-                          toggle 404s) — no star control, like RecentSubView. */}
-                      {file.type !== 'document' && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleStar?.(file, e);
-                          }}
-                          className="text-[#64748B] hover:text-amber-400 transition-colors"
-                          aria-label="Toggle star"
-                        >
-                          {file.isStarred ? (
-                            <StarFilledIcon className="size-3.5 text-amber-400" />
-                          ) : (
-                            <StarIcon className="size-3.5" />
-                          )}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {/* QM-DRIVE-MOVE: documents are editor projections, not
+                            Drive files — no Move control for them. */}
+                        {onOpenMove && file.type !== 'document' && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenMove(file, e);
+                            }}
+                            className="text-[#64748B] hover:text-[var(--app-accent)] transition-colors"
+                            aria-label={`Move file ${file.name}`}
+                            title="Move to another folder"
+                          >
+                            <MoveIcon className="size-3.5" />
+                          </button>
+                        )}
+                        {/* QM-UIUX-079: documents have no star flag (their star
+                            toggle 404s) — no star control, like RecentSubView. */}
+                        {file.type !== 'document' && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleStar?.(file, e);
+                            }}
+                            className="text-[#64748B] hover:text-amber-400 transition-colors"
+                            aria-label="Toggle star"
+                          >
+                            {file.isStarred ? (
+                              <StarFilledIcon className="size-3.5 text-amber-400" />
+                            ) : (
+                              <StarIcon className="size-3.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[var(--app-accent)] transition-colors">
@@ -1209,6 +1321,9 @@ export function DriveHomeSubView({
                 {recentOrderedFiles.slice(0, 10).map((file) => (
                   <div
                     key={file.id}
+                    draggable={!!onMoveItem && file.type !== 'document'}
+                    onDragStart={handleDragStart(file)}
+                    onDragEnd={handleDragEnd}
                     onClick={() => onPreviewItem?.(file)}
                     className="flex items-center justify-between px-3 py-3.5 hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-colors"
                   >
@@ -1230,6 +1345,20 @@ export function DriveHomeSubView({
                     </div>
                     <div className="flex items-center gap-3 shrink-0 text-xs text-[#94A3B8]">
                       <span className="font-mono text-[11px]">{formatBytes(file.size)}</span>
+                      {onOpenMove && file.type !== 'document' && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenMove(file, e);
+                          }}
+                          className="p-1 rounded text-[#64748B] hover:text-[var(--app-accent)]"
+                          aria-label={`Move file ${file.name}`}
+                          title="Move to another folder"
+                        >
+                          <MoveIcon className="size-3.5" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1360,6 +1489,9 @@ export function DriveHomeSubView({
               {categoryItems.map((item) => (
                 <div
                   key={item.id}
+                  draggable={!!onMoveItem && item.type !== 'document'}
+                  onDragStart={handleDragStart(item)}
+                  onDragEnd={handleDragEnd}
                   onClick={() => onPreviewItem?.(item)}
                   className="group rounded-xl p-3.5 border border-[#232938] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] cursor-pointer transition-all flex flex-col justify-between"
                 >
@@ -1378,6 +1510,20 @@ export function DriveHomeSubView({
                       )}
                     </div>
                     <div className="flex items-center gap-1">
+                      {onOpenMove && item.type !== 'document' && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenMove(item, e);
+                          }}
+                          className="p-1 rounded text-[#64748B] hover:text-[var(--app-accent)] transition-colors"
+                          aria-label={`Move file ${item.name}`}
+                          title="Move to another folder"
+                        >
+                          <MoveIcon className="size-3.5" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => {
