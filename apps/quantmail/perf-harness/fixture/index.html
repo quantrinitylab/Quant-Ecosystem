@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perf Harness Fixture — inbox-like surface (NOT the real app)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: #111; color: #eee; }
+  #app { display: flex; flex-direction: column; height: 100dvh; }
+  #search-row { height: 56px; display: flex; align-items: center; padding: 0 12px; background: #1c1c1c; flex: none; }
+  #search-row input { flex: 1; height: 36px; border-radius: 18px; border: 0; padding: 0 12px; }
+  [role="tablist"] { display: flex; gap: 8px; padding: 8px 12px; background: #1c1c1c; flex: none; overflow-x: auto; }
+  [role="tab"] { border: 0; border-radius: 16px; padding: 8px 14px; background: #2a2a2a; color: #eee; font-size: 14px; white-space: nowrap; }
+  [role="tab"][aria-selected="true"] { background: #ff6a00; color: #fff; }
+  #scroll-host { position: relative; flex: 1; overflow: hidden; }
+  [role="tabpanel"] { height: 100%; overflow-y: auto; }
+  .mail-list { position: relative; }
+  #ptr-indicator { position: absolute; top: 0; left: 0; right: 0; height: 42px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #aaa; transform: translateY(-42px); will-change: transform; }
+  ul[role="list"] { margin: 0; padding: 0; list-style: none; }
+  ul[role="list"] li { height: 64px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-bottom: 1px solid #222; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; background: #444; flex: none; }
+  .skeleton-row { height: 64px; margin: 8px 12px; border-radius: 8px; background: #2a2a2a; }
+  #empty-state { padding: 48px 24px; text-align: center; }
+  #empty-state button, #empty-state a { margin: 8px; }
+  #drawer-trigger { position: fixed; right: 16px; bottom: 16px; width: 56px; height: 56px; border-radius: 50%; border: 0; background: #ff6a00; color: #fff; font-size: 24px; z-index: 20; }
+  [data-testid="drawer-panel"] { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; background: #1c1c1c; padding: 16px; transform: translateX(-100%); transition: transform 300ms ease; z-index: 30; }
+  [data-testid="drawer-panel"].open { transform: translateX(0); }
+  [data-testid="thread-view"] { position: fixed; inset: 0; background: #111; padding: 16px; z-index: 40; overflow-y: auto; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="search-row" data-testid="search-row"><input placeholder="Search mail" aria-label="Search mail"></div>
+  <div role="tablist" aria-label="Inbox lenses">
+    <button role="tab" aria-selected="true" data-lens="all">All</button>
+    <button role="tab" aria-selected="false" data-lens="unread">Unread</button>
+    <button role="tab" aria-selected="false" data-lens="drafts">Drafts</button>
+    <button role="tab" aria-selected="false" data-lens="contacts">Contacts</button>
+    <button role="tab" aria-selected="false" data-lens="spam">Spam</button>
+  </div>
+  <div id="scroll-host">
+    <div role="tabpanel" id="list-panel">
+      <div class="mail-list">
+        <div id="ptr-indicator">Pull down to refresh</div>
+        <ul role="list" id="rows"></ul>
+        <div id="empty-state" hidden>
+          <h2>Nothing here</h2>
+          <p>No messages match this filter. Your inbox is honestly empty for this view.</p>
+          <button id="server-search">Search on server</button>
+          <button id="clear-filter">Clear filter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<button id="drawer-trigger" data-testid="drawer-trigger" aria-label="Open drawer">≡</button>
+<div data-testid="drawer-panel" aria-label="Drawer panel">
+  <h2>Drawer</h2>
+  <p>Navigation and folders live here.</p>
+</div>
+<script>
+  // 120 rows with filter membership (fixture data, not app data).
+  const rows = [];
+  for (let i = 0; i < 120; i++) {
+    rows.push({
+      id: i,
+      from: 'Person ' + (i % 24),
+      subject: 'Message subject ' + i,
+      unread: i % 3 === 0,
+      draft: i % 15 === 0,
+      contact: i % 2 === 0,
+    });
+  }
+  const listEl = document.getElementById('rows');
+  const emptyEl = document.getElementById('empty-state');
+  const panel = document.getElementById('list-panel');
+  let activeLens = 'all';
+
+  function render(lens) {
+    activeLens = lens;
+    const pool = rows.filter((r) => {
+      if (lens === 'all') return true;
+      if (lens === 'unread') return r.unread;
+      if (lens === 'drafts') return r.draft;
+      if (lens === 'contacts') return r.contact;
+      if (lens === 'spam') return false;
+      return true;
+    });
+    listEl.innerHTML = '';
+    if (pool.length === 0) {
+      emptyEl.hidden = false;
+    } else {
+      emptyEl.hidden = true;
+      for (const r of pool) {
+        const li = document.createElement('li');
+        li.dataset.rowId = r.id;
+        li.innerHTML = '<div class="avatar"></div><div><div>' + r.from + '</div><div>' + r.subject + '</div></div>';
+        li.addEventListener('click', () => openThread(r));
+        listEl.appendChild(li);
+      }
+    }
+    document.querySelectorAll('[role="tab"]').forEach((t) => {
+      t.setAttribute('aria-selected', t.dataset.lens === lens ? 'true' : 'false');
+    });
+  }
+
+  function applyFilter(lens) {
+    // Skeleton for ~60ms, then rows (never blank: skeleton counts as paint).
+    listEl.innerHTML = '';
+    emptyEl.hidden = true;
+    for (let i = 0; i < 6; i++) {
+      const s = document.createElement('div');
+      s.className = 'skeleton-row';
+      listEl.appendChild(s);
+    }
+    setTimeout(() => render(lens), 60);
+  }
+
+  document.querySelectorAll('[role="tab"]').forEach((t) => {
+    t.addEventListener('click', () => applyFilter(t.dataset.lens));
+  });
+  document.getElementById('clear-filter').addEventListener('click', () => applyFilter('all'));
+
+  function openThread(r) {
+    const view = document.createElement('div');
+    view.setAttribute('data-testid', 'thread-view');
+    view.innerHTML = '<button data-testid="back-button">← Back</button>'
+      + '<h1>Thread with ' + r.from + '</h1>'
+      + '<div class="message-block"><p>First message block of thread ' + r.id + ': ' + r.subject + '</p></div>';
+    view.querySelector('[data-testid="back-button"]').addEventListener('click', () => view.remove());
+    document.body.appendChild(view);
+  }
+
+  const drawerTrigger = document.getElementById('drawer-trigger');
+  const drawerPanel = document.querySelector('[data-testid="drawer-panel"]');
+  drawerTrigger.addEventListener('click', () => drawerPanel.classList.toggle('open'));
+
+  // Pull-to-refresh: transform-only indicator, list offsetTop never moves.
+  const indicator = document.getElementById('ptr-indicator');
+  let pullStartY = null;
+  let pullDy = 0;
+  panel.addEventListener('touchstart', (e) => {
+    if (panel.scrollTop === 0) {
+      pullStartY = e.touches[0].clientY;
+      pullDy = 0;
+    }
+  }, { passive: true });
+  panel.addEventListener('touchmove', (e) => {
+    if (pullStartY === null) return;
+    pullDy = e.touches[0].clientY - pullStartY;
+    if (pullDy > 0) {
+      e.preventDefault();
+      const shown = Math.min(pullDy, 84);
+      indicator.style.transform = 'translateY(' + (shown - 42) + 'px)';
+      indicator.textContent = pullDy >= 56 ? 'Release to refresh' : 'Pull down to refresh';
+    }
+  }, { passive: false });
+  panel.addEventListener('touchend', () => {
+    if (pullStartY === null) return;
+    if (pullDy >= 56) {
+      indicator.textContent = 'Refreshing...';
+      indicator.style.transform = 'translateY(0px)';
+      setTimeout(() => {
+        indicator.style.transform = 'translateY(-42px)';
+        indicator.textContent = 'Pull down to refresh';
+      }, 600);
+    } else {
+      indicator.style.transform = 'translateY(-42px)';
+      indicator.textContent = 'Pull down to refresh';
+    }
+    pullStartY = null;
+    pullDy = 0;
+  });
+
+  render('all');
+</script>
+</body>
+</html>
