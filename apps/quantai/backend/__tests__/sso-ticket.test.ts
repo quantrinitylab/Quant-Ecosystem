@@ -85,6 +85,7 @@ const VALID_IDENTITY = {
     email: 'user@quantmail.in',
     username: 'testuser',
     displayName: 'Test User',
+    email_verified: true,
   },
   clientId: 'quantai',
 };
