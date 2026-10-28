@@ -39,8 +39,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const host = (await headers()).get('host');
   const brand = brandNameForHost(host);
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+    <html lang="en" suppressHydrationWarning style={{ colorScheme: 'dark' }}>
+      {/* Dark first paint: explicit near-black inline style (matching /login's
+          #06070B) so the initial paint is never white, even before
+          globals.css and the theme provider load and resolve tokens. */}
+      <body className={inter.className} style={{ backgroundColor: '#06070B', color: '#f8fafc' }}>
         <BrandProvider brand={brand}>
           <QueryProvider>
             <AppProviders>

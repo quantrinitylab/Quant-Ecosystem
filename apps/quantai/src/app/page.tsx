@@ -49,6 +49,8 @@ const VoiceModeModal = dynamic(() => import('../components/voice').then((m) => m
   ssr: false,
 });
 import { HeroPromptBento } from '../components/chat/HeroPromptBento';
+import { ShellDrawer } from '../components/shell/ShellDrawer';
+import { ShellComposer } from '../components/shell/ShellComposer';
 
 export default function AIPage() {
   const brandName = useBrandName();
@@ -120,6 +122,9 @@ export default function AIPage() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  // Shell navigation drawer: closed by default, toggled from the header menu
+  // button (rendered only after the auth decision — never pre-auth).
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [forceShowUI, setForceShowUI] = useState(false);
   const [ignoreError, setIgnoreError] = useState(false);
 
@@ -401,15 +406,22 @@ export default function AIPage() {
     isSearchingConversations,
   ]);
 
+  // Pre-auth-decision render: a dark branded splash ONLY — no AppShell, no
+  // sidebar, no hamburger, no drawer, no token-based loading items. Tokens
+  // resolve light before the theme loads (root tokens are light), which is
+  // exactly what produced the pre-login white flash and the invisible
+  // white-on-white loading items, so this splash uses explicit near-black
+  // hex matching /login's #06070B treatment (near-black + logo + spinner).
+  if (!hasCheckedAuth) {
+    return <DarkBrandSplash brandName={brandName} />;
+  }
+
   // P0 (2026-10-10, user-locked): guests never see the chat shell — the
   // redirect effect above sends them to /login; this renders a brief
-  // interstitial instead of the full chat UI.
+  // interstitial instead of the full chat UI. The gate copy is unified to
+  // this single string (the previous Hinglish placeholder is removed).
   if (mustRedirectToLogin(hasCheckedAuth, isAuthenticated)) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[var(--quant-bg)] text-sm text-[var(--quant-text-muted)]">
-        Sign-in par le ja rahe hain…
-      </div>
-    );
+    return <DarkBrandSplash brandName={brandName} message="Redirecting to sign-in…" />;
   }
 
   if (isLoading && !forceShowUI) {
@@ -566,6 +578,11 @@ export default function AIPage() {
         theme={resolvedTheme}
       sidebar={sidebar}
     >
+      {/* Shell navigation drawer (renders null while closed). Mounted here,
+          outside the chat error boundary: navigation chrome is not chat
+          content. The conversations Sidebar above is untouched — it is
+          history, not navigation. */}
+      <ShellDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
       <QuantAIPageErrorBoundary
         brandName={brandName}
         onSignIn={handleNavigateToLogin}
@@ -581,6 +598,35 @@ export default function AIPage() {
           {/* Header */}
           <div className="p-4 border-b border-[var(--quant-border)] bg-[var(--quant-surface)]/60 backdrop-blur-sm">
             <div className="flex items-center gap-3 flex-wrap">
+              {/* Navigation drawer toggle. Gated on hasCheckedAuth so no nav
+                  chrome renders before the auth decision completes (this
+                  render path is post-decision by construction; the gate is
+                  explicit so a future reorder cannot reintroduce the
+                  pre-auth hamburger). Label differs from AppShell's "Show
+                  navigation" on purpose: that toggles the conversations
+                  sidebar, this opens the navigation drawer. */}
+              {hasCheckedAuth && (
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen((v) => !v)}
+                  aria-label="Open navigation"
+                  aria-expanded={drawerOpen}
+                  title="Navigation"
+                  className="flex items-center justify-center w-9 h-9 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] text-[var(--foreground)] hover:bg-[var(--quant-surface-hover)] transition-colors cursor-pointer"
+                >
+                  <svg
+                    className="w-[18px] h-[18px]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.9}
+                    strokeLinecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 7h16M4 12h16M4 17h16" />
+                  </svg>
+                </button>
+              )}
               <h1 className="text-lg font-semibold text-[var(--foreground)]">{brandName}</h1>
 
               {/* Mode Switcher: 💬 Chat Mode vs ⚡ Agent / Code Mode */}
@@ -936,6 +982,53 @@ export default function AIPage() {
   );
 }
 
+/* ============ Dark branded splash (pre-auth + redirect gate) ============ */
+// /login treatment: near-black + logo + spinner. Every color here is an
+// explicit hex — never a :root token, which resolves light before the
+// theme loads and would flash white. The tile reuses the in-repo gradient
+// + Q pattern from the error boundary and the layout favicon.
+function DarkBrandSplash({ brandName, message }: { brandName: string; message?: string }) {
+  return (
+    <div
+      role="status"
+      aria-label={message ?? 'Loading'}
+      className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4 text-center"
+      style={{ backgroundColor: '#06070B', color: '#f8fafc' }}
+    >
+      <div
+        className="flex h-14 w-14 items-center justify-center rounded-2xl text-2xl font-bold text-white shadow-lg"
+        style={{ background: 'linear-gradient(to top right, #7c3aed, #4f46e5)' }}
+        aria-hidden="true"
+      >
+        Q
+      </div>
+      <div className="text-xl font-bold">{brandName}</div>
+      <svg
+        className="h-5 w-5 animate-spin"
+        style={{ color: '#a78bfa' }}
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="4" />
+        <path
+          d="M22 12a10 10 0 0 0-10-10"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeWidth="4"
+        />
+      </svg>
+      {message ? (
+        <p className="text-sm" style={{ color: '#a1a4ac' }}>
+          {message}
+        </p>
+      ) : (
+        <span className="sr-only">Loading</span>
+      )}
+    </div>
+  );
+}
+
 /* ============ Inline chat error banner ============ */
 // P1 fix (2026-10-11): send/stream failures render here — dismissible, with
 // Retry wired to the existing retryLastMessage(). Never a full-page takeover.
@@ -1288,8 +1381,8 @@ function ChatInput({
   aiUnavailable = false,
 }: ChatInputProps) {
   const [input, setInput] = useState('');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const prefersReducedMotion = useReducedMotion();
+  const composerRef = useRef<HTMLTextAreaElement>(null);
 
   // Quanty Feed "Discuss" handoff: pre-fill the composer with the feed post
   // context so the user reviews it before sending (never auto-sends).
@@ -1301,57 +1394,12 @@ function ChatInput({
       const parsed = JSON.parse(raw) as { openingPrompt?: string };
       if (parsed?.openingPrompt) {
         setInput(parsed.openingPrompt);
-        textareaRef.current?.focus();
+        composerRef.current?.focus();
       }
     } catch {
       /* sessionStorage unavailable or corrupt — ignore */
     }
   }, []);
-
-  const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      if (input.trim() && !isStreaming) {
-        onSend(input.trim());
-        setInput('');
-        onClearImage();
-        onClearFile();
-        textareaRef.current?.focus();
-      }
-    },
-    [input, isStreaming, onSend, onClearImage, onClearFile],
-  );
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSubmit(e);
-      }
-    },
-    [handleSubmit],
-  );
-
-  // Auto-grow textarea
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 192) + 'px';
-  }, [input]);
-
-  // Trailing button state: mic (empty) -> send (has text) -> stop (streaming)
-  const trailingState: 'mic' | 'send' | 'stop' = isStreaming ? 'stop' : input.trim() ? 'send' : 'mic';
-
-  const handleTrailingClick = () => {
-    if (trailingState === 'stop' && onStop) {
-      onStop();
-    } else if (trailingState === 'send') {
-      handleSubmit(new Event('submit') as unknown as React.FormEvent);
-    } else {
-      onVoiceToggle();
-    }
-  };
 
   return (
     <div className="border-t border-[var(--quant-border)] px-3 sm:px-4 pt-3 pb-3"
@@ -1424,94 +1472,35 @@ function ChatInput({
           )}
         </AnimatePresence>
 
-        {/* Pill composer */}
-        <form onSubmit={handleSubmit}>
-          <div className="rounded-[24px] border border-[var(--quant-border)] bg-[var(--quant-surface)]
-            focus-within:border-[var(--quant-accent)] focus-within:ring-2 focus-within:ring-[var(--quant-accent)]/25
-            transition-all duration-150 cursor-text"
-            onClick={() => textareaRef.current?.focus()}>
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={aiUnavailable ? "AI chat isn't available right now" : "Ask anything…"}
-              aria-label="Message Quanty"
-              aria-describedby="composer-hint"
-              disabled={isStreaming || aiUnavailable}
-              rows={1}
-              className="w-full bg-transparent resize-none outline-none px-5 pt-3.5 pb-1
-                text-base text-[var(--foreground)] placeholder-[var(--foreground-secondary)]
-                disabled:opacity-50 max-h-48"
-            />
-            {/* Action row */}
-            <div className="flex items-center gap-1 px-3 pb-2.5">
-              <button
-                type="button"
-                onClick={onImageUpload}
-                aria-label="Upload image"
-                className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-full text-[var(--foreground-secondary)] hover:text-[var(--foreground)] hover:bg-[var(--quant-surface-hover)] transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-              </button>
-              {currentModel && (
-                <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium
-                  bg-[var(--quant-surface-hover)] text-[var(--foreground-secondary)] border border-[var(--quant-border)]">
-                  {currentModel}
-                </span>
-              )}
-              <div className="flex-1" />
-              {/* Morphing trailing button: mic -> send -> stop */}
-              <button
-                type={trailingState === 'send' ? 'submit' : 'button'}
-                onClick={trailingState === 'send' ? undefined : handleTrailingClick}
-                disabled={aiUnavailable || (trailingState === 'send' && !input.trim())}
-                aria-label={aiUnavailable ? 'AI chat unavailable' : trailingState === 'stop' ? 'Stop generating' : trailingState === 'send' ? 'Send message' : 'Voice input'}
-                className={`size-9 rounded-full grid place-items-center shrink-0 transition-all active:scale-95 ${
-                  trailingState === 'send'
-                    ? 'bg-[var(--foreground)] text-[var(--quant-background)]'
-                    : trailingState === 'stop'
-                      ? 'bg-red-500 text-white'
-                      : 'bg-[var(--quant-surface-hover)] text-[var(--foreground-secondary)] hover:text-[var(--foreground)]'
-                } disabled:opacity-40`}
-              >
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.span
-                    key={trailingState}
-                    initial={prefersReducedMotion ? false : { scale: 0.6, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={prefersReducedMotion ? {} : { scale: 0.6, opacity: 0 }}
-                    transition={{ duration: 0.12 }}
-                    className="grid place-items-center"
-                  >
-                    {trailingState === 'mic' && (
-                      <svg className="w-4.5 h-4.5 w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
-                      </svg>
-                    )}
-                    {trailingState === 'send' && (
-                      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
-                      </svg>
-                    )}
-                    {trailingState === 'stop' && (
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <rect x="6" y="6" width="12" height="12" rx="2" />
-                      </svg>
-                    )}
-                  </motion.span>
-                </AnimatePresence>
-              </button>
-            </div>
-          </div>
-        </form>
-
-        <p id="composer-hint" className="mt-2 text-center text-[11px] text-[var(--foreground-secondary)]">
-          <kbd className="font-sans font-medium">Enter</kbd> to send ·{' '}
-          <kbd className="font-sans font-medium">Shift</kbd>+<kbd className="font-sans font-medium">Enter</kbd> for a new line
-        </p>
+        {/* Shell composer. Modes and effort are intentionally NOT passed on
+            home — no fake controls, so the chips row and effort toggle stay
+            hidden. Attach opens the existing image picker; voice toggles
+            the existing recording indicator. Stop stays on the separate
+            "Stop generating" button above the composer (AIPage level);
+            ShellComposer has no stop prop. The composer is a multi-line
+            textarea: Enter sends, Shift + Enter inserts a newline (hint
+            rendered by ShellComposer). */}
+        <ShellComposer
+          ref={composerRef}
+          value={input}
+          onChange={setInput}
+          onSend={() => {
+            if (input.trim() && !isStreaming) {
+              onSend(input.trim());
+              setInput('');
+              onClearImage();
+              onClearFile();
+              composerRef.current?.focus();
+            }
+          }}
+          isLoading={isStreaming}
+          disabled={aiUnavailable}
+          placeholder={
+            aiUnavailable ? "AI chat isn't available right now" : 'Type a message'
+          }
+          onAttach={onImageUpload}
+          onVoice={onVoiceToggle}
+        />
       </div>
     </div>
   );
