@@ -37,6 +37,7 @@ import { twoFactorRoutes } from './routes/two-factor';
 import { twoFactorRecoveryRoutes } from './routes/two-factor-recovery';
 import { passwordResetRoutes } from './routes/password-reset';
 import { accountRecoveryRoutes } from './routes/account-recovery';
+import displaySettingsRoutes from './routes/display-settings';
 import settingsTokenRoutes from './routes/settings-tokens';
 import reposRoutes from './routes/repos';
 import workspaceRoutes from './routes/workspaces';
@@ -417,6 +418,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(passwordResetRoutes);
   await app.register(accountRecoveryRoutes);
   await app.register(settingsTokenRoutes);
+  await app.register(displaySettingsRoutes);
   await app.register(oauthRoutes);
   await app.register(ssoTicketRoutes);
   await app.register(quantyMcpRoutes, { prefix: '/api/quanty/mcp' });

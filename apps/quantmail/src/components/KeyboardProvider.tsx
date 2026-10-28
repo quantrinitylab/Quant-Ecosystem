@@ -33,6 +33,10 @@ import { useRegisterCommands, usePendingChords } from '../lib/keyboard/hooks';
 import { chordToLabelParts } from '../lib/keyboard/chords';
 import type { Command } from '../lib/keyboard/command-registry';
 import { startOutbox } from '../lib/offline/outbox';
+import {
+  saveDisplaySettingToAccount,
+  stampLocalDisplaySettingsField,
+} from '../lib/display-settings';
 
 interface KeyboardSurfaces {
   isPaletteOpen: boolean;
@@ -74,6 +78,15 @@ function setTheme(next: 'dark' | 'light'): void {
   } catch {
     // Private browsing — the DOM change still applies for this session.
   }
+  // Stamp the theme field so the account sync (DisplaySettingsSync) knows
+  // this browser moved after the server last heard, and pushes the theme
+  // up instead of letting the server's older value revert the toggle.
+  stampLocalDisplaySettingsField('theme');
+  // Push through to the account in the background: a palette-toggled theme
+  // is a real choice and must roam like a settings-page one. Fire-and-
+  // forget — the local write and stamp above already happened, so a failed
+  // PUT keeps the local theme and the next sync pushes it up.
+  void saveDisplaySettingToAccount({ theme: next });
   // The AppShell owns its own theme state and only re-renders on this event.
   // Without it, palette/shortcut theme changes silently do nothing.
   window.dispatchEvent(new CustomEvent('quant:theme-changed', { detail: { theme: next } }));
