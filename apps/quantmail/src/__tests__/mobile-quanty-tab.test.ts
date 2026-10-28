@@ -125,4 +125,39 @@ describe('QM-MOBILE-QUANTY-TAB — Quanty in the mobile Mail bottom bar', () => 
     const primary = mobile.PILLAR_SUB_CONFIGS.mail.tabs.filter((t) => !t.mobileOverflow);
     expect(primary.map((t) => t.id)).toEqual(['inbox', 'quanty', 'sent', 'drafts', 'archive']);
   });
+
+  it('QM-FIX mobile-nav-quanty-dead: QuantGit pillar defines no quanty tab', () => {
+    // User-approved 2026-10-09: Repositories + Overview only. The removed
+    // `tab.id === 'quanty' && pillar === 'quantgit'` branch in
+    // executeContextTabClick therefore had no config tab that could reach it.
+    expect(mobile.PILLAR_SUB_CONFIGS.quantgit.tabs.map((t) => t.id)).toEqual([
+      'repositories',
+      'overview',
+    ]);
+  });
+
+  it('QM-FIX mobile-nav-quanty-dead: an id-quanty tab without opensQuanty is NOT a cockpit opener', () => {
+    // The dead branch fired copilot/quanty events for ANY tab with id
+    // 'quanty' on quantgit, even one never wired as a Quanty tab — and then
+    // fell through to navigation anyway. The only cockpit path is the
+    // opensQuanty arm above: without it, the tab is an ordinary nav tab.
+    const push = vi.fn();
+    const onTabChange = vi.fn();
+    const plainQuantyTab = {
+      id: 'quanty',
+      label: 'Quanty',
+      icon: () => null,
+      targetPath: '/quantgit/repositories',
+    };
+    mobile.executeContextTabClick(plainQuantyTab, 'quantgit', {
+      pathname: '/quantgit',
+      router: { push },
+      onTabChange,
+    });
+    expect(dispatchedEvents).not.toContain('quant:copilot:open');
+    expect(dispatchedEvents).not.toContain('quant:quanty:open');
+    expect(dispatchedEvents).toContain('quant:subtab-change');
+    expect(onTabChange).toHaveBeenCalledWith('quanty', 'quantgit');
+    expect(push).toHaveBeenCalledWith('/quantgit/repositories');
+  });
 });
