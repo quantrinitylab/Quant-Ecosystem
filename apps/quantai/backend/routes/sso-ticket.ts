@@ -16,7 +16,8 @@
 //      route accepts either). Fail-closed with an honest error when the env
 //      credentials are unset; they are never hardcoded.
 //   3. The identity returns the user's IDENTITY (never any token). We validate
-//      it (non-empty id + email — the F-023 precedent) and confirm the ticket
+//      it (non-empty id + email + strict email_verified — the F-023 precedent,
+//      WR-578 gate) and confirm the ticket
 //      was minted for our client.
 //   4. We establish QuantAI's own session: a short-lived QuantAI-issued SSO
 //      session token (services/sso-session.ts, iss=quantai so it verifies only
@@ -68,6 +69,9 @@ function fail(reply: FastifyReply, statusCode: number, code: string, message: st
 interface ResolvedUser {
   id: string;
   email: string;
+  // STRICT boolean: only the boolean value `true` from the identity root
+  // counts as verified. A string 'true' or any other truthy value FAILS.
+  email_verified: boolean;
   username?: string;
   displayName?: string;
 }
@@ -76,6 +80,7 @@ interface TicketResolveResponse {
   user?: {
     id?: unknown;
     email?: unknown;
+    email_verified?: unknown;
     username?: unknown;
     displayName?: unknown;
   } | null;
@@ -95,9 +100,13 @@ function validateResolvedIdentity(body: TicketResolveResponse): ResolvedUser | n
   const id = asNonEmptyString(user.id);
   const email = asNonEmptyString(user.email);
   if (!id || !email || !email.includes('@')) return null;
+  // WR-578: require the identity root's strict boolean verification flag.
+  // user.email_verified === true only — the string 'true' and other truthy
+  // values do NOT count (truthy-string bypass rejected).
+  const emailVerified = user.email_verified === true;
   const username = asNonEmptyString(user.username) ?? undefined;
   const displayName = asNonEmptyString(user.displayName) ?? undefined;
-  const result: ResolvedUser = { id, email };
+  const result: ResolvedUser = { id, email, email_verified: emailVerified };
   if (username) result.username = username;
   if (displayName) result.displayName = displayName;
   return result;
@@ -231,6 +240,24 @@ export default async function ssoTicketRoutes(fastify: FastifyInstance): Promise
         401,
         'SSO_IDENTITY_INVALID',
         'The sign-in service returned an incomplete identity. Please try again.',
+      );
+    }
+
+    // WR-578: the identity root is QuantMail — require its strict boolean
+    // email_verified flag BEFORE minting any session. An unverified QuantMail
+    // registration must never convert into a QuantAI session. Distinct code
+    // from SSO_IDENTITY_INVALID: the identity is well-formed, just unverified.
+    // Users verify their email on their Quant Account, never here.
+    if (identity.email_verified !== true) {
+      request.log.warn(
+        `POST /auth/sso/ticket: identity for ${identity.email} is not email-verified ` +
+          '(SSO_EMAIL_UNVERIFIED)',
+      );
+      return fail(
+        reply,
+        401,
+        'SSO_EMAIL_UNVERIFIED',
+        'This email is not verified on your Quant Account. Please verify it there, then try again.',
       );
     }
 

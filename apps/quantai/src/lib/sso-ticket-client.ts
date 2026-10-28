@@ -44,6 +44,16 @@ export const SSO_TICKET_ERROR_COPY: Record<string, { message: string; retryable:
       'Single sign-on is not configured for QuantAI yet. You can still sign in with your email and password below.',
     retryable: false,
   },
+  // Configuration error, NOT a transient outage: the backend answered 500
+  // SSO_MISCONFIGURED (e.g. missing JWT_SECRET), so this entry must exist —
+  // without it the >=500 fallback relabels it SSO_IDENTITY_UNAVAILABLE
+  // ("temporarily unreachable", retryable), which is wrong: retrying cannot
+  // fix a configuration problem.
+  SSO_MISCONFIGURED: {
+    message:
+      'Single sign-on is not configured correctly for QuantAI yet. Please sign in with your email and password below.',
+    retryable: false,
+  },
   SSO_IDENTITY_UNAVAILABLE: {
     message:
       'The QuantMail sign-in service is temporarily unreachable. Check your connection and try again.',
