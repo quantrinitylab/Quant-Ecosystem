@@ -1637,6 +1637,21 @@ function InboxPageContent() {
   const [foldersLoaded, setFoldersLoaded] = useState(false);
 
   /**
+   * U3.1 F1: folders created optimistically in this mount session while the
+   * mount load effect below is still in flight. The load effect reads its
+   * localStorage snapshot before its async migration finishes, so a folder
+   * created after that read would otherwise be lost when the effect calls
+   * setCustomFolders(merged), and reconciliation would then bounce its lens
+   * to All. This ref holds only this-session optimistic rows (temp
+   * `custom_<ts>` ids, replaced by the saved backend id on create success),
+   * never the cache snapshot — so it cannot resurrect a folder deleted on
+   * another device, which a naive union with the stale cache would. Entries
+   * are consumed (and cleared) by the load effect's merge; entries added
+   * after the load has finished are inert, because the effect runs once.
+   */
+  const inFlightOptimisticFoldersRef = useRef<Map<string, CustomFolder>>(new Map());
+
+  /**
    * Load folders from the backend on mount and migrate legacy device-local
    * folders (`custom_*` ids, created before the backend sync existed) up to
    * the server. Backend wins on name conflicts; anything that fails to migrate
@@ -1714,6 +1729,14 @@ function InboxPageContent() {
       for (const folder of legacy) {
         if (!migratedIds.has(folder.id)) merged.push(folder);
       }
+      // U3.1 F1: preserve in-flight optimistic rows created after the
+      // localCache read above (see inFlightOptimisticFoldersRef). These are
+      // this-session creations only, not cache entries, so no deleted folder
+      // is resurrected. Consumed here; the ref is cleared after the merge.
+      for (const folder of inFlightOptimisticFoldersRef.current.values()) {
+        if (!merged.some((f) => f.id === folder.id)) merged.push(folder);
+      }
+      inFlightOptimisticFoldersRef.current.clear();
       writeFolderFilters(filters);
       persistFoldersCache(merged);
       setCustomFolders(merged);
@@ -1732,10 +1755,10 @@ function InboxPageContent() {
    * folder's deep link, a stale saved state — is reset to All with a clean
    * replace to /?view=inbox, instead of sitting on a lens that filters
    * nothing while the URL claims a folder. Gated on `foldersLoaded`, never
-   * on the initial (possibly empty or stale-cache) list, and it cannot bounce
-   * a just-created folder: the optimistic `custom_<ts>` row is already in
-   * `customFolders` when `handleCreateFolder` sets the lens, and the saved id
-   * replaces it in the same batched update that sets the new lens. Replace,
+   * on the initial (possibly empty or stale-cache) list. Once `foldersLoaded`
+   * is true, a just-created folder cannot bounce: in-flight optimistic rows
+   * are preserved into the merged list via `inFlightOptimisticFoldersRef`
+   * (U3.1 F1), so the lens id is present when reconciliation runs. Replace,
    * never push, so Back does not step through the reset.
    */
   useEffect(() => {
@@ -1806,7 +1829,10 @@ function InboxPageContent() {
       createdAt: Date.now(),
     };
 
-    // Optimistic add so the UI feels instant.
+    // Optimistic add so the UI feels instant. U3.1 F1: register the row in
+    // the in-flight ref so the mount load effect's merge cannot drop it
+    // if that effect finishes after this creation.
+    inFlightOptimisticFoldersRef.current.set(tempId, optimistic);
     setCustomFolders((prev) => {
       const next = [...prev, optimistic];
       persistFoldersCache(next);
@@ -1833,6 +1859,11 @@ function InboxPageContent() {
         filterValue: optimistic.filterValue,
       };
       writeFolderFilters(filters);
+      // U3.1 F1: the saved id replaces the temp id in the in-flight ref, so
+      // a load-effect merge finishing after this success preserves the saved
+      // row (and the new lens id) instead of the temp row.
+      inFlightOptimisticFoldersRef.current.delete(tempId);
+      inFlightOptimisticFoldersRef.current.set(saved.id, saved);
       setCustomFolders((prev) => {
         const next = prev.map((f) => (f.id === tempId ? saved : f));
         persistFoldersCache(next);
@@ -1841,7 +1872,10 @@ function InboxPageContent() {
       setActiveLens(`folder_${saved.id}`);
       showToast({ text: `Folder "${saved.name}" created`, type: 'success' });
     } catch (error) {
-      // Roll back the optimistic add — the folder was never saved.
+      // Roll back the optimistic add — the folder was never saved. U3.1 F1:
+      // drop it from the in-flight ref too, so a later load-effect merge
+      // cannot resurrect it and reconciliation can reset the lens to All.
+      inFlightOptimisticFoldersRef.current.delete(tempId);
       setCustomFolders((prev) => {
         const next = prev.filter((f) => f.id !== tempId);
         persistFoldersCache(next);
