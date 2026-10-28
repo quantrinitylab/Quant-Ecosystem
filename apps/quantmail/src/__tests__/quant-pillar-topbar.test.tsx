@@ -488,6 +488,45 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
   });
 
   // ==========================================================================
+  // G3 (U2.1) — header search clip fix: the narrow-phone search row must
+  // shrink instead of overflowing. Regression-lock: every assertion below
+  // fails on the pre-fix classes (no min-w-0, Quanty size-10, no <380px fold).
+  // ==========================================================================
+  describe('G3 header search clip fix (U2.1)', () => {
+    const buttonTagWith = (html: string, needle: string) => {
+      const tags: string[] = html.match(/<button[^>]*>/g) ?? [];
+      const tag = tags.find((t) => t.includes(needle));
+      expect(tag).toBeDefined();
+      return tag as string;
+    };
+
+    it('search container and search input both carry min-w-0 so the flex row can shrink', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar />);
+
+      // Container: flex-1 row item that previously refused to shrink below
+      // its content (live clip at 320–390px).
+      expect(html).toContain('shadow-inner flex-1 min-w-0');
+      // Input: w-full without min-w-0 overflowed its own container.
+      expect(html).toContain('w-full min-w-0 bg-transparent');
+    });
+
+    it('Quanty button meets the repo 44px tap-target floor (was 40px)', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar />);
+      const tag = buttonTagWith(html, 'topbar-quanty');
+
+      expect(tag).toContain('size-11 min-h-[44px] min-w-[44px]');
+      expect(tag).not.toMatch(/size-10[\s"]/);
+    });
+
+    it('mic and command-palette buttons fold away below 380px', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar />);
+
+      expect(buttonTagWith(html, 'aria-label="Voice Search"')).toContain('max-[379px]:hidden');
+      expect(buttonTagWith(html, 'topbar-command-palette')).toContain('max-[379px]:hidden');
+    });
+  });
+
+  // ==========================================================================
   // 5. Horizontal Sub-Category Lenses Strip
   // ==========================================================================
   describe('Horizontal Sub-Category Lenses Strip', () => {
@@ -634,8 +673,12 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
       // The ghost trigger is always in the DOM at full size — the old
       // scroll-conditional button collapsed to zero size until scrolled.
+      // G3 (U2.1) raised full size from 40px (size-10) to the repo 44px floor.
       expect(html).toContain('aria-label="Ask Quanty"');
-      expect(html).toContain('size-10');
+      const quantyButtons: string[] = html.match(/<button[^>]*>/g) ?? [];
+      const quantyTag = quantyButtons.find((t) => t.includes('topbar-quanty'));
+      expect(quantyTag).toBeDefined();
+      expect(quantyTag).toContain('size-11 min-h-[44px] min-w-[44px]');
     });
 
     it('renders the account menu trigger instead of a direct-to-settings avatar', () => {

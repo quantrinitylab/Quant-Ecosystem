@@ -1300,7 +1300,7 @@ export function QuantPillarTopBar({
           </button>
         )}
         <div
-          className="relative flex items-center gap-2 px-3 rounded-xl bg-[#16181F] border border-[#232938] focus-within:border-[var(--quant-primary)]/60 focus-within:ring-1 focus-within:ring-[var(--quant-primary)]/30 transition-all shadow-inner flex-1"
+          className="relative flex items-center gap-2 px-3 rounded-xl bg-[#16181F] border border-[#232938] focus-within:border-[var(--quant-primary)]/60 focus-within:ring-1 focus-within:ring-[var(--quant-primary)]/30 transition-all shadow-inner flex-1 min-w-0"
           style={{
             height: searchCompact ? 40 : 48,
             transition: 'height 0.25s ease-out',
@@ -1315,7 +1315,7 @@ export function QuantPillarTopBar({
             onKeyDown={handleSearchKeyDown}
             placeholder={searchPlaceholder || activeTile.searchPlaceholder}
             aria-label={searchPlaceholder || activeTile.searchPlaceholder}
-            className="w-full bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
+            className="w-full min-w-0 bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded"
           />
 
           {internalSearch.length > 0 && (
@@ -1333,7 +1333,7 @@ export function QuantPillarTopBar({
           <button
             type="button"
             onClick={handleMicClick}
-            className={`min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[var(--quant-primary)] ${
+            className={`max-[379px]:hidden min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[var(--quant-primary)] ${
               isListening
                 ? 'text-red-400 bg-red-950/40 border border-red-500/50 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.4)]'
                 : 'text-[#94A3B8] hover:text-white hover:bg-[var(--quant-surface-elevated)]'
@@ -1360,7 +1360,7 @@ export function QuantPillarTopBar({
           aria-label="Open command palette"
           title="Command palette"
           data-testid="topbar-command-palette"
-          className="flex items-center justify-center rounded-full shrink-0 size-11 min-h-[44px] min-w-[44px] bg-[#16181F] border border-[#232938] text-[#94A3B8] transition active:scale-95 hover:text-white hover:border-[var(--app-accent)]/60 outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
+          className="max-[379px]:hidden flex items-center justify-center rounded-full shrink-0 size-11 min-h-[44px] min-w-[44px] bg-[#16181F] border border-[#232938] text-[#94A3B8] transition active:scale-95 hover:text-white hover:border-[var(--app-accent)]/60 outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
         >
           <CommandIcon name="command" className="size-5" />
         </button>
@@ -1375,7 +1375,7 @@ export function QuantPillarTopBar({
         <button
           type="button"
           onClick={handleLiveCapsuleClick}
-          className="flex items-center justify-center rounded-full shrink-0 size-10 outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] transition-transform duration-200 hover:scale-105 active:scale-95"
+          className="flex items-center justify-center rounded-full shrink-0 size-11 min-h-[44px] min-w-[44px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] transition-transform duration-200 hover:scale-105 active:scale-95"
           title="Ask Quanty"
           aria-label="Ask Quanty"
           data-testid="topbar-quanty"
