@@ -339,11 +339,23 @@ describe('Fastify Routes: /projects/:projectId/memory', () => {
   let app: ReturnType<typeof Fastify>;
   let projectMemoryService: ProjectMemoryService;
 
+  // CEO scope amendment (2026-10-28): test-only auth, mirroring
+  // project-memory-ownership.test.ts — x-test-user-id header -> request.auth.
+  const TEST_USER = 'user-test-owner';
+  const asUser = (userId: string) => ({ headers: { 'x-test-user-id': userId } });
+
   beforeEach(async () => {
     app = Fastify();
     projectMemoryService = new ProjectMemoryService();
 
     app.decorate('projectMemoryService', projectMemoryService);
+    app.addHook('onRequest', (request, _reply, done) => {
+      const userId = request.headers['x-test-user-id'];
+      if (typeof userId === 'string' && userId) {
+        (request as unknown as { auth: { userId: string } }).auth = { userId };
+      }
+      done();
+    });
     await app.register(projectMemoryRoutes, { prefix: '/projects' });
     await app.ready();
   });
@@ -356,6 +368,7 @@ describe('Fastify Routes: /projects/:projectId/memory', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/projects/test-proj-1/memory?workspaceId=ws-auto',
+      ...asUser(TEST_USER),
     });
 
     expect(res.statusCode).toBe(200);
@@ -370,6 +383,7 @@ describe('Fastify Routes: /projects/:projectId/memory', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/projects/nonexistent-proj/memory?autoCreate=false',
+      ...asUser(TEST_USER),
     });
 
     expect(res.statusCode).toBe(404);
@@ -380,12 +394,14 @@ describe('Fastify Routes: /projects/:projectId/memory', () => {
       projectId: 'proj-mode-test',
       workspaceId: 'ws-1',
       memoryMode: 'DEFAULT',
+      ownerId: TEST_USER,
     });
 
     const res = await app.inject({
       method: 'PATCH',
       url: '/projects/proj-mode-test/memory/mode',
       payload: { mode: 'PROJECT_ISOLATED' },
+      ...asUser(TEST_USER),
     });
 
     expect(res.statusCode).toBe(200);
@@ -397,12 +413,14 @@ describe('Fastify Routes: /projects/:projectId/memory', () => {
     projectMemoryService.createProjectMemory({
       projectId: 'proj-instruct',
       workspaceId: 'ws-1',
+      ownerId: TEST_USER,
     });
 
     const res = await app.inject({
       method: 'PATCH',
       url: '/projects/proj-instruct/memory/instructions',
       payload: { customInstructions: 'Always test edge cases in backend services' },
+      ...asUser(TEST_USER),
     });
 
     expect(res.statusCode).toBe(200);
@@ -414,6 +432,7 @@ describe('Fastify Routes: /projects/:projectId/memory', () => {
     projectMemoryService.createProjectMemory({
       projectId: 'proj-entry-test',
       workspaceId: 'ws-1',
+      ownerId: TEST_USER,
     });
 
     const res = await app.inject({
@@ -424,6 +443,7 @@ describe('Fastify Routes: /projects/:projectId/memory', () => {
         category: 'design-system',
         isPinned: true,
       },
+      ...asUser(TEST_USER),
     });
 
     expect(res.statusCode).toBe(201);
@@ -438,15 +458,21 @@ describe('Fastify Routes: /projects/:projectId/memory', () => {
     projectMemoryService.createProjectMemory({
       projectId: 'proj-pin-test',
       workspaceId: 'ws-1',
+      ownerId: TEST_USER,
     });
-    const entry = projectMemoryService.addMemoryEntry('proj-pin-test', {
-      content: 'Toggle pin test entry',
-      isPinned: false,
-    });
+    const entry = projectMemoryService.addMemoryEntry(
+      'proj-pin-test',
+      {
+        content: 'Toggle pin test entry',
+        isPinned: false,
+      },
+      TEST_USER,
+    );
 
     const res = await app.inject({
       method: 'POST',
       url: `/projects/proj-pin-test/memory/entries/${entry.id}/pin`,
+      ...asUser(TEST_USER),
     });
 
     expect(res.statusCode).toBe(200);
@@ -458,21 +484,27 @@ describe('Fastify Routes: /projects/:projectId/memory', () => {
     projectMemoryService.createProjectMemory({
       projectId: 'proj-del-test',
       workspaceId: 'ws-1',
+      ownerId: TEST_USER,
     });
-    const entry = projectMemoryService.addMemoryEntry('proj-del-test', {
-      content: 'Entry to be deleted',
-    });
+    const entry = projectMemoryService.addMemoryEntry(
+      'proj-del-test',
+      {
+        content: 'Entry to be deleted',
+      },
+      TEST_USER,
+    );
 
     const res = await app.inject({
       method: 'DELETE',
       url: `/projects/proj-del-test/memory/entries/${entry.id}`,
+      ...asUser(TEST_USER),
     });
 
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.data.removed).toBe(true);
 
-    const mem = projectMemoryService.getProjectMemory('proj-del-test');
+    const mem = projectMemoryService.getProjectMemory('proj-del-test', TEST_USER);
     expect(mem?.memoryEntries).toHaveLength(0);
   });
 
@@ -481,15 +513,21 @@ describe('Fastify Routes: /projects/:projectId/memory', () => {
       projectId: 'proj-query-test',
       workspaceId: 'ws-1',
       memoryMode: 'PROJECT_ISOLATED',
+      ownerId: TEST_USER,
     });
-    projectMemoryService.addMemoryEntry('proj-query-test', {
-      content: 'Isolated secret token: ABC-123',
-      category: 'credentials',
-    });
+    projectMemoryService.addMemoryEntry(
+      'proj-query-test',
+      {
+        content: 'Isolated secret token: ABC-123',
+        category: 'credentials',
+      },
+      TEST_USER,
+    );
 
     const res = await app.inject({
       method: 'GET',
       url: '/projects/proj-query-test/memory/query?q=secret',
+      ...asUser(TEST_USER),
     });
 
     expect(res.statusCode).toBe(200);
