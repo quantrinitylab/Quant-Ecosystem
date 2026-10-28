@@ -26,6 +26,13 @@ import {
   syncSearchParam,
   type SearchFolderScope,
 } from '../lib/inbox-nav';
+import {
+  combinedLensKeys as combinedLensKeysHelper,
+  mergeInFlightFolders,
+  normalizeLensParam as normalizeLensParamLib,
+  reconcileFolderLens,
+  resolveLensSync,
+} from '../lib/inbox-lens';
 import { AppSidebar } from '../components/AppSidebar';
 import { EmailSnooze } from '../components/EmailSnooze';
 import { AnchoredMenu } from '../components/AnchoredMenu';
@@ -1361,27 +1368,8 @@ function InboxPageContent() {
    * gone and drafts live at /drafts, so a stale `?lens=drafts` is redirected
    * to the canonical All view by the sync effect, not silently mapped.
    */
-  const normalizeLensParam = (p: string | null): InboxLens => {
-    if (typeof p === 'string' && p.startsWith('folder_')) return p;
-    switch (p) {
-      case 'primary':
-      case 'unread':
-      case 'important':
-      case 'teams':
-      case 'updates':
-      case 'social':
-      case 'promotions':
-      case 'promos':
-      case 'forums':
-      case 'contacts':
-      case 'groups':
-      case 'snoozed':
-      case 'spam':
-        return p === 'promos' ? 'promotions' : p;
-      default:
-        return 'all';
-    }
-  };
+  const normalizeLensParam = (p: string | null): InboxLens =>
+    normalizeLensParamLib(p) as InboxLens;
   const [activeLens, setActiveLens] = useState<InboxLens>(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search).get('lens');
@@ -1415,7 +1403,7 @@ function InboxPageContent() {
     // clean URL and handles tab/starred from there. Only `drafts` gets this
     // redirect; garbage lenses keep the default->all state mapping with the
     // URL untouched. Replace, never push, so Back does not step through it.
-    if (searchParams?.get('lens') === 'drafts') {
+    if (resolveLensSync(searchParams?.get('lens')).redirectToAll) {
       setActiveLens('all');
       router.replace(inboxResetTarget(), { scroll: false });
       return;
@@ -1724,7 +1712,7 @@ function InboxPageContent() {
       }
       if (cancelled) return;
 
-      const merged = backendFolders.map((b) => fromBackendFolder(b, filters[b.id]));
+      let merged = backendFolders.map((b) => fromBackendFolder(b, filters[b.id]));
       // Preserve legacy folders that failed to migrate so nothing is lost.
       for (const folder of legacy) {
         if (!migratedIds.has(folder.id)) merged.push(folder);
@@ -1733,9 +1721,8 @@ function InboxPageContent() {
       // localCache read above (see inFlightOptimisticFoldersRef). These are
       // this-session creations only, not cache entries, so no deleted folder
       // is resurrected. Consumed here; the ref is cleared after the merge.
-      for (const folder of inFlightOptimisticFoldersRef.current.values()) {
-        if (!merged.some((f) => f.id === folder.id)) merged.push(folder);
-      }
+      // Delegates to src/lib/inbox-lens.ts (pinned by the U3.1 tests).
+      merged = mergeInFlightFolders(merged, inFlightOptimisticFoldersRef.current.values());
       inFlightOptimisticFoldersRef.current.clear();
       writeFolderFilters(filters);
       persistFoldersCache(merged);
@@ -1762,10 +1749,7 @@ function InboxPageContent() {
    * never push, so Back does not step through the reset.
    */
   useEffect(() => {
-    if (!foldersLoaded) return;
-    if (typeof activeLens !== 'string' || !activeLens.startsWith('folder_')) return;
-    const folderId = activeLens.replace('folder_', '');
-    if (customFolders.some((folder) => folder.id === folderId)) return;
+    if (reconcileFolderLens(activeLens, foldersLoaded, customFolders) === 'keep') return;
     setActiveLens('all');
     router.replace(inboxResetTarget(), { scroll: false });
   }, [foldersLoaded, activeLens, customFolders, router]);
@@ -1811,10 +1795,11 @@ function InboxPageContent() {
    * one continuous strip.
    */
   const combinedLensKeys = useMemo(
-    () => [
-      ...INBOX_LENSES.map((lens) => lens.key),
-      ...visibleFolders.map((folder) => `folder_${folder.id}` as InboxLens),
-    ],
+    () =>
+      combinedLensKeysHelper(
+        INBOX_LENSES.map((lens) => lens.key),
+        visibleFolders,
+      ),
     [visibleFolders],
   );
 
