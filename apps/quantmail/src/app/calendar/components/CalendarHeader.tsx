@@ -476,9 +476,17 @@ export function CalendarHeader({
           Mobile Clean 2-Row Layout (Collapsing 7-layer stacked header)
           ====================================================================== */}
       <div className="md:hidden px-3.5 py-2 space-y-2">
-        {/* Row 1: Month Title & Navigation + Sleek Single + New Event Button */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
+        {/* Row 1: Month Title & Navigation + Sleek Single + New Event Button.
+            F2 (live-proven at 320px): the title group used to carry min-w-0,
+            so at 320px it shrank to ~40px and `truncate` cut "October" down
+            to "C 2026". The group now keeps its natural width and the row
+            wraps instead: below ~360px the New-event split button drops to
+            its own line (right-aligned via ml-auto) and the full month +
+            year keep the whole row. No control shrinks below the 44px floor
+            and no month gets renamed to buy the room — the layout yields,
+            not the content. */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <h2 className="flex min-w-0 items-baseline gap-1 whitespace-nowrap text-[15px] font-bold tracking-tight text-[var(--quant-foreground)]">
               <span className="truncate">{activeMonthName}</span>
               <span className="shrink-0 font-normal text-[11px] text-[var(--quant-muted-foreground)]">{activeYear}</span>
@@ -512,8 +520,11 @@ export function CalendarHeader({
           </div>
 
           {/* Mobile primary action: Event in one tap; chevron carries the
-              Task / Birthday rows the floating FAB used to carry. */}
-          <NewEntrySplitButton openDedicatedSheet={openDedicatedSheet} mainLabel="New event" compact />
+              Task / Birthday rows the floating FAB used to carry. ml-auto
+              keeps it right-aligned on the wrapped line below ~360px (F2). */}
+          <div className="ml-auto">
+            <NewEntrySplitButton openDedicatedSheet={openDedicatedSheet} mainLabel="New event" compact />
+          </div>
         </div>
 
         {/* Row 2: Single Clean IST/PST Pill + Booking Links */}
