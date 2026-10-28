@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { apiClient, type EmailFolder } from '../services/api-client';
 import {
@@ -25,6 +26,13 @@ import {
   syncSearchParam,
   type SearchFolderScope,
 } from '../lib/inbox-nav';
+import {
+  combinedLensKeys as combinedLensKeysHelper,
+  mergeInFlightFolders,
+  normalizeLensParam as normalizeLensParamLib,
+  reconcileFolderLens,
+  resolveLensSync,
+} from '../lib/inbox-lens';
 import { AppSidebar } from '../components/AppSidebar';
 import { EmailSnooze } from '../components/EmailSnooze';
 import { AnchoredMenu } from '../components/AnchoredMenu';
@@ -200,7 +208,6 @@ type InboxFilter = 'starred' | 'attachment';
 const INBOX_LENSES: Array<{ key: InboxLens; label: string; hint: string }> = [
   { key: 'all', label: 'All', hint: 'Every conversation, automated mail included' },
   { key: 'unread', label: 'Unread', hint: 'Conversations you have not opened yet' },
-  { key: 'drafts', label: 'Drafts', hint: 'Unsent draft messages you are working on' },
   { key: 'contacts', label: 'Contacts', hint: 'Conversations with someone in your address book' },
   { key: 'spam', label: 'Spam', hint: 'Junk and suspicious messages' },
 ];
@@ -1351,27 +1358,18 @@ function InboxPageContent() {
    * own vocabulary — `promos` for `promotions` — and adds `important` and
    * `teams`, which the inbox now understands. Anything unrecognised selects
    * `all` rather than stranding the list on a lens that filters nothing.
+   *
+   * U3.1: a `folder_*` key is accepted syntactically here, without checking
+   * it against the loaded folders — the normaliser runs before the folder
+   * list exists (initial state and the sync effect both precede the load),
+   * so validating here would bounce every folder deep link against an empty
+   * list. Existence is reconciled after load by the folders-loaded effect
+   * below instead. `drafts` is deliberately NOT accepted: the Drafts pill is
+   * gone and drafts live at /drafts, so a stale `?lens=drafts` is redirected
+   * to the canonical All view by the sync effect, not silently mapped.
    */
-  const normalizeLensParam = (p: string | null): InboxLens => {
-    switch (p) {
-      case 'primary':
-      case 'unread':
-      case 'important':
-      case 'teams':
-      case 'updates':
-      case 'social':
-      case 'promotions':
-      case 'promos':
-      case 'forums':
-      case 'contacts':
-      case 'groups':
-      case 'snoozed':
-      case 'spam':
-        return p === 'promos' ? 'promotions' : p;
-      default:
-        return 'all';
-    }
-  };
+  const normalizeLensParam = (p: string | null): InboxLens =>
+    normalizeLensParamLib(p) as InboxLens;
   const [activeLens, setActiveLens] = useState<InboxLens>(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search).get('lens');
@@ -1398,6 +1396,18 @@ function InboxPageContent() {
   });
 
   useEffect(() => {
+    // U3.1: a leftover `?lens=drafts` deep link (or saved state) must not sit
+    // in the address bar while the list shows All — the Drafts pill is gone
+    // and drafts live at /drafts. Replace to the canonical All view instead
+    // of leaving a stale param, and return early: the next pass runs with the
+    // clean URL and handles tab/starred from there. Only `drafts` gets this
+    // redirect; garbage lenses keep the default->all state mapping with the
+    // URL untouched. Replace, never push, so Back does not step through it.
+    if (resolveLensSync(searchParams?.get('lens')).redirectToAll) {
+      setActiveLens('all');
+      router.replace(inboxResetTarget(), { scroll: false });
+      return;
+    }
     setActiveLens(normalizeLensParam(searchParams?.get('lens')));
     const t = searchParams?.get('tab');
     if (t === 'archive') {
@@ -1422,7 +1432,7 @@ function InboxPageContent() {
       setActiveFilters(new Set());
       deepLinkedStarredFilterRef.current = false;
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   /*
    * CUST-P1-4: `x` (select) in a thread view navigates here with
@@ -1604,6 +1614,30 @@ function InboxPageContent() {
     return [];
   });
   const [isAddFolderModalOpen, setIsAddFolderModalOpen] = useState(false);
+  /**
+   * U3.1: gates the folder-lens reconciliation below. The initial list is the
+   * localStorage cache, which may be stale (a folder deleted on another
+   * device) or empty (first load) — reconciling against it would bounce
+   * valid folder deep links. Only the backend load completing, or failing
+   * outright (in which case the cache is the best list available), counts
+   * as loaded; it is never set while the fetch is still in flight.
+   */
+  const [foldersLoaded, setFoldersLoaded] = useState(false);
+
+  /**
+   * U3.1 F1: folders created optimistically in this mount session while the
+   * mount load effect below is still in flight. The load effect reads its
+   * localStorage snapshot before its async migration finishes, so a folder
+   * created after that read would otherwise be lost when the effect calls
+   * setCustomFolders(merged), and reconciliation would then bounce its lens
+   * to All. This ref holds only this-session optimistic rows (temp
+   * `custom_<ts>` ids, replaced by the saved backend id on create success),
+   * never the cache snapshot — so it cannot resurrect a folder deleted on
+   * another device, which a naive union with the stale cache would. Entries
+   * are consumed (and cleared) by the load effect's merge; entries added
+   * after the load has finished are inert, because the effect runs once.
+   */
+  const inFlightOptimisticFoldersRef = useRef<Map<string, CustomFolder>>(new Map());
 
   /**
    * Load folders from the backend on mount and migrate legacy device-local
@@ -1617,9 +1651,15 @@ function InboxPageContent() {
       let backendFolders: EmailFolder[];
       try {
         const res = await apiClient.getFolders();
-        if (!res.success || !res.data) return;
+        if (!res.success || !res.data) {
+          // U3.1: load failed — the cache is the best list available.
+          setFoldersLoaded(true);
+          return;
+        }
         backendFolders = res.data.filter((f) => f.type === 'CUSTOM');
       } catch {
+        // U3.1: load failed — the cache is the best list available.
+        setFoldersLoaded(true);
         return;
       }
       if (cancelled) return;
@@ -1672,19 +1712,96 @@ function InboxPageContent() {
       }
       if (cancelled) return;
 
-      const merged = backendFolders.map((b) => fromBackendFolder(b, filters[b.id]));
+      let merged = backendFolders.map((b) => fromBackendFolder(b, filters[b.id]));
       // Preserve legacy folders that failed to migrate so nothing is lost.
       for (const folder of legacy) {
         if (!migratedIds.has(folder.id)) merged.push(folder);
       }
+      // U3.1 F1: preserve in-flight optimistic rows created after the
+      // localCache read above (see inFlightOptimisticFoldersRef). These are
+      // this-session creations only, not cache entries, so no deleted folder
+      // is resurrected. Consumed here; the ref is cleared after the merge.
+      // Delegates to src/lib/inbox-lens.ts (pinned by the U3.1 tests).
+      merged = mergeInFlightFolders(merged, inFlightOptimisticFoldersRef.current.values());
+      inFlightOptimisticFoldersRef.current.clear();
       writeFolderFilters(filters);
       persistFoldersCache(merged);
       setCustomFolders(merged);
+      // U3.1: the merged backend list is now the list to reconcile against.
+      setFoldersLoaded(true);
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * U3.1: post-load folder-lens reconciliation (companion to the syntactic
+   * prefix-accept in `normalizeLensParam`). Once the folder list has actually
+   * loaded, a `folder_<id>` lens whose id is in no loaded folder — a deleted
+   * folder's deep link, a stale saved state — is reset to All with a clean
+   * replace to /?view=inbox, instead of sitting on a lens that filters
+   * nothing while the URL claims a folder. Gated on `foldersLoaded`, never
+   * on the initial (possibly empty or stale-cache) list. Once `foldersLoaded`
+   * is true, a just-created folder cannot bounce: in-flight optimistic rows
+   * are preserved into the merged list via `inFlightOptimisticFoldersRef`
+   * (U3.1 F1), so the lens id is present when reconciliation runs. Replace,
+   * never push, so Back does not step through the reset.
+   */
+  useEffect(() => {
+    if (reconcileFolderLens(activeLens, foldersLoaded, customFolders) === 'keep') return;
+    setActiveLens('all');
+    router.replace(inboxResetTarget(), { scroll: false });
+  }, [foldersLoaded, activeLens, customFolders, router]);
+
+  /**
+   * U3.1: folder-tab overflow. At most four folder tabs render inline; the
+   * rest live in the "+N more" menu, which holds menu items, not duplicate
+   * tabs. The active folder is never hidden: if it would fall past the cut,
+   * it is promoted into the visible four, displacing the last visible folder
+   * into the menu, and the overflow count reflects the menu size after that
+   * promotion. Presentation only — no counts, no sidecar, no lens-key change.
+   */
+  const MAX_VISIBLE_FOLDER_TABS = 4;
+  const { visibleFolders, overflowFolders } = useMemo(() => {
+    const visible = customFolders.slice(0, MAX_VISIBLE_FOLDER_TABS);
+    const activeFolderId =
+      typeof activeLens === 'string' && activeLens.startsWith('folder_')
+        ? activeLens.replace('folder_', '')
+        : null;
+    const activeFolder = activeFolderId
+      ? customFolders.find((folder) => folder.id === activeFolderId)
+      : undefined;
+    if (activeFolder && !visible.some((folder) => folder.id === activeFolder.id)) {
+      const promoted = [...customFolders.slice(0, MAX_VISIBLE_FOLDER_TABS - 1), activeFolder];
+      const visibleIds = new Set(promoted.map((folder) => folder.id));
+      return {
+        visibleFolders: promoted,
+        overflowFolders: customFolders.filter((folder) => !visibleIds.has(folder.id)),
+      };
+    }
+    const visibleIds = new Set(visible.map((folder) => folder.id));
+    return {
+      visibleFolders: visible,
+      overflowFolders: customFolders.filter((folder) => !visibleIds.has(folder.id)),
+    };
+  }, [customFolders, activeLens]);
+
+  /**
+   * U3.1: the single roving index space for the tablist — the four lens pills
+   * followed by the visible folder tabs. Overflow menu items are not tabs and
+   * are not in this space; the menu has its own arrow handling. The pill and
+   * folder refs share `lensChipRefs` in this order, so `onLensKeyDown` walks
+   * one continuous strip.
+   */
+  const combinedLensKeys = useMemo(
+    () =>
+      combinedLensKeysHelper(
+        INBOX_LENSES.map((lens) => lens.key),
+        visibleFolders,
+      ),
+    [visibleFolders],
+  );
 
   const handleCreateFolder = useCallback(async (draft: FolderDraft) => {
     const tempId = `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -1697,7 +1814,10 @@ function InboxPageContent() {
       createdAt: Date.now(),
     };
 
-    // Optimistic add so the UI feels instant.
+    // Optimistic add so the UI feels instant. U3.1 F1: register the row in
+    // the in-flight ref so the mount load effect's merge cannot drop it
+    // if that effect finishes after this creation.
+    inFlightOptimisticFoldersRef.current.set(tempId, optimistic);
     setCustomFolders((prev) => {
       const next = [...prev, optimistic];
       persistFoldersCache(next);
@@ -1724,6 +1844,11 @@ function InboxPageContent() {
         filterValue: optimistic.filterValue,
       };
       writeFolderFilters(filters);
+      // U3.1 F1: the saved id replaces the temp id in the in-flight ref, so
+      // a load-effect merge finishing after this success preserves the saved
+      // row (and the new lens id) instead of the temp row.
+      inFlightOptimisticFoldersRef.current.delete(tempId);
+      inFlightOptimisticFoldersRef.current.set(saved.id, saved);
       setCustomFolders((prev) => {
         const next = prev.map((f) => (f.id === tempId ? saved : f));
         persistFoldersCache(next);
@@ -1732,7 +1857,10 @@ function InboxPageContent() {
       setActiveLens(`folder_${saved.id}`);
       showToast({ text: `Folder "${saved.name}" created`, type: 'success' });
     } catch (error) {
-      // Roll back the optimistic add — the folder was never saved.
+      // Roll back the optimistic add — the folder was never saved. U3.1 F1:
+      // drop it from the in-flight ref too, so a later load-effect merge
+      // cannot resurrect it and reconciliation can reset the lens to All.
+      inFlightOptimisticFoldersRef.current.delete(tempId);
       setCustomFolders((prev) => {
         const next = prev.filter((f) => f.id !== tempId);
         persistFoldersCache(next);
@@ -2397,17 +2525,23 @@ function InboxPageContent() {
    * `'horizontal'` default on purpose. The vertical modes exist, but `ArrowDown`
    * on a focused chip scrolls the mail list, and taking that away from someone
    * reading their inbox is a worse trade than the one extra key press.
+   *
+   * U3.1: the strip is pills AND visible folder tabs in one roving space
+   * (`combinedLensKeys`), so arrows cross the pill/folder boundary instead of
+   * stopping at the last pill. Wrapping matches the pre-U3.1 pill behaviour:
+   * `nextRovingIndex` wraps past either end into a ring. Overflow menu items
+   * are not in this space — the menu handles its own arrows.
    */
   const onLensKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
-      const next = nextRovingIndex(event.key, index, INBOX_LENSES.length);
+      const next = nextRovingIndex(event.key, index, combinedLensKeys.length);
       if (next === null) return;
       event.preventDefault();
-      const lens = INBOX_LENSES[next]?.key;
+      const lens = combinedLensKeys[next];
       if (lens) selectLens(lens);
       lensChipRefs.current[next]?.focus();
     },
-    [selectLens],
+    [selectLens, combinedLensKeys],
   );
 
   /** The same contract for the popover's turn group, which is a radiogroup. */
@@ -3538,11 +3672,16 @@ function InboxPageContent() {
            */}
           <div className="relative z-30 flex items-center gap-2 py-2 px-3 sm:px-4 border-b md:border-b-0 border-[var(--quant-surface-elevated)] bg-[var(--quant-background)]/95 md:bg-black/95 backdrop-blur-md">
             {/*
-              One pill holds the four lenses and the spam link, because they are
-              one row of destinations to a reader. The tablist is a nested group
-              rather than the pill itself: a link is not a `role="tab"`, and a
-              tablist containing something that is not a tab is a widget a screen
-              reader cannot describe. The hairline says the last chip leaves.
+              One pill holds the four lens tabs (All, Unread, Contacts, Spam)
+              and the visible folder tabs, because they are one row of
+              destinations to a reader. The tablist is a nested group rather
+              than the pill itself: a link is not a `role="tab"`, and a tablist
+              containing something that is not a tab is a widget a screen
+              reader cannot describe — so the "+N more" overflow trigger and
+              the Drafts link sit outside the tablist, and the overflow menu
+              holds menu items, not duplicate tabs. Drafts is a link, not a
+              tab, because drafts live at /drafts. The hairline says the last
+              chip leaves.
             */}
             <div className="flex-1 min-w-0 flex items-center gap-1 p-1 rounded-full bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] overflow-x-auto no-scrollbar select-none">
               <div
@@ -3605,20 +3744,30 @@ function InboxPageContent() {
                   );
                 })}
 
-                {/* Custom Folders */}
-                {customFolders.map((folder) => {
+                {/* Custom Folders — U3.1: only the visible slice renders as
+                    tabs; the rest live in the "+N more" menu below the tablist.
+                    Folder tabs share the pills' roving space (combined index),
+                    and their id is lensTabId(lensKey) so the panel's
+                    aria-labelledby resolves to the actual active tab — the old
+                    lens-folder-<id> id did not, and is gone. */}
+                {visibleFolders.map((folder, visibleIndex) => {
                   const lensKey = `folder_${folder.id}`;
                   const isActive = activeLens === lensKey;
+                  const index = INBOX_LENSES.length + visibleIndex;
                   return (
                     <button
                       key={folder.id}
                       type="button"
                       role="tab"
-                      id={`lens-folder-${folder.id}`}
+                      id={lensTabId(lensKey)}
                       aria-selected={isActive}
                       aria-controls={lensPanelId}
                       tabIndex={isActive ? 0 : -1}
+                      ref={(node) => {
+                        lensChipRefs.current[index] = node;
+                      }}
                       onClick={() => selectLens(lensKey)}
+                      onKeyDown={(event) => onLensKeyDown(event, index)}
                       className={`px-3.5 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
                         isActive
                           ? 'bg-[var(--quant-primary)]/12 text-[var(--quant-primary)] border border-[var(--quant-primary)]/35 shadow-[0_0_14px_rgba(255,140,66,0.15),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
@@ -3664,7 +3813,71 @@ function InboxPageContent() {
                     so the last lens chip would otherwise sit flush-cut at the edge. */}
                 <div aria-hidden="true" className="shrink-0 w-1" />
               </div>
+              {/*
+                U3.1 folder overflow: deliberately OUTSIDE the tablist above, so
+                the tablist holds only tabs (the pre-existing New Group button
+                inside it is left as-is, out of scope). The trigger is a plain
+                disclosure button, not a role="tab", and the menu holds menu
+                items, not duplicate tabs. The menu is fixed-position
+                (AnchoredMenu), so it escapes this row's overflow-x-auto clip.
+                Activating an item selects that folder, closes the menu, and
+                returns focus to this trigger; Escape does the same via
+                AnchoredMenu. The newly active folder is promoted into the
+                visible tabs by the slice above, so it is on screen afterwards.
+              */}
+              {overflowFolders.length > 0 && (
+                <AnchoredMenu
+                  icon={<span>{`+${overflowFolders.length} more`}</span>}
+                  triggerLabel={`${overflowFolders.length} more folders`}
+                  triggerTitle={`${overflowFolders.length} more folders`}
+                  triggerClassName="px-3 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 border border-white/[0.07] bg-white/[0.02] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-white/[0.05] hover:border-white/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                  menuLabel="More folders"
+                  menuClassName="w-52 overflow-hidden rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] py-1 shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
+                  wrapperClassName="inline-flex shrink-0"
+                  scope="folder-overflow-menu"
+                >
+                  {(close) => (
+                    <>
+                      {overflowFolders.map((folder) => {
+                        const lensKey = `folder_${folder.id}`;
+                        return (
+                          <button
+                            key={folder.id}
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              selectLens(lensKey);
+                              close();
+                            }}
+                            className="w-full px-3 py-2.5 text-xs font-medium text-left whitespace-nowrap inline-flex items-center gap-1.5 text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)]"
+                          >
+                            <span
+                              className="size-2 rounded-full shrink-0"
+                              style={{ backgroundColor: folder.color || 'var(--quant-primary)' }}
+                              aria-hidden="true"
+                            />
+                            <span>{folder.name}</span>
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+                </AnchoredMenu>
+              )}
             </div>
+            {/*
+              U3.1: Drafts is no longer a pill tab — drafts live at /drafts, and
+              no in-page link to it existed, so this plain link beside the pill
+              row keeps it discoverable without re-adding a tab. It is a link,
+              not a role="tab", and sits outside the tablist. Sidebar, bottom
+              nav, and keyboard routes to /drafts are unchanged.
+            */}
+            <Link
+              href="/drafts"
+              className="shrink-0 px-2 min-h-[44px] sm:min-h-[32px] inline-flex items-center text-xs font-medium whitespace-nowrap text-[var(--quant-muted-foreground)] hover:text-[var(--quant-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded-full"
+            >
+              Drafts
+            </Link>
             <div className="relative shrink-0" ref={filterMenuRef}>
               <button
                 type="button"
