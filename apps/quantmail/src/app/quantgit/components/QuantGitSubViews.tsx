@@ -148,6 +148,18 @@ function SvgCheckIcon({ className }: { className?: string }) {
   );
 }
 
+// QM fix/qm-quantgit-actions-badge: a failed run/job must NOT render the
+// clock (still-running) icon — it gets an explicit X so failure is never
+// misread as "in progress".
+function SvgXIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className || 'size-4'} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
 function SvgBranchIcon({ className }: { className?: string }) {
   return (
     <svg className={className || 'size-3.5'} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1059,6 +1071,8 @@ export function QuantGitActionsSubView({
                 >
                   {masterRun.status === 'success' ? (
                     <SvgCheckIcon className="size-5" />
+                  ) : masterRun.status === 'failed' ? (
+                    <SvgXIcon className="size-5" />
                   ) : (
                     <SvgClockIcon className="size-5" />
                   )}
@@ -1073,7 +1087,7 @@ export function QuantGitActionsSubView({
                       commit {masterRun.commitSha}
                     </span>
                     <span>·</span>
-                    <span className="inline-flex items-center gap-1 text-[#10B981]">
+                    <span className="inline-flex items-center gap-1 text-[#8B949E]">
                       <SvgClockIcon className="size-3" />
                       {masterRun.duration}
                     </span>
@@ -1097,6 +1111,8 @@ export function QuantGitActionsSubView({
               })()}`}>
                 {masterRun.status === 'success' ? (
                   <SvgCheckIcon className="size-3.5" />
+                ) : masterRun.status === 'failed' ? (
+                  <SvgXIcon className="size-3.5" />
                 ) : (
                   <SvgClockIcon className="size-3.5" />
                 )}
@@ -1139,6 +1155,8 @@ export function QuantGitActionsSubView({
                       >
                         {job.status === 'pass' ? (
                           <SvgCheckIcon className="size-3.5" />
+                        ) : job.status === 'fail' ? (
+                          <SvgXIcon className="size-3.5" />
                         ) : (
                           <SvgClockIcon className="size-3.5" />
                         )}
@@ -1177,6 +1195,8 @@ export function QuantGitActionsSubView({
                 >
                   {run.status === 'success' ? (
                     <SvgCheckIcon className="size-4" />
+                  ) : run.status === 'failed' ? (
+                    <SvgXIcon className="size-4" />
                   ) : (
                     <SvgClockIcon className="size-4" />
                   )}

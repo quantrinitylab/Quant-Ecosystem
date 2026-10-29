@@ -233,6 +233,58 @@ describe('QuantGit Context Sub-Views — no fabricated defaults', () => {
       expect(html).toContain('ALL GATES PASSING');
     });
 
+    it('derives the master badge, pill, and job icons from real status — a failed run never renders Passed/ALL GATES PASSING or a still-running clock', () => {
+      const failedWorkflows: WorkflowRun[] = [
+        {
+          id: 'wf-test-failed',
+          name: 'Failing CI Gate',
+          branch: 'main',
+          status: 'failed',
+          duration: '2m 10s',
+          commitSha: 'deadbeef',
+          author: 'tester',
+          triggerEvent: 'push',
+          createdAt: '5 mins ago',
+          jobs: [
+            { id: 'job-f1', name: 'build', status: 'fail', duration: '1m 00s' },
+            { id: 'job-f2', name: 'test', status: 'pass', duration: '0m 45s' },
+          ],
+        },
+      ];
+      const html = renderToStaticMarkup(<QuantGitActionsSubView workflows={failedWorkflows} />);
+
+      expect(html).toContain('GATES FAILING');
+      expect(html).toContain('Failed');
+      expect(html).not.toContain('ALL GATES PASSING');
+      expect(html).not.toContain('>Passed<');
+      // The failed run and failed job render the X icon (two crossing lines),
+      // not the still-running clock alone.
+      expect(html).toContain('x1="18" y1="6" x2="6" y2="18"');
+    });
+
+    it('derives running/queued badges from real status, never Passed', () => {
+      const runningWorkflows: WorkflowRun[] = [
+        {
+          id: 'wf-test-running',
+          name: 'Running CI Gate',
+          branch: 'main',
+          status: 'running',
+          duration: '1m 05s',
+          commitSha: 'c0ffee11',
+          author: 'tester',
+          triggerEvent: 'push',
+          createdAt: '1 min ago',
+          jobs: [{ id: 'job-r1', name: 'build', status: 'running', duration: '1m 05s' }],
+        },
+      ];
+      const html = renderToStaticMarkup(<QuantGitActionsSubView workflows={runningWorkflows} />);
+
+      expect(html).toContain('RUN IN PROGRESS');
+      expect(html).toContain('Running');
+      expect(html).not.toContain('ALL GATES PASSING');
+      expect(html).not.toContain('>Passed<');
+    });
+
     it('uses honest non-streaming copy — data is a one-time fetch snapshot, not live telemetry', () => {
       const html = renderToStaticMarkup(<QuantGitActionsSubView workflows={FIXTURE_WORKFLOWS} />);
 
