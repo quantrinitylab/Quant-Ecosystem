@@ -758,6 +758,16 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         label: 'Inbox',
         icon: InboxIcon,
         targetPath: '/',
+        // QM-INBOX-NAV-VIEW (2026-10-24, P1 [inbox-nav]): this tab used
+        // to carry NO query param (`/`), and RootPage renders PeopleHome
+        // unless `?view=inbox` is present — so mobile "Inbox" opened the
+        // People view and the classic inbox had no click path. It now
+        // carries both params: `/?view=inbox&lens=all` (lens=all resets
+        // any spam/other lens, matching the desktop tab).
+        queryParams: [
+          { key: 'view', value: 'inbox' },
+          { key: 'lens', value: 'all' },
+        ],
       },
       {
         // QM-MOBILE-QUANTY-TAB (competitor-gap 2026-10-12): Gmail's 2026
