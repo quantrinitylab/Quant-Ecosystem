@@ -128,7 +128,9 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^events$/, methods: ['GET', 'POST'] },
   { pattern: /^events\/(?:today|upcoming|free-busy)$/, methods: ['GET'] },
   { pattern: /^events\/alarms\/due$/, methods: ['GET'] },
-  { pattern: /^events\/alerts\/scheduled$/, methods: ['GET'] },
+  // fix/qm-alerts-scheduled-deadwire: no row for events/alerts/scheduled —
+  // the backend route was removed (process-local in-memory list, zero
+  // consumers), so the proxy must not advertise it either.
   // GET and PATCH added: calendar.ts registers GET /events/:id and both PUT and
   // PATCH for updates. The UI's inline edit uses PATCH and could only ever 404.
   { pattern: /^events\/[^/]+$/, methods: ['GET', 'PUT', 'PATCH', 'DELETE'] },
