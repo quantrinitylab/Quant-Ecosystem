@@ -6,6 +6,7 @@ import { AppShell } from './AppShell';
 import { AppSidebar } from './AppSidebar';
 import { useInbox } from '../hooks/useInbox';
 import { useMailMutations } from '../hooks/useMailMutations';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { usePeopleKeyboard } from '../hooks/usePeopleKeyboard';
 import { useAuth } from '../providers/auth-provider';
 import {
@@ -61,6 +62,21 @@ export function PeopleHome() {
   } = useInbox(isSpamLens ? { folderType: 'SPAM' } : undefined);
   const mutations = useMailMutations();
   const [searchQuery, setSearchQuery] = useState('');
+
+  /**
+   * fix/qm-people-pull-to-refresh-r5 — the People home is the default mobile
+   * home but had no pull gesture: the shared hook was wired only into the
+   * classic inbox and classic thread view. This wires the SAME real refetch
+   * the Retry button uses, so a pull refreshes the real inbox corpus. The
+   * indicator renders above every branch inside the scroll container, so
+   * the error state keeps its Retry button AND gains the gesture — pull
+   * works even when the list failed to load.
+   */
+  const {
+    listProps: ptrListProps,
+    pullDistance: ptrPullDistance,
+    isRefreshing: ptrIsRefreshing,
+  } = usePullToRefresh({ onRefresh: () => refetch() });
 
   const conversations = useMemo<PersonConversation[]>(
     () => groupEmailsByPerson(emails ?? [], currentUserEmail),
@@ -181,10 +197,36 @@ export function PeopleHome() {
           <PeopleWorldTabs world={world} onChange={setWorld} counts={counts} />
         </div>
 
-        <div ref={listScrollRef} className="mt-2 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
+        <div
+          ref={listScrollRef}
+          {...ptrListProps}
+          data-testid="people-scroll"
+          className="mt-2 flex-1 overflow-y-auto px-4 pb-6 sm:px-6"
+        >
           <p className="sr-only" role="status" aria-live="polite">
             {cursorAnnouncement}
           </p>
+          {/*
+            Pull-to-refresh indicator (fix/qm-people-pull-to-refresh-r5):
+            same spinner language as the classic thread view's pull indicator
+            — Mail-orange ring on pure black, no divider lines. Travels with
+            the finger (height = pull distance), locks at 44px while the real
+            refetch settles.
+          */}
+          {(ptrPullDistance > 0 || ptrIsRefreshing) && (
+            <div
+              data-testid="people-ptr-indicator"
+              className="flex items-center justify-center overflow-hidden"
+              style={{ height: ptrIsRefreshing ? 44 : ptrPullDistance }}
+              aria-hidden="true"
+            >
+              <span
+                className={`size-5 rounded-full border-2 border-[#F97316]/30 border-t-[#F97316] ${
+                  ptrIsRefreshing ? 'animate-spin' : ''
+                }`}
+              />
+            </div>
+          )}
           {isError ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
               <p className="text-sm font-semibold text-white">Couldn&apos;t load your conversations</p>

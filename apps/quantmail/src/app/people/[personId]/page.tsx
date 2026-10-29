@@ -399,6 +399,9 @@ export default function PersonPage() {
             <PersonThread
               conversation={conversationWithPending ?? conversation}
               currentUserEmail={currentUserEmail}
+              // fix/qm-people-pull-to-refresh-r5: the person thread's pull
+              // gesture fires this page's real inbox refetch.
+              onRefresh={() => refetch()}
               renderComposer={
                 conversation.world === 'updates' ? undefined : (
                   <>
