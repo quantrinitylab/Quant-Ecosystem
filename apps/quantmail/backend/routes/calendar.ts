@@ -1650,12 +1650,15 @@ export default async function calendarRoutes(
     );
     return reply.send({ success: true, data: result.due });
   });
-  fastify.get('/events/alerts/scheduled', async (request, reply) => {
-    return reply.send({
-      success: true,
-      data: callAlertService.getScheduledAlerts(requireUserId(request)),
-    });
-  });
+  // fix/qm-alerts-scheduled-deadwire: GET /events/alerts/scheduled REMOVED.
+  // It returned CalendarCallAlertService's process-local in-memory list, which
+  // no frontend code ever called, is empty after a restart, and differs across
+  // replicas — while the BullMQ job it described still fires. A consumer built
+  // on it would have shown a lying "scheduled" list, so the endpoint was
+  // removed instead of wired up. Real reminder delivery is DB-backed: events
+  // carry their reminders and GET /events/alarms/due persists + delivers due
+  // call reminders via persistDueCallReminders. Do not re-add this route on
+  // top of the in-memory map; a future list endpoint must read durable state.
   // `allowAttendees` opens the read gate to the event's attendee list —
   // exactly the matcher POST /events/:id/rsvp uses (attendee row's userId,
   // or the viewer's account email against the attendee's email,
