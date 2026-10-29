@@ -67,9 +67,13 @@ vi.mock('../lib/offline/outbox', () => ({
   startOutbox: () => () => {},
 }));
 
-// SidebarNavGroups only needs useInbox (live count badges).
+// SidebarNavGroups only needs useInbox (live count badges) plus
+// useNotifications (Notifications row unread badge).
 vi.mock('../hooks/useMail', () => ({
   useInbox: () => ({ data: [], isLoading: false, isError: false }),
+}));
+vi.mock('../hooks/useNotifications', () => ({
+  useNotifications: () => ({ data: { notifications: [], unreadCount: 0 } }),
 }));
 
 import StarredPage from '../app/starred/page';
