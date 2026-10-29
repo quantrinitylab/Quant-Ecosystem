@@ -364,7 +364,7 @@ const createBranchSchema = z.object({
     .max(100)
     .regex(/^[a-zA-Z0-9/_.-]+$/, 'Invalid source branch name')
     .optional(),
-  // Legacy alias for sourceBranch (used by useGit.createBranch).
+  // Legacy alias for sourceBranch (kept for older clients).
   from: z
     .string()
     .min(1)
