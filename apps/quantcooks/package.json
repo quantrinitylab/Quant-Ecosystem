@@ -12,6 +12,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.backend.json",
     "test": "vitest run",
+    "test:phase0-gate": "node scripts/phase0-gate.mjs",
+    "test:phase0-smoke": "PHASE0_SMOKE=1 vitest run backend/__tests__/phase0-restart-smoke.e2e.test.ts",
     "lint": "eslint ."
   },
   "dependencies": {
@@ -21,11 +23,14 @@
     "@quant/ai": "workspace:*",
     "@quant/brand": "workspace:*",
     "@quant/common": "workspace:*",
+    "@quant/credits": "workspace:*",
     "@quant/database": "workspace:*",
     "@quant/media": "workspace:*",
+    "@quant/quant-tools": "workspace:*",
     "@quant/realtime": "workspace:*",
     "@quant/server-core": "workspace:*",
     "@quant/shared-ui": "workspace:*",
+    "@quant/storage": "workspace:*",
     "fastify": "^5.3.3",
     "framer-motion": "^11.0.0",
     "ioredis": "^5.6.1",

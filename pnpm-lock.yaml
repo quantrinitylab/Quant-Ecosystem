@@ -490,12 +490,18 @@ importers:
       '@quant/common':
         specifier: workspace:*
         version: link:../../packages/common
+      '@quant/credits':
+        specifier: workspace:*
+        version: link:../../packages/credits
       '@quant/database':
         specifier: workspace:*
         version: link:../../packages/database
       '@quant/media':
         specifier: workspace:*
         version: link:../../packages/media
+      '@quant/quant-tools':
+        specifier: workspace:*
+        version: link:../../packages/quant-tools
       '@quant/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime
@@ -505,6 +511,9 @@ importers:
       '@quant/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
+      '@quant/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@tanstack/react-query':
         specifier: ^5.60.0
         version: 5.100.14(react@19.2.6)

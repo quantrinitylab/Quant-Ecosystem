@@ -9,6 +9,7 @@
 // ============================================================================
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { BrandMark } from './BrandMark';
 
 export function SignInRequired({ appName = 'QuantCooks' }: { appName?: string }) {
   const router = useRouter();
@@ -21,25 +22,26 @@ export function SignInRequired({ appName = 'QuantCooks' }: { appName?: string })
     return () => window.clearTimeout(timer);
   }, [router, href]);
 
+  // Design upgrade Phase A (D-2): same dark auth treatment as the
+  // login page, so the gate never flashes the old light brand. Class
+  // swaps + the brand lockup only — copy, href, role and the redirect
+  // timer above are untouched.
   return (
-    <div
-      className="flex min-h-screen w-full flex-col items-center justify-center gap-3 bg-[var(--quant-background)] p-8 text-center"
-      role="status"
-      aria-live="polite"
-    >
-      <h1 className="text-lg font-semibold text-[var(--quant-foreground)]">
-        Sign in to {appName}
-      </h1>
-      <p className="max-w-sm text-sm text-[var(--quant-muted-foreground)]">
-        Your session has expired or you are signed out. Please sign in with your Quant account to
-        continue — taking you there now.
-      </p>
-      <a
-        className="mt-2 min-h-[44px] rounded-lg bg-[var(--brand-primary)] px-5 py-2.5 text-sm font-semibold text-white transition-transform hover:scale-[1.02] active:scale-[0.98]"
-        href={href}
-      >
-        Go to sign in
-      </a>
+    <div className="auth-canvas" role="status" aria-live="polite">
+      <div className="auth-panel auth-panel-center">
+        <div className="auth-lockup">
+          <BrandMark size={36} variant="accent" />
+          <span className="auth-wordmark">{appName}</span>
+        </div>
+        <h1 className="auth-title">Sign in to {appName}</h1>
+        <p className="auth-sub">
+          Your session has expired or you are signed out. Please sign in with your Quant account to
+          continue — taking you there now.
+        </p>
+        <a className="auth-sso" href={href}>
+          Go to sign in
+        </a>
+      </div>
     </div>
   );
 }

@@ -45,6 +45,12 @@ export default function App({ Component, pageProps }: AppProps) {
     <>
       <Head>
         <title>QuantCooks</title>
+        {/* Design upgrade Phase A (D-0): the product's own icon set —
+            the Spring Q (public/logo.svg is the bare mark). */}
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <meta name="theme-color" content="#0A0A0B" />
       </Head>
       <ErrorBoundary>
       <BrandProvider>

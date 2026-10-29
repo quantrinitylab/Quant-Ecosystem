@@ -142,9 +142,15 @@ const CATALOG: EditTemplate[] = [
 ];
 
 export class TemplateService {
-  listTemplates(category?: TemplateCategory): EditTemplate[] {
+  listTemplates(category?: TemplateCategory, search?: string): EditTemplate[] {
     const all = CATALOG.map((t) => ({ ...t, layers: t.layers.map((l) => ({ ...l })) }));
-    return category ? all.filter((t) => t.category === category) : all;
+    const byCategory = category ? all.filter((t) => t.category === category) : all;
+    // P0-2: the client always sent ?search= and the wire silently dropped it;
+    // the catalogue now actually filters on it (name match, case-insensitive).
+    const needle = search?.trim().toLowerCase();
+    return needle
+      ? byCategory.filter((t) => t.name.toLowerCase().includes(needle))
+      : byCategory;
   }
 
   getTemplate(id: string): EditTemplate {

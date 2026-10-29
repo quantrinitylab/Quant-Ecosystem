@@ -1,6 +1,7 @@
 import { createApp } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
 import projectsRoutes from './routes/projects';
+import layersRoutes from './routes/layers';
 import aiRoutes from './routes/ai';
 import assetsRoutes from './routes/assets';
 import exportsRoutes from './routes/exports';
@@ -8,7 +9,11 @@ import templatesRoutes from './routes/templates';
 import effectsRoutes from './routes/effects';
 import brandKitsRoutes from './routes/brand-kits';
 import collaborationRoutes from './routes/collaboration';
+import craftRoutes from './routes/craft';
+import photoRoutes from './routes/photo';
 import autoEditRoutes from './routes/auto-edit';
+import toolsRoutes from './routes/tools';
+import jobsRoutes from './routes/jobs';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -34,7 +39,9 @@ export function getConfig(): AppConfig {
       { path: '/effects', methods: ['GET'], exact: true },
       { path: '/effects/categories', methods: ['GET'], exact: true },
       { path: '/effects/:id', methods: ['GET'], exact: true },
-      { path: '/assets', methods: ['GET'], exact: true },
+      // NOTE (P0-2): GET /assets is intentionally NOT public — it lists the
+      // caller's asset library. (The stale whitelist entry predated the
+      // route existing at all.) Per-project listing below stays as it was.
       { path: '/assets/project/:projectId', methods: ['GET'], exact: true },
     ],
     env,
@@ -46,6 +53,7 @@ export async function buildApp(config?: AppConfig) {
   const app = await createApp(appConfig);
 
   await app.register(projectsRoutes, { prefix: '/projects' });
+  await app.register(layersRoutes, { prefix: '/projects' });
   await app.register(aiRoutes, { prefix: '/ai' });
   // Previously-implemented but unregistered routes (their Next proxies were dead):
   await app.register(assetsRoutes, { prefix: '/assets' });
@@ -55,6 +63,11 @@ export async function buildApp(config?: AppConfig) {
   await app.register(brandKitsRoutes, { prefix: '/brand-kits' });
   await app.register(autoEditRoutes, { prefix: '/auto-edit' });
   await app.register(collaborationRoutes, { prefix: '/collaboration' });
+  await app.register(craftRoutes, { prefix: '/craft' });
+  await app.register(photoRoutes, { prefix: '/photo' });
+  // CP-1 control plane: the QuantAI tool registry + unified job reads.
+  await app.register(toolsRoutes, { prefix: '/tools' });
+  await app.register(jobsRoutes, { prefix: '/jobs' });
 
   return app;
 }

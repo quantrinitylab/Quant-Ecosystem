@@ -232,6 +232,84 @@ describe('VideoTranscoder', () => {
       await transcoder.renderClip('/videos/in.mp4', '/output/nested/out.mp4');
       expect(mkdir).toHaveBeenCalled();
     });
+
+    // P0-4 additive options: scale box / bitrate / crf. Existing callers pass
+    // none of these and must see no change (asserted by the cases above).
+    it('applies a never-upscale scale filter when width/height are given', async () => {
+      const ffmpegModule = await import('fluent-ffmpeg');
+      const ffmpegFn = ffmpegModule.default as unknown as ReturnType<typeof vi.fn>;
+
+      await transcoder.renderClip('/videos/in.mp4', '/output/out.mp4', {
+        width: 1920,
+        height: 1080,
+      });
+
+      const mockCommand = ffmpegFn.mock.results[0]!.value as Record<
+        string,
+        ReturnType<typeof vi.fn>
+      >;
+      expect(mockCommand.videoFilters).toHaveBeenCalledWith([
+        'scale=w=min(iw\\,1920):h=min(ih\\,1080):force_original_aspect_ratio=decrease',
+      ]);
+      expect(mockCommand.videoBitrate).not.toHaveBeenCalled();
+      expect(mockCommand.addOptions).not.toHaveBeenCalled();
+    });
+
+    it('passes videoBitrate through when given', async () => {
+      const ffmpegModule = await import('fluent-ffmpeg');
+      const ffmpegFn = ffmpegModule.default as unknown as ReturnType<typeof vi.fn>;
+
+      await transcoder.renderClip('/videos/in.mp4', '/output/out.mp4', {
+        videoBitrate: '2500k',
+      });
+
+      const mockCommand = ffmpegFn.mock.results[0]!.value as Record<
+        string,
+        ReturnType<typeof vi.fn>
+      >;
+      expect(mockCommand.videoBitrate).toHaveBeenCalledWith('2500k');
+      expect(mockCommand.addOptions).not.toHaveBeenCalledWith(
+        expect.arrayContaining(['-crf']),
+      );
+    });
+
+    it('passes crf via -crf and lets it win over videoBitrate', async () => {
+      const ffmpegModule = await import('fluent-ffmpeg');
+      const ffmpegFn = ffmpegModule.default as unknown as ReturnType<typeof vi.fn>;
+
+      await transcoder.renderClip('/videos/in.mp4', '/output/out.mp4', {
+        crf: 0,
+        videoBitrate: '5000k',
+      });
+
+      const mockCommand = ffmpegFn.mock.results[0]!.value as Record<
+        string,
+        ReturnType<typeof vi.fn>
+      >;
+      expect(mockCommand.addOptions).toHaveBeenCalledWith(['-crf', '0']);
+      expect(mockCommand.videoBitrate).not.toHaveBeenCalled();
+    });
+
+    it('combines scale and caption into one videoFilters call', async () => {
+      const ffmpegModule = await import('fluent-ffmpeg');
+      const ffmpegFn = ffmpegModule.default as unknown as ReturnType<typeof vi.fn>;
+
+      await transcoder.renderClip('/videos/in.mp4', '/output/out.mp4', {
+        width: 1280,
+        height: 720,
+        caption: 'Hello',
+      });
+
+      const mockCommand = ffmpegFn.mock.results[0]!.value as Record<
+        string,
+        ReturnType<typeof vi.fn>
+      >;
+      expect(mockCommand.videoFilters).toHaveBeenCalledTimes(1);
+      const filters = mockCommand.videoFilters!.mock.calls[0]![0] as string[];
+      expect(filters).toHaveLength(2);
+      expect(filters[0]).toContain('scale=');
+      expect(filters[1]).toContain('drawtext=text=');
+    });
   });
 
   describe('extractThumbnail', () => {
