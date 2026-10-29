@@ -245,7 +245,11 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       id: 'nav.calendar',
       label: 'Go to QuantCalendar',
       group: 'Apps',
-      keys: ['g c', 'g l'],
+      // Calendar keeps only its `g l` alias: the `g c` chord is Contacts
+      // (Gmail parity — see nav.contacts below), and the engine resolves a
+      // chord claimed by two commands to whichever bound last, so sharing it
+      // would make one of the two jumps silently unreachable.
+      keys: 'g l',
       icon: 'calendar',
       keywords: ['schedule', 'agenda', 'meetings', 'events'],
       run: go('/calendar'),
@@ -254,9 +258,11 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       id: 'nav.contacts',
       label: 'Go to QuantContacts',
       group: 'Apps',
-      keys: 'g a',
+      // Gmail parity: `g c` opens Contacts. `g a` stays as a legacy alias so
+      // anyone who learned the old QuantMail binding keeps working.
+      keys: ['g c', 'g a'],
       icon: 'contacts',
-      keywords: ['address book', 'directory', 'people'],
+      keywords: ['address book', 'directory', 'people', 'contacts'],
       run: go('/contacts'),
     },
     {
