@@ -197,6 +197,34 @@ describe('CalendarWeekView', () => {
     expect(html).toContain('bg-[var(--app-accent)] text-black');
   });
 
+  it('moves the today highlight across a midnight rollover (no stale mount-time today)', () => {
+    // Regression: today was useMemo(() => new Date(), []) while only `now`
+    // ticked, so after midnight the highlight stuck to yesterday's column.
+    // SSR cannot run the 60s interval effect, so prove the derivation
+    // instead: todayKey must track the live clock on each render, which
+    // the ticking `now` state re-renders every 60s in a mounted view.
+    // Week shown: Mon 2026-10-05 .. Sun 2026-10-11.
+    const headerSegment = (html: string, i: number) => {
+      const start = html.indexOf(`week-day-header-${i}`);
+      const end = i < 6 ? html.indexOf(`week-day-header-${i + 1}`) : html.length;
+      return html.slice(start, end);
+    };
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 9, 7, 23, 59));
+      const before = renderToStaticMarkup(<CalendarWeekView {...baseProps} />);
+      expect(headerSegment(before, 2)).toContain('bg-[var(--app-accent)] text-black');
+      expect(headerSegment(before, 3)).not.toContain('bg-[var(--app-accent)] text-black');
+
+      vi.setSystemTime(new Date(2026, 9, 8, 0, 1));
+      const after = renderToStaticMarkup(<CalendarWeekView {...baseProps} />);
+      expect(headerSegment(after, 3)).toContain('bg-[var(--app-accent)] text-black');
+      expect(headerSegment(after, 2)).not.toContain('bg-[var(--app-accent)] text-black');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('shows a current-time line in the today column', () => {
     const html = renderToStaticMarkup(<CalendarWeekView {...baseProps} selectedDate={new Date()} />);
     expect(html).toContain('week-now-line');
