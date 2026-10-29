@@ -184,17 +184,27 @@ function PersonRow({ person }: { person: Contact }) {
   );
 }
 
+/**
+ * Deep link for a universal-search calendar hit. Opens the event detail via
+ * /calendar/event/[id] instead of the bare /calendar list, so the tapped
+ * event is never lost (QM 2026-10-19). Falls back to the bare list when the
+ * hit carries no id — EventRow renders such rows non-clickable (see below)
+ * rather than a dead button.
+ */
+export function eventDetailHref(event: CalendarEvent): string {
+  return event.id ? `/calendar/event/${encodeURIComponent(event.id)}` : '/calendar';
+}
+
 function EventRow({ event }: { event: CalendarEvent }) {
   const router = useRouter();
   // The interface types startTime as Date, but the wire DTO may carry an ISO
   // string; relativeDate accepts both.
   const start = (event as unknown as { startTime?: string | Date }).startTime;
-  return (
-    <button
-      type="button"
-      onClick={() => event.id && router.push(`/calendar/event/${encodeURIComponent(event.id)}`)}
-      className={rowClass}
-    >
+  // A hit without an id has nowhere to navigate to — the old
+  // onClick={() => event.id && router.push(...)} silently no-op'd.
+  const canNavigate = Boolean(event.id);
+  const body = (
+    <>
       <Icon name="calendar" className="h-4 w-4 shrink-0 text-[var(--quant-muted-foreground)]" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{event.title || '(no title)'}</span>
@@ -202,6 +212,25 @@ function EventRow({ event }: { event: CalendarEvent }) {
           {relativeDate(start)}
         </span>
       </span>
+    </>
+  );
+  if (!canNavigate) {
+    // No id → no target. Render as a static, non-clickable row: no hover
+    // highlight, no arrow icon, muted and marked aria-disabled, so it cannot
+    // look like a button that silently ignores the tap.
+    return (
+      <div className={`${rowClass} cursor-default hover:bg-transparent`} aria-disabled="true">
+        {body}
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => router.push(eventDetailHref(event))}
+      className={rowClass}
+    >
+      {body}
       <Icon name="arrow" className="h-3.5 w-3.5 shrink-0 text-[var(--quant-muted-foreground)]" />
     </button>
   );
@@ -307,8 +336,10 @@ export function UniversalSearchResults({
           <p className="px-1 text-xs text-[var(--quant-muted-foreground)]">No matching events.</p>
         ) : (
           <div className={listClass}>
-            {results.calendar.items.map((event) => (
-              <EventRow key={event.id} event={event} />
+            {results.calendar.items.map((event, index) => (
+              // Id-less hits have no event.id; fall back to a positional key so
+              // they cannot collide on key={undefined}.
+              <EventRow key={event.id || `event-${index}`} event={event} />
             ))}
           </div>
         )}

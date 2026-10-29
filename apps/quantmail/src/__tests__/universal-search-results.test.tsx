@@ -11,7 +11,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-import { UniversalSearchResults, personDetailHref } from '../app/search/UniversalSearchResults';
+import { UniversalSearchResults, personDetailHref, eventDetailHref } from '../app/search/UniversalSearchResults';
 import type { UniversalSearchResults as Results } from '../hooks/useUniversalSearch';
 
 function results(overrides: Partial<Results> = {}): Results {
@@ -122,6 +122,53 @@ describe('UniversalSearchResults', () => {
 
     it('falls back to the bare /contacts list when the hit has no id', () => {
       expect(personDetailHref({ id: '', name: 'Nameless' } as never)).toBe('/contacts');
+    });
+  });
+
+  describe('eventDetailHref', () => {
+    it('deep-links an event hit to the event detail route', () => {
+      expect(eventDetailHref({ id: 'e1', title: 'Standup' } as never)).toBe(
+        '/calendar/event/e1',
+      );
+    });
+
+    it('URL-encodes ids with special characters', () => {
+      expect(eventDetailHref({ id: 'a/b?c=1', title: 'X' } as never)).toBe(
+        '/calendar/event/a%2Fb%3Fc%3D1',
+      );
+    });
+
+    it('falls back to the bare /calendar list when the hit has no id', () => {
+      expect(eventDetailHref({ id: '', title: 'Id-less' } as never)).toBe('/calendar');
+    });
+  });
+
+  describe('EventRow dead-click (QM 2026-10-22)', () => {
+    it('renders a clickable button for an event WITH an id', () => {
+      const html = renderToStaticMarkup(
+        <UniversalSearchResults
+          results={results({ calendar: { items: [{ id: 'e9', title: 'Standup' } as never], error: null } })}
+          scope="calendar"
+          onOpenMail={noop}
+        />,
+      );
+      expect(html).toContain('Standup');
+      expect(html).toContain('<button');
+    });
+
+    it('renders an id-less event row as non-clickable (no button, no dead click)', () => {
+      const html = renderToStaticMarkup(
+        <UniversalSearchResults
+          results={results({ calendar: { items: [{ title: 'Ghost meeting' } as never], error: null } })}
+          scope="calendar"
+          onOpenMail={noop}
+        />,
+      );
+      // Title still visible (honest about what was found), but the row is not
+      // rendered as a clickable affordance.
+      expect(html).toContain('Ghost meeting');
+      expect(html).not.toContain('<button');
+      expect(html).toContain('aria-disabled="true"');
     });
   });
 });
