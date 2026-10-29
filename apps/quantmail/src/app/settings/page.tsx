@@ -102,6 +102,7 @@ import {
   SettingsToggleRow,
   type SettingsChoiceOption,
 } from './SettingsPrimitives';
+import { MailAuthCard } from './MailAuthCard';
 
 type SettingsTab =
   | 'general'
@@ -980,43 +981,16 @@ export default function SettingsPage() {
                 </p>
               </SettingsSection>
 
-              <SettingsSection
-                title="Session & credentials"
-                description="What this browser holds, and how outgoing mail is authorised."
-              >
-                {/*
-                 * These were two boxes inside a box. The rows sit on the card's own
-                 * surface with a divider between them instead — a nested panel at the
-                 * same lightness reads as a rendering fault, not as structure.
-                 *
-                 * The DKIM row used to carry a green tick and the word "Passed",
-                 * which nothing on this page checks: it is a deployment fact, not a
-                 * live probe, and a status that cannot fail is not a status. It is
-                 * stated as configuration now, in the neutral tier.
-                 */}
-                <div className="flex min-h-11 items-center justify-between gap-3 py-2">
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-medium text-[var(--quant-foreground)]">
-                      Device signing key
-                    </p>
-                    <p className="text-xs text-[var(--quant-muted-foreground)]">
-                      Not generated on this browser yet
-                    </p>
-                  </div>
-                  <StatusPill>Not set up</StatusPill>
-                </div>
-                <div className="flex min-h-11 items-center justify-between gap-3 border-t border-[var(--quant-border)] py-2 pt-3">
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-medium text-[var(--quant-foreground)]">
-                      DKIM &amp; SPF
-                    </p>
-                    <p className="text-xs text-[var(--quant-muted-foreground)]">
-                      Outgoing mail is signed for quantmail.in through AWS SES
-                    </p>
-                  </div>
-                  <StatusPill>Configured</StatusPill>
-                </div>
-              </SettingsSection>
+              {/*
+               * The "Session & credentials" card used to carry a device-key row
+               * ("Not set up") — the only such reference in the whole codebase, and nothing generated such a key
+               * anywhere. A status the user can never act on is not a control,
+               * so the row is removed rather than kept as decoration. The
+               * DKIM row beside it kept a "Configured" pill that nothing on
+               * this page probes; it is stated as plain configuration text in
+               * ./MailAuthCard now, no badge.
+               */}
+              <MailAuthCard />
 
               <SettingsSection
                 title="Privacy &amp; Data Safety"
