@@ -235,12 +235,12 @@ export default function AIPage() {
   // "Sorry, I encountered an error." Chat now requires sign-in.
   // Sends while signed out route to /login instead of hitting the API.
   const sendMessageAuthed = useCallback(
-    (text: string) => {
+    (text: string, attachments?: string[]) => {
       if (!isAuthenticated) {
         handleNavigateToLogin();
         return;
       }
-      return sendMessage(text);
+      return sendMessage(text, attachments);
     },
     [isAuthenticated, handleNavigateToLogin, sendMessage],
   );
@@ -1112,7 +1112,7 @@ function StatsHeader() {
 /* ============ Chat Input with Multi-modal ============ */
 
 interface ChatInputProps {
-  onSend: (content: string) => void;
+  onSend: (content: string, attachments?: string[]) => void;
   isStreaming: boolean;
   imagePreview: string | null;
   attachedFile: { name: string; size: string } | null;
@@ -1249,7 +1249,15 @@ function ChatInput({
           onChange={setInput}
           onSend={() => {
             if (input.trim() && !isStreaming) {
-              onSend(input.trim());
+              // Hand the attachments off FIRST, then clear the chips:
+              // clearing before the handoff would silently drop them.
+              // Image = its data URL; file = "name (size)" (content is
+              // never stored, only the picker's name/size — see
+              // handleFileAttach), rendered back as a file chip.
+              const attachments: string[] = [];
+              if (imagePreview) attachments.push(imagePreview);
+              if (attachedFile) attachments.push(`${attachedFile.name} (${attachedFile.size})`);
+              onSend(input.trim(), attachments.length > 0 ? attachments : undefined);
               setInput('');
               onClearImage();
               onClearFile();

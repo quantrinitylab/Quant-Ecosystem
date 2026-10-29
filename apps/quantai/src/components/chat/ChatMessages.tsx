@@ -26,6 +26,14 @@ export function ChatMessages({
     isStreaming?: boolean;
     pending?: boolean;
     feedback?: 'POSITIVE' | 'NEGATIVE' | null;
+    /**
+     * Display strings handed to sendMessage with this turn: image data
+     * URLs render as thumbnails, anything else renders as a file chip
+     * (the string itself carries "name (size)"). Optimistic-only: the
+     * backend stream path persists attachments: [], so history reloads
+     * do not restore them (separate backend unit).
+     */
+    attachments?: string[];
   }>;
   isStreaming: boolean;
   onFeedback?: (messageId: string, value: 'POSITIVE' | 'NEGATIVE') => void;
@@ -157,10 +165,36 @@ export function ChatMessages({
                * now carried by position and a real label.
                */}
               {msg.role === 'user' ? (
-                <div className="max-w-[80%] rounded-2xl bg-[var(--quant-surface-hover)] px-4 py-2.5">
-                  <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed text-[var(--foreground)]">
-                    {msg.content}
-                  </p>
+                <div className="flex max-w-[80%] flex-col items-end gap-2">
+                  {/*
+                   * Attachments sent with this turn, rendered directly above
+                   * the question text and right-aligned like the user bubble:
+                   * image data URLs as thumbnails, anything else as a file
+                   * chip (the string carries "name (size)").
+                   */}
+                  {msg.attachments?.map((attachment, index) =>
+                    attachment.startsWith('data:image/') ? (
+                      <img
+                        key={`${msg.id}-attachment-${index}`}
+                        src={attachment}
+                        alt="Attached image"
+                        className="max-h-48 max-w-full rounded-xl border border-[var(--quant-border)] object-cover"
+                      />
+                    ) : (
+                      <span
+                        key={`${msg.id}-attachment-${index}`}
+                        aria-label="Attached file"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-hover)] px-2.5 py-1.5 text-xs font-medium text-[var(--foreground)] max-w-full break-words"
+                      >
+                        {attachment}
+                      </span>
+                    ),
+                  )}
+                  <div className="rounded-2xl bg-[var(--quant-surface-hover)] px-4 py-2.5">
+                    <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed text-[var(--foreground)]">
+                      {msg.content}
+                    </p>
+                  </div>
                 </div>
               ) : (
                 /*
