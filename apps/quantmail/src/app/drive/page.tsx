@@ -27,6 +27,7 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
+import { fetchDeepLinkFileItem } from './components/file-deep-link';
 import { useDrive, type ReceivedShare, type SentShareItem, isDocumentDriveId, readErrorInstruction } from '../../hooks/useDrive';
 import { formatBytes } from '../../lib/format-bytes';
 import { isUploadAction, driveUrlAfterConsumingAction } from '../../lib/drive-action-params';
@@ -875,6 +876,39 @@ function DrivePageContent() {
     },
     [recordFileOpen, openDocumentItem],
   );
+
+  // Universal-search deep link (?file=<id>): resolve the file's metadata and
+  // open its preview so the tapped search hit is never lost — the same
+  // never-lose-the-hit pattern as personDetailHref (QM 2026-10-19). The
+  // metadata comes from the real /api/drive/files/:id/details endpoint; a
+  // 404/403 surfaces as an honest inline notice, never a fabricated row.
+  const fileFromQuery = searchParams?.get('file');
+  const [deepLinkFileLoading, setDeepLinkFileLoading] = useState(false);
+  const [deepLinkFileError, setDeepLinkFileError] = useState<string | null>(null);
+  const deepLinkResolvedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!fileFromQuery || deepLinkResolvedRef.current === fileFromQuery) return;
+    deepLinkResolvedRef.current = fileFromQuery;
+    let cancelled = false;
+    setDeepLinkFileLoading(true);
+    setDeepLinkFileError(null);
+    fetchDeepLinkFileItem(fileFromQuery)
+      .then((item) => {
+        if (cancelled) return;
+        setDeepLinkFileLoading(false);
+        handlePreviewItem(item);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setDeepLinkFileLoading(false);
+        setDeepLinkFileError(
+          err instanceof Error ? err.message : 'Could not open the file.',
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fileFromQuery, handlePreviewItem]);
 
   // QM-M39-002 — closing a preview may have changed recency (the open was just
   // recorded); refresh the Recent list when it is the active view.
@@ -1751,6 +1785,28 @@ function DrivePageContent() {
             a promo card on Home — removed per user feedback (2026-10-07) to
             stop stuffing it into every surface. Its home is the aimemory tab.
           */}
+
+          {/* Universal-search deep link (?file=<id>): honest loading / error
+              notice while the file resolves; a failure never leaves a fake
+              row or a silently empty drive root. */}
+          {deepLinkFileLoading && (
+            <div className="flex items-center gap-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-3 text-xs text-[var(--quant-muted-foreground)]">
+              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--quant-border)] border-t-[var(--app-accent)]" aria-hidden="true" />
+              Opening file from search…
+            </div>
+          )}
+          {deepLinkFileError && (
+            <div
+              className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-300"
+              role="alert"
+            >
+              <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3 2.5 20h19L12 3z" />
+                <path d="M12 10v4m0 3v.5" />
+              </svg>
+              Could not open the file from search: {deepLinkFileError}
+            </div>
+          )}
 
           {/* Contextual Sub-Views */}
           {activeTab === 'shared' && (
