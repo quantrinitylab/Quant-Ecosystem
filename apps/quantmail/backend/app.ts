@@ -104,14 +104,21 @@ export function getConfig(): AppConfig {
     // stays protected (it needs a logged-in user for the consent screen).
     //
     // Matches via `matchesPublicPath()` in `packages/server-core/src/app.ts`.
-    // Entries are exact by default, wildcards require explicit `/*`, and rules can
-    // be scoped by HTTP methods. Never add unbounded blanket wildcards for data routes.
-    // Endpoints under these paths must be intentionally public.
+    // Matching semantics (read this before adding an entry — the old comment
+    // here used to claim the opposite): a plain STRING entry is a PREFIX
+    // match (the path itself plus any sub-path, e.g. '/auth/login' also
+    // matches '/auth/login/anything'); a trailing `/*` on a string changes
+    // nothing. Only the OBJECT form with `exact: true` is a truly exact
+    // match, and object entries can also be scoped by HTTP methods.
+    // Rule: single endpoints MUST use `{ path, exact: true }`; use a string
+    // (or `exact: false`) only when the sub-paths are intentionally public
+    // too, and say so in the comment. Never add unbounded blanket wildcards
+    // for data routes. Endpoints under these paths must be intentionally public.
     publicPaths: [
-      '/auth/login',
-      '/auth/register',
-      '/auth/refresh',
-      '/auth/logout',
+      { path: '/auth/login', exact: true },
+      { path: '/auth/register', exact: true },
+      { path: '/auth/refresh', exact: true },
+      { path: '/auth/logout', exact: true },
       // Email address ownership proof (6-digit SES code). Reached WITHOUT a
       // session BY DESIGN: the emailed code IS the credential, not a bearer
       // token — a freshly-registered user holds no tokens yet and can only
@@ -121,18 +128,18 @@ export function getConfig(): AppConfig {
       { path: '/auth/resend-verification', methods: ['POST'], exact: true },
       // Completes a login that stopped at the second factor: the caller holds a
       // signed challenge and no access token yet, so it cannot pass the JWT
-      // hook. Listed as the exact path — NEVER as `/auth/2fa`, which would
+      // hook. Exact object form — NEVER as `/auth/2fa`, which would
       // expose setup, enable, disable and backup-code regeneration to anyone.
-      '/auth/2fa/verify',
+      { path: '/auth/2fa/verify', exact: true },
       // Forgot-password is for people who cannot sign in. Behind the auth hook
       // it was reachable only by users who did not need it. The prefix also
       // covers `/auth/password-reset/confirm`, which is intended — the person
       // clicking the emailed link has a single-use token, not a session.
       '/auth/password-reset',
       '/auth/password-reset/*',
-      '/oauth/token',
-      '/oauth/revoke',
-      '/oauth/register',
+      { path: '/oauth/token', exact: true },
+      { path: '/oauth/revoke', exact: true },
+      { path: '/oauth/register', exact: true },
       // POST /oauth/consent is reached by a plain HTML form POST from the
       // consent screen, which cannot send an Authorization header. Same
       // posture as /sso/ticket/resolve: listed here because the caller holds
@@ -145,10 +152,10 @@ export function getConfig(): AppConfig {
       // holds no user session. Auth is enforced inside the handler (same
       // posture as /oauth/token). The mint endpoint stays behind the session
       // auth hook and is deliberately NOT listed here.
-      '/sso/ticket/resolve',
+      { path: '/sso/ticket/resolve', exact: true },
       // SSO ticket exchange is the token-minting sibling of /resolve: same
       // server-to-server posture, auth enforced inside the handler.
-      '/sso/ticket/exchange',
+      { path: '/sso/ticket/exchange', exact: true },
       // Public booking link availability and booking slots (CAL-03)
       '/calendar/booking',
       '/calendar/booking/*',
@@ -198,7 +205,11 @@ export function getConfig(): AppConfig {
       '/deliverability/dmarc-reports/*',
       '/api/deliverability/dmarc-reports',
       '/api/deliverability/dmarc-reports/*',
-      // Health check endpoint
+      // Health check endpoint. String (prefix) form is INTENTIONAL here:
+      // it also covers /health/detailed and /api/health/detailed, which are
+      // public by design (see route-reachability + dependency-health tests).
+      // Do not "tighten" these to exact without moving the detailed
+      // endpoints behind auth first.
       '/health',
       '/api/health',
       // RFC 4791 CalDAV & RFC 6350 CardDAV protocol sync endpoints
