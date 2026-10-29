@@ -213,8 +213,15 @@ export function CalendarWeekView({
   weekStartsOn = 1,
   className = '',
 }: CalendarWeekViewProps) {
-  const today = useMemo(() => new Date(), []);
-  const todayKey = dayKey(today);
+  // Current time ticks every 60s; todayKey derives from it (NOT a
+  // mount-only memo) so the today highlight and the now-line follow a
+  // midnight rollover without a remount.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(t);
+  }, []);
+  const todayKey = dayKey(now);
   const selectedKey = dayKey(selectedDate);
 
   // Anchor week state (internal, like CalendarMonthSubView's viewDate).
@@ -300,12 +307,7 @@ export function CalendarWeekView({
     return { timedByDay: timed, allDayByDay: allDay };
   }, [events, days]);
 
-  // ---- current time ----------------------------------------------------
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(t);
-  }, []);
+  // ---- current time (state + ticker declared above, next to todayKey) ----
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
   const bodyRef = useRef<HTMLDivElement>(null);
