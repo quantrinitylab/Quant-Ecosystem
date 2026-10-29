@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Fastify from 'fastify';
 import { errorHandlerPlugin } from '@quant/server-core';
 import calendarRoutes from '../routes/calendar';
+import { RecurringService } from '../services/recurring.service';
 
 interface StoredEvent {
   id: string;
@@ -673,6 +674,94 @@ describe('Wave 6 (Phase C) Calendar Recurrence Parity & Exceptions Suite', () =>
       // Second block: 14:00 to 15:00
       expect(new Date(busy[1].start).toISOString()).toBe('2026-09-22T14:00:00.000Z');
       expect(new Date(busy[1].end).toISOString()).toBe('2026-09-22T15:00:00.000Z');
+    });
+
+    it('GET /events/free-busy reports partialData:false with empty failure lists when every series expands', async () => {
+      await prisma.event.create({
+        data: {
+          id: 'busy-ok',
+          userId: 'user-parity-1',
+          title: 'Solo Block',
+          startTime: new Date('2026-09-22T10:00:00.000Z'),
+          endTime: new Date('2026-09-22T11:00:00.000Z'),
+        },
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/events/free-busy?start=2026-09-22T00:00:00.000Z&end=2026-09-22T23:59:59.999Z',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const json = res.json();
+      expect(json.data.partialData).toBe(false);
+      expect(json.data.failedEventIds).toEqual([]);
+      expect(json.data.failedCalendarIds).toEqual([]);
+      expect(json.data.busyBlocksCount).toBe(1);
+    });
+
+    it('GET /events/free-busy flags partialData when a recurring series fails to expand instead of claiming free', async () => {
+      // A healthy non-recurring block: it must still appear in `busy`.
+      await prisma.event.create({
+        data: {
+          id: 'busy-healthy',
+          userId: 'user-parity-1',
+          title: 'Healthy Block',
+          startTime: new Date('2026-09-22T10:00:00.000Z'),
+          endTime: new Date('2026-09-22T11:00:00.000Z'),
+        },
+      });
+      // A daily series whose expansion throws: without the partial-data flag
+      // its 09:00-09:30 slot would silently read as free.
+      await prisma.event.create({
+        data: {
+          id: 'broken-series',
+          userId: 'user-parity-1',
+          calendarId: 'cal-primary',
+          title: 'Broken Daily',
+          startTime: new Date('2026-09-22T09:00:00.000Z'),
+          endTime: new Date('2026-09-22T09:30:00.000Z'),
+          recurrenceRule: 'FREQ=DAILY;INTERVAL=1',
+        },
+      });
+
+      // The real expander never throws for a well-formed rule, so simulate
+      // the failure mode the handler guards against (corrupt stored state,
+      // future service regression) by failing expansion for this series only.
+      const originalExpand = RecurringService.prototype.expandOccurrences;
+      const spy = vi
+        .spyOn(RecurringService.prototype, 'expandOccurrences')
+        .mockImplementation(function (this: RecurringService, event, start, end) {
+          if (event.id === 'broken-series') throw new Error('expansion boom');
+          return originalExpand.call(this, event, start, end);
+        });
+      try {
+        const res = await app.inject({
+          method: 'GET',
+          url: '/events/free-busy?start=2026-09-22T00:00:00.000Z&end=2026-09-22T23:59:59.999Z',
+        });
+
+        expect(res.statusCode).toBe(200);
+        const json = res.json();
+        expect(json.success).toBe(true);
+        // The failed series is surfaced, not swallowed.
+        expect(json.data.partialData).toBe(true);
+        expect(json.data.failedEventIds).toEqual(['broken-series']);
+        expect(json.data.failedCalendarIds).toEqual(['cal-primary']);
+        // Healthy data still flows: only the good block is reported busy,
+        // and the count reflects only successfully expanded intervals.
+        expect(json.data.conflictsCount).toBe(1);
+        expect(json.data.busyBlocksCount).toBe(1);
+        expect(json.data.busy.length).toBe(1);
+        expect(new Date(json.data.busy[0].start).toISOString()).toBe(
+          '2026-09-22T10:00:00.000Z',
+        );
+        expect(new Date(json.data.busy[0].end).toISOString()).toBe(
+          '2026-09-22T11:00:00.000Z',
+        );
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 
