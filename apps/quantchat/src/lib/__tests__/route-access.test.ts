@@ -3,9 +3,10 @@
 //
 // The registry is the single source of truth the auth gate classifies with.
 // These tests pin the classification contract: public paths stay public
-// (P0-2 legal pages + the QuantMail password-recovery handoff), real app
-// routes stay gated, and anything else is 'unknown' so the router can show
-// a real 404 instead of masking bad links behind a /login bounce.
+// (P0-2 legal pages + the QuantMail password-recovery handoff + the Phase 0
+// hybrid landing route '/'), real app routes stay gated, and anything else
+// is 'unknown' so the router can show a real 404 instead of masking bad
+// links behind a /login bounce.
 // ============================================================================
 import { describe, it, expect } from 'vitest';
 import { classifyPath, isPublicPath, PUBLIC_PATHS, APP_ROUTES } from '../route-access';
@@ -23,8 +24,14 @@ describe('isPublicPath', () => {
     expect(isPublicPath('/forgot-password')).toBe(true);
   });
 
+  // Phase 0: '/' is a hybrid route — public so signed-out visitors see the
+  // landing page; page.tsx's internal RootGate renders the chat list only
+  // for verified sessions.
+  it('keeps / public (Phase 0 hybrid landing route)', () => {
+    expect(isPublicPath('/')).toBe(true);
+  });
+
   it('does not treat app routes as public', () => {
-    expect(isPublicPath('/')).toBe(false);
     expect(isPublicPath('/settings')).toBe(false);
     expect(isPublicPath('/calls')).toBe(false);
     expect(isPublicPath('/chat/abc123')).toBe(false);
@@ -40,7 +47,6 @@ describe('isPublicPath', () => {
 
 describe('classifyPath', () => {
   it.each([
-    '/',
     '/camera',
     '/channels',
     '/map',
@@ -76,6 +82,10 @@ describe('classifyPath', () => {
       expect(classifyPath(path)).toBe('public');
     },
   );
+
+  it("classifies '/' as public (Phase 0 hybrid route), not gated", () => {
+    expect(classifyPath('/')).toBe('public');
+  });
 
   it.each(['/nope', '/chat', '/chat/', '/chat/a/b', '/settings/extra', '/admin', '/api/settings'])(
     'classifies %s as unknown so it reaches the 404, not a login bounce',

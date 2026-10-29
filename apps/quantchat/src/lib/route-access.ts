@@ -6,7 +6,8 @@
 // require. The auth gate (App Router `AuthGate` + Pages Router
 // `PagesAuthGate`) classifies every pathname through here:
 //
-//   - 'public'  — reachable without a session (sign-in, legal, recovery).
+//   - 'public'  — reachable without a session (sign-in, legal, recovery,
+//                 and the Phase 0 public landing at '/').
 //   - 'app'     — a real app route: requires a verified session, otherwise
 //                 the visitor is redirected to /login.
 //   - 'unknown' — no such route: the gate steps aside and lets the router
@@ -35,6 +36,12 @@ export const PUBLIC_PATHS: ReadonlySet<string> = new Set([
   // public or the gate would bounce logged-out users back to /login before
   // the handoff can happen — the exact dead-end the audit filed as P1.
   '/forgot-password',
+  // Phase 0: '/' is a hybrid route — public so signed-out visitors see the
+  // landing page instead of being bounced to /login before it can render.
+  // page.tsx's internal RootGate renders the signed-in chat list ONLY for
+  // verified sessions; everyone else gets the public LandingPage (fail open
+  // — never a dead end, never a redirect loop).
+  '/',
 ]);
 
 /**
@@ -43,8 +50,8 @@ export const PUBLIC_PATHS: ReadonlySet<string> = new Set([
  * with the filesystem — the coverage test enforces it both ways.
  */
 export const APP_ROUTES: readonly string[] = [
-  // App Router (src/app/**/page.tsx)
-  '/',
+  // App Router (src/app/**/page.tsx). Note: '/' is intentionally NOT here —
+  // it is public (see PUBLIC_PATHS) with its own gate in page.tsx.
   '/camera',
   '/channels',
   '/map',
