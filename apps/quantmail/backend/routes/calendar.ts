@@ -1471,6 +1471,20 @@ export default async function calendarRoutes(
     });
   });
 
+  // SCOPE CONTRACT (fix/qm-find-a-time-guest): this endpoint is SIGNED-IN
+  // USER ONLY. It accepts no attendee / userId query parameter, and none
+  // is honored — every Prisma query below is filtered by requireUserId's
+  // userId, so a caller cannot read another user's busy blocks by passing
+  // someone else's id or email. Per-guest availability columns (Google's
+  // find-a-time view) are deliberately NOT offered here: there is no
+  // calendar-sharing / consent model in the schema to gate cross-user
+  // reads, so inventing one by trusting a query parameter would leak
+  // private calendars. The response therefore declares its scope
+  // (scope: 'self', guestCalendarsChecked: false) so clients can only
+  // honestly present it as "your calendar only" — the CalendarEventForm
+  // "Find a time" panel and the compose availability picker do exactly
+  // that. A future consent-gated cross-user endpoint must be a new,
+  // separately reviewed route, never a parameter added here.
   fastify.get<{
     Querystring: {
       start?: string;
@@ -1609,6 +1623,11 @@ export default async function calendarRoutes(
         partialData: failedEventIds.length > 0,
         failedEventIds,
         failedCalendarIds,
+        // Machine-readable scope: ONLY the signed-in user's calendar was
+        // checked. Guest calendars were not consulted — clients must not
+        // present these blocks as covering any attendee.
+        scope: 'self',
+        guestCalendarsChecked: false,
       },
     });
   });
