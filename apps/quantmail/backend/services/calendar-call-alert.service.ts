@@ -35,6 +35,13 @@ export interface CalendarCallAlertOptions {
 export class CalendarCallAlertService {
   private queue: TypedQueue<ProactiveAgentJob> | null = null;
   private readonly memoryAlerts = new Map<string, ScheduledCallAlert>();
+  /**
+   * True only when this service constructed its own queue (REDIS_URL path).
+   * An injected queue (options.queue) stays caller-owned: close() must never
+   * close it, or the owner would lose its connection mid-flight.
+   */
+  private readonly ownsQueue: boolean = false;
+  private closed = false;
 
   constructor(options: CalendarCallAlertOptions = {}) {
     if (options.queue) {
@@ -53,9 +60,32 @@ export class CalendarCallAlertService {
               maxRetriesPerRequest: 1,
             },
           );
+          this.ownsQueue = true;
         } catch {
           this.queue = null;
         }
+      }
+    }
+  }
+
+  /**
+   * Lifecycle: closes the service-owned queue (if any) so app.close() never
+   * leaves an orphaned Redis connection behind — the same teardown class as
+   * the ci-runs queue lifecycle fix. Idempotent: repeated calls are a no-op,
+   * so the queue is closed exactly once per service. A no-op for injected
+   * (caller-owned) queues and for services that never built a queue.
+   * Teardown failures are swallowed: close must never throw.
+   */
+  async close(): Promise<void> {
+    if (this.closed || !this.ownsQueue) return;
+    this.closed = true;
+    const queue = this.queue;
+    this.queue = null;
+    if (queue) {
+      try {
+        await queue.close();
+      } catch {
+        // Teardown must not throw; the connection is being abandoned anyway.
       }
     }
   }
