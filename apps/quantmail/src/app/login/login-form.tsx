@@ -297,7 +297,7 @@ export function LoginForm() {
               onChange={(event) => setIdentifier(event.target.value)}
               aria-invalid={Boolean(fieldErrors.identifier)}
               aria-describedby={fieldErrors.identifier ? 'login-id-error' : undefined}
-              className={`w-full rounded-xl border bg-[var(--quant-surface)]/90 backdrop-blur px-3.5 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] focus:border-[var(--quant-primary)] focus:ring-2 focus:ring-[var(--quant-primary)]/20 motion-reduce:transition-none ${
+              className={`w-full rounded-xl border bg-[var(--quant-surface)] px-3.5 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] focus:border-[var(--quant-primary)] focus:ring-2 focus:ring-[var(--quant-primary)]/20 motion-reduce:transition-none ${
                 fieldErrors.identifier ? 'border-red-500/50' : 'border-white/[0.08]'
               }`}
             />
@@ -321,7 +321,7 @@ export function LoginForm() {
               </Link>
             </div>
             <div
-              className={`flex overflow-hidden rounded-xl border bg-[var(--quant-surface)]/90 backdrop-blur transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] focus-within:border-[var(--quant-primary)] focus-within:ring-2 focus-within:ring-[var(--quant-primary)]/20 motion-reduce:transition-none ${
+              className={`flex overflow-hidden rounded-xl border bg-[var(--quant-surface)] transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] focus-within:border-[var(--quant-primary)] focus-within:ring-2 focus-within:ring-[var(--quant-primary)]/20 motion-reduce:transition-none ${
                 fieldErrors.password ? 'border-red-500/50' : 'border-white/[0.08]'
               }`}
             >
