@@ -173,7 +173,7 @@ export default function PrivacyPolicyPage() {
                     <td className="py-2 pr-4 font-semibold text-[var(--brand-primary)]">
                       Never Shared
                     </td>
-                    <td className="py-2">Ephemeral, anonymized, scrubbed within 7 days</td>
+                    <td className="py-2">Retained only while needed for reliability monitoring</td>
                   </tr>
                   <tr>
                     <td className="py-2 pr-4 font-medium text-[var(--quant-foreground)]">
@@ -299,7 +299,7 @@ export default function PrivacyPolicyPage() {
           {/* Section 5: Data Retention */}
           <section>
             <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
-              5. Data Retention &amp; Automatic Purge Schedules
+              5. Data Retention
             </h2>
             <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-6 text-[var(--quant-muted-foreground)]">
               <li>
@@ -311,20 +311,23 @@ export default function PrivacyPolicyPage() {
                 <strong className="text-[var(--quant-foreground)]">
                   Trash &amp; Spam Folders:
                 </strong>{' '}
-                Items moved to Trash or Spam are automatically and irrevocably purged after 30 days.
+                Items moved to Trash or Spam stay there until you delete them permanently or
+                delete your account. No automatic purge schedule is currently in effect for
+                mailbox Trash or Spam.
               </li>
               <li>
                 <strong className="text-[var(--quant-foreground)]">
                   Telemetry &amp; Audit Logs:
                 </strong>{' '}
-                Access logs, session handshake records, and diagnostic metrics are scrubbed and
-                permanently destroyed within 7 days.
+                Access logs, session handshake records, and diagnostic metrics are retained
+                only while needed to operate and secure the service. No fixed scrubbing or
+                destruction schedule is currently published for them.
               </li>
               <li>
                 <strong className="text-[var(--quant-foreground)]">Rolling Backups:</strong>{' '}
-                Disaster-recovery database snapshots are retained on an automatic rolling rotation
-                — currently 7 days — and expired snapshots are removed automatically as new ones
-                arrive.
+                Disaster-recovery database snapshots are kept for recovery purposes and pruned
+                as newer snapshots replace them under the applicable retention policy. No fixed
+                rotation period is currently published.
               </li>
             </ul>
           </section>
