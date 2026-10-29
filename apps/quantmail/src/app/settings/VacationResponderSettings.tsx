@@ -98,8 +98,8 @@ export function VacationResponderSettings() {
   const validationError = useMemo(() => {
     if (!draft.subject.trim()) return 'Add a subject before saving or enabling auto-reply.';
     if (!draft.message.trim()) return 'Add a message before saving or enabling auto-reply.';
-    if (!Number.isInteger(draft.intervalDays) || draft.intervalDays < 0) {
-      return 'Reply interval must be zero days or greater.';
+    if (!Number.isInteger(draft.intervalDays) || draft.intervalDays < 1) {
+      return 'Reply interval must be at least 1 day.';
     }
     if (draft.startAt && draft.endAt && new Date(draft.startAt) >= new Date(draft.endAt)) {
       return 'The start date must be before the end date.';
@@ -286,7 +286,7 @@ export function VacationResponderSettings() {
               <input
                 id="vacation-interval"
                 type="number"
-                min="0"
+                min="1"
                 step="1"
                 value={String(draft.intervalDays)}
                 disabled={status === 'saving'}
