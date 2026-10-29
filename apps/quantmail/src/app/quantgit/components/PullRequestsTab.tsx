@@ -49,6 +49,8 @@ export interface PullRequestsTabProps {
   onMergePR?: (prId: number, mergeMethod: MergeMethod) => Promise<boolean> | boolean | void;
   initialSelectedPR?: PRItem | null;
   checks?: SecurityCheckItem[];
+  /** Initial expanded/collapsed state of the checks list (default: expanded). */
+  initialShowAllChecks?: boolean;
   initialMergeMethod?: MergeMethod;
   initialIsMergeConfirmOpen?: boolean;
   /** When true, renders skeleton rows instead of the PR list. */
@@ -148,6 +150,7 @@ export function PullRequestsTab({
   onMergePR,
   initialSelectedPR = null,
   checks,
+  initialShowAllChecks = true,
   initialMergeMethod = 'merge',
   initialIsMergeConfirmOpen = false,
   isLoading = false,
@@ -169,6 +172,10 @@ export function PullRequestsTab({
   }, [checks]);
 
   const checksKnown = activeChecks.length > 0;
+  // "Show all checks" toggle: previously this button had no onClick and the
+  // list below was always rendered, so the button was dead. It now genuinely
+  // collapses/expands the list (default expanded, preserving prior behaviour).
+  const [showAllChecks, setShowAllChecks] = useState<boolean>(initialShowAllChecks);
   const anyCheckFailed = activeChecks.some((c) => c.status === 'failed');
   const allChecksPassed = checksKnown && activeChecks.every((c) => c.status === 'passed');
   // Merge-conflict pre-check — real backend data only. The merge box must NEVER
@@ -874,13 +881,19 @@ export function PullRequestsTab({
                 </span>
               </div>
               {checksKnown && (
-                <button className="text-[#58A6FF] hover:underline text-[11px]">
-                  Show all checks
+                <button
+                  type="button"
+                  onClick={() => setShowAllChecks((prev) => !prev)}
+                  aria-expanded={showAllChecks}
+                  data-testid="show-all-checks-btn"
+                  className="text-[#58A6FF] hover:underline text-[11px] cursor-pointer"
+                >
+                  {showAllChecks ? 'Hide checks' : 'Show all checks'}
                 </button>
               )}
             </div>
 
-            {checksKnown ? (
+            {checksKnown && !showAllChecks ? null : checksKnown ? (
               <div
  className="text-[11px] text-[#8D96A0] pt-1"
                 data-testid="security-ci-checks-list"
