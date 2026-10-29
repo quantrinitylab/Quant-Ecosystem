@@ -59,7 +59,12 @@ export function BrandWordmark({
       className={`inline-flex items-center gap-1.5 whitespace-nowrap select-none font-semibold tracking-tight ${chosenSize} ${className}`}
     >
       <span className="text-[var(--quant-foreground)] font-bold tracking-tight">{item.brand}</span>
-      <span className="text-[var(--quant-primary)] font-semibold tracking-tight">{item.name}</span>
+      {/* Per-app accent (user-locked 2026-10-09): AppShell sets --app-accent
+          per route (Mail orange, Calendar blue, Drive green, Contacts amber,
+          QuantGit purple #8B5CF6); globals.css defaults it to Mail orange so
+          mail/login surfaces are unchanged. A hardcoded --quant-primary here
+          forced the app name orange on every surface, including /quantgit. */}
+      <span className="text-[var(--app-accent)] font-semibold tracking-tight">{item.name}</span>
     </span>
   );
 }

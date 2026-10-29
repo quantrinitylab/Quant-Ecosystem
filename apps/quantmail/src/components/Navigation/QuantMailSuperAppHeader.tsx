@@ -490,6 +490,9 @@ export const SUPER_APP_PILLARS: SuperAppPillar[] = [
 // Every data prop is therefore optional with NO fabricated fallback: sections
 // render only when the caller passes real values, so a bare render can never
 // display invented counts, names, credits, or meetings.
+// The LIVE unread-notification signal (2026-10-20) is NOT this bell — it is the
+// Notifications row badge in AppSidebar's SidebarNavGroups, wired to
+// useNotifications().unreadCount.
 // ============================================================================
 
 export function QuantMailSuperAppHeader({

@@ -147,6 +147,21 @@ export async function applyCodeqlFixOnServer(
 }
 
 /**
+ * Label for the recommended-fix diff header on a CodeQL card.
+ *
+ * The diff body is a SUGGESTION rendered from the stored alert — it is not
+ * an automated patch waiting to be applied, and the fix endpoint itself
+ * refuses with 501 CODEQL_FIX_NOT_SUPPORTED until patch generation is wired
+ * up. Calling it "Automated Patch Ready" claimed a capability that does not
+ * exist. Only a server-confirmed 'fixed' alert earns the "Applied fix" label.
+ * Exported for unit tests (the card only renders for fetched alerts, which
+ * renderToStaticMarkup cannot produce since effects do not run server-side).
+ */
+export function codeqlDiffHeaderLabel(state: string): string {
+  return state === 'fixed' ? 'Applied fix' : 'Suggested fix — not applied';
+}
+
+/**
  * Mark a secret-scanning alert as false positive via the REAL backend endpoint
  * POST /api/repos/:id/security/secrets/:alertId/false-positive (Next proxy ->
  * Fastify, which persists status='false_positive' in the server store).
@@ -1574,7 +1589,15 @@ export function SecurityTab({
                   >
  <div className="px-3 py-1.5 bg-[#21262D] text-[#7D8590] font-semibold text-[10px] flex items-center justify-between">
                       <span>Recommended Code Fix Diff</span>
-                      <span className="text-[#3FB950] font-normal">Automated Patch Ready</span>
+                      <span
+                        className={
+                          alert.state === 'fixed'
+                            ? 'text-[#3FB950] font-normal'
+                            : 'text-[#7D8590] font-normal'
+                        }
+                      >
+                        {codeqlDiffHeaderLabel(alert.state)}
+                      </span>
                     </div>
 
                     {/* Vulnerable code (red) */}
@@ -1766,8 +1789,9 @@ export function SecurityTab({
                     Require status checks to pass before merging
                   </span>
                   <p className="text-[11px] text-[#7D8590]">
-                    Choose which status checks must pass before branches can be merged. Enforces
-                    CodeQL SAST and Vitest test suites to pass 100% green.
+                    When enabled, merging is blocked until the latest CI run for the target
+                    branch reports success. This setting does not select individual checks,
+                    and it does not by itself run CodeQL SAST or Vitest suites.
                   </p>
                 </div>
               </label>
