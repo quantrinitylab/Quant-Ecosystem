@@ -48,7 +48,7 @@ describe('QM-UIUX-082 — Sent folder in the live navigation', () => {
 
   it('desktop left nav (desktopContextTabs) lists Inbox, Sent, Scheduled, Drafts, Archive, Spam, Trash in order', () => {
     const ids = desktop.PILLAR_SUB_CONFIGS.mail.tabs.map((t) => t.id);
-    expect(ids).toEqual(['inbox', 'sent', 'scheduled', 'drafts', 'archive', 'spam', 'trash']);
+    expect(ids).toEqual(['inbox', 'sent', 'scheduled', 'drafts', 'archive', 'spam', 'important', 'trash']);
   });
 
   it('desktop Sent tab targets the real /sent route with no fake badge', () => {
@@ -107,7 +107,8 @@ describe('QM-UIUX-082 — Sent folder in the live navigation', () => {
     const ids = mobile.PILLAR_SUB_CONFIGS.mail.tabs.map((t) => t.id);
     // Search added by the Mail Search slice (Phase 1.3) as a primary tab
     // after Archive; the desktop list above is unchanged.
-    expect(ids).toEqual(['inbox', 'quanty', 'sent', 'scheduled', 'drafts', 'archive', 'search', 'spam', 'trash']);
+    // Important (QM-IMPORTANT-LENS-ACTIVE-TAB) joins after Spam, before Trash.
+    expect(ids).toEqual(['inbox', 'quanty', 'sent', 'scheduled', 'drafts', 'archive', 'search', 'spam', 'important', 'trash']);
   });
 
   it('mobile Sent tab targets the real /sent route with no fake badge', () => {

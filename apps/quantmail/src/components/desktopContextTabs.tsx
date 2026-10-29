@@ -847,6 +847,19 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         ],
       },
       {
+        // QM-IMPORTANT-LENS-ACTIVE-TAB: mirrors the mobile overflow slot —
+        // `/?lens=important` is a real inbox view, but `resolveContextTab`
+        // returned phantom id 'priority', so the desktop sidebar (exact
+        // `tab.id === activeTabId` match, no fallback) highlighted nothing
+        // and rendered zero aria-current. StarredIcon is the existing star
+        // mark for high-priority/starred mail.
+        id: 'important',
+        label: 'Important',
+        icon: StarredIcon,
+        targetPath: '/',
+        queryParam: { key: 'lens', value: 'important' },
+      },
+      {
         id: 'trash',
         label: 'Trash',
         icon: TrashIcon,
@@ -1079,7 +1092,10 @@ export function resolveContextTab(
     if (pathname.startsWith('/drafts') || tabParam === 'drafts') return 'drafts';
     if (pathname.startsWith('/trash') || tabParam === 'trash') return 'trash';
     if (lensParam === 'spam') return 'spam';
-    if (lensParam === 'important' || tabParam === 'priority') return 'priority';
+    // QM-IMPORTANT-LENS-ACTIVE-TAB: 'priority' was a phantom id — no mail
+    // tab carried it. The Important lens now has its own 'important' tab
+    // (above); the legacy ?tab=priority alias collapses onto it.
+    if (lensParam === 'important' || tabParam === 'priority') return 'important';
     return 'inbox';
   }
 
