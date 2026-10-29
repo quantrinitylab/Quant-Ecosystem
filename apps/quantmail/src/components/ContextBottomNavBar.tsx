@@ -52,6 +52,17 @@ export interface ContextSubTab {
   badgeText?: string;
   targetPath?: string;
   queryParam?: { key: string; value: string };
+  /**
+   * QM-INBOX-NAV-SPAM-VIEW (2026-10-27, P1 [inbox-nav]): a tab may need MORE
+   * than one query param. The root route renders PeopleHome unless
+   * `?view=inbox` is present (app/page.tsx RootPage), so the Spam tab must
+   * carry BOTH `view=inbox` AND `lens=spam` — a single `queryParam` can
+   * only express one of them, which is exactly how Spam ended up as
+   * `/?lens=spam` (People spam list) instead of the inbox spam lens.
+   * `queryParams` wins over `queryParam` when both are set; single-param
+   * tabs keep using `queryParam` unchanged.
+   */
+  queryParams?: Array<{ key: string; value: string }>;
   ariaLabel?: string;
   description?: string;
   /**
@@ -816,7 +827,15 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         label: 'Spam',
         icon: SpamIcon,
         targetPath: '/',
-        queryParam: { key: 'lens', value: 'spam' },
+        // QM-INBOX-NAV-SPAM-VIEW (2026-10-27, P1 [inbox-nav]): this tab
+        // used to carry ONLY `lens=spam` (`/?lens=spam`), and RootPage
+        // renders PeopleHome unless `?view=inbox` is present — so "Spam"
+        // opened the People spam list, not the inbox spam lens. It now
+        // carries both params: `/?view=inbox&lens=spam`.
+        queryParams: [
+          { key: 'view', value: 'inbox' },
+          { key: 'lens', value: 'spam' },
+        ],
       },
       {
         id: 'trash',
@@ -1186,9 +1205,12 @@ export function executeContextTabClick(
 
   const targetBase = tab.targetPath || (pillar === 'mail' ? '/' : `/${pillar}`);
   let targetUrl = targetBase;
-  if (tab.queryParam) {
+  // QM-INBOX-NAV-SPAM-VIEW: a tab may carry several params (Spam needs
+  // `view=inbox&lens=spam`); `queryParams` wins over the single `queryParam`.
+  const allParams = tab.queryParams?.length ? tab.queryParams : tab.queryParam ? [tab.queryParam] : [];
+  for (const param of allParams) {
     const sep = targetUrl.includes('?') ? '&' : '?';
-    targetUrl = `${targetUrl}${sep}${tab.queryParam.key}=${tab.queryParam.value}`;
+    targetUrl = `${targetUrl}${sep}${param.key}=${param.value}`;
   }
 
   // QM-DEAD-INBOX-TAB-SPAM-LENS (2026-10-16): compare the FULL current URL

@@ -88,7 +88,7 @@ describe('QM-UIUX-082 — Sent folder in the live navigation', () => {
 
     const spam = desktop.PILLAR_SUB_CONFIGS.mail.tabs.find((t) => t.id === 'spam')!;
     desktop.executeContextTabClick(spam, 'mail', { pathname: '/', router: { push } });
-    expect(push).toHaveBeenCalledWith('/?lens=spam');
+    expect(push).toHaveBeenCalledWith('/?view=inbox&lens=spam');
 
     const trash = desktop.PILLAR_SUB_CONFIGS.mail.tabs.find((t) => t.id === 'trash')!;
     desktop.executeContextTabClick(trash, 'mail', { pathname: '/', router: { push } });

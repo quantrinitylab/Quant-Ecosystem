@@ -178,8 +178,12 @@ describe("KeyboardProvider 'Archive' shortcut (nav.archive)", () => {
 // Fix: the entry points straight at the real archived view,
 // `/?view=inbox&tab=archive` (one hop, same destination as the shim).
 //
-// NOTE: the Spam entry (/?lens=spam) is deliberately NOT in this class — the
-// People home honors the spam lens directly, so that entry is correct as-is.
+// NOTE (superseded for the drawer entry by QM-INBOX-NAV-SPAM-VIEW, 2026-10-27):
+// the Spam entry used to sit on `/?lens=spam` on the theory that the People
+// home honors the spam lens — but the context-nav Spam tab is an inbox-lens
+// entry, so it now joins the Archive entry in the `?view=inbox` class and
+// points straight at `/?view=inbox&lens=spam`. (The /spam redirect shim
+// itself is untouched; see the file header note.)
 // ============================================================================
 
 describe('AppSidebar Archive entry', () => {
@@ -229,7 +233,7 @@ describe('AppSidebar Archive entry', () => {
     expect(archive.classList.contains('is-active')).toBe(true);
   });
 
-  it("leaves the Spam entry on '/?lens=spam' (People home honors the lens)", () => {
+  it("points the Spam entry at the inbox spam lens (/?view=inbox&lens=spam)", () => {
     mount(<SidebarNavGroups />);
     const buttons = Array.from(
       document.querySelectorAll('button.sidebar-nav-item'),
@@ -239,7 +243,9 @@ describe('AppSidebar Archive entry', () => {
     act(() => {
       spam!.click();
     });
-    // PeopleHome reads ?lens=spam directly, so this bare-param link is valid.
-    expect(routerState.push).toHaveBeenCalledWith('/?lens=spam');
+    // QM-INBOX-NAV-SPAM-VIEW: a bare `/?lens=spam` renders the People home,
+    // which is the People spam list — the drawer Spam entry is an inbox-lens
+    // entry, so it must carry `?view=inbox` like the Archive entry above.
+    expect(routerState.push).toHaveBeenCalledWith('/?view=inbox&lens=spam');
   });
 });
