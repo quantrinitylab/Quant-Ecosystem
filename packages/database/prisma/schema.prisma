@@ -81,6 +81,7 @@ model User {
   passwordResetTokens  PasswordResetToken[]
   emailVerificationCodes EmailVerificationCode[]
   recoveryEmailVerifications RecoveryEmailVerification[]
+  sendAsIdentities SendAsIdentity[]
   twoFactorRecoveryChallenges TwoFactorRecoveryChallenge[]
   followUpReminders FollowUpReminder[]
   personalAccessTokens PersonalAccessToken[]
@@ -386,6 +387,39 @@ model RecoveryEmailVerification {
   @@index([userId])
   @@index([expiresAt])
   @@map("recovery_email_verifications")
+}
+
+/**
+ * Send-mail-as identities (fix/qm-accounts-import, migration 0107): the
+ * "Accounts and Import → Send mail as" surface. An address starts UNVERIFIED
+ * (verifiedAt NULL): only the SHA-256 digest of a 6-digit code is stored (a
+ * leaked table must not be live codes), single-use, 15-minute-bounded,
+ * attempt-capped — the same contract as RecoveryEmailVerification. The code is
+ * mailed to the address itself, so only someone who can read that mailbox can
+ * activate it. The composer may stamp this address as the From of an outgoing
+ * message only when verifiedAt is set; unverified rows are inert.
+ */
+model SendAsIdentity {
+  id           String    @id @default(cuid())
+  userId       String
+  // Normalized (trimmed, lowercased) at write time; the composer stamps it
+  // verbatim as the From address.
+  email        String
+  displayName  String?
+  verifiedAt   DateTime?
+  // Pending-verification state. NULL once verified (or never started); a new
+  // code replaces the old one, so at most one live code exists per row.
+  codeHash     String?
+  codeExpiresAt DateTime?
+  codeAttempts Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, email])
+  @@index([userId])
+  @@map("send_as_identities")
 }
 
 /**
@@ -714,6 +748,18 @@ model Email {
   folderId       String?
   fromAddress    String
   fromName       String?
+  /**
+   * fix/qm-accounts-import-corrective-3 (migration 0110): the AUTHORITATIVE
+   * send-as identity id the composer stamped this message with. The
+   * fromAddress/fromName strings on the row are the display copy; this id is
+   * what EmailService.send() re-authorizes at send time, so a revoke/delete
+   * between draft creation and send is caught (fail-closed) instead of
+   * sending from a stale address string. NULL = the account's own address.
+   * No DB-level foreign key on purpose: deleting an identity must never
+   * cascade to mail, and drafts pointing at a deleted identity must be
+   * denied at send (revoked), not silently re-addressed.
+   */
+  sendAsIdentityId String?
   toAddresses    Json          @default("[]")
   ccAddresses    Json          @default("[]")
   bccAddresses   Json          @default("[]")
