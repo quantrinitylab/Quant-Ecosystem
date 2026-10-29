@@ -790,7 +790,16 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         label: 'Inbox',
         icon: InboxIcon,
         targetPath: '/',
-        queryParam: { key: 'lens', value: 'all' },
+        // QM-INBOX-NAV-VIEW (2026-10-24, P1 [inbox-nav]): this tab used
+        // to carry ONLY `lens=all` (`/?lens=all`), and RootPage renders
+        // PeopleHome unless `?view=inbox` is present — so "Inbox" opened
+        // the People view and the classic inbox had no click path. It now
+        // carries both params: `/?view=inbox&lens=all` (lens=all resets
+        // any spam/other lens, exactly as the old single param did).
+        queryParams: [
+          { key: 'view', value: 'inbox' },
+          { key: 'lens', value: 'all' },
+        ],
       },
       {
         // QM-UIUX-082: the Sent folder was unreachable from this left nav —

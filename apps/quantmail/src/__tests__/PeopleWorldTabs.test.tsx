@@ -89,4 +89,24 @@ describe('PeopleWorldTabs', () => {
     });
     expect(onChange).toHaveBeenCalledWith('groups');
   });
+
+  it('points every tab at the shared panel when panelId is given', () => {
+    const container = renderIntoDom(
+      <PeopleWorldTabs world="log" counts={{ log: 0, groups: 0, updates: 0 }} onChange={vi.fn()} panelId="people-world-panel" />,
+    );
+    const tabs = Array.from(container.querySelectorAll('[role="tab"]'));
+    expect(tabs).toHaveLength(3);
+    for (const tab of tabs) {
+      expect(tab.getAttribute('aria-controls')).toBe('people-world-panel');
+    }
+  });
+
+  it('emits no aria-controls at all when no panel exists (never a dangling IDREF)', () => {
+    const { container } = renderTabs('log', { log: 0, groups: 0, updates: 0 });
+    const tabs = Array.from(container.querySelectorAll('[role="tab"]'));
+    expect(tabs).toHaveLength(3);
+    for (const tab of tabs) {
+      expect(tab.hasAttribute('aria-controls')).toBe(false);
+    }
+  });
 });

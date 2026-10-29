@@ -17,7 +17,12 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { isValidEmail, getInvalidRecipientReason } from '../../lib/email-validation';
-import { getSendBlockReason, getSendBlockReaction, EmailComposer } from '../EmailComposer';
+import {
+  getSendBlockReason,
+  getSendBlockReaction,
+  needsEmptyBodyConfirm,
+  EmailComposer,
+} from '../EmailComposer';
 
 // ---- module mocks for a server-side render of the full composer ----
 // (Same harness as EmailComposerSendValidation.test.tsx / QM-UIUX-024.)
@@ -222,6 +227,55 @@ describe('getSendBlockReaction (malformed recipient)', () => {
   it('returns null exactly when getSendBlockReason does', () => {
     expect(getSendBlockReaction('a@b.com', 's', 'b', [{ email: 'a@b.com' }])).toBeNull();
     expect(getSendBlockReason('a@b.com', 's', 'b', [{ email: 'a@b.com' }])).toBeNull();
+  });
+});
+
+// ---- getSendBlockReason: chat-kind auto-subject exception ----
+//
+// A chat thread's subject is auto-supplied at send time (`Chat with
+// <recipients>`) by every send path, so an empty subject is not a missing
+// field for kind 'chat'. Before this fix the hard subject block made those
+// fallbacks unreachable dead code on the /compose path (Send stayed
+// disabled with a subject error) — the regression this block pins down.
+
+describe('getSendBlockReason (chat kind: subject auto-supplied)', () => {
+  it('does NOT block an empty subject for a chat kind', () => {
+    expect(
+      getSendBlockReason('a@b.com', '', 'b', [{ email: 'a@b.com' }], 'chat'),
+    ).toBeNull();
+    expect(getSendBlockReason('a@b.com', '', 'b', [], 'chat')).toBeNull();
+  });
+
+  it('still blocks an empty subject for mail kind (default unchanged)', () => {
+    expect(
+      getSendBlockReason('a@b.com', '', 'b', [{ email: 'a@b.com' }]),
+    ).toBe('Please enter an email subject');
+    expect(
+      getSendBlockReason('a@b.com', '', 'b', [{ email: 'a@b.com' }], 'mail'),
+    ).toBe('Please enter an email subject');
+  });
+
+  it('still blocks empty To and malformed recipients for a chat kind', () => {
+    expect(getSendBlockReason('', '', 'b', [], 'chat')).toBe(
+      'Please specify at least one recipient (To:)',
+    );
+    expect(
+      getSendBlockReason('notanemail', '', 'b', [{ email: 'notanemail' }], 'chat'),
+    ).toBe('"notanemail" is not a valid email address');
+  });
+
+  it('chat kind with empty subject and empty body is an empty-body confirm, not a block', () => {
+    expect(
+      getSendBlockReason('a@b.com', '', '', [{ email: 'a@b.com' }], 'chat'),
+    ).toBeNull();
+    expect(
+      needsEmptyBodyConfirm('a@b.com', '', '', [{ email: 'a@b.com' }], 'chat'),
+    ).toBe(true);
+  });
+
+  it('chat kind never reports a missing subject to Quanty', () => {
+    expect(getSendBlockReaction('a@b.com', '', 'b', [], 'chat')).toBeNull();
+    expect(getSendBlockReaction('a@b.com', '', '', [], 'chat')).toBe('mail:noBody');
   });
 });
 

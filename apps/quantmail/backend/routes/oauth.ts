@@ -30,6 +30,25 @@ function endpoint(path: string): string {
 
 const ACCESS_TOKEN_TTL_SECONDS = 900;
 
+/**
+ * Prisma P2002 on the OAuthClient.clientId unique column, duck-typed on
+ * `code` (same style as routes/auth.ts) so it works without importing the
+ * generated client. clientId is the only caller-supplied @unique field on
+ * OAuthClient (schema.prisma: `clientId String @unique`; `id` is a
+ * server-generated cuid), so a P2002 with no target metadata still means
+ * this collision — but a P2002 naming another target is NOT treated as
+ * one, so a future schema change cannot turn an unrelated constraint
+ * failure into a silent retry loop.
+ */
+function isClientIdCollision(error: unknown): boolean {
+  const err = error as { code?: string; meta?: { target?: unknown } } | null;
+  if (err?.code !== 'P2002') return false;
+  const target = err.meta?.target;
+  if (target == null) return true;
+  const targets = Array.isArray(target) ? target : [target];
+  return targets.includes('clientId');
+}
+
 export async function oauthRoutes(fastify: FastifyInstance) {
   // The issuer/audience MUST match the global auth hook's verifier
   // (@quant/server-core reads JWT_ISSUER / JWT_AUDIENCE from env), otherwise
@@ -717,28 +736,55 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'invalid_request' });
     }
 
-    const clientId = generateId('client_');
     const clientSecret = is_confidential ? generateId('secret_') : null;
     const clientSecretHash = clientSecret
       ? createHash('sha256').update(clientSecret).digest('hex')
       : null;
 
-    const client = await prisma.oAuthClient.create({
-      data: {
-        clientId,
-        clientSecretHash,
-        name,
-        redirectUris: redirect_uris,
-        allowedScopes: scopes || ['openid', 'profile', 'email'],
-        isConfidential: is_confidential ?? true,
-        isFirstParty: false,
-      },
-    });
+    // clientId carries 128 bits of entropy, so a collision is vanishingly
+    // unlikely — but it is still a @unique column, and a one-shot create
+    // used to let Prisma's P2002 escape as a raw 500. Retry with a fresh
+    // clientId on a clientId-targeted P2002 (bounded attempts); the
+    // secret is minted once and only ever returned on the success path,
+    // so a failed attempt never leaks a credential. Non-P2002 failures
+    // propagate untouched, and exhausting the attempts answers an honest
+    // OAuth2 `temporarily_unavailable` instead of a 500.
+    const MAX_CLIENT_ID_ATTEMPTS = 5;
+    for (let attempt = 1; attempt <= MAX_CLIENT_ID_ATTEMPTS; attempt++) {
+      try {
+        const client = await prisma.oAuthClient.create({
+          data: {
+            clientId: generateId('client_'),
+            clientSecretHash,
+            name,
+            redirectUris: redirect_uris,
+            allowedScopes: scopes || ['openid', 'profile', 'email'],
+            isConfidential: is_confidential ?? true,
+            isFirstParty: false,
+          },
+        });
 
-    return reply.send({
-      client_id: client.clientId,
-      client_secret: clientSecret,
-      name: client.name,
+        return reply.send({
+          client_id: client.clientId,
+          client_secret: clientSecret,
+          name: client.name,
+        });
+      } catch (error) {
+        if (!isClientIdCollision(error)) throw error;
+        if (attempt === MAX_CLIENT_ID_ATTEMPTS) {
+          return reply.code(503).send({
+            error: 'temporarily_unavailable',
+            error_description: 'Could not allocate a unique client identifier, please retry',
+          });
+        }
+        // Otherwise: loop with a freshly generated clientId.
+      }
+    }
+
+    // Unreachable: the loop always returns, answers 503, or throws.
+    return reply.code(503).send({
+      error: 'temporarily_unavailable',
+      error_description: 'Could not allocate a unique client identifier, please retry',
     });
   });
 

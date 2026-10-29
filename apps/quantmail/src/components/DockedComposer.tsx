@@ -972,10 +972,14 @@ export function DockedComposer({
       showToast({ text: invalidRecipientReason, type: 'error' });
       return;
     }
-    if (!subject.trim()) {
-      // Gmail-style: a subject is optional, but sending without one must be
-      // an explicit choice — never a silent send. The user confirms, or the
-      // send is abandoned and the draft stays exactly where it was.
+    // Chat-kind exception: a chat thread's subject is auto-supplied at send
+    // time below (`Chat with <recipients>`), so there is no "without a
+    // subject" to confirm — asking would state something false and add a
+    // tap the chat model does not need. Mail kind keeps the Gmail-style
+    // confirm: a subject is optional, but sending without one must be an
+    // explicit choice — never a silent send. The user confirms, or the
+    // send is abandoned and the draft stays exactly where it was.
+    if (initialMessageKind !== 'chat' && !subject.trim()) {
       const sendAnyway = await confirm({
         title: 'Send without a subject?',
         message:
