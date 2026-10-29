@@ -40,6 +40,7 @@ import {
   type SelectableCategory,
 } from '../lib/category-filter';
 import { CategoryPicker } from '../components/CategoryPicker';
+import { deriveFilterChip } from '../lib/filter-chip';
 import { AppSidebar } from '../components/AppSidebar';
 import { EmailSnooze } from '../components/EmailSnooze';
 import { AnchoredMenu } from '../components/AnchoredMenu';
@@ -2864,6 +2865,21 @@ function InboxPageContent() {
   /** U3.4: the category pills, derived by the pure helper (canonical order). */
   const categoryPills = useMemo(() => deriveCategoryPills(activeCategories), [activeCategories]);
 
+  /**
+   * U3.2: the single active chip beside the Filter trigger. Derived
+   * solely from `activeTurn` + `activeFilters` (see `filter-chip.ts`):
+   * it holds no state, filters nothing, and is `null` — unrendered —
+   * at zero narrowings. Search `q` and the active lens are not inputs,
+   * so the chip never counts a search and persists across lens changes
+   * (lens switches clear `q` only, not turn/filters). Activating it
+   * only opens the existing Filter popover below; the footer's
+   * "Clear N narrowing(s)" remains the sole clear path.
+   */
+  const filterChip = useMemo(
+    () => deriveFilterChip(activeTurn, activeFilters, narrowingCount),
+    [activeTurn, activeFilters, narrowingCount],
+  );
+
   /** What the archived shelf calls the population it is counting. */
   const viewLabel = useMemo(() => {
     const turnPart =
@@ -3986,7 +4002,37 @@ function InboxPageContent() {
                 })}
               </div>
             )}
-            <div className="relative shrink-0" ref={filterMenuRef}>
+            <div className="relative shrink-0 flex items-center gap-1.5" ref={filterMenuRef}>
+              {/*
+                U3.2: one active chip beside the Filter trigger, rendered
+                only while a narrowing is on. It is a second disclosure
+                for the SAME popover, not a second trigger: it sets the
+                same `isFilterMenuOpen` state, points at the same panel
+                id, and is dismissed by the same outside-click/Escape
+                effect (Escape returns focus to the Filter trigger, as
+                before). It clears nothing and filters nothing.
+                390px: the label truncates with an ellipsis inside a
+                capped chip (full label in `title` + aria-label) so the
+                chip cannot push the trigger or the U3.1 folder row off
+                the strip; the count badge never truncates.
+              */}
+              {filterChip && (
+                <button
+                  type="button"
+                  onClick={() => setIsFilterMenuOpen(true)}
+                  aria-expanded={isFilterMenuOpen}
+                  aria-controls={isFilterMenuOpen ? filterPanelId : undefined}
+                  aria-label={`Show active filters: ${filterChip.label}, ${filterChip.count} narrowing${filterChip.count === 1 ? '' : 's'}`}
+                  title={filterChip.label}
+                  className="inline-flex items-center gap-1.5 px-2.5 min-h-[34px] max-w-[160px] sm:max-w-none rounded-full text-xs font-semibold whitespace-nowrap bg-[var(--quant-primary)]/12 text-[var(--quant-primary)] border border-[var(--quant-primary)]/35 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                >
+                  <IconFilter size={13} className="shrink-0" />
+                  <span className="truncate">{filterChip.label}</span>
+                  <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded-full font-semibold leading-tight bg-[var(--quant-primary)]/20 text-[var(--quant-primary-hover)]">
+                    {filterChip.count}
+                  </span>
+                </button>
+              )}
               <button
                 type="button"
                 ref={filterTriggerRef}
