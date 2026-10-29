@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Skeleton, ErrorState, EmptyState } from '@quant/shared-ui';
@@ -21,6 +21,17 @@ import {
   windowSearchHistoryStorage,
 } from '../../lib/searchHistory';
 import { UniversalSearchResults } from './UniversalSearchResults';
+import {
+  SEARCH_COUNT_BANNER,
+  describeSearchCountLabel,
+  describeSearchEmpty,
+  deriveSearchSuggestions,
+} from '../../lib/search-results-label';
+import {
+  clearSearchFrequency,
+  getSearchFrequency,
+  saveSearchFrequency,
+} from '../../lib/searchFrequency';
 import { listContainerVariants, listItemVariants } from '../../lib/motion-variants';
 import type { Email, SearchEmailRequest } from '../../types';
 
@@ -127,7 +138,17 @@ export default function SearchPage() {
   const [editingFilter, setEditingFilter] = useState<SearchFilter['type'] | null>(null);
   const [filterInput, setFilterInput] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [searchFrequency, setSearchFrequency] = useState<Record<string, number>>({});
   const [hasSearched, setHasSearched] = useState(false);
+  // Frequent suggestions are real counts, not a re-sort of the recent
+  // list: lib/searchFrequency records every run in its own account-scoped
+  // store, and deriveSearchSuggestions only promotes a query run twice
+  // or more. A query run once stays recent, never frequent.
+  const suggestions = useMemo(
+    () => deriveSearchSuggestions({ recent: recentSearches, frequency: searchFrequency }),
+    [recentSearches, searchFrequency],
+  );
+  const frequentSuggestions = suggestions.filter((s) => s.kind === 'frequent');
   // The backend-verified immutable user id is the namespace segment; an
   // unknown/empty account means no recent-search persistence at all.
   const accountKey = searchHistoryAccountKey(user?.id);
@@ -138,6 +159,7 @@ export default function SearchPage() {
     // per page load under an authenticated session — never migrated.
     ensureSearchHistoryNamespaceV2(store);
     setRecentSearches(getRecentSearches(store, accountKey));
+    setSearchFrequency(getSearchFrequency(store, accountKey));
   }, [accountKey]);
 
   const searchParams: Partial<SearchEmailRequest> | null =
@@ -178,7 +200,9 @@ export default function SearchPage() {
       setHasSearched(true);
       const store = windowSearchHistoryStorage();
       saveRecentSearch(store, accountKey, trimmed);
+      saveSearchFrequency(store, accountKey, trimmed);
       setRecentSearches(getRecentSearches(store, accountKey));
+      setSearchFrequency(getSearchFrequency(store, accountKey));
       // BB-P1-10: the page seeds from ?q= on mount but never wrote it back,
       // so the URL went stale (back button / copy-link / refresh lost the
       // query). Keep it in sync; replace (not push) so typing one search
@@ -303,8 +327,14 @@ export default function SearchPage() {
   }, [router]);
 
   const clearRecent = useCallback(() => {
-    clearRecentSearches(windowSearchHistoryStorage(), accountKey);
+    // "Clear" clears the page's whole history view: recent and frequent
+    // together. Clearing recent alone would leave the counts behind and
+    // resurrect "frequent" rows the user just cleared.
+    const store = windowSearchHistoryStorage();
+    clearRecentSearches(store, accountKey);
+    clearSearchFrequency(store, accountKey);
     setRecentSearches([]);
+    setSearchFrequency({});
   }, [accountKey]);
 
   const handleEmailClick = useCallback(
@@ -520,9 +550,40 @@ export default function SearchPage() {
         )}
 
         <div className="flex-1 overflow-y-auto">
-          {/* Zero state: recent + quick starts */}
+          {/* Zero state: frequent + recent + quick starts */}
           {!hasSearched && (
             <div className="space-y-6 p-4 sm:p-6">
+              {frequentSuggestions.length > 0 && (
+                <div>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--quant-muted-foreground)]">
+                    Frequent
+                  </h3>
+                  <div className="overflow-hidden rounded-xl border border-[var(--quant-border)]">
+                    {frequentSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.query}
+                        type="button"
+                        onClick={() => runSearchString(suggestion.query)}
+                        className="group flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors hover:bg-white/5"
+                      >
+                        <Icon
+                          name="search"
+                          className="h-4 w-4 shrink-0 text-[var(--quant-muted-foreground)]"
+                        />
+                        <span className="min-w-0 flex-1 truncate">{suggestion.query}</span>
+                        <Icon
+                          name="arrow"
+                          className="h-3.5 w-3.5 shrink-0 text-[var(--quant-muted-foreground)] opacity-0 transition-opacity group-hover:opacity-100"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 px-1 text-[11px] text-[var(--quant-muted-foreground)]">
+                    Searches you have run more than once on this device.
+                  </p>
+                </div>
+              )}
+
               {recentSearches.length > 0 && (
                 <div>
                   <div className="mb-2 flex items-center justify-between">
@@ -607,6 +668,7 @@ export default function SearchPage() {
               results={universalResults}
               scope={scope}
               onOpenMail={handleEmailClick}
+              onReset={handleResetSearch}
             />
           )}
 
@@ -654,7 +716,11 @@ export default function SearchPage() {
           {scope === 'mail' && hasSearched && !isLoading && !error && (!results || results.length === 0) && (
             <EmptyState
               title="No results"
-              description={`Nothing matched “${query}”. Try a broader phrase, remove filters, or search by sender or subject.`}
+              description={describeSearchEmpty({
+                query,
+                scope: 'mail',
+                filterLabels: activeFilters.map((f) => f.label),
+              })}
               actionLabel="Reset search"
               onAction={handleResetSearch}
             />
@@ -668,9 +734,19 @@ export default function SearchPage() {
               animate="visible"
               className="p-4"
             >
-              <p className="mb-2 px-1 text-xs text-[var(--quant-muted-foreground)]">
-                {visibleResults.length}{' '}{mailSearchOffline ? 'offline ' : ''}result{visibleResults.length !== 1 ? 's' : ''}{' '}for “{query}”
-              </p>
+              <div className="mb-2 px-1" role="status">
+                <p className="text-xs text-[var(--quant-muted-foreground)]">
+                  {describeSearchCountLabel({
+                    query,
+                    scope: 'mail',
+                    total: visibleResults.length,
+                  })}
+                  {mailSearchOffline && ' — offline results only; the server search is unavailable.'}
+                </p>
+                <p className="mt-0.5 text-[11px] text-[var(--quant-muted-foreground)]">
+                  {SEARCH_COUNT_BANNER}
+                </p>
+              </div>
               <div className="overflow-hidden rounded-xl border border-[var(--quant-border)]">
                 {visibleResults.map((email) => {
                   const senderLabel = email.from?.name || email.from?.email || '?';
