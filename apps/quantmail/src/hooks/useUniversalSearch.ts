@@ -52,19 +52,31 @@ function errorOf(error: unknown): string | null {
   return error instanceof Error ? error.message : 'Search failed.';
 }
 
-export function useUniversalSearch(query: string | null): {
+export function useUniversalSearch(
+  query: string | null,
+  scope: UniversalSearchScope = 'all',
+): {
   data: UniversalSearchResults | undefined;
   isLoading: boolean;
   isFetching: boolean;
 } {
   const trimmed = query?.trim() ?? '';
   const enabled = trimmed.length > 0;
+  // Scope gating (qm-search-scope-queries): a source's query runs ONLY when
+  // the caller renders that source. Previously every scope fired all four
+  // sources in parallel and the renderer threw three of them away — picking
+  // "People" still sent authenticated requests to the mail, calendar, and
+  // drive backends on every keystroke batch. scope='all' runs all four.
+  // Query keys deliberately omit scope: switching scopes reuses the shared
+  // cache instead of refetching a source that was just fetched.
+  const sourceEnabled = (source: UniversalSearchScope): boolean =>
+    enabled && (scope === 'all' || scope === source);
 
   const [mail, people, calendar, drive] = useQueries({
     queries: [
       {
         queryKey: ['universal-search', 'mail', trimmed],
-        enabled,
+        enabled: sourceEnabled('mail'),
         queryFn: async (): Promise<Email[]> => {
           const response = await apiClient.searchEmails({ query: trimmed } as never);
           if (!response.success)
@@ -81,7 +93,7 @@ export function useUniversalSearch(query: string | null): {
       },
       {
         queryKey: ['universal-search', 'people', trimmed],
-        enabled,
+        enabled: sourceEnabled('people'),
         queryFn: async (): Promise<Contact[]> => {
           const response = await apiClient.searchContacts(trimmed);
           if (!response.success)
@@ -91,7 +103,7 @@ export function useUniversalSearch(query: string | null): {
       },
       {
         queryKey: ['universal-search', 'calendar', trimmed],
-        enabled,
+        enabled: sourceEnabled('calendar'),
         queryFn: async (): Promise<CalendarEvent[]> => {
           const response = await apiClient.searchCalendarEvents(trimmed, PER_SOURCE_LIMIT);
           if (!response.success)
@@ -101,7 +113,7 @@ export function useUniversalSearch(query: string | null): {
       },
       {
         queryKey: ['universal-search', 'drive', trimmed],
-        enabled,
+        enabled: sourceEnabled('drive'),
         queryFn: async (): Promise<{ files: DriveFileHit[]; documents: DriveDocumentHit[] }> => {
           const response = await apiClient.searchAll(trimmed, PER_SOURCE_LIMIT);
           if (!response.success)

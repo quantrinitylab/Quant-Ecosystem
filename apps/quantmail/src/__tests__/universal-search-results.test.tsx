@@ -88,6 +88,30 @@ describe('UniversalSearchResults', () => {
     expect(html).toContain('mail, people, calendar, or drive');
   });
 
+  it('names only the searched source in copy on a single-source scope', () => {
+    // qm-search-scope-queries, adapted to main: empty/count copy on main is
+    // produced by describeSearchEmpty/describeSearchCountLabel, which name
+    // the scope ('in people' / 'across people'), not the old inline strings
+    // ('Nothing across people matched'). Intent is identical: a narrowed
+    // scope must not claim all four sources.
+    const html = renderToStaticMarkup(
+      <UniversalSearchResults results={results()} scope="people" onOpenMail={noop} />,
+    );
+    expect(html).toContain('in people');
+    expect(html).not.toContain('mail, people, calendar, or drive');
+    const withHit = renderToStaticMarkup(
+      <UniversalSearchResults
+        results={results({
+          people: { items: [{ id: 'p1', name: 'Ada', email: 'ada@x.co' } as never], error: null },
+        })}
+        scope="people"
+        onOpenMail={noop}
+      />,
+    );
+    expect(withHit).toContain('across people.');
+    expect(withHit).not.toContain('across mail, people, calendar, drive');
+  });
+
   it('never claims QuantGit coverage', () => {
     const html = renderToStaticMarkup(
       <UniversalSearchResults results={results()} scope="all" onOpenMail={noop} />,
