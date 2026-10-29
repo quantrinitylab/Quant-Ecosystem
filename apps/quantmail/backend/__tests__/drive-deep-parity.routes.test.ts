@@ -39,6 +39,10 @@ interface UserRow {
   id: string;
   email: string;
   displayName: string | null;
+  // Optional in the fake because older fixtures predate account lifecycle
+  // fields; the share-recipient lookup filters on these when present.
+  status?: string;
+  deletedAt?: Date | null;
 }
 
 interface FileRow {
@@ -453,8 +457,8 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
 
   beforeEach(async () => {
     users = [
-      { id: 'user_alice', email: 'alice@quantmail.in', displayName: 'Alice' },
-      { id: 'user_bob', email: 'bob@quantmail.in', displayName: 'Bob' },
+      { id: 'user_alice', email: 'alice@quantmail.in', displayName: 'Alice', status: 'ACTIVE', deletedAt: null },
+      { id: 'user_bob', email: 'bob@quantmail.in', displayName: 'Bob', status: 'ACTIVE', deletedAt: null },
     ];
     files = [
       {

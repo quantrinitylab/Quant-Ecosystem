@@ -15,6 +15,7 @@ const service = new TemplateService();
 
 const listSchema = z.object({
   category: z.enum(['social', 'youtube', 'marketing', 'story', 'post']).optional(),
+  search: z.string().max(200).optional(),
 });
 
 const applySchema = z.object({ name: z.string().max(200).optional() });
@@ -25,7 +26,7 @@ export default async function templatesRoutes(fastify: FastifyInstance) {
     if (!parsed.success) throw parsed.error;
     return reply.send({
       success: true,
-      data: { templates: service.listTemplates(parsed.data.category) },
+      data: { templates: service.listTemplates(parsed.data.category, parsed.data.search) },
     });
   });
 

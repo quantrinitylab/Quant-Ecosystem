@@ -1639,7 +1639,7 @@ export function DockedComposer({
               type="button"
               onClick={() => setShowAssistMenu(!showAssistMenu)}
               disabled={isInsertingTemplate}
-              className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl min-h-[44px] min-w-[44px] border border-[#8B5CF6]/40 bg-[#3B0764]/20 text-[#8B5CF6] hover:bg-[#3B0764]/40 hover:border-[#8B5CF6] transition-all text-xs font-semibold"
+              className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl min-h-[44px] min-w-[44px] border border-[var(--quant-primary)]/40 bg-[var(--quant-primary)]/10 text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 hover:border-[var(--quant-primary)] transition-all text-xs font-semibold"
               title="Writing assistant — local templates, no AI"
             >
               <IconSparkle className="size-3.5 animate-pulse" />
@@ -1648,37 +1648,37 @@ export function DockedComposer({
 
             {/* Writing-assistant menu */}
             {showAssistMenu && (
-              <div className="absolute left-0 bottom-full mb-2 w-56 rounded-2xl border border-[#3B0764] bg-[#130E20] shadow-2xl p-1.5 z-50 space-y-1">
+              <div className="absolute left-0 bottom-full mb-2 w-56 rounded-2xl border border-[var(--quant-primary)]/40 bg-black shadow-2xl p-1.5 z-50 space-y-1">
                 <button
                   type="button"
                   onClick={() => handleWritingAssist('draft')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl min-h-[44px] hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl min-h-[44px] hover:bg-[var(--quant-primary)]/20 text-left text-xs text-white transition-colors"
                 >
-                  <IconSparkle className="size-3.5 text-[#8B5CF6]" />
+                  <IconSparkle className="size-3.5 text-[var(--quant-primary)]" />
                   <span>Draft Full Email</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleWritingAssist('formal')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl min-h-[44px] hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl min-h-[44px] hover:bg-[var(--quant-primary)]/20 text-left text-xs text-white transition-colors"
                 >
-                  <IconFormat className="size-3.5 text-[#8B5CF6]" />
+                  <IconFormat className="size-3.5 text-[var(--quant-primary)]" />
                   <span>Make More Formal</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleWritingAssist('concise')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl min-h-[44px] hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl min-h-[44px] hover:bg-[var(--quant-primary)]/20 text-left text-xs text-white transition-colors"
                 >
-                  <IconMinus className="size-3.5 text-[#8B5CF6]" />
+                  <IconMinus className="size-3.5 text-[var(--quant-primary)]" />
                   <span>Make Concise &amp; Punchy</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleWritingAssist('followup')}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl min-h-[44px] hover:bg-[#3B0764]/40 text-left text-xs text-white transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl min-h-[44px] hover:bg-[var(--quant-primary)]/20 text-left text-xs text-white transition-colors"
                 >
-                  <IconSend className="size-3.5 text-[#8B5CF6]" />
+                  <IconSend className="size-3.5 text-[var(--quant-primary)]" />
                   <span>Polite Follow-Up</span>
                 </button>
               </div>

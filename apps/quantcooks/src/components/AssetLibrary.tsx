@@ -1,11 +1,21 @@
 // ============================================================================
 // QuantEdits - Asset Library Panel
 // Tabbed panel: Media, Music, Templates, Stickers, Effects, Transitions
+//
+// P0-3: the Media/Music tabs render the caller's REAL assets via useAssets
+// (this panel previously rendered a hard-coded MOCK_ASSETS table). The
+// Templates/Stickers/Effects/Transitions tabs are catalogue surfaces owned
+// by other units — until those land they show an honest empty state, never
+// mock rows. P0-5: mounted in the editor as the collapsible asset panel
+// (the assets page's same-named component was renamed AssetsPageLibrary,
+// so this shared panel is the only `AssetLibrary` in the app).
 // ============================================================================
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { spring } from '@quant/brand';
+import { useAssets } from '../hooks/useAssets';
+import type { ServerAsset } from '../services/api-client';
 
 type AssetTab = 'media' | 'music' | 'templates' | 'stickers' | 'effects' | 'transitions';
 
@@ -21,6 +31,18 @@ interface AssetItem {
 interface AssetLibraryProps {
   onAssetSelect?: (asset: AssetItem) => void;
   onAssetAdd?: (asset: AssetItem) => void;
+  /** When given, the panel shows only this project's assets. */
+  projectId?: string;
+}
+
+function toAssetItem(asset: ServerAsset): AssetItem {
+  return {
+    id: asset.id,
+    name: asset.filename,
+    thumbnailUrl: asset.url ?? '',
+    size: asset.size,
+    type: asset.type,
+  };
 }
 
 const TABS: { id: AssetTab; label: string; icon: string }[] = [
@@ -32,159 +54,23 @@ const TABS: { id: AssetTab; label: string; icon: string }[] = [
   { id: 'transitions', label: 'Transitions', icon: '\u{1F504}' },
 ];
 
-const MOCK_ASSETS: Record<AssetTab, AssetItem[]> = {
-  media: [
-    {
-      id: 'media-1',
-      name: 'Sunset Clip',
-      thumbnailUrl: '/assets/thumb-sunset.jpg',
-      duration: 12,
-      size: 45000000,
-      type: 'video',
-    },
-    {
-      id: 'media-2',
-      name: 'City Timelapse',
-      thumbnailUrl: '/assets/thumb-city.jpg',
-      duration: 8,
-      size: 32000000,
-      type: 'video',
-    },
-    {
-      id: 'media-3',
-      name: 'Portrait Shot',
-      thumbnailUrl: '/assets/thumb-portrait.jpg',
-      size: 4500000,
-      type: 'image',
-    },
-    {
-      id: 'media-4',
-      name: 'Nature B-roll',
-      thumbnailUrl: '/assets/thumb-nature.jpg',
-      duration: 15,
-      size: 58000000,
-      type: 'video',
-    },
-    {
-      id: 'media-5',
-      name: 'Product Close-up',
-      thumbnailUrl: '/assets/thumb-product.jpg',
-      size: 3200000,
-      type: 'image',
-    },
-    {
-      id: 'media-6',
-      name: 'Drone Footage',
-      thumbnailUrl: '/assets/thumb-drone.jpg',
-      duration: 22,
-      size: 95000000,
-      type: 'video',
-    },
-  ],
-  music: [
-    {
-      id: 'music-1',
-      name: 'Chill Beats',
-      thumbnailUrl: '/assets/thumb-chill.jpg',
-      duration: 180,
-      type: 'audio',
-    },
-    {
-      id: 'music-2',
-      name: 'Upbeat Pop',
-      thumbnailUrl: '/assets/thumb-pop.jpg',
-      duration: 210,
-      type: 'audio',
-    },
-    {
-      id: 'music-3',
-      name: 'Ambient Piano',
-      thumbnailUrl: '/assets/thumb-piano.jpg',
-      duration: 240,
-      type: 'audio',
-    },
-    {
-      id: 'music-4',
-      name: 'Electronic Drop',
-      thumbnailUrl: '/assets/thumb-edm.jpg',
-      duration: 195,
-      type: 'audio',
-    },
-  ],
-  templates: [
-    {
-      id: 'tmpl-1',
-      name: 'Vlog Intro',
-      thumbnailUrl: '/assets/thumb-vlog.jpg',
-      duration: 5,
-      type: 'template',
-    },
-    {
-      id: 'tmpl-2',
-      name: 'Product Showcase',
-      thumbnailUrl: '/assets/thumb-showcase.jpg',
-      duration: 30,
-      type: 'template',
-    },
-    {
-      id: 'tmpl-3',
-      name: 'Travel Montage',
-      thumbnailUrl: '/assets/thumb-travel.jpg',
-      duration: 60,
-      type: 'template',
-    },
-  ],
-  stickers: [
-    { id: 'stk-1', name: 'Fire', thumbnailUrl: '/assets/sticker-fire.png', type: 'sticker' },
-    { id: 'stk-2', name: 'Heart Eyes', thumbnailUrl: '/assets/sticker-heart.png', type: 'sticker' },
-    { id: 'stk-3', name: 'Subscribe', thumbnailUrl: '/assets/sticker-sub.png', type: 'sticker' },
-    { id: 'stk-4', name: 'Arrow', thumbnailUrl: '/assets/sticker-arrow.png', type: 'sticker' },
-    { id: 'stk-5', name: 'Star Burst', thumbnailUrl: '/assets/sticker-star.png', type: 'sticker' },
-  ],
-  effects: [
-    { id: 'fx-1', name: 'Glitch', thumbnailUrl: '/assets/fx-glitch.jpg', type: 'effect' },
-    { id: 'fx-2', name: 'VHS', thumbnailUrl: '/assets/fx-vhs.jpg', type: 'effect' },
-    { id: 'fx-3', name: 'Blur Out', thumbnailUrl: '/assets/fx-blur.jpg', type: 'effect' },
-    { id: 'fx-4', name: 'Color Grade', thumbnailUrl: '/assets/fx-color.jpg', type: 'effect' },
-  ],
-  transitions: [
-    {
-      id: 'tr-1',
-      name: 'Cross Dissolve',
-      thumbnailUrl: '/assets/tr-dissolve.jpg',
-      duration: 1,
-      type: 'transition',
-    },
-    {
-      id: 'tr-2',
-      name: 'Slide Left',
-      thumbnailUrl: '/assets/tr-slide.jpg',
-      duration: 0.5,
-      type: 'transition',
-    },
-    {
-      id: 'tr-3',
-      name: 'Zoom In',
-      thumbnailUrl: '/assets/tr-zoom.jpg',
-      duration: 0.75,
-      type: 'transition',
-    },
-    {
-      id: 'tr-4',
-      name: 'Wipe',
-      thumbnailUrl: '/assets/tr-wipe.jpg',
-      duration: 1,
-      type: 'transition',
-    },
-  ],
-};
-
-const AssetLibrary: React.FC<AssetLibraryProps> = ({ onAssetSelect, onAssetAdd }) => {
+const AssetLibrary: React.FC<AssetLibraryProps> = ({ onAssetSelect, onAssetAdd, projectId }) => {
   const [activeTab, setActiveTab] = useState<AssetTab>('media');
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredAsset, setHoveredAsset] = useState<string | null>(null);
 
-  const assets = MOCK_ASSETS[activeTab] || [];
+  // Real data (P0-3): the caller's assets from GET /assets. The backend
+  // `category` filter matches asset `type` verbatim, so tab bucketing
+  // (media = video+image, music = audio) happens here, client-side.
+  const { data: serverAssets } = useAssets(undefined, undefined, projectId);
+
+  const assets = useMemo<AssetItem[]>(() => {
+    const all = (serverAssets ?? []).map(toAssetItem);
+    if (activeTab === 'media') return all.filter((a) => a.type === 'video' || a.type === 'image');
+    if (activeTab === 'music') return all.filter((a) => a.type === 'audio');
+    return []; // catalogue tabs: honest empty state until their units land
+  }, [serverAssets, activeTab]);
+
   const filteredAssets = searchQuery
     ? assets.filter((a) => a.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : assets;
@@ -253,7 +139,17 @@ const AssetLibrary: React.FC<AssetLibraryProps> = ({ onAssetSelect, onAssetAdd }
               aria-label={`Select ${asset.name}`}
             >
               <div className="asset-thumbnail">
-                <img src={asset.thumbnailUrl} alt={asset.name} loading="lazy" />
+                {asset.thumbnailUrl && asset.type === 'video' ? (
+                  <video src={asset.thumbnailUrl} preload="metadata" muted aria-label={asset.name} />
+                ) : asset.thumbnailUrl ? (
+                  <img src={asset.thumbnailUrl} alt={asset.name} loading="lazy" />
+                ) : (
+                  // PENDING upload or storage unconfigured: no URL exists —
+                  // show a neutral tile, never a placeholder image URL.
+                  <div className="asset-thumb-missing" aria-hidden="true">
+                    {asset.type === 'audio' ? '\u{1F3B5}' : asset.type === 'video' ? '\u{1F3AC}' : '\u{1F5BC}'}
+                  </div>
+                )}
                 {hoveredAsset === asset.id && (
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -285,7 +181,7 @@ const AssetLibrary: React.FC<AssetLibraryProps> = ({ onAssetSelect, onAssetAdd }
         </AnimatePresence>
         {filteredAssets.length === 0 && (
           <div className="asset-empty">
-            <p>No {activeTab} found</p>
+            <p>No items yet</p>
           </div>
         )}
       </div>

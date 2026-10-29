@@ -7,6 +7,7 @@
 import { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../providers/auth-provider';
+import { BrandMark } from '../components/BrandMark';
 
 /** Only allow same-origin, absolute-path returns so ?returnTo can't open-redirect. */
 function safeReturnPath(raw: string | string[] | undefined): string | null {
@@ -61,63 +62,51 @@ export default function LoginPage() {
     }
   }
 
+  // Design upgrade Phase A (D-2): the markup below is a pure restyle —
+  // the dark auth canvas + panel, the Spring Q lockup, one accent action
+  // hierarchy (SSO primary, password submit secondary). Every handler,
+  // id, label, role and copy string is the one this page always had;
+  // the only content change is the lightning-bolt glyph that prefixed
+  // the SSO label, replaced by the brand mark (a glyph swap, listed in
+  // the build report).
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-[var(--quant-background)] px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand-primary)] text-lg font-bold text-white">
-            Q
-          </div>
-          <h1 className="text-2xl font-semibold tracking-[-0.02em] text-[var(--quant-foreground)]">
-            Sign in to QuantCooks
-          </h1>
-          <p className="mt-2 text-sm text-[var(--quant-muted-foreground)]">
-            Use your QuantID — one account for the whole ecosystem.
-          </p>
+    <div className="auth-canvas">
+      <div className="auth-panel">
+        <div className="auth-lockup">
+          <BrandMark size={44} variant="accent" />
+          <span className="auth-wordmark">QuantCooks</span>
         </div>
+        <h1 className="auth-title">Sign in to QuantCooks</h1>
+        <p className="auth-sub">Use your QuantID — one account for the whole ecosystem.</p>
 
-        <div className="mb-6">
-          <a
-            href={`https://quantmail.in/sso?returnTo=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}${destination()}` : 'https://quantcooks.quantrinity.in/')}`}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-          >
-            ⚡ Continue with Quant Account
-          </a>
-        </div>
+        <a
+          href={`https://quantmail.in/sso?returnTo=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}${destination()}` : 'https://quantcooks.quantrinity.in/')}`}
+          className="auth-sso"
+        >
+          <BrandMark size={18} variant="mono" />
+          Continue with Quant Account
+        </a>
 
-        <div className="mb-6 flex items-center justify-center gap-4">
-          <div className="h-px flex-1 bg-[var(--quant-border)]"></div>
-          <span className="text-[11px] font-semibold tracking-wider text-[var(--quant-muted-foreground)]">
-            OR WITH QUANT ID / EMAIL
-          </span>
-          <div className="h-px flex-1 bg-[var(--quant-border)]"></div>
+        <div className="auth-divider">
+          <span>OR WITH QUANT ID / EMAIL</span>
         </div>
 
         {ssoError ? (
-          <div
-            role="alert"
-            className="mb-5 rounded-xl border border-[var(--quant-destructive)]/30 bg-[var(--quant-destructive)]/10 px-4 py-3 text-sm text-[var(--quant-destructive)]"
-          >
+          <div role="alert" className="auth-alert">
             {ssoError}
           </div>
         ) : null}
 
         {twoFactorNotice ? (
-          <div
-            role="status"
-            className="mb-5 rounded-xl border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/10 px-4 py-3 text-sm text-[var(--quant-foreground)]"
-          >
+          <div role="status" className="auth-note">
             This account uses two-factor authentication. Finish signing in on QuantMail, then reopen
             QuantCooks — your session carries over.
           </div>
         ) : null}
 
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          <div>
-            <label
-              htmlFor="login-email"
-              className="mb-1.5 block text-[13px] font-medium text-[var(--quant-foreground)]"
-            >
+        <form onSubmit={handleSubmit} noValidate className="auth-form">
+          <div className="auth-field">
+            <label htmlFor="login-email" className="auth-label">
               Email
             </label>
             <input
@@ -130,18 +119,15 @@ export default function LoginPage() {
               placeholder="you@quantmail.in"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-3.5 py-3 text-sm text-[var(--quant-foreground)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--quant-muted-foreground)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20"
+              className="auth-input"
             />
           </div>
 
-          <div>
-            <label
-              htmlFor="login-password"
-              className="mb-1.5 block text-[13px] font-medium text-[var(--quant-foreground)]"
-            >
+          <div className="auth-field">
+            <label htmlFor="login-password" className="auth-label">
               Password
             </label>
-            <div className="flex overflow-hidden rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] transition-[border-color,box-shadow] focus-within:border-[var(--brand-primary)] focus-within:ring-2 focus-within:ring-[var(--brand-primary)]/20">
+            <div className="auth-password">
               <input
                 id="login-password"
                 type={showPassword ? 'text' : 'password'}
@@ -150,14 +136,14 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="min-w-0 flex-1 bg-transparent px-3.5 py-3 text-sm text-[var(--quant-foreground)] outline-none placeholder:text-[var(--quant-muted-foreground)]"
+                className="auth-password-input"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                 aria-pressed={showPassword}
-                className="px-3.5 text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+                className="auth-toggle"
               >
                 {showPassword ? 'Hide' : 'Show'}
               </button>
@@ -165,31 +151,19 @@ export default function LoginPage() {
           </div>
 
           {error ? (
-            <div
-              role="alert"
-              className="rounded-xl border border-[var(--quant-destructive)]/30 bg-[var(--quant-destructive)]/10 px-4 py-3 text-sm text-[var(--quant-destructive)]"
-            >
+            <div role="alert" className="auth-alert">
               {error}
             </div>
           ) : null}
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-sm font-semibold text-white transition-[opacity,transform] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          <button type="submit" disabled={isLoading} className="auth-submit">
             {isLoading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-[var(--quant-muted-foreground)]">
+        <p className="auth-footer">
           New to the ecosystem?{' '}
-          <a
-            href="https://quantmail.in/register"
-            className="font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline"
-          >
-            Create a QuantID
-          </a>
+          <a href="https://quantmail.in/register">Create a QuantID</a>
         </p>
       </div>
     </div>

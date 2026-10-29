@@ -1,12 +1,27 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ProjectService } from '../services/project.service';
 import { ExportService } from '../services/export.service';
+import { createFakeEditProjectPrisma } from './fake-edit-project-prisma';
+import { createFakeEditExportPrisma } from './fake-edit-export-prisma';
+import { createFakeStorage } from './fake-storage';
+
+// P0-1: the ProjectService cases below are the original in-memory suite,
+// ported unchanged (same names, same assertions) to the Prisma-backed
+// service. They run against a stateful fake EditProject delegate — see
+// fake-edit-project-prisma.ts for why, and for what "persistence" means at
+// this level in the extract (no Postgres / DATABASE_URL available here).
+// P0-4: the ExportService block at the bottom is likewise ported — same
+// cases, same assertions — to the Prisma-backed ExportService over the fake
+// EditExportJob delegate + fake storage; its full extended suite lives in
+// export.service.test.ts.
 
 describe('ProjectService', () => {
   let service: ProjectService;
+  let prisma: ReturnType<typeof createFakeEditProjectPrisma>;
 
   beforeEach(() => {
-    service = new ProjectService();
+    prisma = createFakeEditProjectPrisma();
+    service = new ProjectService(prisma as never);
   });
 
   describe('createProject', () => {
@@ -142,13 +157,35 @@ describe('ProjectService', () => {
       );
     });
   });
+
+  describe('persistence across service instances', () => {
+    it('a new service over the same store still sees the project (restart)', async () => {
+      const created = await service.createProject({
+        userId: 'user-1',
+        name: 'Survives Restart',
+        type: 'video',
+      });
+
+      // A fresh service instance has no in-memory state of its own; anything
+      // it returns must have come from the shared store — the property the
+      // old in-memory implementation could never satisfy.
+      const afterRestart = new ProjectService(prisma as never);
+      const found = await afterRestart.getProject(created.id);
+
+      expect(found.id).toBe(created.id);
+      expect(found.name).toBe('Survives Restart');
+    });
+  });
 });
 
 describe('ExportService', () => {
   let service: ExportService;
 
   beforeEach(() => {
-    service = new ExportService();
+    service = new ExportService(
+      createFakeEditExportPrisma() as never,
+      createFakeStorage().port,
+    );
   });
 
   describe('queueExport', () => {

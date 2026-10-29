@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.QUANTEDITS_BACKEND_URL || 'http://localhost:3008';
+const BACKEND_URL = process.env.QUANTEDITS_BACKEND_URL || 'http://localhost:3013';
 
 export async function proxyToBackend(
   request: NextRequest,
@@ -12,11 +12,11 @@ export async function proxyToBackend(
   const authHeader = request.headers.get('Authorization');
   if (authHeader) headers['Authorization'] = authHeader;
   const url = new URL(backendPath, BACKEND_URL);
-  if (method === 'GET') {
-    request.nextUrl.searchParams.forEach((value, key) => {
-      url.searchParams.set(key, value);
-    });
-  }
+  // Forward query params for every method (P0-2: previously GET-only, which
+  // silently dropped params on POST/PUT calls).
+  request.nextUrl.searchParams.forEach((value, key) => {
+    url.searchParams.set(key, value);
+  });
   const fetchOptions: RequestInit = { method, headers };
   if (options?.body) {
     fetchOptions.body = JSON.stringify(options.body);

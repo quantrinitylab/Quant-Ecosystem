@@ -1,52 +1,47 @@
 // ============================================================================
 // QuantEdits - Timeline Video Editor
 // Toolbar, timeline with multi-track, playback controls, properties, preview
+//
+// P0-5 wiring: the page loads the project's editor state from
+// GET /projects/:id/state (useProjectState) and hydrates the workspace
+// from it; every document change is saved back through the version-gated
+// PUT (useEditorSave — debounced, single-flight, honest statuses; "Saved"
+// only after the server acknowledges). The project id comes from the
+// router query (?projectId= / ?id=) or the projectId prop — the old
+// 'default' fallback and the phantom `.tracks` hydration are gone. The
+// timeline document model is canonical in src/types/editor-document.ts.
 // ============================================================================
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
-import { useProjectById } from '../hooks/useProjectById';
+import { useProjectState } from '../hooks/useProjectState';
+import { useAssets } from '../hooks/useAssets';
+import { useEditorSave } from '../hooks/useEditorSave';
+import { readMirror, type MirrorRecord } from '../hooks/editor-save-machine';
 import { PageTransition } from '../components/PageTransition';
 import { SignInRequired } from '../components/SignInRequired';
+import AssetLibraryPanel from '../components/AssetLibrary';
 import { isUnauthorizedError } from '../lib/auth-errors';
+import type { ServerProjectState } from '../services/api-client';
+import {
+  buildClipFromAssetItem,
+  buildEditorDocument,
+  editorDocumentsEqual,
+  hydrateFromProjectState,
+  resolveClipThumbnail,
+  type AspectRatio,
+  type EditorClip,
+  type EditorDocument,
+  type EditorTrack,
+  type FilterSettings,
+} from '../types/editor-document';
 
-interface Clip {
-  id: string;
-  trackId: string;
-  name: string;
-  startTime: number;
-  duration: number;
-  trimStart: number;
-  trimEnd: number;
-  type: 'video' | 'audio' | 'text' | 'effect';
-  thumbnail: string;
-  volume: number;
-  opacity: number;
-  filters: FilterSettings;
-  position: { x: number; y: number };
-  scale: { x: number; y: number };
-  rotation: number;
-}
-
-interface Track {
-  id: string;
-  name: string;
-  type: 'video' | 'audio' | 'text' | 'effects';
-  locked: boolean;
-  visible: boolean;
-  height: number;
-  clips: Clip[];
-}
-
-interface FilterSettings {
-  brightness: number;
-  contrast: number;
-  saturation: number;
-  blur: number;
-  hue: number;
-}
+// The editor's local names, now aliases of the canonical document types.
+type Clip = EditorClip;
+type Track = EditorTrack;
 
 interface HistoryEntry {
   id: string;
@@ -60,40 +55,178 @@ interface EditorProps {
 }
 
 type ToolType = 'select' | 'cut' | 'text' | 'draw' | 'crop';
-type AspectRatio = '16:9' | '9:16' | '1:1' | '4:5' | '4:3';
 
-const TimelineEditor: React.FC<EditorProps> = ({ projectId = 'default' }) => {
-  const { data: projectData, isLoading, error, refetch } = useProjectById(projectId);
+// ---------------------------------------------------------------------------
+// Page shell: resolves the project id and loads its state; the workspace
+// below owns the editing session for one hydrated project.
+// ---------------------------------------------------------------------------
 
-  const [tracks, setTracks] = useState<Track[]>([]);
+const TimelineEditor: React.FC<EditorProps> = ({ projectId: projectIdProp }) => {
+  const router = useRouter();
+  const queryId = (router.query.projectId ?? router.query.id) as string | undefined;
+  const projectId = projectIdProp ?? queryId;
+  const [reloadNonce, setReloadNonce] = useState(0);
+
+  const { data, isLoading, error, refetch } = useProjectState(
+    projectIdProp || router.isReady ? projectId : undefined,
+  );
+
+  const handleReloadRequest = useCallback(async () => {
+    await refetch();
+    setReloadNonce((n) => n + 1);
+  }, [refetch]);
+
+  if (!projectIdProp && !router.isReady) {
+    return <LoadingState variant="skeleton" text="Loading project..." />;
+  }
+  if (!projectId) {
+    return (
+      <div className="editor-no-project">
+        <EmptyState
+          title="Open a project"
+          description="Choose a project from the gallery to start editing"
+        />
+        <a className="open-gallery-link" href="/projects-gallery">
+          Browse projects
+        </a>
+      </div>
+    );
+  }
+  if (isLoading) return <LoadingState variant="skeleton" text="Loading project..." />;
+  if (error) {
+    // Never show the raw backend 401 ("Missing or invalid authorization header"):
+    // an unauthenticated visitor gets the friendly sign-in state instead.
+    if (isUnauthorizedError(error)) return <SignInRequired />;
+    return <ErrorState message={error.message} onRetry={() => void refetch()} />;
+  }
+  if (!data)
+    return <EmptyState title="Project not found" description="Could not load the project data" />;
+
+  return (
+    <EditorWorkspace
+      key={`${projectId}:${reloadNonce}`}
+      projectId={projectId}
+      state={data}
+      onReloadRequest={handleReloadRequest}
+    />
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Workspace: one editing session over one hydrated project state.
+// ---------------------------------------------------------------------------
+
+interface EditorWorkspaceProps {
+  projectId: string;
+  state: ServerProjectState;
+  onReloadRequest: () => void | Promise<void>;
+}
+
+const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
+  projectId,
+  state,
+  onReloadRequest,
+}) => {
+  const hydrated = hydrateFromProjectState(state);
+
+  const [tracks, setTracks] = useState<Track[]>(hydrated.tracks);
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
   const [playhead, setPlayhead] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const [duration, setDuration] = useState(120);
+  const [duration, setDuration] = useState(hydrated.duration);
   const [activeTool, setActiveTool] = useState<ToolType>('select');
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio>('16:9');
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>(hydrated.aspectRatio);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [undoStack, setUndoStack] = useState<HistoryEntry[]>([]);
   const [redoStack, setRedoStack] = useState<HistoryEntry[]>([]);
   const [clipboard, setClipboard] = useState<Clip | null>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [showProperties, setShowProperties] = useState(true);
+  const [showAssets, setShowAssets] = useState(true);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  // Asset selected in the library panel for preview (never mutates the doc).
+  const [previewAsset, setPreviewAsset] = useState<{
+    id: string;
+    name: string;
+    type: string;
+    thumbnailUrl: string;
+  } | null>(null);
+  // A localStorage mirror left by a previous session of THIS browser.
+  const [mirrorBanner, setMirrorBanner] = useState<{
+    record: MirrorRecord;
+    stale: boolean;
+  } | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const record = readMirror(window.localStorage, projectId);
+    if (!record) return null;
+    if (editorDocumentsEqual(record.document, hydrated.document)) return null;
+    return { record, stale: record.baseVersion < state.version };
+  });
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const playbackRef = useRef<number | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
+  // Assets for thumbnail resolution (fresh signed URLs at render, D5-6).
+  const { data: assetsData } = useAssets(undefined, undefined, projectId);
+
+  const save = useEditorSave({
+    projectId,
+    baseVersion: state.version,
+    onReloadRequest,
+  });
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
+  // Dirty derivation by comparison (spec §2.5c): mutators do not funnel
+  // through one function, so dirtiness is derived from the document, and
+  // undoing back to the acknowledged document returns to 'saved' for free.
+  const [lastSavedDoc, setLastSavedDoc] = useState<EditorDocument>(hydrated.document);
   useEffect(() => {
-    if (projectData) {
-      const projectTracks = (projectData as { tracks?: Track[] }).tracks;
-      if (projectTracks && Array.isArray(projectTracks)) {
-        setTracks(projectTracks);
-      }
+    if (save.lastSavedDocument) setLastSavedDoc(save.lastSavedDocument);
+  }, [save.lastSavedDocument]);
+
+  useEffect(() => {
+    const doc = buildEditorDocument(tracks, duration, aspectRatio);
+    if (editorDocumentsEqual(doc, lastSavedDoc)) {
+      saveRef.current.markClean();
+    } else {
+      saveRef.current.markDirty(doc);
     }
-  }, [projectData]);
+  }, [tracks, duration, aspectRatio, lastSavedDoc]);
+
+  // Ctrl/Cmd+S → save now.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        void saveRef.current.saveNow();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const handleRestoreMirror = useCallback(() => {
+    if (!mirrorBanner) return;
+    const doc = mirrorBanner.record.document;
+    setTracks(doc.tracks);
+    setDuration(doc.duration);
+    setAspectRatio(doc.aspectRatio);
+    if (mirrorBanner.stale) {
+      // Stale mirror: becomes the local document only via this click,
+      // re-based onto the server's current version (overwrite semantics).
+      saveRef.current.adoptMirrorAsOverwrite(doc, state.version);
+    }
+    setMirrorBanner(null);
+  }, [mirrorBanner, state.version]);
+
+  const handleDiscardMirror = useCallback(() => {
+    saveRef.current.discardMirror();
+    setMirrorBanner(null);
+  }, []);
 
   const saveToHistory = useCallback(
     (action: string) => {
@@ -230,6 +363,7 @@ const TimelineEditor: React.FC<EditorProps> = ({ projectId = 'default' }) => {
 
   const handleClipSelect = useCallback((clip: Clip) => {
     setSelectedClip(clip);
+    setPreviewAsset(null);
   }, []);
 
   const handleAddTrack = useCallback(
@@ -246,6 +380,42 @@ const TimelineEditor: React.FC<EditorProps> = ({ projectId = 'default' }) => {
       setTracks((prev) => [...prev, newTrack]);
     },
     [tracks],
+  );
+
+  // Library add (spec §2.5d): the clip carries assetId ONLY — the item's
+  // signed thumbnail URL is never written into the document.
+  const handleAssetAdd = useCallback(
+    (item: { id: string; name: string; type: string }) => {
+      saveToHistory('add asset');
+      const targetType: Track['type'] = item.type === 'audio' ? 'audio' : 'video';
+      setTracks((prev) => {
+        let list = prev;
+        let track = list.find((t) => t.type === targetType && !t.locked);
+        if (!track) {
+          track = {
+            id: `track-${targetType}-${Date.now()}`,
+            name: `${targetType.charAt(0).toUpperCase() + targetType.slice(1)} ${list.filter((t) => t.type === targetType).length + 1}`,
+            type: targetType,
+            locked: false,
+            visible: true,
+            height: targetType === 'video' ? 60 : 40,
+            clips: [],
+          };
+          list = [...list, track];
+        }
+        const clip = buildClipFromAssetItem(item, track);
+        return list.map((t) => (t.id === track.id ? { ...t, clips: [...t.clips, clip] } : t));
+      });
+    },
+    [saveToHistory],
+  );
+
+  const handleAssetSelect = useCallback(
+    (item: { id: string; name: string; type: string; thumbnailUrl: string }) => {
+      setPreviewAsset(item);
+      setSelectedClip(null);
+    },
+    [],
   );
 
   const handleToggleTrackLock = useCallback((trackId: string) => {
@@ -299,21 +469,17 @@ const TimelineEditor: React.FC<EditorProps> = ({ projectId = 'default' }) => {
     [selectedClip, saveToHistory],
   );
 
-  if (isLoading) return <LoadingState variant="skeleton" text="Loading project..." />;
-  if (error) {
-    // Never show the raw backend 401 ("Missing or invalid authorization header"):
-    // an unauthenticated visitor gets the friendly sign-in state instead.
-    if (isUnauthorizedError(error)) return <SignInRequired />;
-    return <ErrorState message={error.message} onRetry={() => void refetch()} />;
-  }
-  if (!projectData)
-    return <EmptyState title="Project not found" description="Could not load the project data" />;
+  const selectedThumbnail = selectedClip
+    ? resolveClipThumbnail(selectedClip, assetsData ?? [])
+    : '';
 
   return (
     <PageTransition>
       <div className="timeline-editor">
         <div className="editor-toolbar">
           <div className="toolbar-left">
+            <span className="project-name">{state.name}</span>
+            <div className="toolbar-divider" />
             <button
               className={`tool-btn ${activeTool === 'select' ? 'active' : ''}`}
               onClick={() => setActiveTool('select')}
@@ -393,6 +559,35 @@ const TimelineEditor: React.FC<EditorProps> = ({ projectId = 'default' }) => {
             <span className="history-count">{undoStack.length} changes</span>
           </div>
           <div className="toolbar-right">
+            <span className={`save-status save-status-${save.status}`} role="status">
+              {save.status === 'saved' &&
+                (save.lastSavedAt
+                  ? `Saved · ${new Date(save.lastSavedAt).toLocaleTimeString()}`
+                  : 'Saved')}
+              {save.status === 'dirty' && 'Unsaved changes'}
+              {save.status === 'saving' && 'Saving…'}
+              {save.status === 'offline' && 'Offline — kept in this browser'}
+              {save.status === 'conflict' && 'Save conflict'}
+            </span>
+            {save.status === 'error' && (
+              <button className="tool-btn save-retry-btn" onClick={() => void save.saveNow()}>
+                Couldn&rsquo;t save — Retry
+              </button>
+            )}
+            <button
+              className="tool-btn save-btn"
+              onClick={() => void save.saveNow()}
+              title="Save (Ctrl/Cmd+S)"
+            >
+              Save
+            </button>
+            <button
+              className={`tool-btn ${showAssets ? 'active' : ''}`}
+              onClick={() => setShowAssets((s) => !s)}
+              title="Asset library"
+            >
+              &#128193;
+            </button>
             <label className="snap-toggle">
               <input
                 type="checkbox"
@@ -409,13 +604,49 @@ const TimelineEditor: React.FC<EditorProps> = ({ projectId = 'default' }) => {
           </div>
         </div>
 
+        {save.status === 'conflict' && (
+          <div className="save-conflict-banner" role="alert">
+            <span>
+              This project was changed elsewhere (now at version {save.conflictVersion ?? '?'}).
+              Your edits here are kept only in this browser until you choose:
+            </span>
+            <button onClick={() => void save.resolveConflict('reload')}>
+              Reload server version
+            </button>
+            <button onClick={() => void save.resolveConflict('overwrite')}>
+              Overwrite with my edits
+            </button>
+          </div>
+        )}
+
+        {mirrorBanner && save.status !== 'conflict' && (
+          <div className="mirror-banner" role="alert">
+            <span>
+              {mirrorBanner.stale
+                ? 'Unsaved changes from this browser are based on an older version of this project.'
+                : 'You have unsaved changes from this browser that never reached the server.'}
+            </span>
+            <button onClick={handleRestoreMirror}>Restore</button>
+            <button onClick={handleDiscardMirror}>Discard</button>
+          </div>
+        )}
+
         <div className="editor-main">
+          {showAssets && (
+            <div className="assets-panel">
+              <AssetLibraryPanel
+                projectId={projectId}
+                onAssetAdd={handleAssetAdd}
+                onAssetSelect={handleAssetSelect}
+              />
+            </div>
+          )}
           <div className="preview-panel">
             <div className="preview-window" ref={previewRef}>
               <div className={`preview-canvas aspect-${aspectRatio.replace(':', '-')}`}>
                 <div className="preview-content">
-                  {selectedClip && selectedClip.type === 'video' && (
-                    <img src={selectedClip.thumbnail} alt="Preview" className="preview-frame" />
+                  {selectedClip && selectedClip.type === 'video' && selectedThumbnail && (
+                    <img src={selectedThumbnail} alt="Preview" className="preview-frame" />
                   )}
                   {selectedClip && selectedClip.type === 'text' && (
                     <div
@@ -428,8 +659,18 @@ const TimelineEditor: React.FC<EditorProps> = ({ projectId = 'default' }) => {
                       {selectedClip.name}
                     </div>
                   )}
-                  {!selectedClip && (
+                  {!selectedClip && previewAsset && previewAsset.thumbnailUrl && (
+                    <img
+                      src={previewAsset.thumbnailUrl}
+                      alt={previewAsset.name}
+                      className="preview-frame"
+                    />
+                  )}
+                  {!selectedClip && !previewAsset && (
                     <div className="preview-placeholder">Select a clip to preview</div>
+                  )}
+                  {!selectedClip && previewAsset && !previewAsset.thumbnailUrl && (
+                    <div className="preview-placeholder">{previewAsset.name}</div>
                   )}
                 </div>
               </div>
@@ -522,7 +763,9 @@ const TimelineEditor: React.FC<EditorProps> = ({ projectId = 'default' }) => {
                   min={-100}
                   max={100}
                   value={selectedClip.filters.contrast}
-                  onChange={(e) => updateClipProperty('filter.contrast', parseInt(e.target.value))}
+                  onChange={(e) =>
+                    updateClipProperty('filter.contrast', parseInt(e.target.value))
+                  }
                 />
               </div>
               <div className="property-group">
@@ -658,32 +901,35 @@ const TimelineEditor: React.FC<EditorProps> = ({ projectId = 'default' }) => {
                   </div>
                 </div>
                 <div className="track-content">
-                  {track.clips.map((clip) => (
-                    <div
-                      key={clip.id}
-                      className={`clip clip-${clip.type} ${selectedClip?.id === clip.id ? 'selected' : ''}`}
-                      style={{
-                        left: `${(clip.startTime / duration) * 100}%`,
-                        width: `${(clip.duration / duration) * 100}%`,
-                        opacity: clip.opacity,
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleClipSelect(clip);
-                      }}
-                    >
-                      <div className="clip-content">
-                        {clip.type === 'video' && clip.thumbnail && (
-                          <img src={clip.thumbnail} alt="" className="clip-thumb" />
-                        )}
-                        <span className="clip-name">{clip.name}</span>
+                  {track.clips.map((clip) => {
+                    const clipThumbnail = resolveClipThumbnail(clip, assetsData ?? []);
+                    return (
+                      <div
+                        key={clip.id}
+                        className={`clip clip-${clip.type} ${selectedClip?.id === clip.id ? 'selected' : ''}`}
+                        style={{
+                          left: `${(clip.startTime / duration) * 100}%`,
+                          width: `${(clip.duration / duration) * 100}%`,
+                          opacity: clip.opacity,
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleClipSelect(clip);
+                        }}
+                      >
+                        <div className="clip-content">
+                          {clip.type === 'video' && clipThumbnail && (
+                            <img src={clipThumbnail} alt="" className="clip-thumb" />
+                          )}
+                          <span className="clip-name">{clip.name}</span>
+                        </div>
+                        <div className="clip-handles">
+                          <div className="handle handle-left" />
+                          <div className="handle handle-right" />
+                        </div>
                       </div>
-                      <div className="clip-handles">
-                        <div className="handle handle-left" />
-                        <div className="handle handle-right" />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}

@@ -53,7 +53,8 @@ const AI_TOOLS: AITool[] = [
 
 interface CaptionsApiResponse {
   success: boolean;
-  data?: { captions: string };
+  // The backend returns a single caption string: data: { caption }.
+  data?: { caption: string };
   error?: { code: string; message: string };
 }
 
@@ -102,14 +103,14 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({ clipId, creditsRemaining })
         body: JSON.stringify({ transcript, style: captionStyle }),
       });
       const payload = (await res.json().catch(() => null)) as CaptionsApiResponse | null;
-      if (!res.ok || !payload?.success || !payload.data?.captions) {
+      if (!res.ok || !payload?.success || !payload.data?.caption) {
         throw new Error(
           payload?.error?.message || `Caption request failed (HTTP ${res.status})`,
         );
       }
       setActiveResults((prev) =>
         prev.map((r) =>
-          r.id === result.id ? { ...r, status: 'complete', text: payload.data!.captions } : r,
+          r.id === result.id ? { ...r, status: 'complete', text: payload.data!.caption } : r,
         ),
       );
     } catch (err) {

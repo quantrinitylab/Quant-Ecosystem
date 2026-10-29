@@ -26,9 +26,17 @@
        tile, white-on-white text). Values are the ecosystem's canonical
        @quant/brand `light` theme, hardcoded so the button is visible whether
        or not the brand pipeline is wired up. */
-    --brand-primary: #4f46e5;
-    --brand-primary-foreground: #ffffff;
-    --brand-accent: #d97706;
+    /* Design upgrade Phase A (D-1/D-2): one brand primary in BOTH
+       themes now — the light theme's indigo #4f46e5 is retired (it was
+       what made the login page render as a different, indigo product).
+       Brand-colour correction (Krish, 2026-10-29): the primary is QC
+       Spring Green #2FE07A — QuantCooks' own green — superseding the
+       ember standardisation this block first shipped with; text on
+       filled accent buttons is black. Stays a hex literal:
+       design-tokens pins --brand-primary in :root to a solid hex. */
+    --brand-primary: #2FE07A;
+    --brand-primary-foreground: #000000;
+    --brand-accent: #26B362;
     --brand-accent-foreground: #000000;
     --quant-background: #ffffff;
     --quant-foreground: #0f172a;
@@ -41,6 +49,109 @@
     --quant-destructive-foreground: #ffffff;
     --brand-font-display: 'Inter', system-ui, sans-serif;
     --brand-font-body: 'Inter', system-ui, sans-serif;
+
+    /* --qc-* design tokens (design upgrade Phase A, plan §4.2). The
+       studio is a dark surface in both themes, so its tokens live here
+       in :root (design-tokens.test.ts requires every var() used in src/
+       to be defined in :root or .dark). Values are Phase A's: each one
+       is mapped 1:1 from the literal the studio CSS used before, so
+       tokenisation itself changes no pixel — the measured values from
+       the Mobbin visual study (plan §3, V1–V12) drop into THIS block
+       in Phase B without touching a component.
+       ONE deliberate exception: the accent family (--qc-accent,
+       --qc-accent-soft, --qc-on-accent, --qc-accent-wash, --qc-quote-bg
+       and the --qc-hero-* stops) follows Krish's brand correction
+       (2026-10-29) — QC Spring Green #2FE07A with arithmetically
+       derived tints/shades of it — superseding the ember values this
+       block first carried.
+       Phase B (2026-10-29): the V1–V12 values from the Mobbin visual
+       study now fill this block — the measured near-black scale, the
+       hairline pair, the four-step text ramp and the error red. The
+       study's colours are visual estimates; they land here as the
+       single source so one edit re-themes the whole product. The
+       accent stays Krish's green (the study's lime ROLE, never its
+       hex). --qc-ink-4 has no direct study value: it is the arithmetic
+       midpoint of the muted and faint steps, keeping the five-step
+       ramp the components already consume. The literals Phase A left
+       in the studio section (#101016 stage wells, #23232f dot grids,
+       the #6b5320/#2a2110 warn boxes, three tinted text colours) are
+       tokenised below as --qc-stage / --qc-warn-line / --qc-warn-bg
+       and swept onto existing tokens, so no hard-coded neutral is
+       left in the studio section. */
+    --qc-canvas: #0A0A0B;
+    --qc-nav: #101012;
+    --qc-topbar: #101012;
+    --qc-panel: #141416;
+    --qc-card: #17171A;
+    --qc-raised: #1B1B1E;
+    --qc-board: #0E0E0F;
+    --qc-stage: #101012;
+    --qc-line: #232326;
+    --qc-line-strong: #2A2A2E;
+    --qc-ink: #FFFFFF;
+    --qc-ink-2: #C9C9CE;
+    --qc-ink-3: #8A8A93;
+    --qc-ink-4: #7A7A82;
+    --qc-ink-5: #6B6B72;
+    --qc-accent: #2FE07A;
+    --qc-accent-soft: #8DEEB6;
+    --qc-on-accent: #000000;
+    --qc-accent-wash: #142D22;
+    --qc-quote-bg: #13251E;
+    --qc-danger: #FF4D4D;
+    --qc-danger-line: #5b2b2b;
+    --qc-danger-bg: #1d1416;
+    --qc-success: #4ade80;
+    --qc-success-line: #2f5238;
+    --qc-success-bg: #16241a;
+    --qc-warn: #fbbf24;
+    --qc-warn-line: #6b5320;
+    --qc-warn-bg: #2a2110;
+    /* Studio secondary glows (Phase B): the reference pattern gives
+       Promo and Voice a warm secondary glow behind the hero — the
+       ROLE transfers, the hexes are ours (hot coral / soft rose,
+       chosen inside this palette, used at low alpha only). */
+    --qc-glow-promo: #FF6E5A;
+    --qc-glow-voice: #E58AA5;
+    --qc-hero-1: #153124;
+    --qc-hero-2: #194A31;
+    --qc-hero-3: #1C633D;
+    --qc-hero-d-1: #132C21;
+    --qc-hero-d-2: #17452D;
+    --qc-hero-d-3: #1B5E3A;
+    --qc-text-xs: 11px;
+    --qc-text-sm: 12.5px;
+    --qc-text-base: 13.5px;
+    --qc-text-md: 14.5px;
+    --qc-text-lg: 15.5px;
+    --qc-text-xl: 17px;
+    --qc-text-2xl: 24px;
+    --qc-text-3xl: 28px;
+    --qc-text-display: 40px;
+    --qc-weight-normal: 400;
+    --qc-weight-semibold: 600;
+    --qc-weight-bold: 700;
+    --qc-font-display: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --qc-font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --qc-r-sm: 8px;
+    --qc-r-md: 10px;
+    --qc-r-lg: 12px;
+    --qc-r-xl: 14px;
+    --qc-r-2xl: 16px;
+    /* Modal radius (Phase B, V7): the study's modals sit at 16–20px;
+       the auth panel and dialog surfaces take the top of the range. */
+    --qc-r-modal: 20px;
+    --qc-r-full: 999px;
+    --qc-space-1: 4px;
+    --qc-space-2: 8px;
+    --qc-space-3: 12px;
+    --qc-space-4: 16px;
+    --qc-space-5: 24px;
+    --qc-space-6: 32px;
+    --qc-shadow-composer: 0 8px 28px rgba(0, 0, 0, 0.35);
+    --qc-shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.5);
+    --qc-ease: ease;
+    --qc-dur-1: 160ms;
   }
 
   .dark {
@@ -61,9 +172,9 @@
 
     /* Dark-mode values for the same tokens (canonical @quant/brand `dark`
        theme), so themed components stay visible in dark mode too. */
-    --brand-primary: #ff8c42;
-    --brand-primary-foreground: #111111;
-    --brand-accent: #ffb875;
+    --brand-primary: #2FE07A;
+    --brand-primary-foreground: #000000;
+    --brand-accent: #8DEEB6;
     --brand-accent-foreground: #111111;
     --quant-background: #090a0c;
     --quant-foreground: #f5f5f5;
@@ -104,4 +215,5596 @@
   outline: 2px solid var(--ring);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* ==========================================================================
+   QuantCooks — auth surfaces (design upgrade Phase A, D-2).
+   The login page and the sign-in gate, rebuilt on the product's own
+   dark brand: a treated canvas (spring-green glow over the board's
+   fine dot grid — pure CSS, no images), one centred panel, the
+   Spring Q lockup, and ONE action hierarchy: the Quant Account SSO is
+   the single accent
+   action; the password submit is a quiet secondary. The emerald→cyan
+   gradient and the light-theme indigo are retired. Colours come from
+   the --qc-* tokens and the ecosystem --brand-primary (#2FE07A).
+   ========================================================================== */
+
+/* Phase B — login anatomy decision: the reference pattern's sign-in
+   is a modal floating over a dimmed, blurred home page. Our login is
+   a route, not an overlay: nothing renders beneath it, and putting
+   the home route under it would change routing (out of scope for a
+   restyle). So the panel adopts the modal's anatomy as far as a page
+   can — the canvas plays the dimmed backdrop (a soft accent glow,
+   blurred out by distance, under a dark vignette that dims the edges
+   the way the reference dims its home page), and the panel takes the
+   modal's radius (20px), hairline and internal spacing rhythm. The
+   split image panel is NOT recreated: it exists in the reference to
+   showcase generated imagery, and fabricating showcase media is
+   forbidden here — the glow + dot grid is our honest equivalent. */
+.auth-canvas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100%;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  color-scheme: dark;
+  background-color: var(--qc-canvas);
+  background-image:
+    radial-gradient(720px 480px at 50% 30%, rgba(47, 224, 122, 0.14), rgba(47, 224, 122, 0) 70%),
+    radial-gradient(125% 95% at 50% 45%, rgba(0, 0, 0, 0) 52%, rgba(0, 0, 0, 0.45) 100%),
+    radial-gradient(var(--qc-line) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    22px 22px;
+  color: var(--qc-ink);
+  font-family: var(--qc-font-body);
+}
+
+.auth-panel {
+  width: 100%;
+  max-width: 420px;
+  padding: 40px 36px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-modal);
+  background-color: var(--qc-panel);
+  box-shadow: var(--qc-shadow-modal);
+}
+
+.auth-panel-center {
+  text-align: center;
+}
+
+.auth-lockup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.auth-wordmark {
+  font-family: var(--qc-font-display);
+  font-size: var(--qc-text-xl);
+  font-weight: var(--qc-weight-bold);
+  letter-spacing: -0.01em;
+  color: var(--qc-accent-soft);
+}
+
+.auth-title {
+  margin: 0;
+  text-align: center;
+  font-size: var(--qc-text-2xl);
+  font-weight: var(--qc-weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--qc-ink);
+}
+
+.auth-sub {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: var(--qc-text-base);
+  color: var(--qc-ink-3);
+}
+
+.auth-sso {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  margin-top: 26px;
+  padding: 12px 16px;
+  box-sizing: border-box;
+  border-radius: var(--qc-r-lg);
+  background-color: var(--brand-primary);
+  color: var(--brand-primary-foreground);
+  font-size: var(--qc-text-md);
+  font-weight: var(--qc-weight-semibold);
+  text-decoration: none;
+  transition: filter var(--qc-dur-1) var(--qc-ease);
+}
+
+.auth-sso:hover {
+  filter: brightness(1.07);
+}
+
+.auth-sso svg {
+  flex-shrink: 0;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 22px 0 20px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: var(--qc-line);
+}
+
+.auth-divider span {
+  font-size: var(--qc-text-xs);
+  font-weight: var(--qc-weight-semibold);
+  letter-spacing: 0.08em;
+  color: var(--qc-ink-5);
+  white-space: nowrap;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-label {
+  font-size: var(--qc-text-sm);
+  font-weight: 500;
+  color: var(--qc-ink-2);
+}
+
+.auth-input,
+.auth-password {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  /* Phase B (V1): fields take the study's input/composer fill
+     (#1B1B1E = --qc-raised), one step above the panel. */
+  background-color: var(--qc-raised);
+  color: var(--qc-ink);
+  font-size: var(--qc-text-md);
+  transition:
+    border-color var(--qc-dur-1) var(--qc-ease),
+    box-shadow var(--qc-dur-1) var(--qc-ease);
+}
+
+.auth-input {
+  padding: 12px 14px;
+  outline: none;
+}
+
+.auth-input::placeholder,
+.auth-password-input::placeholder {
+  color: var(--qc-ink-5);
+}
+
+.auth-input:focus,
+.auth-password:focus-within {
+  border-color: var(--qc-accent);
+  box-shadow: 0 0 0 3px rgba(47, 224, 122, 0.25);
+}
+
+.auth-password {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.auth-password-input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  color: var(--qc-ink);
+  font-size: var(--qc-text-md);
+  outline: none;
+}
+
+.auth-toggle {
+  padding: 0 14px;
+  border: none;
+  background: none;
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-sm);
+  font-weight: var(--qc-weight-semibold);
+  cursor: pointer;
+}
+
+.auth-toggle:hover {
+  color: var(--qc-ink);
+}
+
+.auth-submit {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-raised);
+  color: var(--qc-ink);
+  font-size: var(--qc-text-md);
+  font-weight: var(--qc-weight-semibold);
+  cursor: pointer;
+  transition: background-color var(--qc-dur-1) var(--qc-ease);
+}
+
+.auth-submit:hover {
+  background-color: var(--qc-card);
+}
+
+.auth-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.auth-alert {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--qc-danger-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-danger-bg);
+  color: var(--qc-danger);
+  font-size: var(--qc-text-base);
+}
+
+.auth-form .auth-alert {
+  margin-bottom: 0;
+}
+
+.auth-note {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+  color: var(--qc-ink-2);
+  font-size: var(--qc-text-base);
+}
+
+.auth-footer {
+  margin: 22px 0 0;
+  text-align: center;
+  font-size: var(--qc-text-base);
+  color: var(--qc-ink-3);
+}
+
+.auth-footer a {
+  color: var(--qc-accent-soft);
+  font-weight: var(--qc-weight-semibold);
+  text-decoration: none;
+}
+
+.auth-footer a:hover {
+  text-decoration: underline;
+}
+
+/* On small screens the panel goes full-bleed (plan §4.3): no border,
+   no radius, no shadow — the canvas treatment carries the page. */
+@media (max-width: 480px) {
+  .auth-canvas {
+    padding: 0;
+  }
+
+  .auth-panel {
+    max-width: none;
+    border: none;
+    border-radius: 0;
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+/* ==========================================================================
+   QuantCooks Studio (F-4) — styles for the Phase 2 studio surfaces.
+   Original stylesheet for the studio-* class grammar used by
+   src/components/studio/** and src/pages/studio/**. A dark creative-suite
+   theme: near-black shell, QC Spring Green accent, cards and rails that read
+   at a glance. Everything is scoped under studio-* class prefixes, so
+   the app's existing (non-studio) pages are untouched.
+   Design upgrade Phase A: this section now consumes the --qc-* token
+   layer defined in :root (values mapped 1:1 from the literals it used
+   before, so tokenisation alone changed no pixel).
+   Design upgrade Phase B: the measured V1–V12 values now fill the
+   token block, and the handful of literals Phase A left here are
+   swept onto tokens too (#101016 → --qc-stage, #23232f → --qc-line,
+   the warn pair → --qc-warn-line/--qc-warn-bg, the three tinted text
+   colours → --qc-ink-2 / --qc-success). No hard-coded neutral hex
+   remains in this section; baked rgba() tints of token colours (the
+   auth glow idiom) are the only literals left, each commented.
+   ========================================================================== */
+
+/* ---- Shell ------------------------------------------------------------ */
+
+.studio-shell {
+  display: flex;
+  min-height: 100vh;
+  background-color: var(--qc-canvas);
+  color: var(--qc-ink);
+  font-family: var(--qc-font-body);
+  /* Design upgrade Phase A (R6 fix): native controls inside the shell
+     (selects, scrollbars, date inputs) render in their dark variant
+     instead of leaking bright white OS boxes onto the dark UI. */
+  color-scheme: dark;
+}
+
+.studio-shell-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 232px;
+  flex-shrink: 0;
+  padding: 20px 14px;
+  background-color: var(--qc-nav);
+  border-right: 1px solid var(--qc-line);
+}
+
+.studio-shell-wordmark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 2px 10px;
+  font-size: var(--qc-text-xl);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--qc-accent-soft);
+}
+
+/* The lockup's mark (BrandMark, D-0) never shrinks beside the text. */
+.studio-shell-wordmark svg {
+  flex-shrink: 0;
+}
+
+.studio-shell-nav nav ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-shell-nav nav a,
+.studio-nav-disabled {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--qc-r-sm);
+  font-size: 14px;
+  color: var(--qc-ink-2);
+  text-decoration: none;
+}
+
+.studio-shell-nav nav a:hover {
+  background-color: var(--qc-raised);
+  color: var(--qc-ink);
+}
+
+.studio-nav-active {
+  background-color: var(--qc-accent-wash);
+  color: var(--qc-accent-soft) !important;
+  font-weight: 600;
+}
+
+.studio-nav-disabled {
+  color: var(--qc-ink-5);
+  cursor: not-allowed;
+}
+
+.studio-nav-badge {
+  padding: 1px 6px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  font-size: 10px;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--qc-ink-4);
+}
+
+.studio-shell-nav-heading {
+  margin: 0 0 6px;
+  padding: 0 10px;
+  font-size: var(--qc-text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--qc-ink-5);
+}
+
+.studio-shell-credits {
+  margin-top: auto;
+  padding: 0 4px;
+}
+
+.studio-shell-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.studio-shell-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--qc-line);
+  background-color: var(--qc-topbar);
+}
+
+.studio-shell-search {
+  flex: 1;
+  max-width: 520px;
+}
+
+.studio-shell-search input {
+  width: 100%;
+  padding: 9px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: 14px;
+}
+
+.studio-shell-search input::placeholder {
+  color: var(--qc-ink-5);
+}
+
+.studio-shell-new-project {
+  padding: 9px 16px;
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.studio-shell-main main {
+  flex: 1;
+  padding: 24px;
+}
+
+/* ---- Credits pill ------------------------------------------------------ */
+
+.studio-credits-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-accent-soft);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* ---- Composer ----------------------------------------------------------- */
+
+.studio-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-card);
+  box-shadow: var(--qc-shadow-composer);
+}
+
+.studio-composer:focus-within {
+  border-color: var(--qc-accent);
+}
+
+.studio-composer-chips,
+.studio-composer-mentions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.studio-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px 3px 10px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-raised);
+  font-size: var(--qc-text-sm);
+  color: var(--qc-ink-2);
+}
+
+.studio-chip button {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.studio-composer-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.studio-composer-attach {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: 50%;
+  background-color: var(--qc-raised);
+  color: var(--qc-accent-soft);
+  font-size: var(--qc-text-xl);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.studio-composer-field textarea {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 4px;
+  border: none;
+  background: none;
+  color: var(--qc-ink);
+  font: inherit;
+  font-size: 15px;
+  resize: vertical;
+}
+
+.studio-composer-field textarea::placeholder {
+  color: var(--qc-ink-5);
+}
+
+.studio-composer-field textarea:focus {
+  outline: none;
+}
+
+.studio-composer-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding-top: 10px;
+  border-top: 1px solid var(--qc-line);
+}
+
+.studio-composer-settings label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--qc-text-sm);
+  color: var(--qc-ink-3);
+}
+
+.studio-composer-settings select,
+.studio-composer-settings input[type='number'] {
+  padding: 5px 8px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-sm);
+  background-color: var(--qc-raised);
+  color: var(--qc-ink);
+  font-size: 13px;
+}
+
+.studio-composer-settings input[type='number'] {
+  width: 56px;
+}
+
+.studio-composer-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.studio-generate {
+  padding: 11px 22px;
+  border: none;
+  /* Phase B (V7/rule 8): the primary action is an accent RECTANGLE
+     (~10px radius), not a pill — pills are for chips/small actions.
+     The disabled state already lands on --qc-line-strong (#2A2A2E),
+     the study's inactive-primary gray. */
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-size: var(--qc-text-md);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.studio-generate:disabled {
+  background-color: var(--qc-line-strong);
+  color: var(--qc-ink-4);
+  cursor: not-allowed;
+}
+
+.studio-composer-notconfigured,
+.studio-composer-hint {
+  margin: 0;
+  font-size: var(--qc-text-sm);
+  color: var(--qc-ink-3);
+}
+
+.studio-composer-quote {
+  padding: 14px;
+  border: 1px solid var(--qc-accent);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-quote-bg);
+  font-size: 14px;
+}
+
+.studio-composer-quote ul {
+  margin: 8px 0;
+  padding-left: 18px;
+  color: var(--qc-ink-2);
+}
+
+.studio-composer-quote button {
+  margin-right: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-raised);
+  color: var(--qc-ink);
+  cursor: pointer;
+}
+
+/* ---- Job strip ----------------------------------------------------------- */
+
+.studio-jobstrip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-jobstrip-empty {
+  padding: 10px 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-md);
+  color: var(--qc-ink-5);
+  font-size: 13px;
+}
+
+.studio-job {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 9px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+  font-size: 13px;
+}
+
+.studio-job-label {
+  font-weight: 600;
+  color: var(--qc-ink);
+}
+
+.studio-job-state {
+  color: var(--qc-ink-3);
+}
+
+.studio-job-failed {
+  color: var(--qc-danger);
+}
+
+.studio-job-error {
+  color: var(--qc-danger);
+}
+
+.studio-job-refund {
+  color: var(--qc-success);
+}
+
+.studio-job-cost {
+  margin-left: auto;
+  color: var(--qc-accent-soft);
+  font-weight: 600;
+}
+
+.studio-job-output {
+  color: var(--qc-accent-soft);
+}
+
+.studio-job-retry {
+  padding: 4px 10px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink);
+  cursor: pointer;
+}
+
+/* ---- Skeletons ------------------------------------------------------------ */
+
+.studio-skeleton-row {
+  display: flex;
+  gap: 14px;
+}
+
+.studio-skeleton-card,
+.studio-skeleton-tile {
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-raised);
+  animation: studio-pulse 1.4s ease-in-out infinite;
+}
+
+.studio-skeleton-card {
+  width: 220px;
+  height: 150px;
+}
+
+.studio-skeleton-tile {
+  display: block;
+  width: 84px;
+  height: 84px;
+}
+
+@keyframes studio-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ---- Explore + wizard ----------------------------------------------------- */
+
+.studio-explore {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 1180px;
+}
+
+.studio-explore-hero {
+  padding: 30px;
+  border-radius: var(--qc-r-2xl);
+  background: linear-gradient(120deg, var(--qc-hero-1) 0%, var(--qc-hero-2) 55%, var(--qc-hero-3) 100%);
+  border: 1px solid var(--qc-hero-3);
+}
+
+.studio-explore-hero h2 {
+  margin: 6px 0 8px;
+  /* Phase B (V6): hero titles take the 3xl step, bold and tight. */
+  font-size: var(--qc-text-3xl);
+  font-weight: var(--qc-weight-bold);
+  letter-spacing: -0.015em;
+}
+
+.studio-explore-hero p {
+  max-width: 560px;
+  color: var(--qc-ink-2);
+}
+
+.studio-explore-hero button {
+  margin-top: 14px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.studio-category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.studio-category-chips button {
+  padding: 7px 14px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-ink-2);
+  font-size: var(--qc-text-base);
+  cursor: pointer;
+}
+
+.studio-category-chips button[aria-pressed='true'] {
+  border-color: var(--qc-accent);
+  color: var(--qc-accent-soft);
+  font-weight: 600;
+}
+
+.studio-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.studio-preset-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.studio-preset-row h3 {
+  margin: 0;
+  font-size: 16.5px;
+}
+
+.studio-preset-row-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.studio-preset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-card);
+}
+
+.studio-preset-card h3 {
+  margin: 0;
+  font-size: var(--qc-text-lg);
+}
+
+.studio-preset-card p {
+  margin: 0;
+  font-size: var(--qc-text-base);
+  color: var(--qc-ink-3);
+}
+
+.studio-preset-card .studio-preset-kind {
+  /* Phase B (V5/V6): section labels are small, uppercase, tracked —
+     and carry the full accent, per the study's label discipline. */
+  color: var(--qc-accent);
+  font-size: var(--qc-text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.studio-preset-card .studio-preset-meta {
+  color: var(--qc-ink-5);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-preset-card button {
+  margin-top: auto;
+  padding: 8px 14px;
+  border: 1px solid var(--qc-accent);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-accent-soft);
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.studio-preset-kind {
+  /* Phase B (V5/V6): section labels are small, uppercase, tracked —
+     and carry the full accent, per the study's label discipline. */
+  color: var(--qc-accent);
+  font-size: var(--qc-text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.studio-preset-meta {
+  color: var(--qc-ink-5);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-explore-nomatch {
+  padding: 22px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-xl);
+  color: var(--qc-ink-3);
+}
+
+.studio-explore-nomatch button {
+  margin-top: 10px;
+  padding: 8px 14px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink);
+  cursor: pointer;
+}
+
+.studio-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-2xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-wizard-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-wizard-step h3 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--qc-accent-soft);
+}
+
+.studio-wizard-step p {
+  margin: 0;
+  font-size: var(--qc-text-base);
+  color: var(--qc-ink-3);
+}
+
+.studio-wizard-step > button[data-testid='wizard-create'] {
+  align-self: flex-start;
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.studio-wizard-step > button[data-testid='wizard-create']:disabled {
+  background-color: var(--qc-line-strong);
+  color: var(--qc-ink-4);
+  cursor: not-allowed;
+}
+
+.studio-wizard-success {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--qc-success-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-success-bg);
+}
+
+.studio-wizard-success .studio-wizard-created {
+  color: var(--qc-success);
+}
+
+.studio-wizard-created {
+  color: var(--qc-success);
+  font-size: 14px;
+}
+
+.studio-wizard-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.studio-wizard-actions a {
+  padding: 8px 16px;
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-size: var(--qc-text-base);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.studio-wizard-actions a + a {
+  border: 1px solid var(--qc-line-strong);
+  background: none;
+  color: var(--qc-ink);
+}
+
+.studio-wizard-photo {
+  padding-top: 12px;
+  border-top: 1px solid var(--qc-success-line);
+}
+
+.studio-wizard-photo h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--qc-ink);
+}
+
+.studio-wizard-photo p {
+  color: var(--qc-ink-3);
+}
+
+.studio-wizard-photo label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--qc-text-base);
+  color: var(--qc-ink-2);
+}
+
+.studio-wizard-photo button {
+  padding: 7px 14px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink);
+  cursor: pointer;
+}
+
+.studio-wizard-photo-state {
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-wizard-photo-error,
+.studio-wizard-error {
+  color: var(--qc-danger);
+  font-size: var(--qc-text-base);
+}
+
+/* ---- Image Studio ------------------------------------------------------------ */
+
+.studio-image,
+.studio-video,
+.studio-promo,
+.studio-film {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 1280px;
+}
+
+.studio-image-head h1,
+.studio-video-head h1,
+.studio-promo-head h1,
+.studio-film-head h1 {
+  margin: 0 0 6px;
+  font-size: var(--qc-text-2xl);
+  font-weight: var(--qc-weight-semibold);
+  color: var(--qc-ink);
+  letter-spacing: -0.01em;
+}
+
+/* Design upgrade Phase A — the page-title rule for the screens whose
+   heads never had one (Voice, Photo, Design, Stories, Tools, Board,
+   Profile heads fell back to Tailwind preflight: body size, normal
+   weight). One grouped rule, the same recipe as the four heads above,
+   so all 13 screens carry their titles in the studio system. */
+.studio-voice-head h1,
+.studio-photo-head h1,
+.studio-design-head h1,
+.studio-stories-header h1,
+.studio-tools-hero h1,
+.studio-tools-flow-head h1,
+.studio-board-hero h1,
+.studio-profile-header h1,
+.studio-stories-state h1,
+.studio-board-missing h1 {
+  margin: 0 0 6px;
+  font-size: var(--qc-text-2xl);
+  font-weight: var(--qc-weight-semibold);
+  color: var(--qc-ink);
+  letter-spacing: -0.01em;
+}
+
+/* The matching sub-line recipe for the newly covered heads that carry
+   intro copy (the four original heads keep their rule above). */
+.studio-voice-head p,
+.studio-photo-head p,
+.studio-design-head p,
+.studio-tools-flow-head p {
+  margin: 0;
+  max-width: 640px;
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-md);
+}
+
+.studio-image-head p,
+.studio-video-head p,
+.studio-promo-head p,
+.studio-film-head p {
+  margin: 0;
+  max-width: 640px;
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-md);
+}
+
+.studio-image-head,
+.studio-video-head,
+.studio-promo-head,
+.studio-film-head {
+  display: flex;
+  flex-direction: column;
+}
+
+.studio-image-layout,
+.studio-video-layout,
+.studio-film-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 260px;
+  gap: 18px;
+  align-items: start;
+}
+
+/* Promo layout (defect fix, Phase A): Promo's layout has only TWO
+   children — the centre (tabs + composer) and the Results rail — but
+   it shared the three-track grid above, so the centre was squeezed
+   into the 280px first track (~360px with padding) and the results
+   rail landed in the wide middle track beside a black void. Promo
+   gets the two-track treatment its structure actually has: the
+   composer owns the width, results ride as a rail. */
+.studio-promo-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: start;
+}
+
+.studio-image-input,
+.studio-video-source,
+.studio-image-results,
+.studio-video-results,
+.studio-promo-results {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-image-input h2,
+.studio-image-results h2,
+.studio-video-results h2,
+.studio-promo-results h2 {
+  margin: 0;
+  font-size: var(--qc-text-lg);
+}
+
+.studio-image-centre,
+.studio-video-centre,
+.studio-promo-centre,
+.studio-film-centre {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.studio-image-dropzone,
+.studio-video-dropzone,
+.studio-promo-dropzone {
+  padding: 18px;
+  border: 1.5px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  text-align: center;
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-image-dropzone label,
+.studio-video-dropzone label,
+.studio-promo-dropzone label {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 8px 14px;
+  border: 1px solid var(--qc-accent);
+  border-radius: var(--qc-r-full);
+  color: var(--qc-accent-soft);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.studio-image-dropzone input,
+.studio-video-dropzone input,
+.studio-promo-dropzone input {
+  display: none;
+}
+
+.studio-image-reference {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-image-reference img {
+  width: 100%;
+  border-radius: var(--qc-r-md);
+}
+
+.studio-image-reference-name {
+  font-size: 13px;
+  color: var(--qc-ink-2);
+  word-break: break-all;
+}
+
+.studio-image-reference button,
+.studio-video-frame-slot button,
+.studio-video-sourceclip button {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink);
+  font-size: var(--qc-text-sm);
+  cursor: pointer;
+}
+
+.studio-image-upload-off,
+.studio-video-upload-off,
+.studio-promo-upload-off {
+  margin: 0;
+  font-size: var(--qc-text-sm);
+  color: var(--qc-ink-4);
+}
+
+.studio-image-upload-state,
+.studio-video-upload-state,
+.studio-promo-upload-state {
+  margin: 0;
+  font-size: 13px;
+  color: var(--qc-ink-3);
+}
+
+.studio-image-upload-error,
+.studio-video-upload-error,
+.studio-promo-upload-error,
+.studio-promo-product-error,
+.studio-image-assets-error,
+.studio-video-assets-error {
+  color: var(--qc-danger);
+  font-size: 13px;
+}
+
+.studio-image-assets-error button,
+.studio-video-assets-error button {
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink);
+  cursor: pointer;
+}
+
+.studio-image-picker h3,
+.studio-video-picker h3 {
+  margin: 0 0 8px;
+  font-size: var(--qc-text-base);
+  color: var(--qc-ink-2);
+}
+
+.studio-image-picker p,
+.studio-video-picker p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--qc-ink-4);
+}
+
+.studio-image-asset-grid,
+.studio-video-asset-grid,
+.studio-promo-asset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-image-asset-grid button,
+.studio-video-asset-grid button,
+.studio-promo-asset-grid button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 5px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+  color: var(--qc-ink-2);
+  font-size: var(--qc-text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-image-asset-grid img,
+.studio-video-asset-grid img,
+.studio-promo-asset-grid img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.studio-image-skeletons,
+.studio-video-skeletons,
+.studio-promo-skeletons,
+.studio-film-skeletons {
+  display: flex;
+  gap: 8px;
+}
+
+.studio-image-styles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.studio-image-style-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-image-style-tile span {
+  font-size: var(--qc-text-sm);
+  color: var(--qc-ink-3);
+}
+
+.studio-image-style-tile[aria-pressed='true'] {
+  border-color: var(--qc-accent);
+}
+
+.studio-image-empty,
+.studio-video-empty,
+.studio-promo-empty {
+  padding: 20px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-xl);
+  color: var(--qc-ink-3);
+}
+
+.studio-image-empty h2,
+.studio-video-empty h2,
+.studio-promo-empty h2 {
+  margin: 0 0 6px;
+  font-size: var(--qc-text-xl);
+  color: var(--qc-ink);
+}
+
+.studio-image-empty p,
+.studio-video-empty p,
+.studio-promo-empty p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.studio-image-brand-note,
+.studio-image-persona-note,
+.studio-promo-brand-note,
+.studio-promo-presenter-note,
+.studio-video-effects-note,
+.studio-video-persona-note,
+.studio-video-motion-note,
+.studio-video-tool-note,
+.studio-promo-tool-note {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-panel);
+  font-size: 13px;
+  color: var(--qc-ink-3);
+}
+
+.studio-image-results-grid,
+.studio-video-results-grid,
+.studio-promo-results-grid,
+.studio-film-results-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-image-results-grid li,
+.studio-video-results-grid li,
+.studio-promo-results-grid li,
+.studio-film-results-grid li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--qc-ink-2);
+}
+
+.studio-image-results-grid img,
+.studio-video-results-grid video,
+.studio-promo-results-grid img {
+  width: 100%;
+  border-radius: var(--qc-r-sm);
+}
+
+.studio-image-results p,
+.studio-video-results p,
+.studio-promo-results p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--qc-ink-4);
+}
+
+/* ---- Video Studio + Motion Control ------------------------------------------- */
+
+.studio-video-tabs,
+.studio-promo-tabs,
+.studio-film-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-panel);
+  align-self: flex-start;
+}
+
+.studio-video-tabs button,
+.studio-promo-tabs button,
+.studio-film-tabs button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink-3);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.studio-video-tabs button[aria-selected='true'],
+.studio-promo-tabs button[aria-selected='true'],
+.studio-film-tabs button[aria-selected='true'] {
+  background-color: var(--qc-accent-wash);
+  color: var(--qc-accent-soft);
+  font-weight: 600;
+}
+
+.studio-video-mode {
+  display: flex;
+  gap: 6px;
+}
+
+.studio-video-mode button {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-md);
+  background: none;
+  color: var(--qc-ink-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.studio-video-mode button[aria-pressed='true'] {
+  border-color: var(--qc-accent);
+  color: var(--qc-accent-soft);
+  font-weight: 600;
+}
+
+.studio-video-frames {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.studio-video-frame-slot {
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+}
+
+.studio-video-frame-slot h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--qc-ink-2);
+}
+
+.studio-video-frame-slot p {
+  margin: 0;
+  font-size: var(--qc-text-sm);
+  color: var(--qc-ink-4);
+}
+
+.studio-video-frame-slot img {
+  width: 100%;
+  border-radius: var(--qc-r-sm);
+  margin-bottom: 6px;
+}
+
+.studio-video-sourceclip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  font-size: 13px;
+}
+
+.studio-video-sourceclip h3 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--qc-ink-2);
+}
+
+.studio-video-starters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.studio-video-starter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-video-starter span {
+  font-size: var(--qc-text-sm);
+  color: var(--qc-ink-3);
+}
+
+.studio-video-edit,
+.studio-video-motion {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 860px;
+}
+
+.studio-video-edit h2,
+.studio-video-motion h2 {
+  margin: 0;
+  font-size: 19px;
+}
+
+.studio-video-edit p,
+.studio-video-motion p {
+  margin: 0;
+  color: var(--qc-ink-3);
+  font-size: 14px;
+}
+
+.studio-video-project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-video-project-list li {
+  padding: 12px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+}
+
+.studio-video-project-list a {
+  color: var(--qc-accent-soft);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.studio-video-projects-error {
+  color: var(--qc-danger);
+  font-size: var(--qc-text-base);
+}
+
+.studio-motion {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.studio-motion-stack {
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-motion-stack h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.studio-motion-stack p {
+  margin: 0;
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-base);
+}
+
+.studio-motion-stack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-motion-stack-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+  font-size: var(--qc-text-base);
+}
+
+.studio-motion-stack-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.studio-motion-stack-item button {
+  padding: 5px 10px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.studio-motion-stack-item button:disabled {
+  color: var(--qc-ink-5);
+  cursor: not-allowed;
+}
+
+.studio-motion-stack-price {
+  font-size: 13px;
+  color: var(--qc-accent-soft);
+}
+
+.studio-motion-notice {
+  padding: 10px 14px;
+  border: 1px solid var(--qc-warn-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-warn-bg);
+  color: var(--qc-warn);
+  font-size: var(--qc-text-base);
+}
+
+.studio-motion-library {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.studio-motion-family h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: var(--qc-ink-2);
+}
+
+.studio-motion-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.studio-motion-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-motion-card span {
+  font-size: var(--qc-text-sm);
+  color: var(--qc-ink-3);
+}
+
+.studio-motion-card .studio-motion-bestfor {
+  color: var(--qc-ink-5);
+  font-size: 12px;
+}
+
+.studio-motion-bestfor {
+  color: var(--qc-ink-5);
+  font-size: 12px;
+}
+
+.studio-motion-card-state {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--qc-accent-soft);
+}
+
+/* ---- Promo Studio ------------------------------------------------------------- */
+
+.studio-promo-slots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.studio-promo-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-promo-slot-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.studio-promo-slot-card img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: var(--qc-r-md);
+}
+
+.studio-promo-slot-name {
+  font-weight: 600;
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.studio-promo-slot-empty {
+  padding: 14px;
+  border: 1.5px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-md);
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-base);
+  text-align: center;
+}
+
+.studio-promo-slot button {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink);
+  font-size: var(--qc-text-sm);
+  cursor: pointer;
+}
+
+.studio-promo-presenter-reason {
+  margin: 0;
+  font-size: var(--qc-text-sm);
+  color: var(--qc-ink-4);
+}
+
+/* Presenter wiring (shared-file batch #2): the slot reads the Voice
+   Studio persona library — drafts are listed, a pick is recorded on the
+   brief, and the status line keeps the draft state on the surface. */
+.studio-promo-presenter-status {
+  color: var(--qc-warn);
+  font-size: var(--qc-text-sm);
+  font-weight: 600;
+}
+
+.studio-promo-presenter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-promo-presenter-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-promo-presenter-grid button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+}
+
+.studio-promo-presenter-grid img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--qc-r-sm);
+}
+
+.studio-promo-product-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-promo-format-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.studio-promo-format-quick {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-promo-format-quick span {
+  font-size: 12px;
+  color: var(--qc-ink-3);
+}
+
+.studio-promo-format-quick[aria-pressed='true'] {
+  border-color: var(--qc-accent);
+}
+
+.studio-promo-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-panel);
+}
+
+.studio-promo-picker button {
+  padding: 7px 13px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.studio-promo-picker button[aria-pressed='true'] {
+  border-color: var(--qc-accent);
+  color: var(--qc-accent-soft);
+  font-weight: 600;
+}
+
+.studio-promo-brandkit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-promo-brandkit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-promo-brandkit-list button {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-promo-brandkit-selected {
+  border-color: var(--qc-accent) !important;
+}
+
+.studio-promo-brandkit-error {
+  color: var(--qc-danger);
+  font-size: 13px;
+}
+
+.studio-promo-swatches {
+  display: flex;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-promo-swatch {
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 5px;
+}
+
+.studio-promo-format-modal {
+  padding: 22px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-2xl);
+  background-color: var(--qc-card);
+  box-shadow: var(--qc-shadow-modal);
+}
+
+.studio-promo-format-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.studio-promo-format-head h2 {
+  margin: 0;
+  font-size: 19px;
+}
+
+.studio-promo-format-filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.studio-promo-format-filters button {
+  padding: 6px 13px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.studio-promo-format-filters button[aria-pressed='true'] {
+  border-color: var(--qc-accent);
+  color: var(--qc-accent-soft);
+  font-weight: 600;
+}
+
+.studio-promo-format-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.studio-promo-format-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-panel);
+  color: var(--qc-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-promo-format-card span {
+  font-size: var(--qc-text-sm);
+  color: var(--qc-ink-3);
+}
+
+.studio-promo-format-selected {
+  border-color: var(--qc-accent) !important;
+}
+
+.studio-promo-link {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+}
+
+.studio-promo-link h2 {
+  margin: 0;
+  font-size: 19px;
+}
+
+.studio-promo-link p {
+  margin: 0;
+  color: var(--qc-ink-3);
+  font-size: 14px;
+}
+
+.studio-promo-link label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: var(--qc-text-base);
+  color: var(--qc-ink-2);
+}
+
+.studio-promo-link input {
+  padding: 10px 14px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: 14px;
+}
+
+.studio-promo-link-styles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.studio-promo-link-styles button {
+  padding: 8px 14px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.studio-promo-link-styles button[aria-pressed='true'] {
+  border-color: var(--qc-accent);
+  color: var(--qc-accent-soft);
+  font-weight: 600;
+}
+
+.studio-promo-link-build {
+  align-self: flex-start;
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.studio-promo-link-build:disabled {
+  background-color: var(--qc-line-strong);
+  color: var(--qc-ink-4);
+  cursor: not-allowed;
+}
+
+.studio-promo-link-error {
+  color: var(--qc-danger);
+  font-size: var(--qc-text-base);
+}
+
+.studio-promo-link-notconfigured {
+  padding: 12px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-panel);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-promo-vary-note {
+  margin: 0;
+  font-size: var(--qc-text-sm);
+  color: var(--qc-ink-4);
+}
+
+/* ---- Recipe Film Studio (Unit 5 surfaces — grouped, generic rules) ------------ */
+
+.studio-film-hero {
+  padding: 26px;
+  border: 1px solid var(--qc-hero-3);
+  border-radius: var(--qc-r-2xl);
+  background: linear-gradient(120deg, var(--qc-hero-d-1) 0%, var(--qc-hero-d-2) 60%, var(--qc-hero-d-3) 100%);
+}
+
+.studio-film-nav,
+.studio-film-projects-tools,
+.studio-film-workspace-actions,
+.studio-film-frame-actions,
+.studio-film-element-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.studio-film-projects,
+.studio-film-workspace,
+.studio-film-brief-section,
+.studio-film-community,
+.studio-film-generations {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.studio-film-project-grid,
+.studio-film-element-grid,
+.studio-film-genre-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-film-new,
+.studio-film-element-add,
+.studio-film-frame,
+.studio-film-style-panel,
+.studio-film-brandkit,
+.studio-film-director-panel,
+.studio-film-ai-director {
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-film-projects-empty,
+.studio-film-draft-note,
+.studio-film-director-notconfigured {
+  padding: 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-film-projects-error,
+.studio-film-create-error,
+.studio-film-director-error,
+.studio-film-elements-error,
+.studio-film-workspace-error {
+  color: var(--qc-danger);
+  font-size: var(--qc-text-base);
+}
+
+.studio-film-created {
+  color: var(--qc-success);
+  font-size: 14px;
+}
+
+.studio-film-brief,
+.studio-film-brief-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.studio-film-brief textarea,
+.studio-film-brief-form textarea {
+  padding: 12px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font: inherit;
+  font-size: var(--qc-text-md);
+  resize: vertical;
+}
+
+.studio-film-brief-mentions,
+.studio-film-gate-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--qc-text-sm);
+  color: var(--qc-ink-3);
+}
+
+.studio-film-storyboard,
+.studio-film-frame-strip,
+.studio-film-frame-slots,
+.studio-film-element-modal-strip {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.studio-film-frame {
+  flex-shrink: 0;
+  width: 190px;
+}
+
+.studio-film-frame img {
+  width: 100%;
+  border-radius: var(--qc-r-sm);
+}
+
+.studio-film-frame-gate {
+  padding: 10px 12px;
+  border: 1px solid var(--qc-warn-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-warn-bg);
+  color: var(--qc-warn);
+  font-size: 13px;
+}
+
+.studio-film-generate-all {
+  padding: 11px 22px;
+  border: none;
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-size: var(--qc-text-md);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.studio-film-generate-all:disabled {
+  background-color: var(--qc-line-strong);
+  color: var(--qc-ink-4);
+  cursor: not-allowed;
+}
+
+.studio-film-director,
+.studio-film-director-starters,
+.studio-film-element-group,
+.studio-film-element-picker,
+.studio-film-camera-picker,
+.studio-film-genre-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.studio-film-director-starters button,
+.studio-film-element-picker button,
+.studio-film-camera-picker button {
+  padding: 9px 13px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-film-element-modal,
+.studio-film-genre-modal,
+.studio-film-block-menu {
+  padding: 20px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-2xl);
+  background-color: var(--qc-card);
+  box-shadow: var(--qc-shadow-modal);
+}
+
+.studio-film-style-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.studio-film-style-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-film-style-manual {
+  padding: 12px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-md);
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-film-swatch {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+}
+
+.studio-film-workspace-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.studio-film-share-link,
+.studio-film-ramp {
+  padding: 10px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-panel);
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-film-canvas-tab,
+.studio-film-chat-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---- Canvas Board (Unit 6 surfaces — grouped, generic rules) -------------------- */
+/* Added by the small-fixes unit: Unit 6 landed the Board surfaces but
+   could not edit this sheet, so these rules complete the F-4 coverage
+   for the studio-board-* grammar in the same grouped style as Film. */
+
+.studio-board,
+.studio-board-home {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.studio-board-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 26px;
+  border: 1px solid var(--qc-hero-3);
+  border-radius: var(--qc-r-2xl);
+  background: linear-gradient(120deg, var(--qc-hero-d-1) 0%, var(--qc-hero-d-2) 60%, var(--qc-hero-d-3) 100%);
+}
+
+/* Defect fix (Phase A): the hero's <p> carries no margin rule of its
+   own in this section; zero it so the flex gap above is the only
+   spacing (the CTA below used to paint over its last line). */
+.studio-board-hero p {
+  margin: 0;
+}
+
+.studio-board-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.studio-board-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.studio-board-rail {
+  display: flex;
+  width: 300px;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.studio-board-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.studio-board-top-actions,
+.studio-board-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.studio-board-canvas {
+  position: relative;
+  min-height: 480px;
+  overflow: hidden;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-2xl);
+  background-color: var(--qc-board);
+  background-image: radial-gradient(var(--qc-line) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.studio-board-transform {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+
+.studio-board-edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.studio-board-wires {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-board-wire-in,
+.studio-board-teamchat-off {
+  padding: 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-board-wire-note,
+.studio-board-connecting,
+.studio-board-teamchat-board {
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-board-wire-reason,
+.studio-board-runstep-reason {
+  color: var(--qc-warn);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-board-refusal {
+  color: var(--qc-danger);
+  font-size: 13px;
+}
+
+.studio-board-minimap {
+  width: 180px;
+  padding: 10px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-panel);
+  color: var(--qc-ink-4);
+  font-size: 12px;
+}
+
+.studio-board-node {
+  position: absolute;
+  width: 220px;
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-board-node-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.studio-board-node-kind {
+  font-size: var(--qc-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--qc-ink-4);
+}
+
+.studio-board-node-step,
+.studio-board-node-file,
+.studio-board-node-folder,
+.studio-board-node-output {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-board-node-prompt,
+.studio-board-node-text {
+  font-size: var(--qc-text-base);
+}
+
+.studio-board-node-media img,
+.studio-board-node-media video {
+  width: 100%;
+  border-radius: var(--qc-r-sm);
+}
+
+.studio-board-node-gen {
+  padding: 10px;
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+}
+
+.studio-board-node-quote {
+  font-size: var(--qc-text-sm);
+  font-weight: 600;
+}
+
+.studio-board-node-move,
+.studio-board-bind {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studio-board-addmenu,
+.studio-board-asset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-board-mine,
+.studio-board-templates,
+.studio-board-starters,
+.studio-board-pipelines {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.studio-board-grid,
+.studio-board-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-board-card,
+.studio-board-template,
+.studio-board-access-card {
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+/* Defect fix (Phase A): template cards are <li>s whose <strong>,
+   <span> and <a> had no child layout rules, so title, description
+   and action ran together as one paragraph. The card is now a flex
+   column and each child carries its type role. */
+.studio-board-template {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-board-template strong {
+  font-size: var(--qc-text-md);
+  font-weight: var(--qc-weight-semibold);
+  color: var(--qc-ink);
+}
+
+.studio-board-template span {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-board-template a {
+  margin-top: auto;
+  color: var(--qc-accent-soft);
+  font-weight: var(--qc-weight-semibold);
+  text-decoration: none;
+}
+
+.studio-board-template a:hover {
+  text-decoration: underline;
+}
+
+.studio-board-updated {
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-board-create {
+  /* Defect fix (Phase A): as a bare inline <a>, its vertical padding
+     painted over the hero paragraph's last line. inline-block (and
+     the hero's flex column above) keeps the pill on its own line. */
+  display: inline-block;
+  padding: 11px 22px;
+  border: none;
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-size: var(--qc-text-md);
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.studio-board-pipeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-board-skeletons {
+  display: flex;
+  gap: 12px;
+}
+
+.studio-board-empty,
+.studio-board-missing,
+.studio-board-device-note,
+.studio-board-hint,
+.studio-board-assistant-outcome {
+  padding: 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-board-error,
+.studio-board-assistant-invalid {
+  color: var(--qc-danger);
+  font-size: var(--qc-text-base);
+}
+
+.studio-board-panel,
+.studio-board-slideover {
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-board-assistant,
+.studio-board-run,
+.studio-board-share {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.studio-board-assistant-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-board-assistant-tool,
+.studio-board-gen-off,
+.studio-board-share-owner {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-board-runplan {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-board-runplan-total {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.studio-board-gen-settings,
+.studio-board-share-access,
+.studio-board-share-invite,
+.studio-board-share-members,
+.studio-board-folder-members {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-board-gen-quote {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.studio-board-share-copied {
+  color: var(--qc-success);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-board-teamchat {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---- Voice Studio + Chef Persona (Unit 7 surfaces — grouped, generic rules) ----- */
+/* Added by shared-file batch #2: Unit 7 landed the Voice surfaces but
+   could not edit this sheet, so these rules complete the F-4 coverage
+   for the studio-voice-* grammar in the same grouped style as Film and
+   Board, on the same palette. */
+
+.studio-voice {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.studio-voice-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.studio-voice-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.studio-voice-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.studio-voice-script {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.studio-voice-rail {
+  display: flex;
+  width: 300px;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.studio-voice-empty,
+.studio-voice-stock,
+.studio-voice-personas-note {
+  padding: 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-voice-lines,
+.studio-voice-quote-lines,
+.studio-voice-preserved,
+.studio-voice-gate-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-voice-line {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-panel);
+}
+
+.studio-voice-line-number {
+  font-size: var(--qc-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--qc-ink-4);
+}
+
+.studio-voice-line-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.studio-voice-line-quote {
+  font-size: var(--qc-text-sm);
+  font-weight: 600;
+}
+
+.studio-voice-line-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studio-voice-line-error {
+  color: var(--qc-danger);
+  font-size: 13px;
+}
+
+.studio-voice-dial,
+.studio-voice-engine,
+.studio-voice-language,
+.studio-voice-reference,
+.studio-voice-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-voice-dial-modes,
+.studio-voice-dial-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.studio-voice-slot-card {
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+  font-size: var(--qc-text-base);
+}
+
+.studio-voice-generatebar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-voice-dub-quote,
+.studio-voice-tool-note {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-voice-outcome {
+  padding: 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-voice-gate-reasons {
+  color: var(--qc-warn);
+  font-size: 13px;
+}
+
+.studio-voice-personas,
+.studio-voice-library {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.studio-voice-persona-library,
+.studio-voice-persona-builder,
+.studio-voice-persona-detail,
+.studio-voice-clone,
+.studio-voice-clones,
+.studio-voice-your-audio {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-voice-persona-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-voice-persona-card,
+.studio-voice-clone-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+  font-size: var(--qc-text-base);
+}
+
+.studio-voice-persona-card img {
+  width: 100%;
+  border-radius: var(--qc-r-sm);
+}
+
+.studio-voice-persona-pickers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+}
+
+.studio-voice-persona-references,
+.studio-voice-samples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.studio-voice-persona-references img,
+.studio-voice-samples img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: var(--qc-r-sm);
+}
+
+.studio-voice-consent,
+.studio-voice-persona-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-voice-finishers,
+.studio-voice-persona-train,
+.studio-voice-persona-use {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ---- Quick Tools (Unit 8 surfaces — grouped, generic rules) -------------------- */
+/* Added by shared-file batch #3: Unit 8 landed the Quick Tools surfaces
+   but could not edit this sheet, so these rules complete the F-4
+   coverage for the studio-tools-* grammar in the same grouped style
+   as Film, Board and Voice, on the same palette. */
+
+.studio-tools-directory,
+.studio-tools-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.studio-tools-hero,
+.studio-tools-flow-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.studio-tools-search input {
+  width: 100%;
+  max-width: 420px;
+  padding: 9px 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-panel);
+  color: var(--qc-ink);
+  font-size: 14px;
+}
+
+.studio-tools-chips,
+.studio-tools-swap-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.studio-tools-chips button,
+.studio-tools-swap-mode button {
+  padding: 6px 12px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.studio-tools-chips button[aria-pressed='true'],
+.studio-tools-swap-mode button[aria-pressed='true'] {
+  border-color: var(--qc-accent);
+  background-color: var(--qc-accent-wash);
+  color: var(--qc-accent-soft);
+  font-weight: 600;
+}
+
+.studio-tools-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.studio-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.studio-tools-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-tools-card-job {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-tools-card-price {
+  color: var(--qc-accent-soft);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.studio-tools-card-twin {
+  color: var(--qc-ink-4);
+  font-size: 12px;
+}
+
+.studio-tools-card-availability {
+  padding: 10px 12px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-md);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-tools-card-open {
+  margin-top: auto;
+  color: var(--qc-accent-soft);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.studio-tools-empty,
+.studio-tools-not-found {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-tools-empty ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.studio-tools-breadcrumb {
+  color: var(--qc-ink-4);
+  font-size: 13px;
+}
+
+.studio-tools-breadcrumb a {
+  color: var(--qc-accent-soft);
+  text-decoration: none;
+}
+
+.studio-tools-limit {
+  padding: 10px 12px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-md);
+  color: var(--qc-warn);
+  font-size: 13px;
+}
+
+.studio-tools-twin {
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-tools-flow-layout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+
+.studio-tools-input,
+.studio-tools-options,
+.studio-tools-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-tools-dropzone {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-tools-selected {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+  font-size: var(--qc-text-base);
+}
+
+.studio-tools-selected img {
+  width: 100%;
+  border-radius: var(--qc-r-sm);
+}
+
+.studio-tools-selected-name {
+  font-weight: 600;
+}
+
+.studio-tools-upload-off,
+.studio-tools-upload-state {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-tools-upload-error {
+  color: var(--qc-danger);
+  font-size: 13px;
+}
+
+.studio-tools-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.studio-tools-skeletons {
+  display: flex;
+  gap: 8px;
+}
+
+.studio-tools-assets-error {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--qc-danger);
+  font-size: 13px;
+}
+
+.studio-tools-asset-grid,
+.studio-tools-results-grid,
+.studio-tools-intents,
+.studio-tools-targets,
+.studio-tools-platforms,
+.studio-tools-persona-list,
+.studio-tools-previous-list,
+.studio-tools-quote-lines,
+.studio-tools-report-factors {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-tools-asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+}
+
+.studio-tools-asset-grid button,
+.studio-tools-persona-list button {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: var(--qc-text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-tools-asset-grid button[aria-pressed='true'],
+.studio-tools-persona-list button[aria-pressed='true'] {
+  border-color: var(--qc-accent);
+}
+
+.studio-tools-asset-grid img,
+.studio-tools-results-grid img,
+.studio-tools-results-grid video {
+  width: 100%;
+  border-radius: var(--qc-r-sm);
+}
+
+.studio-tools-targets button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-tools-targets button[aria-pressed='true'] {
+  border-color: var(--qc-accent);
+  background-color: var(--qc-accent-wash);
+}
+
+.studio-tools-framing,
+.studio-tools-personas-empty {
+  padding: 12px 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-tools-hook-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-tools-hook-text input {
+  padding: 9px 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: 14px;
+}
+
+.studio-tools-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--qc-line);
+}
+
+.studio-tools-quote-lines {
+  color: var(--qc-ink-2);
+  font-size: 13px;
+}
+
+.studio-tools-quote-total {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.studio-tools-quote-note {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-tools-run {
+  padding: 12px 20px;
+  border: none;
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-size: var(--qc-text-md);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.studio-tools-run:disabled {
+  background-color: var(--qc-line-strong);
+  color: var(--qc-ink-4);
+  cursor: not-allowed;
+}
+
+.studio-tools-outcome {
+  padding: 12px 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  font-size: 13px;
+}
+
+.studio-tools-outcome-invalid {
+  color: var(--qc-danger);
+}
+
+.studio-tools-outcome-blocked,
+.studio-tools-gate {
+  color: var(--qc-warn);
+  font-size: 13px;
+}
+
+.studio-tools-outcome-not-configured {
+  color: var(--qc-ink-3);
+}
+
+.studio-tools-outcome ul,
+.studio-tools-gate ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.studio-tools-report-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+}
+
+.studio-tools-report-framing {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-tools-report-score {
+  color: var(--qc-accent-soft);
+  font-size: var(--qc-text-display);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.studio-tools-report-score span {
+  color: var(--qc-ink-4);
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.studio-tools-report-gauge {
+  height: 8px;
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-line);
+  overflow: hidden;
+}
+
+.studio-tools-report-gauge > span {
+  display: block;
+  height: 100%;
+  background-color: var(--qc-accent);
+}
+
+.studio-tools-report-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0;
+}
+
+.studio-tools-report-stats dt {
+  color: var(--qc-ink-4);
+  font-size: 12px;
+}
+
+.studio-tools-report-stats dd {
+  margin: 2px 0 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.studio-tools-report-factors li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--qc-text-sm);
+}
+
+.studio-tools-factor-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-line);
+  overflow: hidden;
+}
+
+.studio-tools-factor-bar > span {
+  display: block;
+  height: 100%;
+  background-color: var(--qc-accent-soft);
+}
+
+.studio-tools-how {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-tools-persona-status {
+  color: var(--qc-warn);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.studio-tools-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-tools-gate {
+  padding: 12px 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+}
+
+.studio-tools-before-after {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-tools-before-after-stage {
+  position: relative;
+  border-radius: var(--qc-r-lg);
+  overflow: hidden;
+}
+
+.studio-tools-before-after-stage video {
+  display: block;
+  width: 100%;
+}
+
+.studio-tools-before-after-top {
+  position: absolute;
+  inset: 0;
+}
+
+.studio-tools-before-after-top video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.studio-tools-before-after-tag {
+  position: absolute;
+  top: 8px;
+  padding: 2px 8px;
+  border-radius: var(--qc-r-full);
+  background-color: rgba(16, 16, 20, 0.8);
+  color: var(--qc-ink);
+  font-size: var(--qc-text-xs);
+  font-weight: 600;
+}
+
+.studio-tools-before-after-tag-before {
+  left: 8px;
+}
+
+.studio-tools-before-after-tag-after {
+  right: 8px;
+}
+
+.studio-tools-previous {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.studio-tools-previous-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--qc-line);
+  font-size: 13px;
+}
+
+/* ---- Episodic Stories (Unit 9 surfaces — grouped, generic rules) ---------------- */
+/* Added by shared-file batch #4: Unit 9 landed the Stories surfaces but
+   could not edit this sheet, so these rules complete the F-4 coverage
+   for the studio-stories-* grammar in the same grouped style as Film,
+   Board, Voice and Tools, on the same palette. */
+
+.studio-stories {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.studio-stories-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.studio-stories-lede {
+  color: var(--qc-ink-3);
+  font-size: 14px;
+}
+
+.studio-stories-back {
+  color: var(--qc-accent-soft);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.studio-stories-device-note,
+.studio-stories-bible-note,
+.studio-stories-plan-note {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-stories-notconfigured {
+  padding: 12px 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-warn);
+  font-size: 13px;
+}
+
+.studio-stories-state {
+  padding: 18px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-stories-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-stories-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-panel);
+}
+
+.studio-stories-card-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.studio-stories-card-premise {
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-stories-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-stories-card-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studio-stories-chip {
+  display: inline-flex;
+  padding: 2px 8px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-ink-3);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.studio-stories-card-actions,
+.studio-stories-episode-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studio-stories-created {
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-stories-new,
+.studio-stories-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-stories-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-stories-field input,
+.studio-stories-field textarea,
+.studio-stories-field select,
+.studio-stories-name-input {
+  padding: 9px 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: 14px;
+}
+
+.studio-stories-name-input {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.studio-stories-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.studio-stories-field-row .studio-stories-field {
+  flex: 1;
+  min-width: 160px;
+}
+
+.studio-stories-new-quote {
+  color: var(--qc-ink-2);
+  font-size: 13px;
+}
+
+.studio-stories-form-note {
+  color: var(--qc-danger);
+  font-size: 13px;
+}
+
+.studio-stories-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.studio-stories-button-primary {
+  border: none;
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-weight: 700;
+}
+
+.studio-stories-episode-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-stories-episode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+}
+
+.studio-stories-episode-number {
+  font-size: var(--qc-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--qc-ink-4);
+}
+
+.studio-stories-episode-price {
+  color: var(--qc-ink-2);
+  font-size: var(--qc-text-sm);
+  font-weight: 600;
+}
+
+.studio-stories-quote {
+  gap: 10px;
+}
+
+.studio-stories-quote-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--qc-ink-2);
+  font-size: 13px;
+}
+
+.studio-stories-quote-total {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.studio-stories-outcome {
+  padding: 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-stories-premise-kept {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--qc-accent);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: 13px;
+}
+
+/* ---- Photo Editor (C-3 surfaces — grouped, generic rules) ----------------------- */
+/* Added by shared-file batch #4: C-3 landed the Photo Editor surface
+   but could not edit this sheet, so these rules complete the F-4
+   coverage for the studio-photo-* grammar in the same grouped style,
+   on the same palette. */
+
+.studio-photo {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.studio-photo-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--qc-ink-4);
+  font-size: 13px;
+}
+
+.studio-photo-breadcrumb a {
+  color: var(--qc-accent-soft);
+  text-decoration: none;
+}
+
+.studio-photo-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.studio-photo-explainer {
+  color: var(--qc-ink-3);
+  font-size: 14px;
+}
+
+.studio-photo-twin {
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-photo-picker,
+.studio-photo-stage,
+.studio-photo-saveback {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-photo-loading,
+.studio-photo-checking,
+.studio-photo-pick-first {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-photo-error {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--qc-danger);
+  font-size: 13px;
+}
+
+.studio-photo-retry,
+.studio-photo-save-button {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 8px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.studio-photo-save-button {
+  border: none;
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-weight: 700;
+}
+
+.studio-photo-save-button:disabled {
+  background-color: var(--qc-line-strong);
+  color: var(--qc-ink-4);
+  cursor: not-allowed;
+}
+
+.studio-photo-empty {
+  padding: 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-photo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: var(--qc-text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-photo-card[aria-pressed='true'] {
+  border-color: var(--qc-accent);
+}
+
+.studio-photo-thumb {
+  width: 100%;
+  border-radius: var(--qc-r-sm);
+}
+
+.studio-photo-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.studio-photo-not-served {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-photo-blocker-code {
+  color: var(--qc-warn);
+  font-size: 13px;
+}
+
+.studio-photo-version-note,
+.studio-photo-frame-note,
+.studio-photo-saveback-note {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-photo-source-link a,
+.studio-photo-saved a {
+  color: var(--qc-accent-soft);
+}
+
+.studio-photo-frame-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.studio-photo-frame {
+  width: 100%;
+  height: 720px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-stage);
+}
+
+.studio-photo-export-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-photo-export-input {
+  color: var(--qc-ink);
+  font-size: 13px;
+}
+
+.studio-photo-save-name,
+.studio-photo-save-state {
+  color: var(--qc-ink-2);
+  font-size: 13px;
+}
+
+.studio-photo-save-invalid,
+.studio-photo-save-error {
+  color: var(--qc-danger);
+  font-size: 13px;
+}
+
+.studio-photo-save-off {
+  padding: 12px 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-photo-saved {
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-photo-attribution {
+  color: var(--qc-ink-4);
+  font-size: 12px;
+}
+
+/* ---- Account / Credits / Profile / Usage (Unit 10 surfaces — grouped rules) ----- */
+/* Added by shared-file batch #4: Unit 10's account surfaces
+   (CreditsPanel first, then AccountShell, UsagePanel and ProfilePage)
+   landed while this batch was running, so these rules complete the
+   F-4 coverage for the studio-account-* / studio-credits-* /
+   studio-profile-* / studio-usage-* grammar in the same grouped
+   style, on the same palette. (The sidebar pill's
+   studio-credits-pill rule predates Unit 10.) */
+
+.studio-account {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.studio-account-nav {
+  display: flex;
+  width: 220px;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-account-nav a {
+  display: block;
+  padding: 8px 12px;
+  border-radius: var(--qc-r-md);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+  text-decoration: none;
+}
+
+.studio-account-nav-active {
+  background-color: var(--qc-card);
+  color: var(--qc-ink) !important;
+  font-weight: 600;
+}
+
+.studio-account-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.studio-account-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-credits {
+  font-size: 14px;
+}
+
+.studio-credits-balance,
+.studio-credits-rules,
+.studio-credits-plans,
+.studio-credits-budget {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+}
+
+.studio-credits-balance-state {
+  color: var(--qc-warn);
+  font-size: var(--qc-text-base);
+  font-weight: 600;
+}
+
+.studio-account-note {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-account-twins {
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-account-error {
+  color: var(--qc-danger);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-account-kit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-account-kit-default {
+  display: inline-flex;
+  padding: 2px 8px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-accent-soft);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.studio-account-danger {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--qc-danger-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-danger-bg);
+  font-size: var(--qc-text-base);
+}
+
+.studio-usage {
+  font-size: 14px;
+}
+
+.studio-usage-activity,
+.studio-usage-ledger,
+.studio-usage-autopublish,
+.studio-usage-connections {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+}
+
+.studio-usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.studio-usage-table th,
+.studio-usage-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--qc-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.studio-usage-table th {
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.studio-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.studio-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.studio-profile-avatar {
+  display: flex;
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-2xl);
+}
+
+.studio-profile-featured,
+.studio-profile-grid-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-card);
+}
+
+.studio-profile-card-name {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* ---- Design Studio (C-7 surfaces — grouped, generic rules) --------------------- */
+/* The C-7 unit landed the Design Studio home + Screens editor with
+   their studio-design-* grammar, so these rules complete the F-4
+   coverage in the same grouped style, on the same palette. */
+
+.studio-design,
+.studio-design-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.studio-design-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--qc-ink-4);
+  font-size: 13px;
+}
+
+.studio-design-breadcrumb a {
+  color: var(--qc-accent-soft);
+  text-decoration: none;
+}
+
+.studio-design-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.studio-design-explainer,
+.studio-design-save-state {
+  color: var(--qc-ink-3);
+  font-size: 14px;
+}
+
+.studio-design-quantai-note {
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-design-quantai-chip {
+  display: inline-flex;
+  padding: 2px 10px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  color: var(--qc-ink-4);
+  font-size: 12px;
+}
+
+.studio-design-modes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.studio-design-mode {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.studio-design-mode-active {
+  border-color: var(--qc-accent);
+  color: var(--qc-accent-soft);
+}
+
+.studio-design-mode-disabled {
+  border-style: dashed;
+  color: var(--qc-ink-4);
+  cursor: not-allowed;
+}
+
+.studio-design-mode-reason {
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-design-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.studio-design-new {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 16px;
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.studio-design-library,
+.studio-design-stage,
+.studio-design-saveback {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.studio-design-loading,
+.studio-design-checking {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-design-error {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--qc-danger);
+  font-size: 13px;
+}
+
+.studio-design-retry,
+.studio-design-open {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 8px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.studio-design-empty,
+.studio-design-not-found {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-design-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-design-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-design-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 110px;
+  border-radius: var(--qc-r-sm);
+  background-color: var(--qc-stage);
+  overflow: hidden;
+}
+
+.studio-design-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.studio-design-thumb-placeholder {
+  padding: 12px;
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-sm);
+  text-align: center;
+}
+
+.studio-design-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.studio-design-meta {
+  color: var(--qc-ink-4);
+  overflow-wrap: anywhere;
+}
+
+.studio-design-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.studio-design-download {
+  color: var(--qc-accent-soft);
+  font-size: var(--qc-text-sm);
+  text-decoration: none;
+}
+
+.studio-design-not-served {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-lg);
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.studio-design-blocker-code {
+  color: var(--qc-warn);
+  font-size: 13px;
+}
+
+.studio-design-version-note,
+.studio-design-frame-note,
+.studio-design-saveback-note {
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-sm);
+}
+
+.studio-design-source-link a,
+.studio-design-saved a {
+  color: var(--qc-accent-soft);
+}
+
+.studio-design-frame-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.studio-design-frame {
+  width: 100%;
+  height: 720px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-stage);
+}
+
+.studio-design-project-label,
+.studio-design-export-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--qc-ink-3);
+  font-size: 13px;
+}
+
+.studio-design-project-select {
+  padding: 8px 10px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: 13px;
+}
+
+.studio-design-project-off {
+  color: var(--qc-warn);
+  font-size: 13px;
+}
+
+.studio-design-export-input {
+  color: var(--qc-ink);
+  font-size: 13px;
+}
+
+.studio-design-save-button {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.studio-design-save-button:disabled {
+  background-color: var(--qc-line-strong);
+  color: var(--qc-ink-4);
+  cursor: not-allowed;
+}
+
+.studio-design-save-name,
+.studio-design-save-state {
+  color: var(--qc-ink-2);
+  font-size: 13px;
+}
+
+.studio-design-save-invalid,
+.studio-design-save-error {
+  color: var(--qc-danger);
+  font-size: 13px;
+}
+
+.studio-design-save-off {
+  color: var(--qc-ink-4);
+  font-size: 13px;
+}
+
+.studio-design-attribution {
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-sm);
+}
+
+/* ---- Assets library (src/pages/assets.tsx — legacy class grammar) ------- */
+/* Design upgrade Phase A: this page's classes shipped with ZERO rules
+   anywhere (plan §1.0, system #4), so the library rendered in browser
+   defaults. These rules bring the page onto the studio token system —
+   CSS only; the page's structure, testids and copy are untouched.
+   Two class names are shared with the editor's AssetLibrary panel
+   (components/AssetLibrary.tsx): the root .asset-library therefore
+   carries layout/font only (no background or colour of its own), and
+   the media box is scoped under .assets-grid, which only this page
+   renders. The full class migration is plan D-12, a later unit. */
+
+.asset-library {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-family: var(--qc-font-body);
+  color-scheme: dark;
+}
+
+.library-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lib-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-ink-2);
+  font-size: var(--qc-text-base);
+  font-weight: var(--qc-weight-semibold);
+  cursor: pointer;
+}
+
+.lib-tab:hover {
+  background-color: var(--qc-raised);
+  color: var(--qc-ink);
+}
+
+.lib-tab.active {
+  border-color: var(--qc-line-strong);
+  background-color: var(--qc-accent-wash);
+  color: var(--qc-accent-soft);
+}
+
+.upload-zone {
+  padding: 28px 20px;
+  border: 1.5px dashed var(--qc-line-strong);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+  text-align: center;
+  cursor: pointer;
+}
+
+.upload-zone.dragging {
+  border-color: var(--qc-accent);
+  background-color: var(--qc-accent-wash);
+}
+
+.upload-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--qc-ink-3);
+  font-size: var(--qc-text-base);
+}
+
+.upload-content p {
+  margin: 0;
+  color: var(--qc-ink-2);
+  font-size: var(--qc-text-md);
+}
+
+.upload-content a {
+  color: var(--qc-accent-soft);
+}
+
+.upload-icon {
+  font-size: 28px;
+  line-height: 1;
+  color: var(--qc-accent-soft);
+}
+
+.upload-formats {
+  font-size: var(--qc-text-sm);
+  color: var(--qc-ink-4);
+}
+
+.upload-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upload-progress-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-panel);
+  font-size: var(--qc-text-base);
+}
+
+.upload-name {
+  font-weight: var(--qc-weight-semibold);
+  color: var(--qc-ink);
+  word-break: break-all;
+}
+
+.upload-stage {
+  color: var(--qc-ink-3);
+}
+
+.upload-error {
+  color: var(--qc-danger);
+}
+
+.upload-dismiss-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink);
+  font-size: var(--qc-text-sm);
+  cursor: pointer;
+}
+
+.library-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 10px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: var(--qc-text-base);
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: var(--qc-ink-5);
+}
+
+.search-input:focus {
+  border-color: var(--qc-accent);
+}
+
+.quick-filters {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-btn {
+  padding: 8px 14px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-ink-2);
+  font-size: var(--qc-text-base);
+  font-weight: var(--qc-weight-semibold);
+  cursor: pointer;
+}
+
+.filter-btn.active {
+  border-color: var(--qc-line-strong);
+  background-color: var(--qc-accent-wash);
+  color: var(--qc-accent-soft);
+}
+
+.library-toolbar select {
+  padding: 9px 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-ink);
+  font-size: var(--qc-text-base);
+}
+
+.library-sidebar {
+  padding: 16px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.library-sidebar h4 {
+  margin: 0 0 10px;
+  font-size: var(--qc-text-sm);
+  font-weight: var(--qc-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--qc-ink-5);
+}
+
+.folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.folder-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--qc-r-md);
+  color: var(--qc-ink-2);
+  font-size: var(--qc-text-base);
+}
+
+.folder-item.active {
+  background-color: var(--qc-accent-wash);
+  color: var(--qc-accent-soft);
+  font-weight: var(--qc-weight-semibold);
+}
+
+.folder-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-count {
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-sm);
+}
+
+.assets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.asset-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-xl);
+  background-color: var(--qc-panel);
+}
+
+.assets-grid .asset-thumbnail {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--qc-r-md);
+  background-color: var(--qc-card);
+}
+
+.assets-grid .asset-thumbnail img,
+.assets-grid .asset-thumbnail video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.asset-file-icon {
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-sm);
+  font-weight: var(--qc-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.audio-waveform {
+  font-size: 28px;
+  color: var(--qc-accent-soft);
+}
+
+.asset-status {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--qc-r-full);
+  background-color: rgba(16, 16, 20, 0.82);
+  color: var(--qc-warn);
+  font-size: var(--qc-text-xs);
+  font-weight: var(--qc-weight-semibold);
+}
+
+.asset-info {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.asset-name {
+  overflow: hidden;
+  color: var(--qc-ink);
+  font-size: var(--qc-text-base);
+  font-weight: var(--qc-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-size {
+  flex-shrink: 0;
+  color: var(--qc-ink-4);
+  font-size: var(--qc-text-sm);
+}
+
+.asset-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edit-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  color: var(--qc-ink);
+  font-size: var(--qc-text-sm);
+  font-weight: var(--qc-weight-semibold);
+  text-decoration: none;
+}
+
+.edit-btn:hover {
+  border-color: var(--qc-accent);
+  color: var(--qc-accent-soft);
+}
+
+.delete-btn {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--qc-line);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink-4);
+  cursor: pointer;
+}
+
+.delete-btn:hover {
+  border-color: var(--qc-danger-line);
+  color: var(--qc-danger);
+}
+
+.delete-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--qc-ink-2);
+  font-size: var(--qc-text-sm);
+}
+
+.delete-confirm-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--qc-danger-line);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-danger-bg);
+  color: var(--qc-danger);
+  font-size: var(--qc-text-sm);
+  font-weight: var(--qc-weight-semibold);
+  cursor: pointer;
+}
+
+.delete-confirm-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.delete-cancel-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background: none;
+  color: var(--qc-ink);
+  font-size: var(--qc-text-sm);
+  cursor: pointer;
+}
+
+.asset-delete-error {
+  margin: 0;
+  color: var(--qc-danger);
+  font-size: var(--qc-text-sm);
+}
+
+/* ==========================================================================
+   Design upgrade Phase B — the measured polish pass (plan §3 V1–V12,
+   filled from the Mobbin visual study). Everything below is treatment
+   only: no copy, state or behaviour changes — the same honest states,
+   wearing the study's design system. Contents: two-tone headline
+   accent + bold/tight heads; the nav icon set; the Promo/Voice studio
+   glows; the Voice dial as a real dial; distinct empty / error /
+   not-configured state treatments (three original stroke icons as
+   data-URI SVG, drawn for this product); media-forward cards.
+   ========================================================================== */
+
+/* ---- Two-tone headlines --------------------------------------------------
+   The study's headline grammar: line one in primary ink, the second
+   line/phrase in the accent. Our heads are name + instruction line,
+   so the accent lands on the name's distinctive word via this span
+   (the text itself is untouched — the span wraps existing words). */
+.studio-title-accent {
+  color: var(--qc-accent);
+}
+
+/* Page titles go bold + tight (Phase A set them semibold at -0.01em;
+   the study's headlines are bold and tighter). */
+.studio-image-head h1,
+.studio-video-head h1,
+.studio-promo-head h1,
+.studio-film-head h1,
+.studio-voice-head h1,
+.studio-photo-head h1,
+.studio-design-head h1,
+.studio-stories-header h1,
+.studio-tools-hero h1,
+.studio-tools-flow-head h1,
+.studio-board-hero h1,
+.studio-profile-header h1 {
+  font-weight: var(--qc-weight-bold);
+  letter-spacing: -0.015em;
+}
+
+.studio-film-hero h2 {
+  margin: 0 0 8px;
+  font-size: var(--qc-text-2xl);
+  font-weight: var(--qc-weight-bold);
+  letter-spacing: -0.015em;
+  color: var(--qc-ink);
+}
+
+/* ---- Nav icons (D-3, completed in Phase B) -------------------------------
+   One original 18px stroke icon per shell entry (NavIcons.tsx);
+   colour follows the link (currentColor), so hover/active states
+   tint the glyph with the text. */
+.studio-nav-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.studio-shell-nav nav a:hover .studio-nav-icon,
+.studio-nav-active .studio-nav-icon {
+  opacity: 1;
+}
+
+/* ---- Studio glows ----------------------------------------------------------
+   Each studio differentiates by a secondary GLOW + layout (study
+   rule 10). Promo takes a warm coral glow behind its hero, Voice a
+   soft rose glow — our hexes (--qc-glow-*), the reference's pink
+   ROLE only. Baked rgba() tints of the token colours, the auth-glow
+   idiom. Every other surface stays pure near-black + green. */
+.studio-promo {
+  background-image: radial-gradient(
+    780px 340px at 50% -90px,
+    rgba(255, 110, 90, 0.16),
+    rgba(255, 110, 90, 0) 70%
+  );
+  background-repeat: no-repeat;
+}
+
+.studio-voice {
+  background-image: radial-gradient(
+    740px 330px at 50% -80px,
+    rgba(229, 138, 165, 0.13),
+    rgba(229, 138, 165, 0) 70%
+  );
+  background-repeat: no-repeat;
+}
+
+/* ---- Voice dial — a real dial ----------------------------------------------
+   The dial face is an original SVG (arc + five ticks + needle) drawn
+   in VoiceStudio.tsx; the needle rests at the picked mode via the
+   container's data-mode. The mode buttons become a segmented control
+   under the face, and the voice slots become dial stops with a
+   radio-dot that fills with the accent when picked. The buttons are
+   still the controls — same testids, same aria-pressed, same picks. */
+.studio-voice-dial-face {
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
+}
+
+.studio-voice-dial-face svg {
+  width: 172px;
+  height: auto;
+}
+
+.studio-voice-dial-scale {
+  stroke: var(--qc-line-strong);
+}
+
+.studio-voice-dial-needle {
+  transform-origin: 60px 64px;
+  transition: transform 0.35s var(--qc-ease);
+}
+
+.studio-voice-dial-needle line {
+  stroke: var(--qc-accent);
+}
+
+.studio-voice-dial-needle circle {
+  fill: var(--qc-accent);
+}
+
+.studio-voice-dial[data-mode='voiceover'] .studio-voice-dial-needle {
+  transform: rotate(-52deg);
+}
+
+.studio-voice-dial[data-mode='change-voice'] .studio-voice-dial-needle {
+  transform: rotate(0deg);
+}
+
+.studio-voice-dial[data-mode='translate'] .studio-voice-dial-needle {
+  transform: rotate(52deg);
+}
+
+.studio-voice-dial-modes {
+  gap: 0;
+  flex-wrap: nowrap;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-raised);
+  overflow: hidden;
+}
+
+.studio-voice-dial-modes button {
+  flex: 1;
+  padding: 8px 6px;
+  border: none;
+  background: none;
+  color: var(--qc-ink-3);
+  font: inherit;
+  font-size: var(--qc-text-sm);
+  font-weight: var(--qc-weight-semibold);
+  cursor: pointer;
+}
+
+.studio-voice-dial-modes button + button {
+  border-left: 1px solid var(--qc-line);
+}
+
+.studio-voice-dial-modes button[aria-pressed='true'] {
+  background-color: var(--qc-accent);
+  color: var(--qc-on-accent);
+}
+
+.studio-voice-dial-slots button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--qc-line-strong);
+  border-radius: var(--qc-r-full);
+  background-color: var(--qc-card);
+  color: var(--qc-ink-2);
+  font: inherit;
+  font-size: var(--qc-text-sm);
+  font-weight: var(--qc-weight-semibold);
+  cursor: pointer;
+}
+
+.studio-voice-dial-slots button::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--qc-ink-4);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.studio-voice-dial-slots button[aria-pressed='true'] {
+  border-color: var(--qc-accent);
+  color: var(--qc-ink);
+}
+
+.studio-voice-dial-slots button[aria-pressed='true']::before {
+  border-color: var(--qc-accent);
+  background-color: var(--qc-accent);
+}
+
+/* ---- State treatments -------------------------------------------------------
+   Phase A's states were one dashed rectangle for everything (plan
+   R8). Phase B separates the three kinds the product actually shows:
+   EMPTY (dashed, centred, plus-circle icon — "nothing here yet,
+   start"), ERROR (solid danger hairline on the danger tint, warning
+   triangle — the words stay the components' own), NOT-CONFIGURED
+   (dashed on a card fill, plug icon — "not connected yet"). Icons are
+   original 1.7px-stroke glyphs, baked as data-URI SVG. */
+
+/* Empty — panel-sized empties get air and the icon. */
+.studio-board-empty,
+.studio-design-empty,
+.studio-image-empty,
+.studio-photo-empty,
+.studio-promo-empty,
+.studio-tools-empty,
+.studio-video-empty,
+.studio-voice-empty,
+.studio-film-projects-empty,
+.studio-explore-nomatch {
+  padding: 28px 22px;
+  text-align: center;
+}
+
+.studio-board-empty::before,
+.studio-design-empty::before,
+.studio-image-empty::before,
+.studio-photo-empty::before,
+.studio-promo-empty::before,
+.studio-tools-empty::before,
+.studio-video-empty::before,
+.studio-voice-empty::before,
+.studio-film-projects-empty::before,
+.studio-explore-nomatch::before {
+  content: '';
+  display: block;
+  width: 30px;
+  height: 30px;
+  margin: 0 auto 10px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A8A93' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M12 8.8v6.4M8.8 12h6.4'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+/* The job strip's empty note is a slim strip, not a panel — its icon
+   rides inline instead of stacking. */
+.studio-jobstrip-empty::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A8A93' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M12 8.8v6.4M8.8 12h6.4'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+/* Error — box-shaped error states share one banner treatment. */
+.studio-board-error,
+.studio-design-error,
+.studio-film-create-error,
+.studio-film-projects-error,
+.studio-film-workspace-error,
+.studio-film-elements-error,
+.studio-film-director-error,
+.studio-photo-error,
+.studio-account-error,
+.studio-wizard-error,
+.studio-wizard-photo-error,
+.studio-video-projects-error,
+.studio-image-assets-error,
+.studio-video-assets-error,
+.studio-tools-assets-error,
+.studio-promo-brandkit-error,
+.studio-promo-product-error,
+.studio-promo-link-error {
+  padding: 12px 14px;
+  border: 1px solid var(--qc-danger-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-danger-bg);
+  color: var(--qc-ink-2);
+}
+
+.studio-board-error::before,
+.studio-design-error::before,
+.studio-film-create-error::before,
+.studio-film-projects-error::before,
+.studio-film-workspace-error::before,
+.studio-film-elements-error::before,
+.studio-film-director-error::before,
+.studio-photo-error::before,
+.studio-account-error::before,
+.studio-wizard-error::before,
+.studio-wizard-photo-error::before,
+.studio-video-projects-error::before,
+.studio-image-assets-error::before,
+.studio-video-assets-error::before,
+.studio-tools-assets-error::before,
+.studio-promo-brandkit-error::before,
+.studio-promo-product-error::before,
+.studio-promo-link-error::before {
+  content: '';
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FF4D4D' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4.2 3 19.5h18L12 4.2z'/%3E%3Cpath d='M12 10v4'/%3E%3Cpath d='M12 16.8v.2'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+/* The assets page's load-error panel is a shared-ui component inside
+   an unclassed wrapper — the wrapper takes the same error frame, and
+   spans the grid instead of squeezing into one cell. The shared
+   component's own text colours are legacy-theme vars (dark on light),
+   so inside the frame its title/message take the QC ramp. */
+[data-testid='assets-load-error'] {
+  grid-column: 1 / -1;
+  padding: 28px 22px;
+  border: 1px solid var(--qc-danger-line);
+  border-radius: var(--qc-r-lg);
+  background-color: var(--qc-danger-bg);
+  text-align: center;
+}
+
+[data-testid='assets-load-error'] h3 {
+  color: var(--qc-ink);
+}
+
+[data-testid='assets-load-error'] p {
+  color: var(--qc-ink-2);
+}
+
+/* The /assets page ground (Phase B fix, found by the screenshot run):
+   .asset-library styles its components dark but never painted the
+   page itself, so the settled page — and, via its early return, the
+   loading state — rendered on the legacy light body. .assets-page is
+   carried only by src/pages/assets.tsx (the editor's separate
+   AssetLibrary component keeps the bare .asset-library). */
+.assets-page {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 20px 22px;
+  background-color: var(--qc-canvas);
+  color: var(--qc-ink-2);
+}
+
+.assets-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Not-configured — the plug icon marks "not connected yet" wherever
+   the outcome boxes and the composer note appear. */
+.studio-voice-outcome,
+.studio-stories-outcome,
+.studio-tools-outcome,
+.studio-board-assistant-outcome,
+.studio-photo-not-served {
+  background-color: var(--qc-card);
+}
+
+.studio-voice-outcome::before,
+.studio-stories-outcome::before,
+.studio-tools-outcome::before,
+.studio-board-assistant-outcome::before,
+.studio-photo-not-served::before,
+.studio-composer-notconfigured::before {
+  content: '';
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A8A93' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 3.8v4.2M15 3.8v4.2'/%3E%3Cpath d='M6.8 8h10.4v2.8a5.2 5.2 0 0 1-10.4 0V8z'/%3E%3Cpath d='M12 16v4.2'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+/* A blocked tool outcome is a warning, not a refusal — warn frame. */
+.studio-tools-outcome-blocked {
+  border-color: var(--qc-warn-line);
+  background-color: var(--qc-warn-bg);
+}
+
+/* ---- Media-forward cards -----------------------------------------------------
+   Where a card carries REAL media (the user's own assets/design
+   previews), the media goes full-bleed with the study's bottom
+   gradient and a bold label over it. Cards with no real media keep
+   their clean text treatment — nothing is fabricated to fill them. */
+
+/* Photo picker: the photo fills the card; the filename rides the
+   gradient at its foot when a photo exists. */
+.studio-photo-card {
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--qc-r-lg);
+}
+
+.studio-photo-thumb {
+  display: block;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 0;
+}
+
+.studio-photo-name {
+  padding: 7px 10px 9px;
+}
+
+.studio-photo-card:has(> .studio-photo-thumb) .studio-photo-name {
+  position: relative;
+  margin-top: -36px;
+  padding: 16px 10px 8px;
+  background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.66));
+  color: var(--qc-ink);
+}
+
+/* Design library: the file's own extracted preview goes full-bleed
+   (16/10 — design files are screens); the design's name rides the
+   gradient when a preview exists, and stays a plain label under the
+   honest placeholder when none does. */
+.studio-design-card {
+  padding: 0;
+  padding-bottom: 10px;
+  overflow: hidden;
+  border-radius: var(--qc-r-lg);
+}
+
+.studio-design-thumb {
+  aspect-ratio: 16 / 10;
+  min-height: 0;
+  border-radius: 0;
+}
+
+.studio-design-thumb-img {
+  object-fit: cover;
+}
+
+.studio-design-name,
+.studio-design-meta,
+.studio-design-card-actions {
+  padding-inline: 12px;
+}
+
+.studio-design-card:has(.studio-design-thumb-img) .studio-design-name {
+  position: relative;
+  z-index: 1;
+  margin-top: -38px;
+  padding-top: 16px;
+  padding-bottom: 4px;
+  background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.66));
+  color: var(--qc-ink);
+  font-weight: var(--qc-weight-bold);
+}
+
+/* Assets grid: video thumbnails get the study's centred play
+   triangle; media tiles get a soft bottom scrim so the status chip
+   and edges read over bright food photography. */
+.assets-grid .asset-thumbnail:has(> img)::before,
+.assets-grid .asset-thumbnail:has(> video)::before {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 45%;
+  background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.35));
+  pointer-events: none;
+}
+
+.assets-grid .asset-thumbnail:has(> video)::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-left: 15px solid rgba(255, 255, 255, 0.92);
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  transform: translate(-40%, -50%);
+  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+}
+
+/* ---- Responsive ---------------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  .studio-image-layout,
+  .studio-video-layout,
+  .studio-film-layout {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+
+  .studio-promo-layout {
+    grid-template-columns: minmax(0, 1fr) 260px;
+  }
+}
+
+@media (max-width: 760px) {
+  .studio-shell {
+    flex-direction: column;
+  }
+
+  .studio-shell-nav {
+    width: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--qc-line);
+  }
+
+  .studio-image-layout,
+  .studio-video-layout,
+  .studio-film-layout,
+  .studio-promo-slots,
+  .studio-tools-flow-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .studio-promo-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .studio-shell-main main {
+    padding: 16px;
+  }
 }

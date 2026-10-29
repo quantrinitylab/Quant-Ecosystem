@@ -91,10 +91,13 @@ let versions: Array<{ id: string; fileId: string; versionNumber: number; size: n
 const rawCalls: Array<{ sql: string; params: unknown[] }> = [];
 let rawShouldThrow = false;
 
-const users = new Map<string, { id: string; displayName: string; email: string }>([
-  ['user-owner', { id: 'user-owner', displayName: 'Owner Name', email: 'owner@quantmail.in' }],
-  ['user-friend', { id: 'user-friend', displayName: 'Friend', email: 'friend@quantmail.in' }],
-  ['user-stranger', { id: 'user-stranger', displayName: 'Stranger', email: 'x@quantmail.in' }],
+const users = new Map<
+  string,
+  { id: string; displayName: string; email: string; status: string; deletedAt: null }
+>([
+  ['user-owner', { id: 'user-owner', displayName: 'Owner Name', email: 'owner@quantmail.in', status: 'ACTIVE', deletedAt: null }],
+  ['user-friend', { id: 'user-friend', displayName: 'Friend', email: 'friend@quantmail.in', status: 'ACTIVE', deletedAt: null }],
+  ['user-stranger', { id: 'user-stranger', displayName: 'Stranger', email: 'x@quantmail.in', status: 'ACTIVE', deletedAt: null }],
 ]);
 
 function makeFile(partial: Partial<FileRow> & { id: string }): FileRow {
@@ -129,7 +132,25 @@ function createFakePrisma() {
     user: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         users.get(where.id) ?? null,
-      findMany: async () => [],
+      findMany: async ({ where }: { where?: Record<string, unknown> }) => {
+        // Faithful where-evaluator for the share recipient lookup: the
+        // handler filters to live ACTIVE subjects, so the fake must apply
+        // every where clause it passes instead of returning all matches.
+        return [...users.values()].filter((u) => {
+          if (!where) return true;
+          for (const [key, value] of Object.entries(where)) {
+            if (key === 'email' && value && typeof value === 'object') {
+              const cond = value as { equals?: string; mode?: string };
+              if (cond.equals && u.email.toLowerCase() !== cond.equals.toLowerCase()) return false;
+            } else if (key === 'id' && value && typeof value === 'object' && 'in' in value) {
+              if (!(value as { in: string[] }).in.includes(u.id)) return false;
+            } else if ((u as unknown as Record<string, unknown>)[key] !== value) {
+              return false;
+            }
+          }
+          return true;
+        });
+      },
       findFirst: async ({ where }: { where: { email?: { equals: string; mode?: string } } }) => {
         const target = where.email?.equals?.toLowerCase();
         for (const u of users.values()) if (u.email.toLowerCase() === target) return u;
