@@ -941,44 +941,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /emails/compose-assist:
-    post:
-      tags: [Email AI]
-      summary: AI-assisted email composition
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [instructions]
-              properties:
-                instructions:
-                  type: string
-                  maxLength: 2000
-                context:
-                  type: object
-                  properties:
-                    recipient:
-                      type: string
-                    subject:
-                      type: string
-                    tone:
-                      type: string
-      responses:
-        '200':
-          description: Composed email draft
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessWrapper'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
   /emails/{id}/classify-priority:
     post:
       tags: [Email AI]

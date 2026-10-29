@@ -1,20 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import { createAppError, enableIdempotency } from '@quant/server-core';
 import { AIEmailService } from '../services/ai-email.service';
 import { MailAIService } from '@quant/ai';
 import { AIEngine } from '@quant/ai';
-
-const composeAssistSchema = z.object({
-  instructions: z.string().min(1).max(2000),
-  context: z
-    .object({
-      recipient: z.string().optional(),
-      subject: z.string().optional(),
-      tone: z.string().optional(),
-    })
-    .optional(),
-});
 
 export default async function aiRoutes(fastify: FastifyInstance) {
   // WR-MAIL-104: honor Idempotency-Key on the AI mutation routes; summarize
@@ -47,28 +35,6 @@ export default async function aiRoutes(fastify: FastifyInstance) {
 
     const service = getAIService();
     const result = await service.summarize(request.params.id, userId);
-
-    return reply.send({ success: true, data: result });
-  });
-
-  // POST /emails/compose-assist
-  fastify.post('/compose-assist', async (request, reply) => {
-    const parseResult = composeAssistSchema.safeParse(request.body);
-    if (!parseResult.success) {
-      throw parseResult.error;
-    }
-
-    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
-    if (!userId) {
-      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-    }
-
-    const service = getAIService();
-    const result = await service.composeAssistant(
-      userId,
-      parseResult.data.instructions,
-      parseResult.data.context ?? {},
-    );
 
     return reply.send({ success: true, data: result });
   });
