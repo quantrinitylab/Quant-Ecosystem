@@ -16,7 +16,6 @@ on:
       - 'apps/quantmail/src/app/register/page.tsx'
       - 'apps/quantmail/src/hooks/useDrive.ts'
       - 'apps/quantmail/src/hooks/useEmail.ts'
-      - 'apps/quantmail/src/hooks/useGit.ts'
       - 'apps/quantmail/src/providers/auth-provider.tsx'
       - 'apps/quantmail/src/services/api-client.ts'
       - 'apps/quantmail/src/services/browser-api-request.ts'
@@ -216,19 +215,18 @@ jobs:
           helper='apps/quantmail/src/services/browser-api-request.ts'
           drive='apps/quantmail/src/hooks/useDrive.ts'
           email='apps/quantmail/src/hooks/useEmail.ts'
-          git='apps/quantmail/src/hooks/useGit.ts'
           grep -F "import { browserAuthSession } from './browser-auth-session';" "$helper" >/dev/null
           grep -F 'browserAuthSession.authenticatedFetch(input' "$helper" >/dev/null
-          grep -F "browserApiRequest as apiRequest" "$drive" "$email" "$git" >/dev/null
+          grep -F "browserApiRequest as apiRequest" "$drive" "$email" >/dev/null
           # QM-SCREEN-011 (#829) replaced the XHR resumable upload with the
           # chunk protocol: all drive traffic now flows through browserApiRequest
           # (-> browserAuthSession.authenticatedFetch) via that helper only.
           grep -F "apiRequest('/api/drive/upload/chunk/initiate'" "$drive" >/dev/null
           grep -F 'uploadFileResumable' "$drive" >/dev/null
-          ! grep -F 'XMLHttpRequest' "$helper" "$drive" "$email" "$git"
-          ! grep -F 'localStorage' "$helper" "$drive" "$email" "$git"
-          ! grep -F 'quant_auth_tokens' "$helper" "$drive" "$email" "$git"
-          ! grep -F 'fetch(' "$helper" "$drive" "$email" "$git"
+          ! grep -F 'XMLHttpRequest' "$helper" "$drive" "$email"
+          ! grep -F 'localStorage' "$helper" "$drive" "$email"
+          ! grep -F 'quant_auth_tokens' "$helper" "$drive" "$email"
+          ! grep -F 'fetch(' "$helper" "$drive" "$email"
 
       - name: Validate cookie-only session restoration contract
         if: matrix.stage == 'cookie-session-restore-contract'

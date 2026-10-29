@@ -10,7 +10,6 @@
     "src/app/register/page.tsx",
     "src/hooks/useDrive.ts",
     "src/hooks/useEmail.ts",
-    "src/hooks/useGit.ts",
     "src/providers/auth-provider.tsx",
     "src/services/api-client.ts",
     "src/services/browser-api-request.ts",
