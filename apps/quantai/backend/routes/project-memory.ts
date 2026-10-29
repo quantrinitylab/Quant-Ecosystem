@@ -43,7 +43,7 @@ const createEntrySchema = z.object({
   content: z.string().min(1, 'Memory content cannot be empty'),
   category: z.string().optional().default('general'),
   isPinned: z.boolean().optional().default(false),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 const queryParamSchema = z.object({
@@ -134,7 +134,7 @@ export default async function projectMemoryRoutes(fastify: FastifyInstance) {
     const parsed = memoryModeSchema.safeParse(request.body);
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid memory mode payload',
+        parsed.error.issues[0]?.message || 'Invalid memory mode payload',
         400,
         'BAD_REQUEST',
       );
@@ -179,7 +179,7 @@ export default async function projectMemoryRoutes(fastify: FastifyInstance) {
     const parsed = customInstructionsSchema.safeParse(request.body);
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid instructions payload',
+        parsed.error.issues[0]?.message || 'Invalid instructions payload',
         400,
         'BAD_REQUEST',
       );
@@ -222,7 +222,7 @@ export default async function projectMemoryRoutes(fastify: FastifyInstance) {
     const parsed = createEntrySchema.safeParse(request.body);
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid memory entry payload',
+        parsed.error.issues[0]?.message || 'Invalid memory entry payload',
         400,
         'BAD_REQUEST',
       );

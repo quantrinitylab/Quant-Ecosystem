@@ -14,11 +14,11 @@ import {
 } from '../services/mcp-connectors.service';
 
 const installConnectorSchema = z.object({
-  config: z.record(z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
 });
 
 const testConnectorSchema = z.object({
-  config: z.record(z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
 });
 
 const queryConnectorsSchema = z.object({

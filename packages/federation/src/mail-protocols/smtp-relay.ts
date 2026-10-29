@@ -6,7 +6,7 @@ export const SMTPMessageSchema = z.object({
   to: z.array(z.string().email()),
   subject: z.string(),
   body: z.string(),
-  headers: z.record(z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
 });
 
 export type SMTPMessage = z.infer<typeof SMTPMessageSchema>;

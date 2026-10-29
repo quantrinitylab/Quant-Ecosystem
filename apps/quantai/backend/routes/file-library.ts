@@ -44,7 +44,7 @@ const indexFileSchema = z.object({
   category: z.string().optional(),
   hash: z.string().optional(),
   tags: z.array(z.string()).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   projectId: z.string().optional(),
   chatId: z.string().optional(),
   sourceChatId: z.string().optional(),
@@ -88,7 +88,7 @@ export default async function fileLibraryRoutes(fastify: FastifyInstance) {
     const queryResult = queryFileLibrarySchema.safeParse(request.query);
     if (!queryResult.success) {
       throw createAppError(
-        queryResult.error.errors[0]?.message || 'Invalid query parameters',
+        queryResult.error.issues[0]?.message || 'Invalid query parameters',
         400,
         'VALIDATION_ERROR',
       );
@@ -162,7 +162,7 @@ export default async function fileLibraryRoutes(fastify: FastifyInstance) {
     const bodyResult = indexFileSchema.safeParse(request.body);
     if (!bodyResult.success) {
       throw createAppError(
-        bodyResult.error.errors[0]?.message || 'Invalid file payload',
+        bodyResult.error.issues[0]?.message || 'Invalid file payload',
         400,
         'VALIDATION_ERROR',
       );

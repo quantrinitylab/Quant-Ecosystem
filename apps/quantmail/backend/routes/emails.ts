@@ -2283,7 +2283,7 @@ export default async function emailsRoutes(
     const parseResult = importImapSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw createAppError(
-        parseResult.error.errors[0]?.message || 'Validation error',
+        parseResult.error.issues[0]?.message || 'Validation error',
         400,
         'VALIDATION_ERROR',
       );

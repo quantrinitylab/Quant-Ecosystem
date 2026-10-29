@@ -17,7 +17,7 @@ export const SMTPOutboundMessageSchema = z.object({
   subject: z.string(),
   body: z.string(),
   html: z.string().optional(),
-  headers: z.record(z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
 });
 
 export type SMTPOutboundMessage = z.infer<typeof SMTPOutboundMessageSchema>;

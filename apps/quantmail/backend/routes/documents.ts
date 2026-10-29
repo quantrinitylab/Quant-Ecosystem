@@ -21,7 +21,7 @@ function requireUserId(request: FastifyRequest): string {
 const createDocumentSchema = z.object({
   title: z.string().trim().min(1, 'Document title is required').default('Untitled'),
   content: z.string().optional().default(''),
-  metadata: z.record(z.unknown()).optional().default({}),
+  metadata: z.record(z.string(), z.unknown()).optional().default({}),
   isPublic: z.boolean().optional().default(false),
   parentId: z.string().nullable().optional(),
 });
@@ -29,7 +29,7 @@ const createDocumentSchema = z.object({
 const updateDocumentSchema = z.object({
   title: z.string().trim().min(1).max(255).optional(),
   content: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   tags: z.array(z.string()).optional(),
   isPublic: z.boolean().optional(),
   parentId: z.string().nullable().optional(),
@@ -849,7 +849,7 @@ export default async function documentRoutes(fastify: FastifyInstance) {
     const parsed = createShareLinkSchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid share link options',
+        parsed.error.issues[0]?.message || 'Invalid share link options',
         400,
         'VALIDATION_ERROR',
       );
@@ -941,7 +941,7 @@ export default async function documentRoutes(fastify: FastifyInstance) {
     const parsed = addCollaboratorSchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid collaborator details',
+        parsed.error.issues[0]?.message || 'Invalid collaborator details',
         400,
         'VALIDATION_ERROR',
       );

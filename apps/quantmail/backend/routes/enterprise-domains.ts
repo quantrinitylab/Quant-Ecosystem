@@ -42,7 +42,7 @@ export default async function enterpriseDomainsRoutes(fastify: FastifyInstance) 
     const parsed = registerDomainSchema.safeParse(request.body);
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid domain payload',
+        parsed.error.issues[0]?.message || 'Invalid domain payload',
         400,
         'VALIDATION_ERROR',
       );

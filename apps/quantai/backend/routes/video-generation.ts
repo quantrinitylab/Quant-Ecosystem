@@ -42,7 +42,7 @@ export default async function videoGenerationRoutes(fastify: FastifyInstance) {
     const parseResult = videoGenerateSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw createAppError(
-        parseResult.error.errors.map((e) => e.message).join(', '),
+        parseResult.error.issues.map((e) => e.message).join(', '),
         400,
         'VALIDATION_ERROR',
       );
@@ -158,7 +158,7 @@ export default async function videoGenerationRoutes(fastify: FastifyInstance) {
     const parseResult = interpolatePromptSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw createAppError(
-        parseResult.error.errors.map((e) => e.message).join(', '),
+        parseResult.error.issues.map((e) => e.message).join(', '),
         400,
         'VALIDATION_ERROR',
       );
