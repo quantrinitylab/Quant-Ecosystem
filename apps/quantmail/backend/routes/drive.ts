@@ -1392,11 +1392,31 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     const file = await fileAccess(prisma, request.params.id, userId);
     if (file.userId !== userId)
       throw createAppError('Only the owner can share this file', 403, 'FORBIDDEN');
-    const recipient = await prisma.user.findFirst({
-      where: { email: { equals: parsed.data.email, mode: 'insensitive' } },
+    // Fail closed on case-colliding legacy rows (same AUDIENCE_AMBIGUOUS
+    // pattern as resolveLinkAudience): the lookup stays case-insensitive,
+    // but only live, ACTIVE subjects are eligible, and the address must
+    // resolve to exactly one of them. The old findFirst granted the share —
+    // and the file encryption key — to whichever twin the row order
+    // returned first, with no deletedAt filter at all. Ambiguity throws
+    // before any share/email/activity write, so zero writes happen.
+    const eligibleRecipients = await prisma.user.findMany({
+      where: {
+        email: { equals: parsed.data.email, mode: 'insensitive' },
+        deletedAt: null,
+        status: 'ACTIVE',
+      },
       select: { id: true, email: true },
     });
-    if (!recipient) throw createAppError('Recipient user not found', 404, 'USER_NOT_FOUND');
+    if (eligibleRecipients.length === 0)
+      throw createAppError('Recipient user not found', 404, 'USER_NOT_FOUND');
+    if (eligibleRecipients.length > 1)
+      throw createAppError(
+        `Ambiguous account for: ${parsed.data.email} — more than one account matches this ` +
+          'address. Ask the person for their exact sign-in email and try again.',
+        409,
+        'AUDIENCE_AMBIGUOUS',
+      );
+    const recipient = eligibleRecipients[0];
     if (recipient.id === userId)
       throw createAppError('Cannot share a file with yourself', 400, 'INVALID_RECIPIENT');
     const existing = await prisma.share.findFirst({
