@@ -143,6 +143,9 @@ export function CalendarEventForm({
   // Calls GET /api/calendar/events/free-busy, which exposes ONLY the signed-in
   // user's own busy blocks. Guest calendars are not visible to QuantMail, so
   // the panel says that honestly instead of inventing per-guest availability.
+  // While editing, the event's own id is passed as excludeEventId so its
+  // current occurrence is not reported as a conflict against itself
+  // (fix/qm-freebusy-exclude-event).
   // ---------------------------------------------------------------------------
   type FindTimeState =
     | { status: 'idle' }
@@ -176,7 +179,12 @@ export function CalendarEventForm({
         throw new Error('Could not read the selected date');
       }
       const res = await apiFetchRaw('/api/calendar/events/free-busy', {
-        params: { start: dayStart.toISOString(), end: dayEnd.toISOString() },
+        params: {
+          start: dayStart.toISOString(),
+          end: dayEnd.toISOString(),
+          // The event being edited must not conflict with itself.
+          ...(editingEventId ? { excludeEventId: editingEventId } : {}),
+        },
         timeout: 15000,
       });
       if (!res.ok) {
