@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatBytes } from '../lib/format-bytes';
+import { describeAttachmentChip } from '../lib/compose-attachment-chip';
 import { showToast } from './InboxToast';
 import { useContacts } from '../hooks/useContacts';
 import { useConfirm } from '../hooks/useConfirm';
@@ -1519,14 +1519,20 @@ export function DockedComposer({
           {/* Attached Files Strip */}
           {attachments.length > 0 && (
             <div className="mt-2 pt-2 flex flex-wrap gap-1.5">
-              {attachments.map((att) => (
+              {attachments.map((att) => {
+                // Phase 1.5: same shared kind label + readout as the
+                // full composer — name/size/remove unchanged.
+                const chip = describeAttachmentChip(att);
+                return (
                 <div
                   key={att.id}
+                  aria-label={chip.ariaLabel}
                   className="flex items-center gap-1.5 rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-2.5 py-1 text-[11px] text-[#EDEDED]"
                 >
                   <IconPaperclip className="size-3 text-[var(--quant-primary)]" />
-                  <span className="truncate max-w-[150px]">{att.name}</span>
-                  <span className="text-[#6B7280]">({formatBytes(att.size)})</span>
+                  <span className="truncate max-w-[150px]">{chip.label}</span>
+                  <span className="font-semibold text-[var(--quant-primary)]">{chip.kindLabel}</span>
+                  <span className="text-[#6B7280]">({chip.sizeLabel})</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveAttachment(att.id)}
@@ -1536,7 +1542,8 @@ export function DockedComposer({
                     <IconClose className="size-3" />
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

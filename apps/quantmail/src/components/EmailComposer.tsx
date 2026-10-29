@@ -13,6 +13,7 @@ import { type QuantyEmailAction } from './QuantyCopilotDrawer';
 import { InsertLinkModal } from './InsertLinkModal';
 import { showToast } from './InboxToast';
 import { formatBytes } from '../lib/format-bytes';
+import { describeAttachmentChip } from '../lib/compose-attachment-chip';
 import { composeMessageBodies, htmlToPlainText } from '../lib/email-body';
 import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
 import { useSafeEmailHtml } from '../lib/safe-html';
@@ -2696,13 +2697,20 @@ export function EmailComposer({
                   Attached files ({attachments.length}):
                 </span>
                 <div className="flex flex-wrap gap-2">
-                  {attachments.map((file) => (
+                  {attachments.map((file) => {
+                    // Phase 1.5: kind label + full readout from the shared
+                    // compose-attachment-chip helper — name/size/remove are
+                    // unchanged, only the kind is newly shown.
+                    const chip = describeAttachmentChip(file);
+                    return (
                     <div
                       key={file.id}
+                      aria-label={chip.ariaLabel}
                       className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-xs text-white shadow-sm"
                     >
-                      <span className="truncate max-w-[140px]">{file.name}</span>
-                      <span className="text-[10px] text-[var(--quant-muted-foreground)]">({formatBytes(file.size)})</span>
+                      <span className="truncate max-w-[140px]">{chip.label}</span>
+                      <span className="text-[10px] font-semibold text-[var(--quant-primary)]">{chip.kindLabel}</span>
+                      <span className="text-[10px] text-[var(--quant-muted-foreground)]">({chip.sizeLabel})</span>
                       <button
                         type="button"
                         onClick={() =>
@@ -2714,7 +2722,8 @@ export function EmailComposer({
                         <IconX size={11} />
                       </button>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

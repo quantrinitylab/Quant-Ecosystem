@@ -40,27 +40,67 @@ export interface RecipientChipInputProps {
  * `foo bar` is a display-name-shaped typo and is flagged once, not twice,
  * and `John Doe <john@x.com>` keeps its name via the angle-bracket branch.
  */
+/**
+ * Split a recipient list on commas, semicolons, newlines and tabs — but
+ * ONLY at the top level: a separator inside double quotes (`"Doe, John"`)
+ * or inside angle brackets (`<john@x.com>`) is part of one recipient, not
+ * a boundary. The old split ran first and broke quoted display names:
+ * pasting `"Doe, John" <john@x.com>, jane@y.com` produced the chips
+ * `"Doe` and `John" <john@x.com>` — two malformed addresses instead of
+ * one named recipient plus Jane. A quoted name keeps its quotes stripped
+ * (the angle-bracket branch below unquotes it); an unmatched quote is
+ * treated as an ordinary character so a typo never swallows the rest of
+ * the list.
+ */
+function splitRecipientList(raw: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  let inAngle = false;
+  for (let i = 0; i < raw.length; i += 1) {
+    const ch = raw[i];
+    if (ch === '"' && raw[i - 1] !== '\\') {
+      inQuotes = !inQuotes;
+      current += ch;
+      continue;
+    }
+    if (!inQuotes && ch === '<') inAngle = true;
+    if (!inQuotes && ch === '>') inAngle = false;
+    if (!inQuotes && !inAngle && (ch === ',' || ch === ';' || ch === '\n' || ch === '\t')) {
+      if (current.trim()) parts.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
 export function parseEmailString(raw: string): RecipientOption[] {
   if (!raw.trim()) return [];
-  const parts = raw
-    .split(/[,;\n\t]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const parts = splitRecipientList(raw);
   const result: RecipientOption[] = [];
 
   for (const part of parts) {
     const angleMatch = part.match(/^(.*?)\s*<([^>]+)>$/);
     if (angleMatch) {
+      // A quoted display name (`"Doe, John"`) unquotes to `Doe, John`;
+      // an unquoted name passes through untouched, as before.
+      const name = angleMatch[1].trim().replace(/^"(.*)"$/, '$1').trim();
       result.push({
-        name: angleMatch[1].trim() || undefined,
+        name: name || undefined,
         email: angleMatch[2].trim().toLowerCase(),
       });
       continue;
     }
     const tokens = part.includes('@') ? part.split(/\s+/).filter(Boolean) : [part];
     for (const token of tokens) {
+      // A bare quoted address (`"john@x.com"`) unquotes the same way a
+      // quoted display name does above; unquoted tokens pass through.
+      const email = token.trim().replace(/^"(.*)"$/, '$1').trim().toLowerCase();
       result.push({
-        email: token.trim().toLowerCase(),
+        email,
       });
     }
   }
