@@ -11,7 +11,6 @@ vi.mock('@quant/api-client', () => ({
 }));
 
 import { CalendarContextSubTabs } from '../app/calendar/components/CalendarContextSubTabs';
-import { CalendarMobileTabStrip } from '../app/calendar/components/CalendarMobileTabStrip';
 import { BookingLinksModal } from '../app/calendar/components/BookingLinksModal';
 
 // QM-FIX-LOOP — Calendar pure-black / no-divider-lines design lock
@@ -33,10 +32,11 @@ import { BookingLinksModal } from '../app/calendar/components/BookingLinksModal'
 const CAL_DIR = path.resolve(__dirname, '../app/calendar');
 
 // Files whose dividers + off-black surfaces this fix removed.
+// NOTE fix/qm-calendar-switcher-dup: the mobile pill strip file is gone
+// (deleted — it duplicated the shell bottom bar), so it is no longer listed.
 const COVERED = [
   'components/CalendarEventForm.tsx',
   'components/CalendarContextSubTabs.tsx',
-  'components/CalendarMobileTabStrip.tsx',
   'components/BookingLinksModal.tsx',
   'booking/[slug]/page.tsx',
 ];
@@ -110,19 +110,6 @@ describe('Calendar design lock: no divider lines, pure-black surfaces', () => {
       false,
     );
     expect(OFFBLACK_HEX_RE.test(html), 'no off-black hexes in rendered tab bar').toBe(
-      false,
-    );
-  });
-
-  it('rendered CalendarMobileTabStrip is pure black with no divider lines', () => {
-    const html = renderToStaticMarkup(
-      <CalendarMobileTabStrip activeTab="month" onSelectTab={() => {}} />,
-    );
-    expect(html).toContain('bg-black');
-    expect(DIVIDER_CLASS_RE.test(html), 'no divider classes in rendered strip').toBe(
-      false,
-    );
-    expect(OFFBLACK_HEX_RE.test(html), 'no off-black hexes in rendered strip').toBe(
       false,
     );
   });
