@@ -9,7 +9,7 @@
 // world.
 // ============================================================================
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import React, { act } from 'react';
 
 // Silence React 19's "not configured to support act(...)" warning under vitest.
@@ -186,7 +186,11 @@ describe('PersonThread', () => {
     // Collapsed: snippet only, ends with ellipsis, "Show more" visible.
     expect(row.textContent).not.toContain('tail-marker');
     expect(row.textContent).toContain('…');
-    const toggle = row.querySelector('button')!;
+    // The sender-name button is also a <button> now (sender actions), so
+    // scope the expand toggle by its label, not by position.
+    const toggle = Array.from(row.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Show more',
+    )!;
     expect(toggle.textContent).toBe('Show more');
 
     act(() => {
@@ -207,7 +211,11 @@ describe('PersonThread', () => {
     const container = renderIntoDom(
       <PersonThread conversation={conversation} currentUserEmail={ME} />,
     );
-    expect(container.querySelector('button')).toBeNull();
+    // Sender-name action buttons exist, but no expand toggle does.
+    const toggles = Array.from(container.querySelectorAll('button')).filter(
+      (b) => b.textContent === 'Show more' || b.textContent === 'Show less',
+    );
+    expect(toggles).toHaveLength(0);
   });
 
   it('strips HTML when only bodyHtml is present instead of injecting it', () => {
@@ -704,5 +712,183 @@ describe('PersonThread invalid-date sort guard', () => {
     const allRows = container.querySelectorAll('[data-testid="thread-message"]');
     expect(allRows).toHaveLength(52);
     expect(allRows[0].textContent).toContain('message with a broken timestamp');
+  });
+});
+
+// ============================================================================
+// fix/qm-mobile-sender-identity — Gmail-mobile parity: avatar-tap contact
+// panel, sender-name long-press / right-click menu, copy-email action.
+// ============================================================================
+
+describe('PersonThread sender identity actions', () => {
+  function mockClipboard() {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    return writeText;
+  }
+
+  function mockFetchOk() {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as typeof fetch;
+    return { fetchMock, restore: () => { globalThis.fetch = originalFetch; } };
+  }
+
+  function click(el: Element) {
+    act(() => {
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+  }
+
+  async function clickAsync(el: Element) {
+    await act(async () => {
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+
+  it('avatar tap opens the contact panel with real actions and honest gaps', () => {
+    const container = renderIntoDom(
+      <PersonThread conversation={makeConversation()} currentUserEmail={ME} />,
+    );
+    expect(container.querySelector('[data-testid="sender-contact-panel"]')).toBeNull();
+    click(container.querySelector('[data-testid="sender-avatar-button"]')!);
+    const panel = container.querySelector('[data-testid="sender-contact-panel"]')!;
+    expect(panel.textContent).toContain('Friend');
+    expect(panel.textContent).toContain(FRIEND);
+    expect(panel.textContent).toContain('Copy email address');
+    const newEmail = panel.querySelector('[data-testid="sender-action-new-email"]')!;
+    expect(newEmail.getAttribute('href')).toBe(`/compose?to=${encodeURIComponent(FRIEND)}`);
+    expect(panel.textContent).toContain('Add to contacts');
+    // Honest gaps, never faked: no onEventDraft wired here, no chat route,
+    // no phone number on the thread.
+    expect(panel.textContent).toContain('Not available here');
+    expect(panel.textContent).toContain('Not wired yet');
+    expect(panel.textContent).toContain('No number on file');
+  });
+
+  it('avatar tap opens a schedule action when the parent wires event drafts', () => {
+    const container = renderIntoDom(
+      <PersonThread
+        conversation={makeConversation()}
+        currentUserEmail={ME}
+        onEventDraft={vi.fn()}
+      />,
+    );
+    click(container.querySelector('[data-testid="sender-avatar-button"]')!);
+    const schedule = container.querySelector('[data-testid="sender-action-schedule-event"]');
+    expect(schedule).not.toBeNull();
+    expect(schedule!.textContent).toBe('Schedule event');
+  });
+
+  it('panel closes via its close button and via Escape', () => {
+    const container = renderIntoDom(
+      <PersonThread conversation={makeConversation()} currentUserEmail={ME} />,
+    );
+    click(container.querySelector('[data-testid="sender-avatar-button"]')!);
+    expect(container.querySelector('[data-testid="sender-contact-panel"]')).not.toBeNull();
+    click(container.querySelector('[data-testid="sender-panel-close"]')!);
+    expect(container.querySelector('[data-testid="sender-contact-panel"]')).toBeNull();
+
+    click(container.querySelector('[data-testid="sender-avatar-button"]')!);
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(container.querySelector('[data-testid="sender-contact-panel"]')).toBeNull();
+  });
+
+  it('sender-name tap opens the long-press menu with copy and new-email actions', async () => {
+    const writeText = mockClipboard();
+    const container = renderIntoDom(
+      <PersonThread conversation={makeConversation()} currentUserEmail={ME} />,
+    );
+    const senderName = container.querySelector('[data-testid="thread-sender-name"]')!;
+    click(senderName);
+    const menu = container.querySelector('[data-testid="sender-actions-menu"]')!;
+    expect(menu.textContent).toContain('Friend');
+    const newEmail = menu.querySelector('[data-testid="sender-menu-new-email"]')!;
+    expect(newEmail.getAttribute('href')).toBe(`/compose?to=${encodeURIComponent(FRIEND)}`);
+    await clickAsync(menu.querySelector('[data-testid="sender-menu-copy-email"]')!);
+    expect(writeText).toHaveBeenCalledWith(FRIEND);
+    expect(menu.textContent).toContain('Copied');
+    // Menu hops into the full panel.
+    click(menu.querySelector('[data-testid="sender-menu-contact-panel"]')!);
+    expect(container.querySelector('[data-testid="sender-actions-menu"]')).toBeNull();
+    expect(container.querySelector('[data-testid="sender-contact-panel"]')).not.toBeNull();
+  });
+
+  it('sender-name long-press (550ms hold) opens the menu; a quick tap-release does not via timer', () => {
+    vi.useFakeTimers();
+    try {
+      const container = renderIntoDom(
+        <PersonThread conversation={makeConversation()} currentUserEmail={ME} />,
+      );
+      const senderName = container.querySelector('[data-testid="thread-sender-name"]')!;
+      act(() => {
+        senderName.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+        vi.advanceTimersByTime(600);
+      });
+      expect(container.querySelector('[data-testid="sender-actions-menu"]')).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sender-name right-click opens the menu and does not open the browser menu', () => {
+    const container = renderIntoDom(
+      <PersonThread conversation={makeConversation()} currentUserEmail={ME} />,
+    );
+    const senderName = container.querySelector('[data-testid="thread-sender-name"]')!;
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    act(() => {
+      senderName.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(true);
+    expect(container.querySelector('[data-testid="sender-actions-menu"]')).not.toBeNull();
+  });
+
+  it('add to contacts POSTs the real name and email and reports success', async () => {
+    const { fetchMock, restore } = mockFetchOk();
+    try {
+      const container = renderIntoDom(
+        <PersonThread conversation={makeConversation()} currentUserEmail={ME} />,
+      );
+      click(container.querySelector('[data-testid="sender-avatar-button"]')!);
+      const panel = container.querySelector('[data-testid="sender-contact-panel"]')!;
+      await clickAsync(panel.querySelector('[data-testid="sender-action-add-contact"]')!);
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/contacts',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ name: 'Friend', email: FRIEND }),
+        }),
+      );
+      expect(panel.textContent).toContain('Added to contacts');
+    } finally {
+      restore();
+    }
+  });
+
+  it('own sender names never open a menu; group avatars open a per-person panel', () => {
+    const conversation = makeConversation({
+      world: 'groups',
+      name: 'Weekend plan',
+      participantEmails: [ME, FRIEND, 'third@example.com'],
+    });
+    const container = renderIntoDom(
+      <PersonThread conversation={conversation} currentUserEmail={ME} />,
+    );
+    // Only the other person's message carries an action button; the own
+    // message's name renders as plain text.
+    expect(container.querySelectorAll('[data-testid="thread-sender-name"]')).toHaveLength(1);
+    const friendAvatar = Array.from(
+      container.querySelectorAll('[data-testid="sender-avatar-button"]'),
+    ).find((b) => b.getAttribute('data-sender-email') === FRIEND)!;
+    click(friendAvatar);
+    const panel = container.querySelector('[data-testid="sender-contact-panel"]')!;
+    expect(panel.textContent).toContain(FRIEND);
   });
 });
