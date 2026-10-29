@@ -978,7 +978,7 @@ function ChatErrorBanner({
 
 /* ============ Chat Messages Area ============ */
 
-function ChatMessages({
+export function ChatMessages({
   messages,
   isStreaming,
   onFeedback,
@@ -1009,6 +1009,26 @@ function ChatMessages({
   const scrollRef = useRef<HTMLDivElement>(null);
   const isPinnedToBottomRef = useRef(true);
   const prefersReducedMotion = useReducedMotion();
+  // Chat-thread ergonomics: jump-to-latest visibility + the single thread
+  // toast slot. The toast lives here (in-flow, directly below the scroll
+  // area and therefore above the composer) rather than inside a message row,
+  // so it can never cover the input and never stacks: one slot, replaced.
+  const [isScrolledUp, setIsScrolledUp] = useState(false);
+  const [threadToast, setThreadToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showThreadToast = useCallback((message: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setThreadToast(message);
+    toastTimerRef.current = setTimeout(() => setThreadToast(null), 2500);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    },
+    [],
+  );
 
   const lastAssistantId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
@@ -1020,8 +1040,36 @@ function ChatMessages({
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    isPinnedToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    const pinned = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    isPinnedToBottomRef.current = pinned;
+    setIsScrolledUp(!pinned);
   }, []);
+
+  const jumpToLatest = useCallback(() => {
+    isPinnedToBottomRef.current = true;
+    setIsScrolledUp(false);
+    const end = messagesEndRef.current;
+    if (end && typeof end.scrollIntoView === 'function') {
+      end.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'end',
+      });
+    } else if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [prefersReducedMotion]);
+
+  const handleFeedback = useCallback(
+    (messageId: string, value: 'POSITIVE' | 'NEGATIVE') => {
+      onFeedback?.(messageId, value);
+      showThreadToast('Feedback submitted');
+    },
+    [onFeedback, showThreadToast],
+  );
+
+  const handleCopy = useCallback(() => {
+    showThreadToast('Copied');
+  }, [showThreadToast]);
 
   useEffect(() => {
     if (!isPinnedToBottomRef.current) return;
@@ -1043,23 +1091,24 @@ function ChatMessages({
   }
 
   return (
-    /*
-     * role="log" + aria-live is the whole screen-reader channel for a streaming
-     * answer, and it was missing: tokens arrived with no announcement at all.
-     * aria-atomic="false" so only appended text is read rather than the entire
-     * transcript on every delta, and aria-busy marks generation in progress.
-     */
-    <div
-      ref={scrollRef}
-      onScroll={handleScroll}
-      role="log"
-      aria-live="polite"
-      aria-atomic="false"
-      aria-relevant="additions text"
-      aria-busy={isStreaming}
-      aria-label="Conversation"
-      className="flex-1 overflow-y-auto px-4 py-6"
-    >
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {/*
+       * role="log" + aria-live is the whole screen-reader channel for a streaming
+       * answer, and it was missing: tokens arrived with no announcement at all.
+       * aria-atomic="false" so only appended text is read rather than the entire
+       * transcript on every delta, and aria-busy marks generation in progress.
+       */}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        role="log"
+        aria-live="polite"
+        aria-atomic="false"
+        aria-relevant="additions text"
+        aria-busy={isStreaming}
+        aria-label="Conversation"
+        className="flex-1 overflow-y-auto px-4 py-6"
+      >
       <div className="mx-auto max-w-3xl space-y-7">
         <AnimatePresence initial={false}>
           {messages.map((msg) => (
@@ -1103,7 +1152,7 @@ function ChatMessages({
 
               {msg.role === 'assistant' && !msg.pending && (
                 <div className="mt-2 flex items-center gap-1">
-                  <CopyButton text={msg.content} />
+                  <CopyButton text={msg.content} onCopied={handleCopy} />
                   {onRegenerate && msg.id === lastAssistantId && !isStreaming && (
                     <button
                       type="button"
@@ -1120,7 +1169,7 @@ function ChatMessages({
                         type="button"
                         aria-label="Good response"
                         aria-pressed={msg.feedback === 'POSITIVE'}
-                        onClick={() => onFeedback(msg.id, 'POSITIVE')}
+                        onClick={() => handleFeedback(msg.id, 'POSITIVE')}
                         className={`text-xs px-1.5 py-0.5 rounded-md transition-colors ${
                           msg.feedback === 'POSITIVE'
                             ? 'bg-emerald-500/20 text-emerald-500'
@@ -1133,7 +1182,7 @@ function ChatMessages({
                         type="button"
                         aria-label="Bad response"
                         aria-pressed={msg.feedback === 'NEGATIVE'}
-                        onClick={() => onFeedback(msg.id, 'NEGATIVE')}
+                        onClick={() => handleFeedback(msg.id, 'NEGATIVE')}
                         className={`text-xs px-1.5 py-0.5 rounded-md transition-colors ${
                           msg.feedback === 'NEGATIVE'
                             ? 'bg-red-500/20 text-red-500'
@@ -1149,7 +1198,48 @@ function ChatMessages({
             </motion.div>
           ))}
         </AnimatePresence>
+        {/*
+         * Plain working-status line, derived only from isStreaming: generic
+         * wording, no step names, no progress, no invented detail. It sits at
+         * the end of the message list, next to the streaming content.
+         */}
+        {isStreaming && (
+          <p role="status" className="text-xs text-[var(--foreground-secondary)]">
+            Working…
+          </p>
+        )}
         <div ref={messagesEndRef} />
+      </div>
+      </div>
+      {/*
+       * Floating jump-to-latest: only while scrolled up (not pinned to
+       * bottom). Right edge, above the toast row and the composer, in the
+       * wrapper — never inside the scroll area, so it never scrolls away.
+       */}
+      {isScrolledUp && (
+        <button
+          type="button"
+          aria-label="Jump to latest"
+          onClick={jumpToLatest}
+          className="absolute bottom-12 right-4 z-10 rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] shadow-lg transition-colors hover:bg-[var(--quant-surface-hover)]"
+        >
+          Jump to latest
+        </button>
+      )}
+      {/*
+       * Toast slot: in normal flow directly below the thread, so it sits
+       * above the composer and can never cover the input. The fixed-height
+       * row keeps the composer from jumping when a toast appears.
+       */}
+      <div className="flex min-h-9 items-center justify-center px-4">
+        {threadToast && (
+          <div
+            role="status"
+            className="rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface)] px-3 py-1 text-xs text-[var(--foreground)] shadow-lg"
+          >
+            {threadToast}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1157,18 +1247,21 @@ function ChatMessages({
 
 /* ============ Copy Button ============ */
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, onCopied }: { text: string; onCopied?: () => void }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      // Only a successful clipboard write reports a copy — a failed write
+      // shows no toast, so "Copied" can never appear without a copy.
+      onCopied?.();
       setTimeout(() => setCopied(false), 1500);
     } catch {
       // Clipboard unavailable (e.g. insecure context) — ignore silently.
     }
-  }, [text]);
+  }, [text, onCopied]);
 
   return (
     <button
