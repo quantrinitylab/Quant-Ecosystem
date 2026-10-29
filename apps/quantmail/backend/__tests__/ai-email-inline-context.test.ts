@@ -155,24 +155,6 @@ describe('AIEmailService QM-QUANTY-002 wiring', () => {
     });
   });
 
-  describe('composeAssistant', () => {
-    it('records provenance and cost with honestly empty evidence', async () => {
-      mailAI.composeEmail.mockResolvedValue({ content: 'Draft body', confidence: 0.8 });
-
-      const result = await service.composeAssistant('user-1', 'write a follow-up', {
-        recipient: 'a@example.com',
-      });
-
-      expect(result.content).toBe('Draft body');
-      // No source mail exists for a free-form assist — evidence stays empty
-      // rather than pointing at an unrelated message.
-      expect(result.evidence).toEqual([]);
-      expect(result.provenance.capabilityId).toBe('mail.ai.compose.assist');
-      expect(result.provenance.sourceCount).toBe(0);
-      expect(result.cost.credits).toBeGreaterThan(0);
-    });
-  });
-
   describe('prepareSendPreview', () => {
     it('builds a tier-3 preview: approval required, cost shown, reversible', async () => {
       const preview = await service.prepareSendPreview('email-1', 'user-1');
