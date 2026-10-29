@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   DriveContextTabsHeader,
   DriveMobileTabStrip,
-  DriveFilesSubView,
   DriveSharedSubView,
   DriveRecentSubView,
   DriveSharedByMeSubView,
