@@ -82,7 +82,17 @@ export function AuthProvider({
   // session survives the /login → / transition. The query client is reached
   // through the module registry instead — see `lib/query-client-registry.ts`.
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // fix/qm-mobile-signin-cta-race (queue 2026-10-12 P2 [auth-sso]): the
+  // initial state must agree with what the server already proved. When
+  // `skipSessionRestore` is true the root layout checked server-side that no
+  // refresh cookie exists, so there is no session to restore — starting
+  // `isLoading` as true made the server-rendered document itself carry a
+  // disabled "Authenticating…" sign-in button, and a slow mobile viewport
+  // painted exactly that before hydration flipped it to "Sign in" (the 01:57
+  // mobile frame; never stuck, but first paint must show a tappable "Sign
+  // in"). When a cookie may exist the restore is genuinely pending, so the
+  // initial state stays true and the pending label is honest.
+  const [isLoading, setIsLoading] = useState(!skipSessionRestore);
   const [error, setError] = useState<string | null>(null);
   const [isTwoFactorPending, setIsTwoFactorPending] = useState(false);
   // A ref, not state, and never localStorage: the challenge is a credential in
