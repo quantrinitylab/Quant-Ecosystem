@@ -1,0 +1,18 @@
+-- fix/qm-accounts-import-corrective-3 (2026-10-24): persist the authoritative
+-- send-as identity id on each email row.
+--
+-- CODEX-REVIEW 6377798303 blocked #1518 because compose/update only stamped
+-- fromAddress/fromName strings: a revoke/delete of the identity between
+-- draft creation and send was invisible, and revoke-after-draft recheck was
+-- impossible. The new nullable `sendAsIdentityId` column carries the id;
+-- EmailService.send() re-authorizes it at send time (fail-closed) and stamps
+-- the identity's CURRENT email/displayName as the effective From.
+--
+-- Deliberately NO foreign key to send_as_identities: deleting an identity
+-- must never cascade to mail rows, and a draft whose identity was deleted
+-- must be DENIED at send (revoked), not silently re-addressed to the
+-- account's own address.
+--
+-- Nullable column only: every existing row reads NULL = account's own
+-- address, the behaviour all existing callers keep.
+ALTER TABLE "emails" ADD COLUMN "sendAsIdentityId" TEXT;

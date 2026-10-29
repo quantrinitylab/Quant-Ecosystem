@@ -89,7 +89,21 @@ vi.mock('../../hooks/useConfirm', () => ({
 }));
 vi.mock('../UndoSendCountdownBar', () => ({ useUndoSend: () => ({ queueSend: vi.fn() }) }));
 vi.mock('../../services/api-client', () => ({
-  apiClient: { deleteEmail: mocks.deleteEmail, composeEmail: vi.fn(), updateDraft: vi.fn() },
+  // Must mirror every apiClient method EmailComposer (and the From row it
+  // renders) calls: SendAsFromRow's useVerifiedSendAsIdentities calls
+  // getSendAsIdentities on mount — without it the effect throws a TypeError
+  // and every mounted test fails. An empty verified list keeps the From row
+  // hidden, which is the pre-alias behaviour these tests pin. sendEmail is
+  // the composer's send-path method; the close/discard paths here never call
+  // it, but a mock that omits a method the component calls is the same trap
+  // waiting for the next test.
+  apiClient: {
+    deleteEmail: mocks.deleteEmail,
+    composeEmail: vi.fn(),
+    updateDraft: vi.fn(),
+    sendEmail: vi.fn(),
+    getSendAsIdentities: vi.fn(async () => ({ success: true, data: [] })),
+  },
 }));
 vi.mock('@quant/api-client', () => ({ apiFetchRaw: vi.fn() }));
 vi.mock('../EmailTemplates', () => ({ EmailTemplates: () => null }));

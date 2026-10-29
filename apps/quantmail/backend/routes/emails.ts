@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { PrismaClient, Prisma } from '@quant/database';
 import { createAppError, enableIdempotency, handleIdempotentTransaction } from '@quant/server-core';
 import type { IdempotencyDatabase } from '@quant/server-core';
-import { EmailService, toMessageKind, toPriority } from '../services/email.service';
+import { EmailService, primarySenderFor, toMessageKind, toPriority } from '../services/email.service';
 import type { EmailSearchFilters } from '../services/email.service';
 import type { LearnedInboxCategoryStore } from '../services/learned-inbox-category.service';
 import { SmartInboxBackfillService } from '../services/smart-inbox-backfill.service';
@@ -21,6 +21,7 @@ import { buildSnippet } from '../lib/snippet';
 import { threadRealtimeHub } from '../services/thread-realtime';
 import { MboxParserService } from '../services/mbox-parser.service';
 import { ImapImporterService } from '../services/imap-importer.service';
+import { resolveSendAsIdentity } from './send-as';
 import { retentionService } from './retention';
 import { RetentionService } from '../services/retention.service';
 import { suppressionService } from '../services/suppression.service';
@@ -257,6 +258,11 @@ const composeSchema = z
     // surfaces a toggle. Absent on drafts composed before this existed —
     // EmailService.compose applies the same default server-side.
     trackOpens: z.boolean().optional(),
+    // fix/qm-accounts-import: verified send-as identity to stamp as the From.
+    // Ownership + verification are resolved in the handlers, not here.
+    // Nullish (not just optional): the composer sends an explicit null to
+    // revert a draft's From back to the account's own address.
+    sendAsId: z.string().max(64).nullish(),
   })
   .refine(
     (data) => (data.toAddresses && data.toAddresses.length > 0) || (data.to && data.to.length > 0),
@@ -285,6 +291,7 @@ const composeSchema = z
     priority: d.priority,
     sendAt: d.sendAt,
     trackOpens: d.trackOpens,
+    sendAsId: d.sendAsId,
   }));
 
 const moveSchema = z.object({
@@ -409,6 +416,23 @@ export default async function emailsRoutes(
     const prisma = getPrisma(fastify);
     const service = new EmailService(prisma);
 
+    // fix/qm-accounts-import: a verified send-as identity overrides the From.
+    // resolveSendAsIdentity 404s on unknown/foreign rows and 403s on
+    // unverified ones — an unverified address can never become a From, and a
+    // missing key keeps the account's own address (every existing caller).
+    let sendAsFrom: { fromAddress: string; fromName: string | null } | undefined;
+    let sendAsId: string | null = null;
+    if (d.sendAsId) {
+      const identity = await resolveSendAsIdentity(prisma, userId, d.sendAsId);
+      sendAsFrom = { fromAddress: identity.email, fromName: identity.displayName };
+      // fix/qm-accounts-import-corrective-3: the AUTHORITATIVE identity id
+      // (from the resolver, not the raw request string) — send()
+      // re-authorizes it at send time so revoke-after-draft is denied
+      // fail-closed. A provided-but-unresolvable sendAsId threw above, so it
+      // can never reach the row.
+      sendAsId = identity.id;
+    }
+
     const email = await service.compose({
       userId,
       toAddresses: d.toAddresses,
@@ -426,6 +450,11 @@ export default async function emailsRoutes(
       // (applied here so every compose path — /emails, /emails/compose —
       // behaves identically even when the client omits the flag).
       trackOpens: d.trackOpens ?? true,
+      ...(sendAsFrom ?? {}),
+      // fix/qm-accounts-import-corrective-3: persist the AUTHORITATIVE
+      // identity id (not just the stamped strings) — send() re-authorizes it
+      // at send time so revoke-after-draft is denied fail-closed.
+      sendAsId,
       // QM-BACK-002: correlate the draftCreated outbox event with this request.
       requestId: mutationOpts(request, reply).requestId,
     });
@@ -484,6 +513,11 @@ export default async function emailsRoutes(
             attachments: d.attachments,
             messageKind: toMessageKind(d.messageKind),
             messageId: (sent as { messageId?: string | null }).messageId ?? undefined,
+            // fix/qm-accounts-import-corrective-3: identical From semantics —
+            // internal recipients see the same From (re-authorized alias or
+            // primary) that the external envelope carries.
+            fromAddress: (sent as { fromAddress?: string }).fromAddress,
+            fromName: (sent as { fromName?: string | null }).fromName ?? null,
           });
         } catch (err) {
           request.log.warn({ err, emailId: email.id, userId }, 'internal delivery failure');
@@ -576,6 +610,25 @@ export default async function emailsRoutes(
     const raw = (request.body ?? {}) as Record<string, unknown>;
     const provided = (key: string) => Object.prototype.hasOwnProperty.call(raw, key);
 
+    // fix/qm-accounts-import: the From picker travels on the same absent-key
+    // discipline — only a provided sendAsId rewrites the draft's From.
+    // Provided + truthy: the verified alias. Provided + null/empty: back to
+    // the account's own address. Absent: the stored From is untouched.
+    let sendAsFromUpdate: { fromAddress: string; fromName: string | null } | undefined;
+    let sendAsIdentityIdUpdate: string | null | undefined;
+    if (provided('sendAsId')) {
+      if (d.sendAsId) {
+        const identity = await resolveSendAsIdentity(prisma, userId, d.sendAsId);
+        sendAsFromUpdate = { fromAddress: identity.email, fromName: identity.displayName };
+        // fix/qm-accounts-import-corrective-3: persist the AUTHORITATIVE id
+        // alongside the stamped strings, so send() can re-authorize it.
+        sendAsIdentityIdUpdate = identity.id;
+      } else {
+        sendAsFromUpdate = await primarySenderFor(prisma, userId);
+        sendAsIdentityIdUpdate = null;
+      }
+    }
+
     // The stored preview follows the body: recompute it whenever either body
     // is part of this edit, from the values the row will hold afterwards.
     const htmlProvided = provided('bodyHtml');
@@ -619,6 +672,18 @@ export default async function emailsRoutes(
               // the other flags — an autosave that omits trackOpens must not
               // flip the sender's opt-out back on.
               ...(provided('trackOpens') ? { openTrackingEnabled: d.trackOpens ?? true } : {}),
+              // fix/qm-accounts-import: From rewrite only when the caller
+              // provided sendAsId (alias or explicit null = primary).
+              ...(sendAsFromUpdate
+                ? {
+                    fromAddress: sendAsFromUpdate.fromAddress,
+                    fromName: sendAsFromUpdate.fromName,
+                    // fix/qm-accounts-import-corrective-3: the authoritative
+                    // id travels with the stamped strings — never one without
+                    // the other.
+                    sendAsIdentityId: sendAsIdentityIdUpdate ?? null,
+                  }
+                : {}),
               ...(d.attachments
                 ? {
                     attachments: d.attachments,
@@ -757,6 +822,11 @@ export default async function emailsRoutes(
           attachments: (email.attachments as any[]) ?? [],
           messageKind: toMessageKind((email as any).messageKind),
           messageId: (sent as { messageId?: string | null }).messageId ?? undefined,
+          // fix/qm-accounts-import-corrective-3: identical From semantics —
+          // internal recipients see the same From (re-authorized alias or
+          // primary) that the external envelope carries.
+          fromAddress: (sent as { fromAddress?: string }).fromAddress,
+          fromName: (sent as { fromName?: string | null }).fromName ?? null,
         });
       } catch (error) {
         request.log.warn({ err: error, emailId: email.id }, 'internal mailbox delivery failed');
@@ -1082,6 +1152,10 @@ export default async function emailsRoutes(
           threadId: targetThreadId ?? undefined,
           inReplyTo: original.id,
           messageKind,
+          // fix/qm-accounts-import-corrective-3: identical From semantics —
+          // the sent row's authoritative From travels to internal copies.
+          fromAddress: (sent as { fromAddress?: string }).fromAddress,
+          fromName: (sent as { fromName?: string | null }).fromName ?? null,
         });
       } catch (error) {
         request.log.warn({ err: error, emailId: sent.id }, 'internal reply delivery failed');

@@ -6,6 +6,7 @@ import { AppSidebar } from '../../../components/AppSidebar';
 import { SettingsSection } from '../SettingsPrimitives';
 import { DataExportSettings } from './DataExportSettings';
 import { RecoveryEmailSettings } from './RecoveryEmailSettings';
+import { AccountsImportSettings } from './AccountsImportSettings';
 
 export default function AccountSettingsPage() {
   return (
@@ -47,6 +48,11 @@ export default function AccountSettingsPage() {
         </header>
 
         <div className="mx-auto w-full max-w-3xl flex-1 space-y-6 overflow-y-auto px-4 py-6 sm:px-8">
+          {/* Accounts and Import (fix/qm-accounts-import): the Gmail "Accounts
+              and Import" equivalent — send-mail-as aliases, connected accounts,
+              and mail/contacts import. Every control calls a real endpoint. */}
+          <AccountsImportSettings />
+
           {/* Privacy & Safety Overview Link */}
           <SettingsSection
             title="Google Play Data Safety &amp; Disclosures"

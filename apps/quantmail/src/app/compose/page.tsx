@@ -58,6 +58,13 @@ export default function ComposePage() {
     to?: Array<{ email: string }>;
     subject?: string;
     body?: string;
+    /**
+     * fix/qm-accounts-import-corrective-3: the row's authoritative
+     * sendAsIdentityId (the backend persists it at compose/update time and
+     * re-authorizes it at send). Restored into the composer's From picker so
+     * save → reopen → send keeps the alias.
+     */
+    sendAsId?: string | null;
   } | null>(null);
   const [draftLoading, setDraftLoading] = useState(Boolean(draftId));
 
@@ -71,6 +78,10 @@ export default function ComposePage() {
           to: parsed.toRecipients || (parsed.to ? [{ email: parsed.to }] : []),
           subject: parsed.subject || '',
           body: parsed.body || '',
+          // fix/qm-accounts-import-corrective-3: the undo snapshot carries the
+          // From picker's choice (the composer's autosave snapshot includes
+          // sendAsId) — restoring a just-undone draft must not drop the alias.
+          sendAsId: typeof parsed.sendAsId === 'string' ? parsed.sendAsId : null,
         });
       }
     } catch {}
@@ -109,6 +120,10 @@ export default function ComposePage() {
             body: stripTrailingSignature(
               storedDraft.bodyText ?? storedDraft.bodyPlain ?? storedDraft.snippet ?? '',
             ),
+            // fix/qm-accounts-import-corrective-3: restore the authoritative
+            // identity id so the From picker reopens on the alias the draft
+            // was saved with.
+            sendAsId: (storedDraft as { sendAsIdentityId?: string | null }).sendAsIdentityId ?? null,
           });
         }
         setDraftLoading(false);
@@ -253,6 +268,12 @@ export default function ComposePage() {
         inReplyTo: replyTo || undefined,
         attachments: (data.attachments as any) || [],
         isDraft: true,
+        // fix/qm-accounts-import-corrective-3 (CODEX-REVIEW 6377798303): the
+        // principal /compose journey dropped the selected identity — the
+        // composer's From picker's choice now travels to compose/update so the
+        // row persists the authoritative identity id. Explicit null reverts a
+        // draft's From to the account's own address; absent keeps the row's.
+        sendAsId: data.sendAsId ?? null,
         // Stated rather than left to the server's default so the thread's mark
         // comes from what the sender actually chose.
         messageKind: composeKind,
@@ -451,6 +472,9 @@ export default function ComposePage() {
           onDiscard={handleDiscard}
           onAIAssist={handleAIAssist}
           initialMessageKind={composeKind}
+          // fix/qm-accounts-import-corrective-3: reopen a draft with the From
+          // picker on the alias the draft was saved with.
+          initialSendAsId={draftData?.sendAsId ?? null}
         />
         </div>
       </div>

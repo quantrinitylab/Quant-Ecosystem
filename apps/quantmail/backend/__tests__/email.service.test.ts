@@ -146,6 +146,9 @@ describe('EmailService', () => {
           snippet: 'Hello',
           fromAddress: 'user-1@quantchat.online',
           fromName: 'User One',
+          // fix/qm-accounts-import-corrective-3: the authoritative identity id
+          // is persisted on every compose — null = the account's own address.
+          sendAsIdentityId: null,
           isDraft: true,
           threadId: null,
           inReplyTo: null,
@@ -277,6 +280,13 @@ describe('EmailService', () => {
           // Cross-mailbox read receipts: the sender's copy and every recipient
           // copy share one Message-ID so `readAt` can propagate back.
           messageId: '<email-1@quantmail.in>',
+          // fix/qm-accounts-import-corrective-3: the flip stamps the
+          // authoritative From — the re-authorized identity's current values
+          // here, or the row's own strings when no send-as identity is in
+          // play. Internal copies, the worker's SES transmit and every reader
+          // of the sent row see identical From semantics.
+          fromAddress: 'user-1@quantmail.in',
+          fromName: 'User One',
           // The sender's own copy needs a position on the inbox timeline, not just
           // a send time: the mailbox list is ordered by `receivedAt`, so a null
           // here is why a message you sent never appeared beside the conversation

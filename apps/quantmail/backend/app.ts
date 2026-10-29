@@ -37,6 +37,7 @@ import { twoFactorRoutes } from './routes/two-factor';
 import { twoFactorRecoveryRoutes } from './routes/two-factor-recovery';
 import { passwordResetRoutes } from './routes/password-reset';
 import { accountRecoveryRoutes } from './routes/account-recovery';
+import { sendAsRoutes } from './routes/send-as';
 import settingsTokenRoutes from './routes/settings-tokens';
 import reposRoutes from './routes/repos';
 import workspaceRoutes from './routes/workspaces';
@@ -427,6 +428,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(twoFactorRecoveryRoutes);
   await app.register(passwordResetRoutes);
   await app.register(accountRecoveryRoutes);
+  await app.register(sendAsRoutes);
   await app.register(settingsTokenRoutes);
   await app.register(oauthRoutes);
   await app.register(ssoTicketRoutes);
