@@ -32,7 +32,14 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
       <div className="auth-brand-orbit auth-brand-orbit-one" aria-hidden="true" />
       <div className="auth-brand-orbit auth-brand-orbit-two" aria-hidden="true" />
       <div className="auth-brand-glow auth-brand-glow-saffron" aria-hidden="true" />
-      <div className="auth-brand-glow auth-brand-glow-green" aria-hidden="true" />
+      {/*
+        No green glow here, on purpose (queue 2026-10-12 P2 [darkui-audit]
+        /privacy emerald leak): Mail surfaces use orange ONLY, and this panel
+        renders on /privacy via AuthShell's mobile + desktop brand slots. A
+        `auth-brand-glow-green` div used to sit here; the class has no CSS
+        rule today, but the name alone re-invites a green paint server the
+        moment any glow stylesheet lands. Do not re-add it.
+      */}
 
       <div className="auth-mobile-brand">
         <BrandLockup compact />
