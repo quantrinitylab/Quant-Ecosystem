@@ -15,7 +15,7 @@
 // ============================================================================
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import Fastify, { type FastifyRequest, type FastifyReply, type DoneCallback } from 'fastify';
+import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify';
 import { ProjectMemoryService } from '../services/project-memory.service';
 import projectMemoryRoutes from '../routes/project-memory';
 
@@ -165,7 +165,7 @@ describe('Fastify Routes — ownership (/projects/:projectId/memory)', () => {
     app.decorate('projectMemoryService', service);
     // Test-only auth: x-test-user-id header -> request.auth (same shape as
     // the real auth plugin's decoration, which routes read as request.auth.userId).
-    app.addHook('onRequest', (request: FastifyRequest, _reply: FastifyReply, done: DoneCallback) => {
+    app.addHook('onRequest', (request: FastifyRequest, _reply: FastifyReply, done: () => void) => {
       const userId = request.headers['x-test-user-id'];
       if (typeof userId === 'string' && userId) {
         (request as unknown as { auth: { userId: string } }).auth = { userId };
