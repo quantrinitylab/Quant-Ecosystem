@@ -560,6 +560,19 @@ export function EmailComposer({
     setBody((prev) => prev.trimEnd() + activeCompletion + ' ');
   }, [activeCompletion]);
 
+  // Keyboard activation for the quick-completion chip below. The chip is a
+  // div, not a <button>, so Enter/Space must be wired by hand — without this
+  // a keyboard-only or screen-reader user could never reach the prediction
+  // as a control. Tab is deliberately NOT hijacked here: on the chip, Tab
+  // moves focus like any other control; Tab-accept lives only in the body
+  // textarea (handleBodyKeyDown), where it never leaves the field.
+  const handleCompletionKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      acceptCompletion();
+    }
+  };
+
   const handleBodyKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Tab' && activeCompletion) {
       e.preventDefault();
@@ -2461,8 +2474,12 @@ export function EmailComposer({
               {/* Quick completions chip (static phrase lookup, not ML) */}
               {activeCompletion && (
                 <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Apply quick completion: ${activeCompletion.trim()}`}
                   onClick={acceptCompletion}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/30 text-[var(--brand-accent)] text-xs shadow-md cursor-pointer hover:bg-[var(--quant-primary)]/20 transition-all select-none"
+                  onKeyDown={handleCompletionKeyDown}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/30 text-[var(--brand-accent)] text-xs shadow-md cursor-pointer hover:bg-[var(--quant-primary)]/20 transition-all select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
                 >
                   <span className="text-[10px] font-black uppercase text-[var(--quant-primary)] bg-[var(--quant-primary)]/20 border border-[var(--quant-primary)]/40 px-1.5 py-0.5 rounded-md">
                     Tab ⇥
@@ -2472,7 +2489,7 @@ export function EmailComposer({
                     <strong className="text-[var(--brand-accent)] font-semibold">{activeCompletion}</strong>
                   </span>
                   <span className="ml-auto text-[10px] text-[var(--quant-primary)] font-medium underline">
-                    Tap to apply
+                    Apply
                   </span>
                 </div>
               )}
