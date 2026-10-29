@@ -1143,6 +1143,20 @@ export function executeContextTabClick(
 
   const targetBase = tab.targetPath || (pillar === 'mail' ? '/' : `/${pillar}`);
   let targetUrl = targetBase;
+  // QM-ARCHIVE-TAB-VIEW-INBOX (2026-10-27, P1 [inbox-nav]): the desktop
+  // Archive tab must land on the canonical archived view
+  // `/?view=inbox&tab=archive` — the same URL the drawer entry, the
+  // `/archive` shim, and page.tsx's `quant:subtab-change` handler all use.
+  // The generic construction below built only `/?tab=archive`, and that
+  // second router.push overwrote the handler's view-preserving push: the
+  // page wrapper renders PeopleHome whenever `view` is not `inbox`
+  // (page.tsx: `isInbox = searchParams?.get('view') === 'inbox'`), so the
+  // archived view was unreachable from the desktop sidebar even though the
+  // handler had just set it. This holds from any source view, not just the
+  // inbox view — the handler and the shim both always target view=inbox.
+  if (pillar === 'mail' && tab.id === 'archive') {
+    targetUrl = `${targetUrl}?view=inbox`;
+  }
   if (tab.queryParam) {
     const sep = targetUrl.includes('?') ? '&' : '?';
     targetUrl = `${targetUrl}${sep}${tab.queryParam.key}=${tab.queryParam.value}`;
