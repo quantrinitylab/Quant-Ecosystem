@@ -139,15 +139,16 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
 
   // ── Booking links ──────────────────────────────────────────────────────────
   // Host-owned link management (BookingLinksModal): the signed-in host lists
-  // their links (GET), creates (POST), and deletes individual links (DELETE)
-  // through the authenticated /booking/links prefix. The DELETE row is
-  // id-addressed and DELETE-only — it can never serve a public read. The
+  // their links (GET), creates (POST), deletes (DELETE), and pauses/resumes
+  // individual links (PATCH { isActive }, fix/qm-booking-link-host-controls)
+  // through the authenticated /booking/links prefix. The id-addressed row is
+  // DELETE/PATCH-only — it can never serve a public read. The
   // invitee-facing read and the booking POST must use the /calendar/booking
   // duplicate: that prefix — and only that prefix — is in `publicPaths`
   // (backend/app.ts), so it is the only one a logged-out invitee can reach
   // without being 401'd by the auth hook.
   { pattern: /^booking\/links$/, methods: ['GET', 'POST'] },
-  { pattern: /^booking\/links\/[^/]+$/, methods: ['DELETE'] },
+  { pattern: /^booking\/links\/[^/]+$/, methods: ['DELETE', 'PATCH'] },
   { pattern: /^calendar\/booking\/[^/]+$/, methods: ['GET'] },
   { pattern: /^calendar\/booking\/[^/]+\/slots$/, methods: ['GET'] },
   { pattern: /^calendar\/booking\/[^/]+\/book$/, methods: ['POST'] },

@@ -229,6 +229,28 @@ export async function deleteBookingLinkOnServer(id: string): Promise<boolean> {
 }
 
 /**
+ * Pause/resume one booking link on the backend (PATCH /api/booking/links/:id,
+ * fix/qm-booking-link-host-controls). Returns true only when the backend
+ * accepted the toggle (HTTP 2xx). The body carries ONLY the isActive flag —
+ * the endpoint ignores every other field.
+ */
+export async function updateBookingLinkOnServer(
+  id: string,
+  patch: { isActive: boolean },
+): Promise<boolean> {
+  try {
+    const res = await apiFetchRaw(`/api/booking/links/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isActive: patch.isActive }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Merge the server list (source of truth) with local-only links that the
  * server never accepted. A local link whose slug already exists on the server
  * is dropped — it was synced; the local id is dead weight.
@@ -302,6 +324,8 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
   const [isLoadingLinks, setIsLoadingLinks] = useState(false);
   const [serverSyncError, setServerSyncError] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // fix/qm-booking-link-host-controls: which link is mid pause/resume toggle
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   // qm-booking-links-scope: offline cache is account-scoped
   // (`quant_calendar_booking_links.v2.<immutable-user-id>`); the legacy
@@ -516,6 +540,49 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
     }
   };
 
+  /**
+   * Pause/resume a booking link (fix/qm-booking-link-host-controls). Server-
+   * owned links are toggled on the backend (PATCH /api/booking/links/:id);
+   * local-only links that the server never accepted toggle on this device
+   * only, and say so. A failed server toggle keeps the row's old state and
+   * says so honestly — it never renders a paused link the server still
+   * treats as live.
+   */
+  const handleToggleLinkActive = async (link: BookingLinkItem) => {
+    const next = !link.isActive;
+    if (isLocalOnlyBookingLink(link)) {
+      setLinks((prev) =>
+        prev.map((l) => (l.id === link.id ? { ...l, isActive: next } : l)),
+      );
+      showToast({
+        text: next
+          ? 'Booking link re-activated on this device (it was never synced to the server).'
+          : 'Booking link paused on this device (it was never synced to the server).',
+        type: 'success',
+      });
+      return;
+    }
+    setTogglingId(link.id);
+    const ok = await updateBookingLinkOnServer(link.id, { isActive: next });
+    setTogglingId(null);
+    if (ok) {
+      setLinks((prev) =>
+        prev.map((l) => (l.id === link.id ? { ...l, isActive: next } : l)),
+      );
+      showToast({
+        text: next
+          ? 'Booking link re-activated — invitees can book slots again.'
+          : 'Booking link paused — invitees now see it as unavailable.',
+        type: 'success',
+      });
+    } else {
+      showToast({
+        text: 'Could not update the link on the server — its state is unchanged. Check your connection and try again.',
+        type: 'error',
+      });
+    }
+  };
+
   const formatHour = (hour: number) => {
     const period = hour >= 12 ? 'PM' : 'AM';
     const h = hour % 12 === 0 ? 12 : hour % 12;
@@ -683,9 +750,18 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                           <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_25%,transparent)]">
                             {link.duration} min
                           </span>
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-[var(--quant-surface-elevated)] text-[#7EE787] border border-[#7EE787]/20">
-                            Active
-                          </span>
+                          {/* Honest status: before fix/qm-booking-link-host-controls
+                              this badge was hardcoded "Active" and a paused
+                              link was unreachable from the UI at all. */}
+                          {link.isActive ? (
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-[var(--quant-surface-elevated)] text-[#7EE787] border border-[#7EE787]/20">
+                              Active
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              Paused
+                            </span>
+                          )}
                           {/* Honest sync marker: this link never reached the
                               server — it only exists on this device. */}
                           {link.pendingSync && (
@@ -755,6 +831,24 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                         >
                           ↗ View Page
                         </a>
+
+                        <button
+                          type="button"
+                          onClick={() => handleToggleLinkActive(link)}
+                          disabled={togglingId === link.id}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--quant-surface-elevated)] hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-all flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={link.isActive ? 'Pause this booking link — invitees will see it as unavailable' : 'Re-activate this booking link'}
+                        >
+                          <span>
+                            {togglingId === link.id
+                              ? link.isActive
+                                ? 'Pausing…'
+                                : 'Resuming…'
+                              : link.isActive
+                                ? 'Pause'
+                                : 'Resume'}
+                          </span>
+                        </button>
 
                         <button
                           type="button"
