@@ -7,9 +7,15 @@
  * plus a rAF repaint loop into the bundle, and paints nothing until its
  * first frame — pointless for a signed-out lockup that can never animate.
  * Do NOT swap this back to QuantMailLogo.
+ *
+ * The wordmark beside the mark is BrandWordmarkVector (fix/qm-brandwordmark-
+ * vector-r5, re-attempt of #1708): pure SVG paths, no font-rendered text —
+ * the signed-out lockup is a vector logo now, not words standing in as half
+ * of one. The in-app text BrandWordmark is deliberately NOT used here; see
+ * that file's header for the scope note.
  */
 import { QuantMailLogoStatic } from '../QuantMailLogoStatic';
-import { BrandWordmark } from '../BrandWordmark';
+import { BrandWordmarkVector, BrandBylineVector } from '../BrandWordmarkVector';
 import { QuantAiLogo } from '../QuantAiLogo';
 import { quantMailAuthLockup } from './auth-brand-contract';
 
@@ -138,8 +144,10 @@ function BrandLockup({ compact = false }: { compact?: boolean }) {
     >
       <QuantMailLogoStatic size={compact ? 32 : 40} />
       <div className="flex flex-col" aria-hidden="true">
-        <BrandWordmark app="mail" size={compact ? 'text-lg' : 'text-xl'} />
-        <span className="auth-byline">{quantMailAuthLockup.byline}</span>
+        <BrandWordmarkVector app="mail" fontSize={compact ? 18 : 20} />
+        <span className="auth-byline">
+          <BrandBylineVector />
+        </span>
       </div>
     </div>
   );

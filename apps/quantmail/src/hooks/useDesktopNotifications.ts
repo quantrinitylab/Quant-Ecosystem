@@ -67,7 +67,10 @@ export function showDesktopNotification(input: DesktopNotificationInput): Notifi
     const notification = new Notification(input.title, {
       body: input.body,
       tag: input.tag,
-      icon: '/quanty-ghost.png',
+      // Brand lock (2026-10-12): the notification icon is the M mark, never
+      // the Quanty ghost mascot — same rule the service worker follows.
+      // (r6: the worker was fixed in r5 but this hook was missed.)
+      icon: '/favicon.svg',
     });
     if (input.onActivate) {
       notification.onclick = () => {
