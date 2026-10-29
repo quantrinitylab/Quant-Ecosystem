@@ -38,9 +38,14 @@
  *   `INBOX_COMMAND_REFERENCE` through the same model the `?` sheet uses, so a key
  *   listed here cannot fail to exist. The `J / ↓` glyphs the old table spelled by
  *   hand come out of `chords.ts`'s `SYMBOL_LABELS` instead.
- * - **Phone verification on the General tab.** It is still here, once, under
- *   Security — where a recovery factor belongs. Two entry points to one control
- *   is the ambiguity this page has been shedding everywhere else.
+ * - **Phone verification.** Removed, not moved: there is no
+ *   phone-verification control anywhere on this page. The old bullet claimed
+ *   it survived "once, under Security", but the Security tab renders no such
+ *   control and no phone-verification component exists in `src/` — the claim
+ *   documented a removed UI as current. Recovery is email-based (see the
+ *   account recovery settings), and per the locked phone-removal design the
+ *   control must not return, so this bullet records the removal rather than
+ *   pointing at a control that renders nowhere.
  *
  * What is left either calls the API or paints the DOM. `handleSaveProfile` is a
  * real `PATCH`, `changeTheme` mirrors the boot script's three attributes, and
