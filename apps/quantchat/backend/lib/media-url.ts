@@ -169,3 +169,96 @@ export function assertMediaUrlAllowed(raw: string, opts: MediaUrlOptions): void 
     );
   }
 }
+
+
+// ============================================================================
+// Phase 1B — kind-aware short-lived signing for snap/story media.
+//
+// Snap/story view URLs live at most SNAP_VIEW_URL_EXPIRY_SECONDS (default
+// 15 minutes, hard-capped at 1 hour) and must never be served with
+// long/permanent CDN cache headers ('private, no-store' always). Every
+// other media kind keeps the existing long-lived behaviour.
+// ============================================================================
+
+/**
+ * Media kinds for kind-aware URL policy (Phase 1B). Only 'snap' and
+ * 'story' carry the disappearing guarantee; every other kind keeps the
+ * existing long-lived behaviour.
+ */
+export type SnapMediaKind = 'snap' | 'story' | 'attachment' | 'profile' | 'avatar';
+
+/** Kinds whose view URLs are short-lived and never cacheable. */
+export const SNAP_MEDIA_KINDS: ReadonlySet<SnapMediaKind> = new Set(['snap', 'story']);
+
+/** Default snap/story view-URL lifetime: 15 minutes. */
+export const DEFAULT_SNAP_VIEW_URL_EXPIRY_SECONDS = 15 * 60;
+
+/**
+ * Hard cap for any snap/story view URL: 1 hour. assertSnapViewUrlShortLived
+ * fails closed beyond this no matter what the env config says.
+ */
+export const SNAP_VIEW_URL_HARD_CAP_SECONDS = 60 * 60;
+
+/**
+ * Configured snap/story view-URL expiry. SNAP_VIEW_URL_EXPIRY_SECONDS env
+ * (seconds, integer); falls back to the 15-minute default on missing or
+ * out-of-range values. Read fresh on each call so tests can vary env.
+ */
+export function snapViewUrlExpirySeconds(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env['SNAP_VIEW_URL_EXPIRY_SECONDS'];
+  const parsed = raw === undefined ? NaN : Number(raw);
+  if (
+    Number.isInteger(parsed) &&
+    parsed > 0 &&
+    parsed <= SNAP_VIEW_URL_HARD_CAP_SECONDS
+  ) {
+    return parsed;
+  }
+  return DEFAULT_SNAP_VIEW_URL_EXPIRY_SECONDS;
+}
+
+/**
+ * Cache policy for snap/story media responses: NEVER cacheable — not by the
+ * CDN, not by the client. Issuers must send this verbatim on any response
+ * that carries snap bytes or a snap view URL.
+ */
+export const SNAP_NO_STORE_CACHE_CONTROL = 'private, no-store';
+
+/**
+ * Full response-header set for snap/story media. Apply on the media fetch
+ * route and anywhere a snap view URL is minted.
+ */
+export function snapMediaResponseHeaders(): Record<string, string> {
+  return {
+    'Cache-Control': SNAP_NO_STORE_CACHE_CONTROL,
+    'Content-Disposition': 'inline',
+  };
+}
+
+/**
+ * Guard for snap/story view-URL issuance: fails closed (500) when a
+ * snap/story URL would live longer than the hard cap, or when the expiry
+ * is not a positive integer. Call before minting any snap/story view URL.
+ */
+export function assertSnapViewUrlShortLived(
+  expiresInSeconds: number,
+  kind: SnapMediaKind,
+): void {
+  if (!SNAP_MEDIA_KINDS.has(kind)) return;
+  if (
+    !Number.isInteger(expiresInSeconds) ||
+    expiresInSeconds <= 0 ||
+    expiresInSeconds > SNAP_VIEW_URL_HARD_CAP_SECONDS
+  ) {
+    throw createAppError(
+      'Snap view URL expiry out of bounds — refusing to issue a long-lived snap URL',
+      500,
+      'SNAP_URL_EXPIRY_INVALID',
+    );
+  }
+}
+
+/** True when the kind carries the disappearing guarantee (snap/story). */
+export function isDisappearingMediaKind(kind: SnapMediaKind): boolean {
+  return SNAP_MEDIA_KINDS.has(kind);
+}

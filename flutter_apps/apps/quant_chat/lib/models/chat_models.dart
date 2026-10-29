@@ -144,6 +144,20 @@ class ChatMessage {
   final bool isServerDestroyed;
   final int serverDestructionCode; // 410 Gone
 
+  // View-once snap lifecycle (Phase 1B). These sit on top of the generic
+  // disappearing fields: a view-once snap hides its content until opened,
+  // then runs a short view timer.
+  final bool isViewOnce;
+  final bool hasBeenViewed;
+  // Recipient asked to keep AND the sender consented (backend keep-consent).
+  final bool isKeptByRecipient;
+  // Recipient display name for the "Saved by ..." caption.
+  final String? keptByName;
+  // Recipient asked to keep; the sender's consent is still outstanding.
+  final bool keepRequestPending;
+  // Sender revoked the message before the recipient viewed it.
+  final bool isRevoked;
+
   const ChatMessage({
     required this.id,
     required this.conversationId,
@@ -165,6 +179,12 @@ class ChatMessage {
     this.secondsRemaining = 0,
     this.isServerDestroyed = false,
     this.serverDestructionCode = 410,
+    this.isViewOnce = false,
+    this.hasBeenViewed = false,
+    this.isKeptByRecipient = false,
+    this.keptByName,
+    this.keepRequestPending = false,
+    this.isRevoked = false,
   });
 
   ChatMessage copyWith({
@@ -188,6 +208,12 @@ class ChatMessage {
     int? secondsRemaining,
     bool? isServerDestroyed,
     int? serverDestructionCode,
+    bool? isViewOnce,
+    bool? hasBeenViewed,
+    bool? isKeptByRecipient,
+    String? keptByName,
+    bool? keepRequestPending,
+    bool? isRevoked,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -210,6 +236,12 @@ class ChatMessage {
       secondsRemaining: secondsRemaining ?? this.secondsRemaining,
       isServerDestroyed: isServerDestroyed ?? this.isServerDestroyed,
       serverDestructionCode: serverDestructionCode ?? this.serverDestructionCode,
+      isViewOnce: isViewOnce ?? this.isViewOnce,
+      hasBeenViewed: hasBeenViewed ?? this.hasBeenViewed,
+      isKeptByRecipient: isKeptByRecipient ?? this.isKeptByRecipient,
+      keptByName: keptByName ?? this.keptByName,
+      keepRequestPending: keepRequestPending ?? this.keepRequestPending,
+      isRevoked: isRevoked ?? this.isRevoked,
     );
   }
 }
@@ -635,3 +667,4 @@ enum ChatMediaType {
   location,
   contact,
 }
+
