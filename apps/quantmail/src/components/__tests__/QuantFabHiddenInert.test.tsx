@@ -8,14 +8,16 @@
 // tab order, not just the accessibility tree.
 //
 // Root cause: QuantFab's root div set `aria-hidden={!chromeVisible}` while
-// hidden on scroll-down, but the trigger button (and open dial rows) stayed
+// hidden on scroll-down, but the trigger button stayed
 // tab-focusable — `pointer-events: none` only kills the pointer path.
 // TalkBack/VoiceOver users could land keyboard/focus on an invisible control,
 // and focused content inside `aria-hidden` is a spec violation.
 //
 // The fix adds `inert={!chromeVisible}` to the root, mirroring AppShell's
-// drawer (`inert={!isDrawerPresented}`): the whole subtree — trigger + dial
-// rows — leaves the tab order AND the accessibility tree while collapsed.
+// drawer (`inert={!isDrawerPresented}`): the whole subtree — the single
+// trigger — leaves the tab order AND the accessibility tree while collapsed.
+// (The dial rows this comment used to mention were deleted 2026-10-24;
+// the contract narrowed to a single action 2026-10-25.)
 //
 // The ContextBottomNavBar half of the queued finding no longer exists on
 // origin/main (no aria-hidden toggle, no scroll-hide wiring there), so this
@@ -25,7 +27,7 @@
 //   (1) while visible: no `inert` attribute, aria-hidden="false", the trigger
 //       is a normal tabbable button;
 //   (2) while scroll-hidden: `inert` present, aria-hidden="true" — the trigger
-//       and any rendered dial rows are unreachable by Tab;
+//       is unreachable by Tab;
 //   (3) toggling visibility flips the attributes both ways (reveal restores
 //       tab order);
 //   (4) the source wires `inert` to the same visibility bit as `aria-hidden`
@@ -67,7 +69,7 @@ import { QuantFab } from '../QuantFab';
 
 const fabSrc = readFileSync(join(process.cwd(), 'src/components/QuantFab.tsx'), 'utf8');
 
-const ACTIONS = [{ id: 'compose', label: 'Compose', onSelect: () => {} }];
+const ACTION = { id: 'compose', label: 'Compose', onSelect: () => {} };
 
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
@@ -104,7 +106,7 @@ function fabRootEl(c: HTMLElement): HTMLDivElement {
 describe('QuantFab scroll-hidden chrome (QM-A11Y-CHROME-HIDDEN-INERT)', () => {
   it('is tabbable and exposed while the chrome is visible', () => {
     mockChromeVisible = true;
-    const c = renderEl(<QuantFab actions={ACTIONS} />);
+    const c = renderEl(<QuantFab action={ACTION} />);
     const el = fabRootEl(c);
     // No inert attribute at all — React omits inert={false}.
     expect(el.hasAttribute('inert')).toBe(false);
@@ -117,7 +119,7 @@ describe('QuantFab scroll-hidden chrome (QM-A11Y-CHROME-HIDDEN-INERT)', () => {
 
   it('goes inert + aria-hidden while scroll-hidden (no focusable invisible controls)', () => {
     mockChromeVisible = false;
-    const c = renderEl(<QuantFab actions={ACTIONS} />);
+    const c = renderEl(<QuantFab action={ACTION} />);
     const el = fabRootEl(c);
     expect(el.hasAttribute('inert')).toBe(true);
     expect(el.getAttribute('aria-hidden')).toBe('true');
@@ -129,13 +131,13 @@ describe('QuantFab scroll-hidden chrome (QM-A11Y-CHROME-HIDDEN-INERT)', () => {
 
   it('restores tab order when the chrome reappears on scroll-up', () => {
     mockChromeVisible = false;
-    const c = renderEl(<QuantFab actions={ACTIONS} />);
+    const c = renderEl(<QuantFab action={ACTION} />);
     const el = fabRootEl(c);
     expect(el.hasAttribute('inert')).toBe(true);
 
     mockChromeVisible = true;
     act(() => {
-      root!.render(<QuantFab actions={ACTIONS} />);
+      root!.render(<QuantFab action={ACTION} />);
     });
     expect(el.hasAttribute('inert')).toBe(false);
     expect(el.getAttribute('aria-hidden')).toBe('false');
