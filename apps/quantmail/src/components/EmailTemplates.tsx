@@ -73,6 +73,22 @@ export function EmailTemplates({ isOpen, onClose, onSelectTemplate, variant = 'd
   }, []);
 
   useEffect(() => { if (isOpen) void loadTemplates(); }, [isOpen, loadTemplates]);
+
+  // Escape closes the picker — both variants (drawer and portaled popover)
+  // and all three call sites (EmailComposer, DockedComposer, ThreadComposer)
+  // share this component, so one listener here covers them all. Previously
+  // only the backdrop click and the X button dismissed it. The listener is
+  // on document (not the panel) so Escape also works while focus is in the
+  // picker's search field, and it is removed on close/unmount. No caret
+  // guard: Escape is not a typing key, unlike single-letter shortcuts.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
   const filteredTemplates = templates.filter((template) => {
     const query = searchQuery.trim().toLowerCase();
     return !query || template.name.toLowerCase().includes(query) || template.subject.toLowerCase().includes(query);
