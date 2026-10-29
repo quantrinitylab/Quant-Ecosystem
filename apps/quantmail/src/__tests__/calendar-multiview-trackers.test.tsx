@@ -315,23 +315,32 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
       });
 
       it('renders live world clocks (IST, PST, EST, GMT) and hourly time blocking in Clock view', () => {
-        const html = renderToStaticMarkup(
-          <CalendarScheduleSubView
-            events={mockEvents}
-            selectedDate={new Date()}
-            openDedicatedSheet={vi.fn()}
-            onSelectEvent={vi.fn()}
-          />,
-        );
-
-        // Zone codes are DST-aware (computed via Intl): Oct 2026 -> PDT/EDT,
-        // Asia/Kolkata -> GMT+5:30 style code, London -> GMT+1 style code
-        expect(html).toContain('IST');
-        expect(html).toContain('UTC+5:30');
-        expect(html).toContain('PDT');
-        expect(html).toContain('EDT');
-        expect(html).toContain('UTC+1');
-        expect(html).toContain('Hourly Time Blocking Schedule');
+        // Pin to a summer instant (2026-10-10): London is on BST (UTC+1)
+        // and the US is on PDT/EDT. Without the pin this test flips with
+        // DST — London is GMT/UTC+0 after the last Sunday of October
+        // (2026-10-25), so the UTC+1 expectation fails in winter.
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-10-10T12:00:00Z'));
+        try {
+          const html = renderToStaticMarkup(
+            <CalendarScheduleSubView
+              events={mockEvents}
+              selectedDate={new Date()}
+              openDedicatedSheet={vi.fn()}
+              onSelectEvent={vi.fn()}
+            />,
+          );
+          // Zone codes are DST-aware (computed via Intl): Oct 2026 -> PDT/EDT,
+          // Asia/Kolkata -> GMT+5:30 style code, London -> GMT+1 style code
+          expect(html).toContain('IST');
+          expect(html).toContain('UTC+5:30');
+          expect(html).toContain('PDT');
+          expect(html).toContain('EDT');
+          expect(html).toContain('UTC+1');
+          expect(html).toContain('Hourly Time Blocking Schedule');
+        } finally {
+          vi.useRealTimers();
+        }
       });
 
       // ------------------------------------------------------------------
