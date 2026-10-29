@@ -142,16 +142,25 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   // ── Booking links ──────────────────────────────────────────────────────────
   // Host-owned link management (BookingLinksModal): the signed-in host lists
   // their links (GET), creates (POST), and deletes individual links (DELETE)
-  // through the authenticated /booking/links prefix. The DELETE row is
-  // id-addressed and DELETE-only — it can never serve a public read. The
-  // invitee-facing read and the booking POST must use the /calendar/booking
-  // duplicate: that prefix — and only that prefix — is in `publicPaths`
-  // (backend/app.ts), so it is the only one a logged-out invitee can reach
-  // without being 401'd by the auth hook.
+  // through the authenticated /booking/links prefix.
+  // Invitee-facing routes are dual-registered in calendar.ts at BOTH
+  // /booking/links/:slug* and /calendar/booking/:slug* (same handlers, public
+  // DTO), and BOTH prefixes are public through the backend auth hook
+  // (backend/app.ts publicPaths, fix/qm-calendar-booking-routes) — so both
+  // prefixes need rows here too, or the catch-all answers API_ROUTE_NOT_FOUND
+  // before the request leaves Next. The single-segment row carries GET and
+  // DELETE together on purpose: the catch-all takes the FIRST pattern match,
+  // so a separate GET row after a DELETE-only row would never be reached and
+  // guests would 405 on the public read. GET on that shape is the public slug
+  // read; DELETE is the host delete; POST on the bare shape does not exist.
   { pattern: /^booking\/links$/, methods: ['GET', 'POST'] },
-  { pattern: /^booking\/links\/[^/]+$/, methods: ['DELETE'] },
+  { pattern: /^booking\/links\/[^/]+$/, methods: ['GET', 'DELETE'] },
+  { pattern: /^booking\/links\/[^/]+\/slots$/, methods: ['GET'] },
+  { pattern: /^booking\/links\/[^/]+\/lock$/, methods: ['POST'] },
+  { pattern: /^booking\/links\/[^/]+\/book$/, methods: ['POST'] },
   { pattern: /^calendar\/booking\/[^/]+$/, methods: ['GET'] },
   { pattern: /^calendar\/booking\/[^/]+\/slots$/, methods: ['GET'] },
+  { pattern: /^calendar\/booking\/[^/]+\/lock$/, methods: ['POST'] },
   { pattern: /^calendar\/booking\/[^/]+\/book$/, methods: ['POST'] },
 
   // ── Mail filters ───────────────────────────────────────────────────────────
