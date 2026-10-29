@@ -1363,7 +1363,7 @@ export default function ContactsPage() {
                   if (phone) window.location.href = `tel:${phone}`;
                 }}
                 onMessage={(c) => router.push(`/compose?to=${encodeURIComponent(c.email)}`)}
-                onScheduleMeeting={(email) => router.push(`/calendar?attendee=${encodeURIComponent(email)}`)}
+                onScheduleMeeting={(email) => router.push(`/calendar?attendee=${encodeURIComponent(email || '')}`)}
               />
             </div>
           </div>
@@ -1403,7 +1403,7 @@ export default function ContactsPage() {
               }}
               onScheduleMeeting={(email) => {
                 setShowMobileSheet(false);
-                router.push(`/calendar?attendee=${encodeURIComponent(email)}`);
+                router.push(`/calendar?attendee=${encodeURIComponent(email || '')}`);
               }}
             />
           </div>
