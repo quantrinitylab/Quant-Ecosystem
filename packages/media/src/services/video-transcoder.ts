@@ -179,12 +179,27 @@ export class VideoTranscoder {
    * `transcode`, it produces ONE playable MP4 (not an HLS ladder).
    * @param inputPath - Path to the source video
    * @param outputPath - Path to write the rendered MP4
-   * @param options - Optional trim window (seconds) and caption text overlay
+   * @param options - Optional trim window (seconds), caption text overlay,
+   *   scale-to-fit box (`width`/`height` — aspect preserved, never upscales:
+   *   the scale filter caps at the input dimensions), `videoBitrate`
+   *   (e.g. '2500k') or `crf` (0–51; mutually exclusive with `videoBitrate`,
+   *   crf wins when both are passed). All options are additive: callers that
+   *   pass none get exactly the pre-existing behaviour. (QuantCooks P0-4:
+   *   export resolution/quality used to be silently ignored because none of
+   *   these existed.)
    */
   async renderClip(
     inputPath: string,
     outputPath: string,
-    options: { startSec?: number; durationSec?: number; caption?: string } = {},
+    options: {
+      startSec?: number;
+      durationSec?: number;
+      caption?: string;
+      width?: number;
+      height?: number;
+      videoBitrate?: string;
+      crf?: number;
+    } = {},
   ): Promise<{ outputPath: string; duration: number }> {
     await mkdir(join(outputPath, '..'), { recursive: true });
 
@@ -197,13 +212,29 @@ export class VideoTranscoder {
         command = command.duration(options.durationSec);
       }
       command = command.videoCodec('libx264').audioCodec('aac');
+      const filters: string[] = [];
+      if (typeof options.width === 'number' && typeof options.height === 'number') {
+        // Scale-to-fit inside the box, preserving aspect, never upscaling
+        // (min(iw,…)/min(ih,…) caps the target at the source dimensions).
+        filters.push(
+          `scale=w=min(iw\\,${options.width}):h=min(ih\\,${options.height}):force_original_aspect_ratio=decrease`,
+        );
+      }
       if (options.caption) {
         // Burn a simple caption overlay onto the bottom of the frame. The text
         // is escaped for the drawtext filter's colon/quote-sensitive syntax.
         const escaped = options.caption.replace(/[\\:']/g, '\\$&');
-        command = command.videoFilters([
+        filters.push(
           `drawtext=text='${escaped}':fontcolor=white:fontsize=28:box=1:boxcolor=black@0.5:boxborderw=8:x=(w-text_w)/2:y=h-th-40`,
-        ]);
+        );
+      }
+      if (filters.length > 0) {
+        command = command.videoFilters(filters);
+      }
+      if (typeof options.crf === 'number') {
+        command = command.addOptions(['-crf', String(options.crf)]);
+      } else if (options.videoBitrate) {
+        command = command.videoBitrate(options.videoBitrate);
       }
       command
         .output(outputPath)

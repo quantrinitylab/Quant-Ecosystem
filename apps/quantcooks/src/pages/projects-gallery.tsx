@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
@@ -24,6 +25,7 @@ interface Project {
 }
 
 const ProjectsGalleryPage: React.FC = () => {
+  const router = useRouter();
   const { data, isLoading, error, refetch } = useProjects();
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'recent' | 'name' | 'duration'>('recent');
@@ -162,6 +164,7 @@ const ProjectsGalleryPage: React.FC = () => {
                         </button>
                         <button
                           className="project-action-btn edit-btn"
+                          onClick={() => void router.push(`/editor?projectId=${project.id}`)}
                           aria-label={`Edit ${project.title}`}
                         >
                           &#9998;
@@ -197,6 +200,13 @@ const ProjectsGalleryPage: React.FC = () => {
                     <span className="project-edited">{formatRelativeTime(project.lastEdited)}</span>
                     <span className="project-resolution">{project.resolution}</span>
                   </div>
+                  <a
+                    className="open-in-editor-link"
+                    href={`/editor?projectId=${project.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Open in editor
+                  </a>
                 </div>
               </motion.div>
             ))}

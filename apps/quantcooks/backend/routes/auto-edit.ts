@@ -4,6 +4,8 @@ import { createAppError } from '@quant/server-core';
 import { AutoEditOrchestrator, type RenderPort } from '../services/auto-edit-orchestrator.service';
 import { AutoEditSchedulerService } from '../services/auto-edit-scheduler.service';
 import { FfmpegAutoEditRenderer } from '../services/ffmpeg-auto-edit-renderer';
+import { buildCreditsPort } from '../services/credits.adapter';
+import { RATE_TABLE } from '../tools/pricing';
 
 const runSchema = z.object({
   sourceRef: z.string().max(2048).optional(),
@@ -60,7 +62,18 @@ export default async function autoEditRoutes(fastify: FastifyInstance) {
 
   function orchestrator(): AutoEditOrchestrator {
     const r = renderer();
-    return new AutoEditOrchestrator(prisma() as never, r ? { renderer: r } : {});
+    // CP-2 (§6.5): meter the run through the real ledger when one is
+    // configured, at the RATE TABLE's price (the table is the source —
+    // not the orchestrator's magic default). No ledger → buildCreditsPort
+    // returns null → the orchestrator stays unmetered and the run record
+    // honestly shows creditsCharged: 0.
+    const credits = buildCreditsPort((fastify as unknown as { prisma: unknown }).prisma);
+    const rule = RATE_TABLE['quantcooks.run_auto_edit'];
+    const creditsPerRun = rule && rule.type === 'flat' ? rule.credits : null;
+    return new AutoEditOrchestrator(prisma() as never, {
+      ...(r ? { renderer: r } : {}),
+      ...(credits && creditsPerRun !== null ? { credits, creditsPerRun } : {}),
+    });
   }
 
   // POST /auto-edit/run — run the pipeline now for the caller (idempotent/day).

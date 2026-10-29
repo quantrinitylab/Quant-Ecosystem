@@ -254,6 +254,9 @@ const ProjectManager: React.FC = () => {
                       ))}
                     </div>
                   )}
+                  <a className="open-in-editor-link" href={`/editor?projectId=${project.id}`}>
+                    Open in editor
+                  </a>
                 </div>
               </div>
             ))

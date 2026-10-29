@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { PageTransition } from '../components/PageTransition';
+import { useAssets } from '../hooks/useAssets';
 
 interface CanvasElement {
   id: string;
@@ -65,6 +66,14 @@ const SIZE_PRESETS: CanvasSize[] = [
 const SHAPE_OPTIONS = ['rect', 'circle', 'triangle', 'line', 'arrow', 'star', 'polygon'] as const;
 
 const CanvasEditor: React.FC<CanvasEditorProps> = ({ projectId }) => {
+  // Real uploaded images for the Uploads panel (P0-3) — the panel previously
+  // inserted a hard-coded '/placeholder.jpg' and fake '/uploads/N.jpg' thumbs.
+  const { data: allAssets } = useAssets(undefined, undefined, projectId);
+  const imageAssets = useMemo(
+    () => (allAssets ?? []).filter((a) => a.type === 'image' && a.url),
+    [allAssets],
+  );
+
   const [elements, setElements] = useState<CanvasElement[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>(SIZE_PRESETS[0]);
@@ -500,18 +509,24 @@ const CanvasEditor: React.FC<CanvasEditorProps> = ({ projectId }) => {
                   <div className="uploads-panel">
                     <button
                       className="upload-btn"
-                      onClick={() => handleAddImage('/placeholder.jpg')}
+                      disabled={imageAssets.length === 0}
+                      onClick={() => {
+                        const first = imageAssets[0];
+                        if (first?.url) handleAddImage(first.url);
+                      }}
                     >
                       Upload Image
                     </button>
                     <div className="recent-uploads">
-                      {[1, 2, 3].map((i) => (
+                      {imageAssets.map((asset) => (
                         <div
-                          key={i}
+                          key={asset.id}
                           className="upload-thumb"
-                          onClick={() => handleAddImage(`/uploads/${i}.jpg`)}
+                          onClick={() => {
+                            if (asset.url) handleAddImage(asset.url);
+                          }}
                         >
-                          <img src={`/uploads/${i}.jpg`} alt={`Upload ${i}`} />
+                          <img src={asset.url ?? ''} alt={asset.filename} />
                         </div>
                       ))}
                     </div>

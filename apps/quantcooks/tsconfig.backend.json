@@ -20,8 +20,14 @@
       "@quant/realtime/*": ["../../packages/realtime/src/*"],
       "@quant/server-core": ["../../packages/server-core/src/index.ts"],
       "@quant/server-core/*": ["../../packages/server-core/src/*"],
+      "@quant/storage": ["../../packages/storage/src/index.ts"],
+      "@quant/storage/*": ["../../packages/storage/src/*"],
       "@quant/ai": ["../../packages/ai/src/index.ts"],
-      "@quant/ai/*": ["../../packages/ai/src/*"]
+      "@quant/ai/*": ["../../packages/ai/src/*"],
+      "@quant/quant-tools": ["../../packages/quant-tools/src/index.ts"],
+      "@quant/quant-tools/*": ["../../packages/quant-tools/src/*"],
+      "@quant/quanty-contracts": ["../../packages/quanty-contracts/src/index.ts"],
+      "@quant/quanty-contracts/*": ["../../packages/quanty-contracts/src/*"]
     }
   },
   "include": ["backend/**/*.ts", "src/**/*.ts"],

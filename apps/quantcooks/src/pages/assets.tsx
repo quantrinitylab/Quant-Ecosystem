@@ -1,117 +1,293 @@
 // ============================================================================
 // QuantEdits - Asset Library
-// Tabs: Uploads/Stock/Music/Stickers/Fonts, upload, folders, search, favorites
+// Tabs: All/Media/Music/Stickers/Fonts, upload, search, sort.
+//
+// D-1 fix (P0-6 gate defect D-1, verdicted REAL; fixed by the small-fixes
+// unit): this page used to cast backend rows to a private `Asset` type
+// reading a name, a thumbnail, a folder, tags and a favorite flag —
+// none of which the server sends, so every real asset rendered blank-named
+// with a broken thumbnail and the favorites filter hid everything. The
+// page now renders the real `ServerAsset` shape only (api-client.ts):
+// `filename` is the name, `url` (a fresh signed URL, null while PENDING)
+// is the preview, `type` is the content-type top-level segment the tabs
+// filter on. The server has no folders, tags or favorites, so the page
+// makes no such claims: the folder sidebar and the favorites filter /
+// per-card star toggle are removed rather than fabricated over data
+// that does not exist.
+//
+// Honesty fix (assets-page honesty unit): three more fabrications on this
+// page were removed —
+//  1. Upload was SIMULATED: handleFileUpload animated a fake percentage
+//     with setInterval and never called the backend, so files picked
+//     here were never uploaded. Uploads now run the real P0-3 flow
+//     (useAssetUpload: signed URL → PUT → complete) into a real project
+//     (below), show the hook's stage only — no invented percentage —
+//     and surface real errors untouched. With no project to save into,
+//     the upload zone is disabled and says why instead of pretending.
+//  2. Delete was a no-op comment. It now calls apiClient.deleteAsset
+//     behind an inline confirm (the FilmWorkspace pattern), refreshes
+//     the list via the real query, and on failure keeps the asset and
+//     shows the real error.
+//  3. A tab labelled as a stock library listed the caller's OWN assets;
+//     no stock library exists server-side. Tabs are now labelled by
+//     what they actually filter (All / Photos & Video / Audio / …).
+//
+// Photo Editor entry point (C-3 follow-up F-C3-3, shared-file batch
+// #4): image cards carry an "Edit" action linking to /studio/photo —
+// the Photo Editor surface whose picker is this same library and whose
+// save-back lands here as a new asset. The link is the plain route (no
+// per-asset param): the editor page takes no asset selection from the
+// URL today, so the card claims no deep-link it cannot honour.
+//
+// Load-failure fix (screenshot defect, 2026-10-29): a failed assets
+// read — e.g. the proxy answering with an EMPTY body when the backend
+// is unreachable, so the api client's res.json() rejects with
+// "Unexpected end of JSON input" (src/services/api-client.ts) — used
+// to end the whole page: the error branch returned early with the
+// bare shared ErrorState, whose default title is the generic crash
+// wording "Something went wrong" over the raw parser message, the
+// library shell gone entirely (verified in the 2026-10-29 screenshot
+// run, 12-assets.png). A failed read now keeps the shell up and puts
+// a NAMED load-error state (describeAssetsLoadError) where the grid
+// would be, with a working Retry through the query's refetch. The
+// error state and the empty state stay distinct: a successful read
+// of zero assets still renders "No assets found", never the panel.
 // ============================================================================
 
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
-import { useAssets } from '../hooks/useAssets';
+import { useAssets, useAssetUpload } from '../hooks/useAssets';
+import { useProjects } from '../hooks/useProjects';
+import { apiClient } from '../services/api-client';
+import type { ServerAsset } from '../services/api-client';
 import { PageTransition } from '../components/PageTransition';
 import { SignInRequired } from '../components/SignInRequired';
 import { isUnauthorizedError } from '../lib/auth-errors';
 
-interface Asset {
+// ---------------------------------------------------------------------------
+// Upload / delete orchestration — the page's testable seams.
+//
+// These mirror runReferenceUpload (lib/studio/image.ts): the async flow
+// lives in a plain function taking its dependencies, so tests drive the
+// real seam with mocked deps and the component stays a thin state shell.
+// Outcomes carry the backend's real error message untouched — a failed
+// upload/delete is reported, never smoothed over.
+// ---------------------------------------------------------------------------
+
+export interface AssetUploadEntry {
   id: string;
-  name: string;
-  type: 'image' | 'video' | 'audio' | 'font' | 'sticker';
-  url: string;
-  thumbnail: string;
-  size: number;
-  duration?: number;
-  dimensions?: { width: number; height: number };
-  folder: string;
-  uploadedAt: string;
-  isFavorite: boolean;
-  tags: string[];
+  filename: string;
+  phase: 'working' | 'error';
+  error?: string;
 }
 
-interface Folder {
-  id: string;
-  name: string;
-  assetCount: number;
-  color: string;
+export type AssetUploadOutcome =
+  | { status: 'done'; asset: ServerAsset }
+  | { status: 'error'; message: string };
+
+export async function runAssetUpload(
+  file: File,
+  upload: (file: File) => Promise<ServerAsset>,
+): Promise<AssetUploadOutcome> {
+  try {
+    const asset = await upload(file);
+    return { status: 'done', asset };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'The upload failed.',
+    };
+  }
 }
 
-interface AssetLibraryProps {
+/** Stage text for an in-flight upload — the hook exposes no percentage. */
+export function assetUploadStageLabel(entry: AssetUploadEntry): string | null {
+  if (entry.phase === 'working') {
+    return `Uploading ${entry.filename} — sending it to storage and confirming it landed…`;
+  }
+  return null;
+}
+
+export type AssetDeleteOutcome = { status: 'deleted' } | { status: 'error'; message: string };
+
+export async function runAssetDelete(
+  assetId: string,
+  deps: {
+    deleteAsset: (id: string) => Promise<{ success: boolean; error?: { message: string } }>;
+    refetch: () => void;
+  },
+): Promise<AssetDeleteOutcome> {
+  try {
+    const response = await deps.deleteAsset(assetId);
+    if (!response.success) {
+      return { status: 'error', message: response.error?.message || 'Failed to delete the asset.' };
+    }
+    deps.refetch();
+    return { status: 'deleted' };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Failed to delete the asset.',
+    };
+  }
+}
+
+export interface AssetsLoadErrorView {
+  title: string;
+  message: string;
+}
+
+/**
+ * The named load-error view for a failed assets read. A read can fail
+ * without the library being empty and without anything being broken
+ * on the caller's side — the proxy answering an empty body while the
+ * backend is down makes the api client's res.json() reject with a raw
+ * parser message ("Unexpected end of JSON input"), a network failure
+ * surfaces as a bare "Failed to fetch", and so on. The view names the
+ * actual situation (the library could not be loaded) and keeps the
+ * real detail visible, framed, instead of letting the raw parser text
+ * stand as the whole page under a generic crash title.
+ */
+export function describeAssetsLoadError(error: unknown): AssetsLoadErrorView {
+  const detail =
+    error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  const base =
+    "Your assets didn't come back from the server, so there's nothing to show yet — nothing was changed.";
+  return {
+    title: 'Couldn’t load your library',
+    message: detail ? `${base} (${detail})` : base,
+  };
+}
+
+/**
+ * Uploads are project assets (P0-3), so an upload needs a target project:
+ * an explicit one wins, otherwise the caller's most recent project (the
+ * studio pages' rule). No project at all → null, and uploads stay off.
+ */
+export function resolveUploadProjectId(
+  explicitProjectId: string | undefined,
+  projects: { id: string }[],
+): string | null {
+  if (explicitProjectId) return explicitProjectId;
+  return projects[0]?.id ?? null;
+}
+
+interface AssetsPageLibraryProps {
   projectId?: string;
-  onDragToTimeline?: (asset: Asset) => void;
+  onDragToTimeline?: (asset: ServerAsset) => void;
+  // Test seams (the Units 2–4 initial-* pattern): SSR renders cannot
+  // click, so tests inject the transient upload/delete states directly.
+  initialUploadEntries?: AssetUploadEntry[];
+  initialConfirmingDeleteId?: string | null;
+  initialDeleteError?: { id: string; message: string } | null;
 }
 
-type TabType = 'uploads' | 'stock' | 'music' | 'stickers' | 'fonts';
+type TabType = 'uploads' | 'media' | 'music' | 'stickers' | 'fonts';
 
-const AssetLibrary: React.FC<AssetLibraryProps> = ({ projectId, onDragToTimeline }) => {
+// Renamed in P0-5 (spec C6): this page-private component used to share the
+// name `AssetLibrary` with the shared panel in src/components/AssetLibrary
+// — two components, one name, two incompatible Asset shapes. The shared
+// panel keeps the name; this one is AssetsPageLibrary. Behaviour-neutral.
+const AssetsPageLibrary: React.FC<AssetsPageLibraryProps> = ({
+  projectId,
+  onDragToTimeline,
+  initialUploadEntries,
+  initialConfirmingDeleteId,
+  initialDeleteError,
+}) => {
   const [activeTab, setActiveTab] = useState<TabType>('uploads');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFolder, setSelectedFolder] = useState<string>('all');
-  const [showFavorites, setShowFavorites] = useState(false);
   const [showRecent, setShowRecent] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<Map<string, number>>(new Map());
   const [isDragging, setIsDragging] = useState(false);
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'size'>('date');
-  const [draggedAsset, setDraggedAsset] = useState<Asset | null>(null);
-  const [showNewFolderInput, setShowNewFolderInput] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [folders, setFolders] = useState<Folder[]>([
-    { id: 'all', name: 'All Assets', assetCount: 0, color: '#6366f1' },
-  ]);
+  const [draggedAsset, setDraggedAsset] = useState<ServerAsset | null>(null);
+  const [uploadEntries, setUploadEntries] = useState<AssetUploadEntry[]>(
+    initialUploadEntries ?? [],
+  );
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
+    initialConfirmingDeleteId ?? null,
+  );
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(
+    initialDeleteError ?? null,
+  );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
+  const uploadSeqRef = useRef(0);
 
-  const { data: assetsData, isLoading, error, refetch } = useAssets(activeTab, searchQuery);
+  // No `category` argument: the backend treats `category` as an exact
+  // `type` filter, so passing a tab id ('uploads', 'media', …) matched
+  // nothing and the library could never populate. Tabs filter
+  // client-side on the real `type`; the server-side `search` matches the
+  // filename. (The `projectId` prop is not part of this list call —
+  // unchanged from before; it is the upload target, below.)
+  const { data: assetsData, isLoading, error, refetch } = useAssets(undefined, searchQuery);
 
-  const assets: Asset[] = (assetsData ?? []) as unknown as Asset[];
+  const assets: ServerAsset[] = assetsData ?? [];
+
+  // Upload target (P0-3 uploads are project assets): the explicit prop
+  // wins, otherwise the most recent project — the studio pages' rule.
+  const projectsQuery = useProjects(undefined, 1);
+  const uploadProjectId = resolveUploadProjectId(projectId, projectsQuery.data ?? []);
+  const uploadsEnabled = uploadProjectId !== null;
+  const projectsPending = !projectId && projectsQuery.isLoading;
+
+  const uploadMutation = useAssetUpload();
 
   const filteredAssets = useMemo(() => {
     let result = assets
       .filter((a) => {
         if (activeTab === 'uploads') return true;
-        if (activeTab === 'stock') return a.type === 'image' || a.type === 'video';
+        if (activeTab === 'media') return a.type === 'image' || a.type === 'video';
         if (activeTab === 'music') return a.type === 'audio';
         if (activeTab === 'stickers') return a.type === 'sticker';
         if (activeTab === 'fonts') return a.type === 'font';
         return true;
       })
-      .filter((a) => selectedFolder === 'all' || a.folder?.toLowerCase() === selectedFolder)
-      .filter((a) => !showFavorites || a.isFavorite)
-      .filter(
-        (a) =>
-          a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (a.tags && a.tags.some((t) => t.includes(searchQuery.toLowerCase()))),
-      );
+      .filter((a) => a.filename.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (showRecent) result = result.slice(0, 10);
     if (sortBy === 'date')
       result.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
-    else if (sortBy === 'name') result.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sortBy === 'name') result.sort((a, b) => a.filename.localeCompare(b.filename));
     else if (sortBy === 'size') result.sort((a, b) => b.size - a.size);
     return result;
-  }, [assets, activeTab, selectedFolder, showFavorites, showRecent, searchQuery, sortBy]);
+  }, [assets, activeTab, showRecent, searchQuery, sortBy]);
 
   const handleFileUpload = useCallback(
     (files: FileList | null) => {
-      if (!files) return;
+      // No target project → the zone is disabled on the surface; a stray
+      // drop must not pretend to upload either.
+      if (!files || !uploadProjectId) return;
       Array.from(files).forEach((file) => {
-        const progress = new Map(uploadProgress);
-        progress.set(file.name, 0);
-        setUploadProgress(progress);
-        const interval = setInterval(() => {
-          setUploadProgress((prev) => {
-            const next = new Map(prev);
-            const current = next.get(file.name) || 0;
-            if (current >= 100) {
-              clearInterval(interval);
-              next.delete(file.name);
-              return next;
-            }
-            next.set(file.name, current + 10);
-            return next;
-          });
-        }, 200);
+        uploadSeqRef.current += 1;
+        const entryId = `upload-${uploadSeqRef.current}-${file.name}`;
+        setUploadEntries((prev) => [...prev, { id: entryId, filename: file.name, phase: 'working' }]);
+        void runAssetUpload(file, (f) =>
+          uploadMutation.mutateAsync({ projectId: uploadProjectId, file: f }),
+        ).then((outcome) => {
+          if (outcome.status === 'done') {
+            // The hook invalidates the assets query on success, so the
+            // landed asset appears through the real list — the entry is
+            // simply done and leaves the strip.
+            setUploadEntries((prev) => prev.filter((e) => e.id !== entryId));
+          } else {
+            setUploadEntries((prev) =>
+              prev.map((e) =>
+                e.id === entryId ? { ...e, phase: 'error', error: outcome.message } : e,
+              ),
+            );
+          }
+        });
       });
     },
-    [uploadProgress],
+    [uploadProjectId, uploadMutation],
   );
+
+  const dismissUploadEntry = useCallback((entryId: string) => {
+    setUploadEntries((prev) => prev.filter((e) => e.id !== entryId));
+  }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -122,7 +298,7 @@ const AssetLibrary: React.FC<AssetLibraryProps> = ({ projectId, onDragToTimeline
     [handleFileUpload],
   );
 
-  const handleDragStart = useCallback((asset: Asset) => {
+  const handleDragStart = useCallback((asset: ServerAsset) => {
     setDraggedAsset(asset);
   }, []);
 
@@ -133,24 +309,26 @@ const AssetLibrary: React.FC<AssetLibraryProps> = ({ projectId, onDragToTimeline
     }
   }, [draggedAsset, onDragToTimeline]);
 
-  const handleToggleFavorite = useCallback((_id: string) => {
-    // Optimistic toggle - would need mutation in production
-  }, []);
-
-  const handleCreateFolder = useCallback(() => {
-    if (newFolderName.trim()) {
-      setFolders((prev) => [
-        ...prev,
-        { id: newFolderName.toLowerCase(), name: newFolderName, assetCount: 0, color: '#64748b' },
-      ]);
-      setNewFolderName('');
-      setShowNewFolderInput(false);
-    }
-  }, [newFolderName]);
-
-  const handleDeleteAsset = useCallback((_id: string) => {
-    // Delete operation would be triggered here in production
-  }, []);
+  const handleDeleteConfirm = useCallback(
+    async (asset: ServerAsset) => {
+      setDeletingId(asset.id);
+      const outcome = await runAssetDelete(asset.id, {
+        deleteAsset: (id) => apiClient.deleteAsset(id),
+        refetch: () => {
+          void refetch();
+        },
+      });
+      setDeletingId(null);
+      if (outcome.status === 'deleted') {
+        setConfirmingDeleteId(null);
+        setDeleteError(null);
+      } else {
+        // The asset stays in the list; the real error shows on its card.
+        setDeleteError({ id: asset.id, message: outcome.message });
+      }
+    },
+    [refetch],
+  );
 
   const formatSize = useCallback((bytes: number): string => {
     if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
@@ -159,24 +337,35 @@ const AssetLibrary: React.FC<AssetLibraryProps> = ({ projectId, onDragToTimeline
   }, []);
 
   if (isLoading) {
-    return <LoadingState variant="skeleton" text="Loading assets..." />;
+    // Design upgrade Phase B: the loading state takes the page's dark
+    // ground too — it used to render the shared LoadingState bare on
+    // the legacy light body (a white page) for the whole read.
+    return (
+      <div className="assets-page assets-loading">
+        <LoadingState variant="skeleton" text="Loading assets..." />
+      </div>
+    );
   }
 
-  if (error) {
-    // Never show the raw backend 401 ("Missing or invalid authorization header"):
-    // an unauthenticated visitor gets the friendly sign-in state instead.
-    if (isUnauthorizedError(error)) return <SignInRequired />;
-    return <ErrorState message={error.message} onRetry={() => void refetch()} />;
-  }
+  // Never show the raw backend 401 ("Missing or invalid authorization header"):
+  // an unauthenticated visitor gets the friendly sign-in state instead.
+  if (error && isUnauthorizedError(error)) return <SignInRequired />;
+
+  // Any other failed read is a LOAD error, not an empty library and
+  // not a crash: the shell below stays up and the grid region carries
+  // the named load-error state with a working retry (refetch re-runs
+  // the read). While it stands, `assets` is empty because nothing
+  // arrived — the sidebar count shows a dash rather than a fake 0.
+  const loadError = error ? describeAssetsLoadError(error) : null;
 
   return (
     <PageTransition>
-      <div className="asset-library">
+      <div className="asset-library assets-page">
         <div className="library-tabs">
           {[
-            { id: 'uploads' as TabType, label: 'Uploads', icon: '📁' },
-            { id: 'stock' as TabType, label: 'Stock', icon: '🖼' },
-            { id: 'music' as TabType, label: 'Music', icon: '🎵' },
+            { id: 'uploads' as TabType, label: 'All', icon: '📁' },
+            { id: 'media' as TabType, label: 'Photos & Video', icon: '🖼' },
+            { id: 'music' as TabType, label: 'Audio', icon: '🎵' },
             { id: 'stickers' as TabType, label: 'Stickers', icon: '✨' },
             { id: 'fonts' as TabType, label: 'Fonts', icon: '🔤' },
           ].map((tab) => (
@@ -197,35 +386,67 @@ const AssetLibrary: React.FC<AssetLibraryProps> = ({ projectId, onDragToTimeline
           onDrop={handleDrop}
           onDragOver={(e) => {
             e.preventDefault();
-            setIsDragging(true);
+            if (uploadsEnabled) setIsDragging(true);
           }}
           onDragLeave={() => setIsDragging(false)}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            if (uploadsEnabled) fileInputRef.current?.click();
+          }}
         >
-          <div className="upload-content">
-            <div className="upload-icon">&#8682;</div>
-            <p>Drop files here or click to upload</p>
-            <span className="upload-formats">MP4, MOV, JPG, PNG, MP3, WAV, GIF, SVG</span>
-          </div>
+          {uploadsEnabled ? (
+            <div className="upload-content">
+              <div className="upload-icon">&#8682;</div>
+              <p>Drop files here or click to upload</p>
+              <span className="upload-formats">MP4, MOV, JPG, PNG, MP3, WAV, GIF, SVG</span>
+            </div>
+          ) : (
+            <div className="upload-content" data-testid="assets-upload-unavailable">
+              <div className="upload-icon">&#8682;</div>
+              <p>Uploads are saved into a project.</p>
+              {projectsPending ? (
+                <span className="upload-formats">Finding a project to save uploads into…</span>
+              ) : (
+                <span className="upload-formats">
+                  Create a project first, then come back to upload into it —{' '}
+                  <a href="/projects">go to Projects</a>
+                </span>
+              )}
+            </div>
+          )}
           <input
             ref={fileInputRef}
             type="file"
             multiple
             accept="video/*,image/*,audio/*,.ttf,.otf,.woff"
             hidden
+            disabled={!uploadsEnabled}
             onChange={(e) => handleFileUpload(e.target.files)}
           />
         </div>
 
-        {uploadProgress.size > 0 && (
+        {uploadEntries.length > 0 && (
           <div className="upload-progress-list">
-            {Array.from(uploadProgress.entries()).map(([name, progress]) => (
-              <div key={name} className="upload-progress-item">
-                <span className="upload-name">{name}</span>
-                <div className="progress-bar">
-                  <div className="progress-fill" style={{ width: `${progress}%` }} />
-                </div>
-                <span className="progress-percent">{progress}%</span>
+            {uploadEntries.map((entry) => (
+              <div key={entry.id} className="upload-progress-item">
+                <span className="upload-name">{entry.filename}</span>
+                {entry.phase === 'working' ? (
+                  <span className="upload-stage" role="status">
+                    {assetUploadStageLabel(entry)}
+                  </span>
+                ) : (
+                  <>
+                    <span className="upload-error" role="alert">
+                      {entry.error}
+                    </span>
+                    <button
+                      type="button"
+                      className="upload-dismiss-btn"
+                      onClick={() => dismissUploadEntry(entry.id)}
+                    >
+                      Dismiss
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -242,21 +463,9 @@ const AssetLibrary: React.FC<AssetLibraryProps> = ({ projectId, onDragToTimeline
           <div className="quick-filters">
             <button
               className={`filter-btn ${showRecent ? 'active' : ''}`}
-              onClick={() => {
-                setShowRecent(!showRecent);
-                setShowFavorites(false);
-              }}
+              onClick={() => setShowRecent(!showRecent)}
             >
               Recent
-            </button>
-            <button
-              className={`filter-btn ${showFavorites ? 'active' : ''}`}
-              onClick={() => {
-                setShowFavorites(!showFavorites);
-                setShowRecent(false);
-              }}
-            >
-              Favorites
             </button>
           </div>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
@@ -267,47 +476,26 @@ const AssetLibrary: React.FC<AssetLibraryProps> = ({ projectId, onDragToTimeline
         </div>
 
         <div className="library-sidebar">
-          <h4>Folders</h4>
+          <h4>Library</h4>
           <div className="folder-list">
-            {folders.map((folder) => (
-              <button
-                key={folder.id}
-                className={`folder-item ${selectedFolder === folder.id ? 'active' : ''}`}
-                onClick={() => setSelectedFolder(folder.id)}
-              >
-                <span className="folder-color" style={{ backgroundColor: folder.color }} />
-                <span className="folder-name">{folder.name}</span>
-                <span className="folder-count">{folder.assetCount}</span>
-              </button>
-            ))}
-            {showNewFolderInput ? (
-              <div className="new-folder-input">
-                <input
-                  type="text"
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  placeholder="Folder name"
-                  autoFocus
-                  onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
-                />
-                <button onClick={handleCreateFolder}>+</button>
-              </div>
-            ) : (
-              <button className="add-folder-btn" onClick={() => setShowNewFolderInput(true)}>
-                + New Folder
-              </button>
-            )}
+            <div className="folder-item active">
+              <span className="folder-name">All Assets</span>
+              <span className="folder-count">{loadError ? '—' : assets.length}</span>
+            </div>
           </div>
         </div>
 
         <div className="assets-grid">
-          {filteredAssets.length === 0 ? (
-            <EmptyState
-              title="No assets found"
-              description={
-                showFavorites ? 'No favorites yet' : 'Upload files or browse stock media'
-              }
-            />
+          {loadError ? (
+            <div data-testid="assets-load-error">
+              <ErrorState
+                title={loadError.title}
+                message={loadError.message}
+                onRetry={() => void refetch()}
+              />
+            </div>
+          ) : filteredAssets.length === 0 ? (
+            <EmptyState title="No assets found" description="Upload files to build your library" />
           ) : (
             filteredAssets.map((asset) => (
               <div
@@ -318,29 +506,74 @@ const AssetLibrary: React.FC<AssetLibraryProps> = ({ projectId, onDragToTimeline
                 onDragEnd={handleDragEnd}
               >
                 <div className="asset-thumbnail">
-                  <img src={asset.thumbnail} alt={asset.name} />
-                  {asset.type === 'video' && asset.duration && (
-                    <span className="asset-duration">
-                      {Math.floor(asset.duration / 60)}:
-                      {(asset.duration % 60).toString().padStart(2, '0')}
-                    </span>
+                  {asset.type === 'image' && asset.url ? (
+                    <img src={asset.url} alt={asset.filename} />
+                  ) : asset.type === 'video' && asset.url ? (
+                    <video src={asset.url} muted preload="metadata" aria-label={asset.filename} />
+                  ) : asset.type === 'audio' ? (
+                    <div className="audio-waveform">♪</div>
+                  ) : (
+                    <div className="asset-file-icon">{asset.type}</div>
                   )}
-                  {asset.type === 'audio' && <div className="audio-waveform">♪</div>}
+                  {asset.uploadStatus === 'PENDING' && (
+                    <span className="asset-status">Uploading…</span>
+                  )}
                 </div>
                 <div className="asset-info">
-                  <span className="asset-name" title={asset.name}>
-                    {asset.name}
+                  <span className="asset-name" title={asset.filename}>
+                    {asset.filename}
                   </span>
                   <span className="asset-size">{formatSize(asset.size)}</span>
                 </div>
                 <div className="asset-actions">
-                  <button className="fav-btn" onClick={() => handleToggleFavorite(asset.id)}>
-                    {asset.isFavorite ? '★' : '☆'}
-                  </button>
-                  <button className="delete-btn" onClick={() => handleDeleteAsset(asset.id)}>
-                    ✕
-                  </button>
+                  {asset.type === 'image' && (
+                    <a
+                      className="edit-btn"
+                      href="/studio/photo"
+                      aria-label={`Edit ${asset.filename} in the Photo Editor`}
+                    >
+                      Edit
+                    </a>
+                  )}
+                  {confirmingDeleteId === asset.id ? (
+                    <div className="delete-confirm">
+                      <span role="alert">
+                        Delete {asset.filename}? The file will be removed from your library.
+                      </span>
+                      <button
+                        type="button"
+                        className="delete-confirm-btn"
+                        disabled={deletingId === asset.id}
+                        onClick={() => void handleDeleteConfirm(asset)}
+                      >
+                        {deletingId === asset.id ? 'Deleting…' : 'Yes, delete'}
+                      </button>
+                      <button
+                        type="button"
+                        className="delete-cancel-btn"
+                        onClick={() => setConfirmingDeleteId(null)}
+                      >
+                        Keep it
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="delete-btn"
+                      aria-label={`Delete ${asset.filename}`}
+                      onClick={() => {
+                        setDeleteError(null);
+                        setConfirmingDeleteId(asset.id);
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
+                {deleteError?.id === asset.id && (
+                  <p className="asset-delete-error" role="alert">
+                    {deleteError.message}
+                  </p>
+                )}
               </div>
             ))
           )}
@@ -350,4 +583,4 @@ const AssetLibrary: React.FC<AssetLibraryProps> = ({ projectId, onDragToTimeline
   );
 };
 
-export default AssetLibrary;
+export default AssetsPageLibrary;

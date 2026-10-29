@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="QuantCooks">
+  <!-- QuantCooks "Spring Q" — original hand-authored mark in QC Spring Green #2FE07A (see src/components/BrandMark.tsx for the construction notes). -->
+  <defs>
+    <linearGradient id="qc-accent" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#2FE07A"/>
+      <stop offset="1" stop-color="#97F0BC"/>
+    </linearGradient>
+  </defs>
+  <path d="M 16.69 19.83 A 10 10 0 1 1 21.85 12.74 L 16.68 11.83 A 4.75 4.75 0 1 0 14.23 15.19 Z" fill="url(#qc-accent)"/>
+  <path d="M 14.9 19.3 C 19.2 20.5 22.9 18.3 23.3 14.2 C 23.6 10.8 22.9 6.4 21.6 3.4 C 20.4 6.3 19.6 9.5 18.9 12.9 C 18.1 16.4 17.1 18.8 14.9 19.3 Z" fill="url(#qc-accent)"/>
+</svg>
