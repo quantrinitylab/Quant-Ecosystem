@@ -189,7 +189,7 @@ function FeatureTour() {
         <FeatureRow
           eyebrow="Capture"
           title="Open to the camera"
-          body="Photo or video in one tap. Flip, flash and your most recent tools stay one reach away — the camera is the home screen, not a buried tab."
+          body="Tap for a photo, hold for video. Flip, flash and your most recent tools stay one reach away — the camera is the home screen, not a buried tab."
         >
           <CameraMockup />
         </FeatureRow>
