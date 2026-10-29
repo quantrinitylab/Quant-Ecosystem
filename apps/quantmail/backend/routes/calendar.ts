@@ -1532,6 +1532,12 @@ export default async function calendarRoutes(
 
     const recurringOccurrences: Array<{ start: Date; end: Date; eventId: string; title: string }> =
       [];
+    // An expansion failure must NOT silently read as "free": a series whose
+    // occurrences could not be expanded may still occupy slots in this
+    // window. Record every failed series so consumers can warn instead of
+    // claiming the time is free (see partialData below).
+    const failedEventIds: string[] = [];
+    const failedCalendarIds: string[] = [];
     for (const row of recurringRows) {
       // Editing the series master: drop the whole series before expansion.
       if (excludeEventId && row.id === excludeEventId) continue;
@@ -1552,8 +1558,13 @@ export default async function calendarRoutes(
             });
           }
         }
-      } catch {
-        // Skip on expansion failure
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn(`Unable to expand recurring calendar event ${row.id} for free-busy`, error);
+        failedEventIds.push(row.id);
+        if (row.calendarId && !failedCalendarIds.includes(row.calendarId)) {
+          failedCalendarIds.push(row.calendarId);
+        }
       }
     }
 
@@ -1590,6 +1601,14 @@ export default async function calendarRoutes(
         busy,
         conflictsCount: rawIntervals.length,
         busyBlocksCount: busy.length,
+        // partialData is true when at least one recurring series could not
+        // be expanded: its occurrences are missing from `busy`, so gaps in
+        // this response are NOT proof the time is free. Consumers must
+        // surface this (e.g. "recurring events may be missing") instead of
+        // presenting slots as definitely open.
+        partialData: failedEventIds.length > 0,
+        failedEventIds,
+        failedCalendarIds,
       },
     });
   });
