@@ -14,6 +14,14 @@ import { useSyncExternalStore } from 'react';
  * Behavior: visible at the top (<40px). Hides on deliberate scroll-down
  * (delta > 12px), reveals on scroll-up (delta < -12px). Tiny jitters are
  * ignored so the chrome never flickers.
+ *
+ * Route-change reset: the store is module-level, so it OUTLIVES navigation —
+ * AppShell mounts once for the whole suite. Without a reset, scrolling down
+ * on the inbox (chrome hidden) and switching to /drive leaves the fresh
+ * pillar's FAB hidden on first paint until some scroll event re-evaluates,
+ * and a page whose container never scrolls never fires one. AppShell calls
+ * `resetChromeVisible()` on every pathname change so each route starts
+ * from the fresh-load state: visible, lastY 0.
  */
 
 let chromeVisible = true;
@@ -75,6 +83,24 @@ function getSnapshot() {
 
 function getServerSnapshot() {
   return true;
+}
+
+/**
+ * Route-change reset for the module-level store (see header comment).
+ *
+ * Restores the fresh-load state: chrome visible, scroll baseline 0. Emits
+ * only when the value actually flips, so a reset on an already-visible
+ * chrome is a silent no-op. `lastY` MUST reset alongside the boolean —
+ * otherwise the new page's first scroll event is differenced against the
+ * old page's scroll depth and can hide (or reveal) the chrome before the
+ * user has scrolled anywhere on the new route.
+ */
+export function resetChromeVisible(): void {
+  lastY = 0;
+  if (!chromeVisible) {
+    chromeVisible = true;
+    emit();
+  }
 }
 
 /**
