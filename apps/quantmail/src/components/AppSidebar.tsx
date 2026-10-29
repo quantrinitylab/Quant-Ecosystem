@@ -4,6 +4,7 @@ import { useMemo, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useInbox } from '../hooks/useMail';
+import { useNotifications } from '../hooks/useNotifications';
 import { useAuth } from '../providers/auth-provider';
 import { groupEmailsIntoThreads } from '../lib/threading';
 import { useStorageQuota } from '../hooks/useStorageQuota';
@@ -215,7 +216,11 @@ function Icon({ name, className = 'h-4 w-4' }: { name: IconName; className?: str
   mail. Keeping the Mail group purely folders is what makes the group heading
   mean something.
 
-  No count badge on the new rows. The two that exist are fed by `useInbox`
+  No count badge on the new rows — with one deliberate exception: the
+  Notifications row. Its badge reuses the `useNotifications()` query the
+  /notifications page already runs (same queryKey, deduped to one request per
+  60s stale-window) — NOT a poll per folder, so the per-folder trade-off
+  below does not apply to it. The two mail badges that exist are fed by `useInbox`
   calls (lines 216-217); a count per folder means a poll per folder on every
   route. That is the trade the inbox's Spam chip already declined in writing at
   `src/app/page.tsx:1861-1866`, and this matches it.
@@ -391,6 +396,14 @@ export function SidebarNavGroups() {
     return threads.filter((t) => !t.isRead).length;
   }, [inboxEmails, currentEmail]);
   const draftCount = draftEmails?.length ?? 0;
+  // K10/M15 (2026-10-20): the unread-notification signal lives here, not in
+  // the unmounted QuantMailSuperAppHeader bell (QM-SCREEN-015). This is the
+  // SAME react-query cache key the /notifications page uses
+  // (useNotifications(50)), so no extra poll is added — the deduped query
+  // refreshes at most once per 60s stale-window. Error/loading → badge
+  // hidden, never a fabricated count.
+  const { data: notificationsData } = useNotifications();
+  const unreadNotificationsCount = notificationsData?.unreadCount ?? 0;
   return (
     <>
       {NAV_GROUPS.map((group) => (
@@ -424,6 +437,11 @@ export function SidebarNavGroups() {
                         aria-label={`${draftCount} drafts`}
                       >
                         {draftCount}
+                      </span>
+                    )}
+                    {item.id === 'notifications' && unreadNotificationsCount > 0 && (
+                      <span className="sidebar-count" aria-label={`${unreadNotificationsCount} unread`}>
+                        {unreadNotificationsCount}
                       </span>
                     )}
                     {item.id === 'inbox' && (

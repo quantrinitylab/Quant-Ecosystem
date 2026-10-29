@@ -29,6 +29,10 @@ vi.mock('../hooks/useMail', () => ({
   useInbox: () => ({ data: [] }),
 }));
 
+vi.mock('../hooks/useNotifications', () => ({
+  useNotifications: () => ({ data: { notifications: [], unreadCount: 0 } }),
+}));
+
 import { AppSidebar } from '../components/AppSidebar';
 
 describe('AppSidebar Spam drawer entry', () => {
