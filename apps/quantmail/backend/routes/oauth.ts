@@ -538,7 +538,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
         },
       });
 
-      const redirectUrl = `${safeRedirectUri}?code=${code}${state ? `&state=${state}` : ''}`;
+      const redirectUrl = `${safeRedirectUri}?code=${code}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
       return reply.redirect(redirectUrl);
     }
 
@@ -646,7 +646,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
     }
 
     if (action !== 'approve') {
-      const errorUrl = `${safeRedirectUri}?error=access_denied${state ? `&state=${state}` : ''}`;
+      const errorUrl = `${safeRedirectUri}?error=access_denied${state ? `&state=${encodeURIComponent(state)}` : ''}`;
       return reply.redirect(errorUrl);
     }
 
@@ -704,7 +704,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const redirectUrl = `${safeRedirectUri}?code=${code}${state ? `&state=${state}` : ''}`;
+    const redirectUrl = `${safeRedirectUri}?code=${code}${state ? `&state=${encodeURIComponent(state)}` : ''}`;
     return reply.redirect(redirectUrl);
   });
 
