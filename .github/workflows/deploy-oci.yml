@@ -19,8 +19,9 @@ name: Deploy OCI (SSH + compose)
 # COMPOSE CONTRACT (compose/quant-stack.yml — authored in migration Phase C):
 #   * services reference images ghcr.io/<owner>/quant-oci-<name>:${IMAGE_TAG}
 #     (IMAGE_TAG defaults to `latest`; this workflow always sets the SHA)
-#   * service names: quantmail-frontend, quantmail-backend, quantchat, quantchat-backend, quantai
-#   * every service exposes /api/health returning HTTP 200
+#   * service names: quantmail-frontend, quantmail-backend, quantchat, quantchat-backend, quantai, quantai-backend
+#   * frontend services expose /api/health returning HTTP 200;
+#     backends expose /livez (see the quantchat-backend / quantai-backend notes)
 #
 # VM PROVISIONING CONTRACT (migration Phase B/C cloud-init):
 #   * SSH user (default `opc`) has the `quant-deploy` public key authorized
@@ -34,8 +35,8 @@ name: Deploy OCI (SSH + compose)
 #     (private half of the ed25519 `quant-deploy` keypair; user adds it —
 #     agents never handle the private key value)
 #   * Variable VM_APP_IP = public IP of vm-app
-#       TODO(Phase B): vm-app does not exist yet (A1 capacity blocked
-#       2026-10-17) — set vars.VM_APP_IP once the retry creates it.
+#       NOTE: vm-app exists (public IP 80.225.234.186); vars.VM_APP_IP and
+#       vars.OCI_SSH_USER are set — the Phase B TODO is done.
 #   * Variable OCI_SSH_USER (default: opc)
 #   * GHCR: publish the quant-oci-* packages as PUBLIC (recommended — they
 #     contain only built app code, no secrets), or set secret GHCR_READ_TOKEN
@@ -55,6 +56,7 @@ on:
           - quantchat
           - quantchat-backend
           - quantai
+          - quantai-backend
       release_sha:
         description: Exact 40-character SHA of the current protected main commit
         required: true
@@ -182,6 +184,10 @@ jobs:
             quantai)
               images="quant-oci-quantai:apps/quantai/Dockerfile"
               compose_services="quantai" ;;
+            quantai-backend)
+              images="quant-oci-quantai-backend:apps/quantai/Dockerfile.backend"
+              compose_services="quantai-backend"
+              runs_migrations=true ;;
             *) echo "Unsupported target: $TARGET" >&2; exit 1 ;;
           esac
           for pair in $images; do
@@ -256,9 +262,9 @@ jobs:
           OCI_DEPLOY_SSH_KEY: ${{ secrets.OCI_DEPLOY_SSH_KEY }}
         run: |
           set -euo pipefail
-          # TODO(Phase B): vm-app does not exist yet (A1 capacity blocked
-          # 2026-10-17). Set vars.VM_APP_IP once the retry creates it —
-          # until then this fails closed here with a clear message.
+          # vm-app exists and vars.VM_APP_IP / vars.OCI_SSH_USER are set
+          # (the Phase B TODO is done). The empty checks below stay as
+          # fail-closed guards.
           test -n "$VM_APP_IP" || {
             echo 'VM_APP_IP is empty: vm-app has no public IP yet (Phase B pending).' >&2
             exit 1
@@ -380,21 +386,52 @@ jobs:
         run: |
           set -euo pipefail
           # -k: vm-app serves the Cloudflare Origin cert, which does not match
-          # the raw IP. Per-service/per-domain checks land in Phase C/D.
-          code=""
-          for _ in $(seq 1 30); do
-            code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 \
-              "https://$VM_APP_IP/api/health" 2>/dev/null || true)"
-            [ "$code" = 200 ] && break
-            sleep 10
-          done
-          if [ "$code" = 200 ]; then
-            echo 'Stack is healthy.'
-            echo "healthy=true" >> "$GITHUB_OUTPUT"
+          # the raw IP. The check is target-aware: quantmail-family targets
+          # keep the historic raw-IP check (Caddy routes anything else, incl.
+          # the raw IP, to quantmail-frontend); quantai checks its own public
+          # route; quantai-backend has no public route, so it is verified on
+          # the VM via its /livez HEALTHCHECK state.
+          if [ "$TARGET" = "quantai-backend" ]; then
+            healthy_backend=false
+            for _ in $(seq 1 30); do
+              status="$(ssh -i ~/.ssh/oci-deploy -o BatchMode=yes \
+                "$OCI_SSH_USER@$VM_APP_IP" \
+                'cd /opt/quant/oci && cid=$(docker compose -f quant-stack.yml ps -q quantai-backend); [ -n "$cid" ] && docker inspect -f "{{.State.Health.Status}}" "$cid"' \
+                2>/dev/null || true)"
+              if [ "$status" = "healthy" ]; then
+                healthy_backend=true
+                break
+              fi
+              sleep 10
+            done
+            if [ "$healthy_backend" = true ]; then
+              echo 'Stack is healthy.'
+              echo "healthy=true" >> "$GITHUB_OUTPUT"
+            else
+              echo 'Health check failed (quantai-backend never reported healthy); rolling back.' >&2
+              echo "healthy=false" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
           else
-            echo "Health check failed (last code: ${code:-none}); rolling back." >&2
-            echo "healthy=false" >> "$GITHUB_OUTPUT"
-            exit 1
+            case "$TARGET" in
+              quantai) check_url="https://quantai.quantrinity.in/api/health" ;;
+              *) check_url="https://$VM_APP_IP/api/health" ;;
+            esac
+            code=""
+            for _ in $(seq 1 30); do
+              code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 \
+                "$check_url" 2>/dev/null || true)"
+              [ "$code" = 200 ] && break
+              sleep 10
+            done
+            if [ "$code" = 200 ]; then
+              echo 'Stack is healthy.'
+              echo "healthy=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Health check failed (last code: ${code:-none}); rolling back." >&2
+              echo "healthy=false" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
           fi
 
       - name: Record last-good tag

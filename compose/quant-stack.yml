@@ -115,6 +115,20 @@ services:
     environment:
       PORT: "3020"
       QUANTMAIL_BACKEND_URL: http://quantmail-backend:3011
+      QUANTAI_BACKEND_URL: http://quantai-backend:3004
+
+  # QuantAI API backend (Fastify). NOTE: health is /livez (and /healthz,
+  # /readyz) — /api/health is NOT a route on this service (see
+  # apps/quantai/Dockerfile.backend). The frontend calls it server-side via
+  # QUANTAI_BACKEND_URL. Internal to the compose network: no published host
+  # port, no Caddy route.
+  quantai-backend:
+    image: ghcr.io/quantrinitylab/quant-oci-quantai-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - /etc/quant/secrets.env
+    environment:
+      PORT: "3004"
 
 volumes:
   caddy-data:
