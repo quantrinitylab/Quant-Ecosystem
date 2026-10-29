@@ -63,29 +63,33 @@ export default function PublicBookingPage(props: PageProps) {
   }, [props?.params]);
 
   // Host & Meeting Information.
-  // NOTE: host identity is deliberately NOT seeded here. The real host name
-  // and email come from the backend booking-link record; until that fetch
-  // resolves the UI shows an honest "unknown host" — never a hardcoded name.
+  // NOTE: host identity is deliberately NOT seeded here, and neither is
+  // any meeting title/description. The real record comes from the backend
+  // booking-link fetch; until it resolves the UI shows a skeleton (see the
+  // loading branch in the render below) — never invented meeting content
+  // (fix/qm-calendar-booking-fake-seed). The numeric fields below are only
+  // merge fallbacks for backend records that predate a field; they never
+  // render while loading, and applyBookingLinkResponse overwrites them
+  // from the real record before linkStatus flips to 'ready'.
   const [meetingDetails, setMeetingDetails] = useState<BookingLinkDetails>({
     slug: resolvedSlug,
-    title: '30 Min Strategy Session',
-    description:
-      'One-on-one session to discuss architectural vision, product requirements, and strategic roadmap.',
+    title: '',
+    description: '',
     duration: 30,
     startHour: 9,
     endHour: 17,
     availableDays: [1, 2, 3, 4, 5],
-    // Seeded placeholder shown while the link record loads (same family as
-    // the seeded title/description/host above); the real host timezone
-    // arrives from the backend record via applyBookingLinkResponse
-    // (fix/qm-booking-tz-availability-2).
+    // Fallback for backend records that predate the timezone field; the
+    // real host timezone arrives from the backend record via
+    // applyBookingLinkResponse (fix/qm-booking-tz-availability-2).
     timezone: 'UTC',
     hostName: '',
     hostEmail: '',
   });
 
   // Honest link-load state (fix/qm-booking-deadlink-details).
-  // 'loading'  — fetch in flight; seeded layout is shown as a placeholder.
+  // 'loading'  — fetch in flight; a skeleton placeholder is shown and no
+  // meeting content renders until the real record arrives.
   // 'ready'    — backend returned a real, active booking-link record.
   // 'not-found'/'inactive'/'error' — dead or unreachable link: the booking
   // UI is replaced by an honest state BEFORE any slot selection, never the
@@ -613,9 +617,12 @@ export default function PublicBookingPage(props: PageProps) {
       {/* Honest dead-link states (fix/qm-booking-deadlink-details): a link
           that 404s, 410s, or fails to load replaces the booking UI with an
           honest state BEFORE any slot selection — never seeded details as
-          if they were real. While loading, the seeded layout is a placeholder. */}
+          if they were real. While loading, a skeleton placeholder is shown
+          instead of the booking UI, so no meeting title, description,
+          duration, or availability renders until the backend record
+          resolves (fix/qm-calendar-booking-fake-seed). */}
       <main className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-10">
-        {linkStatus === 'ready' || linkStatus === 'loading' ? (
+        {linkStatus === 'ready' ? (
         <div className="w-full max-w-5xl rounded-3xl bg-[var(--quant-surface-subtle)] border border-[var(--quant-surface-elevated)] shadow-2xl shadow-black/80 overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-[580px]">
           {/* ================================================================= */}
           {/* LEFT COLUMN: Host Information, Brand, Timezone & Meeting Info     */}
@@ -1082,6 +1089,41 @@ export default function PublicBookingPage(props: PageProps) {
                 </div>
               </div>
             )}
+          </section>
+        </div>
+        ) : linkStatus === 'loading' ? (
+        <div
+          role="status"
+          aria-busy="true"
+          aria-label="Loading booking link"
+          className="w-full max-w-5xl rounded-3xl bg-[var(--quant-surface-subtle)] border border-[var(--quant-surface-elevated)] shadow-2xl shadow-black/80 overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-[580px]"
+        >
+          {/* Left column skeleton: host avatar, host label, title,
+              description and duration pill as blank pulse blocks — no
+              invented meeting content while the record loads. */}
+          <section className="md:col-span-5 p-6 sm:p-8 bg-black/70 flex flex-col justify-between space-y-6">
+            <div className="space-y-5">
+              <div className="flex items-center gap-3.5">
+                <div className="size-14 rounded-2xl bg-[var(--quant-surface-elevated)] animate-pulse" />
+                <div className="space-y-2">
+                  <div className="h-3 w-20 rounded bg-[var(--quant-surface-elevated)] animate-pulse" />
+                  <div className="h-4 w-32 rounded bg-[var(--quant-surface-elevated)] animate-pulse" />
+                </div>
+              </div>
+              <div className="space-y-2 pt-2">
+                <div className="h-6 w-3/4 rounded bg-[var(--quant-surface-elevated)] animate-pulse" />
+                <div className="h-3 w-full rounded bg-[var(--quant-surface-elevated)] animate-pulse" />
+                <div className="h-3 w-2/3 rounded bg-[var(--quant-surface-elevated)] animate-pulse" />
+              </div>
+              <div className="h-6 w-40 rounded-lg bg-[var(--quant-surface-elevated)] animate-pulse" />
+            </div>
+            <div className="h-8 rounded-xl bg-[var(--quant-surface-elevated)] animate-pulse" />
+          </section>
+          {/* Right column skeleton: no calendar, no slots, no timezone
+              control until the real record arrives — nothing interactive
+              can act on unloaded data. */}
+          <section className="md:col-span-7 p-6 sm:p-8 flex flex-col justify-center items-center bg-[var(--quant-surface-subtle)]">
+            <p className="text-xs text-[var(--quant-muted-foreground)]">Loading booking link…</p>
           </section>
         </div>
         ) : (

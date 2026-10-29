@@ -42,7 +42,7 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
   // 1. Public Booking Page: Calendly-Class 2-Column Layout
   // --------------------------------------------------------------------------
   describe('PublicBookingPage Component (/calendar/booking/[slug])', () => {
-    it('renders the completely public booking page with 2-column layout (no auth gate required)', () => {
+    it('renders the completely public booking page chrome with a loading skeleton (no auth gate required)', () => {
       const html = renderToStaticMarkup(
         <PublicBookingPage params={Promise.resolve({ slug: '30-min-strategy-session' })} />,
       );
@@ -53,30 +53,32 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       // No false end-to-end-encryption claims: booking POSTs plain JSON.
       expect(html).not.toContain('End-to-End Encrypted Scheduling');
 
-      // Verify Left Column: Host Details & Meeting Metadata
-      expect(html).toContain('Host');
-      // No fabricated host identity: the seed is an honest unknown until the
-      // backend booking-link record supplies the real host name/email.
-      expect(html).toContain('Unknown host');
-      expect(html).not.toContain('Kundan Singh');
-      expect(html).not.toContain('kundan@quantmail.in');
-      expect(html).toContain('30 Min Strategy Session');
-      expect(html).toContain('30 min duration');
-      expect(html).toContain('QuantMeet Video Call');
-      expect(html).toContain('Your Timezone');
-      expect(html).toContain('Asia/Kolkata');
-      expect(html).toContain('Powered by');
+      // Loading state: skeleton only — no invented meeting content, no
+      // booking UI, no host label until the backend record resolves
+      // (fix/qm-calendar-booking-fake-seed).
+      expect(html).toContain('Loading booking link');
+      expect(html).not.toContain('30 Min Strategy Session');
+      expect(html).not.toContain('architectural vision');
+      expect(html).not.toContain('30 min duration');
+      expect(html).not.toContain('QuantMeet Video Call');
+      expect(html).not.toContain('Unknown host');
+      expect(html).not.toContain('Select a Date');
+      expect(html).not.toContain('Available Slots');
+      expect(html).not.toContain('Your Timezone');
+      // Page chrome footer still renders around the skeleton.
+      expect(html).toContain('Sovereign Scheduling Platform');
+    });
 
-      // Verify Right Column Step 1: Date & Time Picker
-      expect(html).toContain('Select a Date &amp; Time');
-      expect(html).toContain('Available Slots');
-      expect(html).toContain('Sun');
-      expect(html).toContain('Mon');
-      expect(html).toContain('Tue');
-      expect(html).toContain('Wed');
-      expect(html).toContain('Thu');
-      expect(html).toContain('Fri');
-      expect(html).toContain('Sat');
+    it('shows a skeleton with no interactive controls while the link record loads', () => {
+      const html = renderToStaticMarkup(
+        <PublicBookingPage params={Promise.resolve({ slug: 'strategy-session' })} />,
+      );
+
+      expect(html).toContain('Loading booking link');
+      // Nothing clickable can act on unloaded data: no calendar buttons,
+      // no timezone selector, no slot picker.
+      expect(html).not.toContain('<button');
+      expect(html).not.toContain('<select');
     });
 
     it('renders with Promise-based params for Next.js 15 dynamic routing compatibility', () => {
@@ -84,18 +86,23 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       const html = renderToStaticMarkup(<PublicBookingPage params={promiseParams} />);
 
       expect(html).toContain('QuantCalendar');
-      expect(html).toContain('Select a Date &amp; Time');
+      // Still loading on first render: skeleton, not the booking UI.
+      expect(html).toContain('Loading booking link');
+      expect(html).not.toContain('Select a Date');
     });
 
-    it('renders multiple timezone options in the timezone selector', () => {
+    it('shows no timezone selector while the link record is still loading', () => {
       const html = renderToStaticMarkup(
         <PublicBookingPage params={Promise.resolve({ slug: 'strategy-session' })} />,
       );
 
-      expect(html).toContain('Asia/Kolkata');
-      expect(html).toContain('UTC');
-      expect(html).toContain('America/New_York');
-      expect(html).toContain('Europe/London');
+      // The timezone control renders only with the real record; the
+      // loading skeleton carries no selector and no zone options.
+      expect(html).toContain('Loading booking link');
+      expect(html).not.toContain('booking-timezone');
+      expect(html).not.toContain('Asia/Kolkata');
+      expect(html).not.toContain('America/New_York');
+      expect(html).not.toContain('Europe/London');
     });
   });
 
@@ -613,12 +620,15 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
         <PublicBookingPage params={Promise.resolve({ slug: 'dead-link-xyz' })} />,
       );
 
-      // Seeded placeholder layout while loading (existing behaviour kept)…
-      expect(html).toContain('Select a Date &amp; Time');
-      // …but no dead-link error copy before any fetch result.
+      // Skeleton placeholder layout while loading (fix/qm-calendar-booking-fake-seed)…
+      expect(html).toContain('Loading booking link');
+      // …but no dead-link error copy before any fetch result, and no
+      // invented meeting content for the unknown slug.
       expect(html).not.toContain('Booking link not found');
       expect(html).not.toContain('This booking link is inactive');
       expect(html).not.toContain("Couldn't load this booking link");
+      expect(html).not.toContain('30 Min Strategy Session');
+      expect(html).not.toContain('architectural vision');
     });
   });
 
