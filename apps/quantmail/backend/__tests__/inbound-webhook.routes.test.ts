@@ -510,6 +510,78 @@ describe('POST /webhook/inbound — the recipient is one the message named, or n
     expect(ingestCall().options.userId).toBe('u-alias');
   });
 
+  it('holds a message whose case-insensitive match is two users, delivering to neither', async () => {
+    // The leak this fix closes: `Bob@quantmail.in` and `bob@quantmail.in` are
+    // distinct rows under the case-sensitive @unique constraint, but one
+    // lowercased address matches both — and the old code ingested a copy into
+    // each twin's inbox. Ambiguity is now a hold, not a fan-out.
+    state.users.push(
+      localUser({ id: 'u-bob-upper', email: 'Bob@quantmail.in', username: 'bob-upper' }),
+      localUser({ id: 'u-bob-lower', email: 'bob@quantmail.in', username: 'bob-lower' }),
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      ok: true,
+      key: KEY,
+      delivered: 0,
+      skipped: 'ambiguous-recipient',
+      held: 1,
+    });
+    expect(ingest).not.toHaveBeenCalled();
+    expect(state.notifications).toHaveLength(0);
+  });
+
+  it('holds when an email row and a username row share the same handle', async () => {
+    // The same fan-out through the other arm of the OR: the address matches
+    // one user by email and a different user by username alias.
+    state.users.push(
+      localUser({ id: 'u-bob-mail', email: 'bob@quantmail.in', username: 'bobby' }),
+      localUser({ id: 'u-bob-name', email: 'other@quantmail.in', username: 'bob' }),
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+
+    expect(response.json()).toEqual({
+      ok: true,
+      key: KEY,
+      delivered: 0,
+      skipped: 'ambiguous-recipient',
+      held: 1,
+    });
+    expect(ingest).not.toHaveBeenCalled();
+  });
+
+  it('still delivers the uniquely-resolved copy when another address is ambiguous', async () => {
+    // Per-address resolution: the ambiguous address holds, but it must not
+    // take down the legitimate copy for a different, unambiguous recipient.
+    state.users.push(
+      localUser({ id: 'u-bob-upper', email: 'Bob@quantmail.in', username: 'bob-upper' }),
+      localUser({ id: 'u-bob-lower', email: 'bob@quantmail.in', username: 'bob-lower' }),
+      localUser({ id: 'u-carol', email: 'carol@quantmail.in', username: 'carol' }),
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification({ recipients: ['bob@quantmail.in', 'carol@quantmail.in'] }),
+    });
+
+    expect(response.json()).toEqual({ ok: true, key: KEY, delivered: 1, held: 1 });
+    expect(ingest).toHaveBeenCalledTimes(1);
+    expect(ingestCall().options.userId).toBe('u-carol');
+  });
+
   it('does not raise the paperclip for a cid: image that is part of the body', async () => {
     state.users.push(localUser());
     s3ReturnsRawEmail(inlineImageEmail());
