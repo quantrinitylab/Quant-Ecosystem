@@ -118,10 +118,14 @@ class AgentGateway {
   /**
    * Permission gate for a plan. Returns a held planId when any step needs
    * Sentinel confirmation (tier >= 2) or the user tier is insufficient.
+   * Pass the requesting userId to bind the held plan to its owner at
+   * creation; callers that omit it must bind via bindHeldPlan before the
+   * plan can be confirmed (confirm fails closed on an unbound plan).
    */
   checkPermissions(
     plan: ToolPlan,
     userTier: PermissionTier = 1,
+    userId?: string,
   ): { held: false } | { held: true; planId: string; reason: string; steps: unknown[] } {
     for (const step of plan.steps) {
       const verdict = this.permissions.evaluate(step.toolId, userTier);
@@ -133,7 +137,10 @@ class AgentGateway {
         this.heldPlans.set(planId, {
           planId,
           plan,
-          userId: '',
+          // Bind at creation when the requesting user is known. An empty
+          // owner is unconfirmable by design (see confirm), so it can never
+          // authorize execution.
+          userId: userId ?? '',
           createdAt: Date.now(),
           reason: verdict.reason,
         });
@@ -177,7 +184,13 @@ class AgentGateway {
       this.heldPlans.delete(planId);
       throw createAppError('Plan not found or expired', 404, 'PLAN_NOT_FOUND');
     }
-    if (held.userId && held.userId !== opts.userId) {
+    // Fail closed: a plan with no bound owner must never confirm, and only
+    // the owning user may resume the plan. (Previously an empty owner
+    // bypassed this check entirely.)
+    if (!held.userId) {
+      throw createAppError('Plan has no bound owner', 403, 'PLAN_USER_MISMATCH');
+    }
+    if (held.userId !== opts.userId) {
       throw createAppError('Plan belongs to a different user', 403, 'PLAN_USER_MISMATCH');
     }
     this.heldPlans.delete(planId);
@@ -190,10 +203,13 @@ class AgentGateway {
     return this.execute(held.plan, { ...opts, confirmedToolIds });
   }
 
-  /** Bind the held plan to the requesting user (called by the chat route). */
+  /**
+   * Bind the held plan to the requesting user (called by the chat route).
+   * An empty userId is ignored: it must never create or overwrite an owner.
+   */
   bindHeldPlan(planId: string, userId: string): void {
     const held = this.heldPlans.get(planId);
-    if (held) held.userId = userId;
+    if (held && userId) held.userId = userId;
   }
 }
 
