@@ -125,7 +125,7 @@ export const CiRunJobSchema = z.object({
   branch: z.string(),
   commitSha: z.string(),
   configYaml: z.string(),
-  variables: z.record(z.string()).optional(),
+  variables: z.record(z.string(), z.string()).optional(),
 });
 
 export type CiRunJob = z.infer<typeof CiRunJobSchema>;

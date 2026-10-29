@@ -32,7 +32,7 @@ export function createPublishRoutes(
       if (err instanceof z.ZodError) {
         return {
           status: 400,
-          body: { error: 'Validation failed', details: err.errors },
+          body: { error: 'Validation failed', details: err.issues },
         };
       }
       const message = err instanceof Error ? err.message : 'Internal error';

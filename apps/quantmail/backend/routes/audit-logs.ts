@@ -85,7 +85,7 @@ export default async function auditLogsRoutes(fastify: FastifyInstance) {
     const parsed = listAuditLogsSchema.safeParse(request.query);
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid query parameters',
+        parsed.error.issues[0]?.message || 'Invalid query parameters',
         400,
         'VALIDATION_ERROR',
       );

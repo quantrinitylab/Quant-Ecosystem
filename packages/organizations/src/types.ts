@@ -57,7 +57,7 @@ export const CreateOrgSchema = z.object({
 export const UpdateOrgSchema = z.object({
   name: z.string().min(2).max(100).optional(),
   plan: z.nativeEnum(OrgPlan).optional(),
-  settings: z.record(z.unknown()).optional(),
+  settings: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const InviteMemberSchema = z.object({

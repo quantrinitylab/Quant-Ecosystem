@@ -5,15 +5,15 @@ import { AdSetService, AD_SET_STATUSES } from '../services/ad-set.service';
 
 const createAdSetSchema = z.object({
   name: z.string().min(1).max(200),
-  budget: z.record(z.unknown()).optional(),
-  targeting: z.record(z.unknown()).optional(),
+  budget: z.record(z.string(), z.unknown()).optional(),
+  targeting: z.record(z.string(), z.unknown()).optional(),
   placement: z.array(z.unknown()).optional(),
 });
 
 const updateAdSetSchema = z.object({
   name: z.string().min(1).max(200).optional(),
-  budget: z.record(z.unknown()).optional(),
-  targeting: z.record(z.unknown()).optional(),
+  budget: z.record(z.string(), z.unknown()).optional(),
+  targeting: z.record(z.string(), z.unknown()).optional(),
   placement: z.array(z.unknown()).optional(),
 });
 

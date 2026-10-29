@@ -12,7 +12,7 @@ vi.mock('@quant/shared-ui', () => ({
   AnimatedPage: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
 
-import { ChatMessages } from '../page';
+import { ChatMessages } from '../../components/chat/ChatMessages';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

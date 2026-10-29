@@ -11,7 +11,7 @@ const registerSchema = z.object({
 
 const invokeSchema = z.object({
   tool: z.string().min(1),
-  args: z.record(z.unknown()).optional(),
+  args: z.record(z.string(), z.unknown()).optional(),
 });
 
 function userId(request: unknown): string {

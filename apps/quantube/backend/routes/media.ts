@@ -71,7 +71,7 @@ const initUploadSchema = z.object({
   mimeType: z.string().min(1),
   chunkSize: z.number().int().positive().optional(),
   checksum: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 const uploadParamsSchema = z.object({ id: z.string().min(1) });

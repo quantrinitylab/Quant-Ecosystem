@@ -112,7 +112,7 @@ const TriggerPipelineSchema = z.object({
   commitSha: z.string().optional(),
   prId: z.string().optional(),
   configYaml: z.string().optional(),
-  variables: z.record(z.string()).optional(),
+  variables: z.record(z.string(), z.string()).optional(),
 });
 
 export default async function ciRoutes(fastify: FastifyInstance) {

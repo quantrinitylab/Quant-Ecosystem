@@ -21,7 +21,7 @@ const createScheduledTaskSchema = z
     actionPrompt: z.string().min(1).max(10000).optional(),
     targetApp: z.string().optional(),
     targetApps: z.array(z.string()).optional(),
-    config: z.record(z.unknown()).optional(),
+    config: z.record(z.string(), z.unknown()).optional(),
   })
   .refine((data) => !!(data.cronExpression || data.nlPrompt), {
     message: 'Either cronExpression or nlPrompt must be provided',
@@ -35,7 +35,7 @@ const updateScheduledTaskSchema = z.object({
   targetApp: z.string().optional(),
   targetApps: z.array(z.string()).optional(),
   status: z.enum(['ACTIVE', 'PAUSED', 'CANCELLED', 'COMPLETED']).optional(),
-  config: z.record(z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
 });
 
 const queryScheduledTasksSchema = z.object({
