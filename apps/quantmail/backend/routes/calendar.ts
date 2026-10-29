@@ -1478,6 +1478,9 @@ export default async function calendarRoutes(
       startTime?: string;
       endTime?: string;
       calendarId?: string;
+      // The event being edited (Google Calendar parity): Find-a-time while
+      // editing must not treat the event's own occurrence as a conflict.
+      excludeEventId?: string;
     };
   }>('/events/free-busy', async (request, reply) => {
     const userId = requireUserId(request);
@@ -1496,6 +1499,12 @@ export default async function calendarRoutes(
     }
 
     const calendarId = request.query.calendarId;
+    // fix/qm-freebusy-exclude-event — the event being edited must not count
+    // as its own conflict: without this, Find-a-time while editing steers the
+    // organizer away from their current time. The exclusion is scoped by the
+    // userId filter above, so an id belonging to another user excludes
+    // nothing. A blank value means "no exclusion" (create flow).
+    const excludeEventId = request.query.excludeEventId?.trim() || undefined;
     const prisma = getPrisma(fastify);
 
     const nonRecurring = (await prisma.event.findMany({
@@ -1506,6 +1515,7 @@ export default async function calendarRoutes(
         startTime: { lt: endDate },
         endTime: { gt: startDate },
         ...(calendarId ? { calendarId } : {}),
+        ...(excludeEventId ? { id: { not: excludeEventId } } : {}),
       },
       select: { id: true, title: true, startTime: true, endTime: true },
     })) as Array<{ id: string; title: string; startTime: Date; endTime: Date }>;
@@ -1523,10 +1533,16 @@ export default async function calendarRoutes(
     const recurringOccurrences: Array<{ start: Date; end: Date; eventId: string; title: string }> =
       [];
     for (const row of recurringRows) {
+      // Editing the series master: drop the whole series before expansion.
+      if (excludeEventId && row.id === excludeEventId) continue;
       try {
         const occs = recurringService.expandOccurrences(toCalendarEvent(row), startDate, endDate);
         for (const occ of occs) {
           if (occ.status === 'cancelled') continue;
+          // Editing one occurrence: expanded occurrences carry
+          // `${seriesId}_${occurrenceISO}` ids, so the occurrence id itself
+          // must be excluded here (the row-level check above cannot see it).
+          if (excludeEventId && occ.id === excludeEventId) continue;
           if (occ.startTime < endDate && occ.endTime > startDate) {
             recurringOccurrences.push({
               start: new Date(Math.max(occ.startTime.getTime(), startDate.getTime())),

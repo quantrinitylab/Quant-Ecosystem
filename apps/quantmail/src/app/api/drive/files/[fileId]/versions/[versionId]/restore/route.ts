@@ -8,7 +8,7 @@ export async function POST(
 ) {
   const { fileId, versionId } = await params;
   const res = await safeFetch(
-    `${DRIVE_BACKEND_URL}/drive/files/${fileId}/versions/${versionId}/restore`,
+    `${DRIVE_BACKEND_URL}/drive/files/${encodeURIComponent(fileId)}/versions/${encodeURIComponent(versionId)}/restore`,
     {
       method: 'POST',
       headers: {

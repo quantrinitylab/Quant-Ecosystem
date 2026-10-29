@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ fileId: string }> },
 ) {
   const { fileId } = await params;
-  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${fileId}/details`, {
+  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${encodeURIComponent(fileId)}/details`, {
     headers: { Authorization: request.headers.get('Authorization') || '' },
   });
   const data = await res.json();
