@@ -99,6 +99,26 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
       expect(html).toContain('AK');
       expect(html).toContain('aria-label="User Profile: Abhishek Kumar"');
     });
+
+    it('bell announces NO count when the host omits unreadNotifications (no phantom "0 unread")', () => {
+      const html = renderToStaticMarkup(<QuantMailSuperAppHeader />);
+
+      // Unknown count is announced as unknown, never as a fabricated zero.
+      expect(html).toContain('aria-label="Notifications"');
+      expect(html).not.toContain('Notifications: ');
+      expect(html).not.toContain('0 unread');
+      // No count pill without a real host count.
+      expect(html).not.toContain('bg-rose-600');
+    });
+
+    it('explicit host zero is honest: announces "0 unread" but renders no badge', () => {
+      const html = renderToStaticMarkup(<QuantMailSuperAppHeader unreadNotifications={0} />);
+
+      // A real zero from the host is a fact, not a fabrication — but zero
+      // still earns no badge pill.
+      expect(html).toContain('aria-label="Notifications: 0 unread"');
+      expect(html).not.toContain('bg-rose-600');
+    });
   });
 
   // ==========================================================================
