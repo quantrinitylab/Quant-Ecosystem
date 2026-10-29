@@ -1076,8 +1076,12 @@ body {
  * deliberately NOT a fixed overlay. 2026-10-11 P1: the toggle pill used to be
  * `fixed right-3 top-3 z-[60]` and sat on top of the hero's "New chat" button,
  * intercepting its clicks/taps. An in-flow row can never cover anything.
+ *
+ * No `display` here on purpose: page.tsx applies `hidden md:flex`, because below
+ * md the toggle lives in the top bar's search row. This rule is unlayered, so a
+ * `display` declaration here would beat the Tailwind `hidden` utility.
  */
-.mailbox-view-row { display: flex; justify-content: flex-end; padding: 0.6rem 1.35rem 0; background: var(--quant-background); }
+.mailbox-view-row { justify-content: flex-end; padding: 0.6rem 1.35rem 0; background: var(--quant-background); }
 .inbox-kicker, .reading-eyebrow { display: flex; align-items: center; gap: 0.5rem; color: #a8784c; font-size: 0.625rem; font-weight: 750; letter-spacing: 0.18em; text-transform: uppercase; }
 .inbox-kicker span { width: 1.3rem; height: 1px; background: var(--quant-primary); }
 .inbox-hero h1 { margin-top: 0.35rem; font-size: clamp(1.8rem, 3vw, 2.7rem); font-weight: 720; line-height: 0.96; letter-spacing: -0.065em; }

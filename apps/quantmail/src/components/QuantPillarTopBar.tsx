@@ -9,7 +9,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { QuantGitUserIdModal } from './QuantGitUserIdModal';
 import { Quanty } from './Quanty';
 import { AccountBadge } from './AccountBadge';
@@ -17,6 +17,7 @@ import { LiquidTrack } from './workplace/LiquidTrack';
 import { PillarMascotMark } from './mascots/PillarMascotMark';
 import { useKeyboardSurfaces } from './KeyboardProvider';
 import { CommandIcon } from '../lib/keyboard/command-icons';
+import { MailboxViewToggle } from './MailboxViewToggle';
 
 export type PillarId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -430,30 +431,6 @@ export interface QuantPillarTopBarProps {
   onLensChange?: (lensId: string, pillar: PillarId) => void;
   onQuantyClick?: () => void;
   onOpenCopilot?: () => void;
-  /**
-   * Mobile navigation-drawer opener (mobile-inbox P1, 2026-10-11).
-   *
-   * The bar is mobile-only (AppShell mounts it inside `md:hidden`), and on a
-   * phone it is the top of every screen — the natural home for the hamburger
-   * that opens the navigation drawer (Compose, folders, Labels, Settings…).
-   * Before this, the drawer was reachable only through the physical-keyboard
-   * `[` shortcut (`quant:sidebar:toggle`), so on phones the drawer — and the
-   * Labels page, which has no other mobile link — was unreachable.
-   *
-   * Rendered ONLY when supplied, so standalone uses of the bar never get a
-   * dead button. Sits at the left of the pinned search row (which never hides
-   * on scroll), a 44px tap target with an accessible name.
-   */
-  onMenuClick?: () => void;
-  /**
-   * Attached to the hamburger button when rendered. Lets the drawer return
-   * focus to its trigger on close (Escape / backdrop tap) instead of stranding
-   * it — this ref previously pointed at nothing (AppShell's `menuTriggerRef`
-   * had no DOM node).
-   */
-  menuTriggerRef?: React.RefObject<HTMLButtonElement | null>;
-  /** Whether the drawer is open right now — carried as aria-expanded on the trigger. */
-  menuExpanded?: boolean;
   aiLiveText?: string;
   onVoiceSearch?: (transcript: string) => void;
   unreadCounts?: Partial<Record<PillarId, number>>;
@@ -605,9 +582,6 @@ export function QuantPillarTopBar({
   onLensChange,
   onQuantyClick,
   onOpenCopilot,
-  onMenuClick,
-  menuTriggerRef,
-  menuExpanded,
   aiLiveText,
   onVoiceSearch,
   unreadCounts,
@@ -616,6 +590,7 @@ export function QuantPillarTopBar({
 }: QuantPillarTopBarProps) {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
+  const searchParams = useSearchParams();
 
   // Command-palette trigger: `useKeyboardSurfaces` returns inert no-ops
   // outside the provider, so this stays safe if the bar ever renders above it.
@@ -868,8 +843,8 @@ export function QuantPillarTopBar({
   // separate and never hide; they ride to the very top when the switcher
   // collapses.
   //
-  // Reveal policy: hide on DELIBERATE scroll-down (delta > 8px, past 120px —
-  // tiny jitters never hide it); reveal on scroll-UP (delta < -12px) or at the
+  // Reveal policy: hide on DELIBERATE scroll-down (delta > 6px, past 40px —
+  // tiny jitters never hide it); reveal on scroll-UP (delta < -10px) or at the
   // absolute top.
   //
   // Scroll events are coalesced through requestAnimationFrame: a fast fling
@@ -908,13 +883,13 @@ export function QuantPillarTopBar({
       if (scrollTop === 0 && docTop === 0) {
         setHeaderHidden(false);
         setSearchCompact(false);
-      } else if (delta > 8 && scrollTop > 120) {
+      } else if (delta > 6 && scrollTop > 40) {
         setHeaderHidden(true);
         setSearchCompact(true);
-      } else if (delta < -12) {
+      } else if (delta < -10) {
         // Scroll-up reveals the switcher (it no longer waits for the top).
         setHeaderHidden(false);
-      } else if (scrollTop > 0 && scrollTop <= 120) {
+      } else if (scrollTop > 0 && scrollTop <= 40) {
         // Small scroll: keep switcher visible but compact the search.
         setSearchCompact(true);
       }
@@ -955,68 +930,6 @@ export function QuantPillarTopBar({
   const tooltipTimer = useRef<number | null>(null);
   const toastTimer = useRef<number | null>(null);
   const spinTimer = useRef<number | null>(null);
-
-  // Hide-on-scroll: the switcher section collapses with a grid-rows
-  // animation (0fr <-> 1fr) so it takes ZERO space when hidden — no blank
-  // gap, no layout reflow per frame. The search row below is separate and
-  // never hides.
-  // Reveal policy: hide on DELIBERATE scroll-down (delta > 8px, past 120px —
-  // tiny jitters never hide it); reveal on scroll-UP (delta < -12px) or at the
-  // absolute top. The search bar below is separate and never hides.
-  //
-  // Scroll events are coalesced through requestAnimationFrame: a fast fling
-  // fires dozens of events per frame, and running the WeakMap bookkeeping on
-  // every one was measurable in profiles.
-  useEffect(() => {
-    const positions = new WeakMap<object, number>();
-    let rafId: number | null = null;
-    let pendingTarget: EventTarget | null = null;
-
-    const processScroll = () => {
-      rafId = null;
-      const target = pendingTarget;
-      pendingTarget = null;
-      if (!target) return;
-      let key: object | null = null;
-      let scrollTop = 0;
-      if (target === document || target === document.documentElement) {
-        key = document;
-        scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
-      } else if (target instanceof HTMLElement) {
-        if (target.scrollHeight <= target.clientHeight + 40) return;
-        key = target;
-        scrollTop = target.scrollTop;
-      }
-      if (!key) return;
-      const last = positions.get(key) ?? 0;
-      const delta = scrollTop - last;
-      positions.set(key, scrollTop);
-      // The scroller that fired must be at 0 while the DOCUMENT itself is also
-      // at 0 — otherwise a nested container hitting 0 mid-page would wrongly
-      // reveal the switcher while the page is still scrolled.
-      const docTop = window.scrollY || document.documentElement.scrollTop || 0;
-      // Maintain stable header dimensions to eliminate layout shifts and scroll feedback loops
-      setHeaderHidden(false);
-      setSearchCompact(false);
-    };
-
-    const onScroll = (e: Event) => {
-      pendingTarget = e.target;
-      if (rafId === null) {
-        rafId = requestAnimationFrame(processScroll);
-      }
-    };
-    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
-    return () => {
-      document.removeEventListener('scroll', onScroll, { capture: true });
-      if (rafId !== null) cancelAnimationFrame(rafId);
-    };
-  }, []);
-
-  // New pillar = fresh content at the top → always reveal the switcher.
-  useEffect(() => {
-    setHeaderHidden(false);
-  }, [currentPillar]);
 
   const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
@@ -1101,8 +1014,8 @@ export function QuantPillarTopBar({
     {/*
       STRUCTURE (v3.1 — P1-F single sticky bar):
       - ONE sticky header bar holds both the switcher and the search field.
-      - Switcher pill section: hides on scroll down, reappears ONLY at
-        scrollY === 0 (unchanged hide-on-scroll behavior).
+      - Switcher pill section: hides on scroll down, reappears on scroll up or
+        at scrollY === 0.
       - Search bar: same sticky bar, NEVER hides, compacts on scroll.
     */}
     <div
@@ -1119,9 +1032,13 @@ export function QuantPillarTopBar({
       below slides up to the very top with no blank gap.
     */}
     <div
-      className="grid grid-rows-[1fr] transition-[grid-template-rows] duration-300 ease-out"
+      data-testid="pillar-switcher-collapse"
+      data-hidden={headerHidden ? 'true' : 'false'}
+      className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+        headerHidden ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+      }`}
     >
-    <div className="min-h-0">
+    <div className="min-h-0 overflow-hidden">
     <header
       className={`w-full flex flex-col gap-2 px-3 pt-2.5 pb-2 select-none ${className}`}
       aria-label="Super-App 5-Pillar Navigation Bar"
@@ -1150,9 +1067,9 @@ export function QuantPillarTopBar({
             thickness={56}
             radius={20}
             lift={5}
-            pad={6}
-            top={0.38}
-            flare={0.3}
+            pad={5}
+            top={0.27}
+            flare={0.21}
             testId="pillar-switcher-liquid"
           />
           <div className="qw-segs">
@@ -1253,6 +1170,8 @@ export function QuantPillarTopBar({
     {/*
       SEARCH BAR — pinned to the SAME sticky bar above, NEVER hides on scroll.
       Compacts (48px → 40px) when scrolled; Quanty ghost always beside it.
+      On the Mail pillar the People | Inbox toggle sits in this row too, so it
+      costs no extra row below the search bar on a phone.
     */}
     <div
       className="w-full px-3"
@@ -1263,42 +1182,6 @@ export function QuantPillarTopBar({
       }}
     >
       <div className="flex items-center gap-2 w-full max-w-5xl mx-auto">
-        {/*
-          Mobile navigation-drawer hamburger (mobile-inbox P1, 2026-10-11).
-          Left of the search field — Gmail's convention — inside the pinned
-          row that NEVER hides on scroll, so the drawer (Compose, folders,
-          Labels, Settings…) is always one tap away on phones. Before this,
-          the drawer's only opener was the physical-keyboard `[` shortcut.
-          Rendered only when `onMenuClick` is wired; `menuTriggerRef` gives
-          the drawer's focus-return logic a real DOM node to hand focus back
-          to on close.
-        */}
-        {onMenuClick && (
-          <button
-            type="button"
-            ref={menuTriggerRef}
-            onClick={onMenuClick}
-            aria-label="Open navigation menu"
-            aria-expanded={menuExpanded}
-            title="Open navigation menu"
-            data-testid="pillar-menu-button"
-            className="flex items-center justify-center rounded-xl shrink-0 size-11 min-h-[44px] min-w-[44px] bg-[#16181F] border border-[#232938] text-[#CBD5E1] transition active:scale-95 hover:text-white hover:border-[var(--quant-primary)]/60 outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
-          >
-            <svg
-              className="size-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <line x1="4" y1="7" x2="20" y2="7" />
-              <line x1="4" y1="12" x2="20" y2="12" />
-              <line x1="4" y1="17" x2="20" y2="17" />
-            </svg>
-          </button>
-        )}
         <div
           className="relative flex items-center gap-2 px-3 rounded-xl bg-[#16181F] border border-[#232938] focus-within:border-[var(--quant-primary)]/60 focus-within:ring-1 focus-within:ring-[var(--quant-primary)]/30 transition-all shadow-inner flex-1 min-w-0"
           style={{
@@ -1345,6 +1228,20 @@ export function QuantPillarTopBar({
             <MicrophoneIcon className="size-4" />
           </button>
         </div>
+
+        {/* Mail pillar only: the People | Inbox toggle, right beside the search
+            field. It is the compact icon pill (active label only), and it is
+            in the document flow of this row, never an overlay. */}
+        {currentPillar === 'mail' ? (
+          <MailboxViewToggle
+            isInbox={
+              searchParams?.get('view') === 'inbox' ||
+              ['/sent', '/drafts', '/archive', '/scheduled', '/trash'].some((p) =>
+                pathname.startsWith(p),
+              )
+            }
+          />
+        ) : null}
 
         {/*
           Command palette — the phone's one-tap entry to the palette. It was

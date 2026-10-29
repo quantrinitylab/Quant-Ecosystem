@@ -320,7 +320,7 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integr
       expect(emojiRegex.test(html)).toBe(false);
     });
 
-    it('preserves desktop pinned sidebar and drawer structures', () => {
+    it('has no mobile navigation drawer and no hamburger (the desktop rail stays)', () => {
       mockCurrentPathname = '/';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div className="sidebar-inner">Sidebar Items</div>}>
@@ -328,17 +328,16 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integr
         </AppShell>,
       );
 
-      expect(html).toContain('sidebar-inner');
-      expect(html).toContain('Close navigation menu');
-      // 2026-10-11 mobile-inbox P1: the mobile pillar top bar deliberately
-      // renders a hamburger ("Open navigation menu") that opens the nav
-      // drawer on phones; the 2026-10-10 removal only dropped the desktop
-      // header hamburger (the pinned rail stays). The drawer itself keeps
-      // advertising its close action.
+      // The mobile navigation drawer was removed: the `sidebar` prop is no
+      // longer rendered into an off-canvas overlay, and neither the pillar
+      // top bar nor the secondary header carries a hamburger.
+      expect(html).not.toContain('sidebar-inner');
+      expect(html).not.toContain('Close navigation menu');
+      expect(html).not.toContain('Open navigation menu');
+      expect(html).not.toContain('aria-label="Navigation"');
       // (The pinned rail itself needs matchMedia/localStorage effects, so it
       // only renders in a real browser — DesktopContextSidebar is covered
       // directly in desktop-context-sidebar.test.tsx.)
-      expect(html).toContain('Open navigation menu');
       expect(html).toContain('main-content');
     });
   });

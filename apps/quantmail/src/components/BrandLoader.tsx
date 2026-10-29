@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { QuantMailLogoStatic } from './QuantMailLogoStatic';
+import { QuantWorkplaceRevolvingSplash } from './workplace/QuantWorkplaceRevolvingSplash';
 
 interface BrandLoaderProps {
   variant?: 'splash' | 'inline';
@@ -18,14 +18,16 @@ const inlineCss = `
 `;
 
 /**
- * QuantMail Apple/Google-tier luxury loader:
- * - Static QuantMail mark (inline SVG, paints on first paint).
- * - Precision smooth orbital spinner ring.
- * - Modern, clean typographic hierarchy with letterspaced QUANTRINITY branding.
+ * QuantWorkplace loader (by quantrinity):
+ * - `splash`: the revolving 5-app splash (black hole hub, five app rings,
+ *   QuantWorkplace wordmark, "by quantrinity"). Server-renderable, so it is
+ *   complete on first paint. `message` is announced to screen readers only
+ *   (the splash shows no words of its own); `hint` is the one visible line.
+ * - `inline`: the small spinner ring for buttons and rows.
  */
 export function BrandLoader({
   variant = 'splash',
-  message = 'Loading QuantMail…',
+  message = 'Loading QuantWorkplace…',
   hint,
   className = '',
 }: BrandLoaderProps) {
@@ -39,59 +41,7 @@ export function BrandLoader({
     );
   }
 
-  return (
-    <div
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-between bg-[#080a0f] p-8 select-none ${className}`}
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-    >
-      <div className="w-full" />
-
-      {/* Center Precision Mascot & Smooth Orbital Progress */}
-      <div className="relative flex flex-col items-center justify-center">
-        <div className="relative flex items-center justify-center size-24 sm:size-28">
-          {/* Track Ring */}
-          <div className="absolute inset-0 rounded-full border border-[var(--quant-surface-elevated)]/80" />
-
-          {/*
-            Smooth conic orbital spinner. The arc is the whole signal — it had a
-            blurred amber blob behind it and a drop-shadow around it, which on the
-            near-black canvas read as a neon bloom rather than as progress.
-          */}
-          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[var(--quant-primary)] border-r-[var(--quant-primary-hover)]/70 animate-[spin_1s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
-
-          {/* Center logo — static inline SVG of the QuantMail mark. The canvas
-              QuantMailLogo painted nothing until its first rAF frame, leaving
-              an empty box on the splash; the static SVG paints instantly. */}
-          <div className="relative z-10 flex items-center justify-center size-14 sm:size-16 rounded-2xl bg-[var(--quant-background)]/80 border border-[var(--quant-surface-elevated)]/90 shadow-2xl">
-            <QuantMailLogoStatic size={42} />
-          </div>
-        </div>
-
-        {/* Crisp Modern Loading Subtitle */}
-        <p className="mt-8 text-[13px] font-medium text-[var(--quant-muted-foreground)] tracking-wide font-sans">
-          {message}
-        </p>
-        {hint ? (
-          <div className="text-center text-xs text-[var(--quant-muted-foreground)] mt-1 font-sans">{hint}</div>
-        ) : null}
-      </div>
-
-      {/* Minimalist Tech Hierarchy (Apple/Google style) */}
-      <div className="flex flex-col items-center gap-1 pb-4 text-center">
-        <span className="text-sm font-semibold tracking-wider text-[var(--quant-foreground)] font-sans">
-          QUANTMAIL
-        </span>
-        <div className="flex items-center gap-1.5 text-[10px] font-mono tracking-[0.25em] text-[var(--quant-muted-foreground)] uppercase">
-          <span>BY</span>
-          <span className="font-bold text-[var(--quant-primary)] tracking-[0.3em]">QUANTRINITY</span>
-        </div>
-      </div>
-
-      <span className="sr-only">{message}</span>
-    </div>
-  );
+  return <QuantWorkplaceRevolvingSplash message={message} hint={hint} className={className} />;
 }
 
 export default BrandLoader;

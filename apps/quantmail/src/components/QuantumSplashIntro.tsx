@@ -1,24 +1,26 @@
 'use client';
 
 /**
- * The first thing anyone sees: a short brand hold while the shell hydrates.
+ * The once-per-session brand hold: the QuantWorkplace revolving splash for a
+ * short beat while the shell hydrates, then a quick fade.
  *
- * It used to be a 70-particle canvas vortex in five colours gravitating toward a
- * 24rem blurred orange blob, ringed by three neon `0 0 30px` glows and held for
- * 1.45s. Three problems, in order of how much they cost: the glow is the exact
- * "AI template" look the product is defined against; a `requestAnimationFrame`
- * loop competing with hydration is the slowest possible first paint for an app
- * whose pitch is speed; and 1.45s is a long time to stand between someone and
- * their mail, every session.
+ * It used to be a 70-particle canvas vortex held for 1.45s, then a mark and
+ * wordmark with a progress bar held for 0.85s. It now shows the same revolving
+ * splash AuthGuard paints while the session loads, and it keeps the short hold:
+ * 0.85s is already a long time to stand between someone and their mail.
  *
- * What replaced it says the same thing with the design system's own vocabulary —
- * the mark, the wordmark, and a determinate bar that runs for exactly as long as
- * the hold, so the wait is legible rather than decorative.
+ * It does not replay straight after AuthGuard's splash. On a hard load of a
+ * signed-in route the guard has just shown the splash for as long as the
+ * session took to restore, so a second hold here would be the same screen
+ * twice in a row, restarting the animation. The two share one "already shown"
+ * flag (lib/splash-session); this hold is for the other way into the shell,
+ * a soft navigation straight after sign-in.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { BrandWordmark } from './BrandWordmark';
+import { QuantWorkplaceRevolvingSplash } from './workplace/QuantWorkplaceRevolvingSplash';
+import { hasSplashBeenShown, markSplashShown } from '../lib/splash-session';
 
 /** How long the hold lasts, and how long it takes to fade out. */
 const HOLD_MS = 850;
@@ -38,16 +40,13 @@ export function QuantumSplashIntro({ onComplete }: { onComplete?: () => void }) 
 
   useEffect(() => {
     // Once per session: on a second navigation the shell is already warm, and a
-    // brand hold there is pure delay.
-    try {
-      if (sessionStorage.getItem('quant_splash_shown')) {
-        onComplete?.();
-        return;
-      }
-      sessionStorage.setItem('quant_splash_shown', 'true');
-    } catch {
-      // Private-mode or blocked storage: show it, just don't remember.
+    // brand hold there is pure delay. Also skipped when AuthGuard's splash has
+    // already been painted for this page load.
+    if (hasSplashBeenShown()) {
+      onComplete?.();
+      return;
     }
+    markSplashShown();
 
     setIsVisible(true);
   }, [onComplete]);
@@ -94,53 +93,9 @@ export function QuantumSplashIntro({ onComplete }: { onComplete?: () => void }) 
         initial={{ opacity: prefersReducedMotion ? 1 : 0 }}
         animate={{ opacity: isLeaving ? 0 : 1 }}
         transition={{ duration: FADE_MS / 1000, ease: 'easeOut' }}
-        onClick={dismiss}
-        className="fixed inset-0 z-[99999] flex select-none flex-col items-center justify-center gap-6 bg-[var(--quant-background)]"
-        role="status"
-        aria-live="polite"
-        aria-busy="true"
+        className="fixed inset-0 z-[99999]"
       >
-        <motion.div
-          initial={prefersReducedMotion ? undefined : { opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.28, ease: 'easeOut' }}
-          className="flex flex-col items-center gap-5"
-        >
-          <div className="flex size-16 items-center justify-center rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
-            <svg
-              className="size-8 text-[var(--quant-primary)]"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.6}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
-              <path d="M3 5.5 12 13l9-7.5" />
-            </svg>
-          </div>
-
-          <BrandWordmark app="mail" size="text-2xl" />
-        </motion.div>
-
-        {/*
-          A determinate bar, not a spinner: the hold is a known length, so the
-          honest signal is how much of it is left. Fixed width rather than a
-          percentage so it reads the same on a phone and a monitor.
-        */}
-        <div className="h-0.5 w-32 overflow-hidden rounded-full bg-[var(--quant-surface-elevated)]" aria-hidden="true">
-          <motion.div
-            className="h-full rounded-full bg-[var(--quant-primary)]"
-            initial={{ width: prefersReducedMotion ? '100%' : '0%' }}
-            animate={{ width: '100%' }}
-            transition={{ duration: prefersReducedMotion ? 0 : HOLD_MS / 1000, ease: 'linear' }}
-          />
-        </div>
-
-        <span className="sr-only">Loading QuantMail</span>
+        <QuantWorkplaceRevolvingSplash message="Loading QuantWorkplace" onClick={dismiss} />
       </motion.div>
     </AnimatePresence>
   );

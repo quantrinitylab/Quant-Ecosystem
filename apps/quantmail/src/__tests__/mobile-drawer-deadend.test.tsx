@@ -83,7 +83,11 @@ vi.mock('@quant/shared-ui', () => ({
   BubbleAvatar: () => <div className="bubble-avatar" />,
 }));
 
-describe('AppShell — mobile drawer dead-end fix (secondary routes)', () => {
+// The mobile navigation drawer (and its hamburger) was removed. What stays is
+// the dead-end fix that sat next to it: secondary routes that mount a sidebar
+// but have no bottom bar and no back link of their own get a slim mobile
+// header with a back chevron — the only escape in an installed PWA.
+describe('AppShell — mobile back chevron on secondary routes (no drawer)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCurrentPathname = '/';
@@ -94,7 +98,7 @@ describe('AppShell — mobile drawer dead-end fix (secondary routes)', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders the drawer opener + back button on /labels (non-pillar drawer route)', () => {
+  it('renders only the back chevron on /labels (no hamburger, no drawer)', () => {
     mockCurrentPathname = '/labels';
     const html = renderToStaticMarkup(
       <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -102,19 +106,21 @@ describe('AppShell — mobile drawer dead-end fix (secondary routes)', () => {
       </AppShell>,
     );
 
-    // Slim secondary header: drawer opener and back affordance
-    expect(html).toContain('data-testid="shell-mobile-menu-button"');
-    expect(html).toContain('aria-label="Open navigation menu"');
-    expect(html).toContain('aria-expanded="false"');
     expect(html).toContain('data-testid="shell-mobile-back-button"');
     expect(html).toContain('aria-label="Go back"');
+    expect(html).toContain('min-h-[44px]');
+    // No hamburger and no modal navigation drawer.
+    expect(html).not.toContain('shell-mobile-menu-button');
+    expect(html).not.toContain('Open navigation menu');
+    expect(html).not.toContain('Close navigation menu');
+    expect(html).not.toContain('aria-label="Navigation"');
+    // The sidebar prop is no longer rendered into a mobile overlay.
+    expect(html).not.toContain('sidebar-test');
     // Not the full 5-pillar switcher on a secondary route
     expect(html).not.toContain('Super-App 5-Pillar Navigation Bar');
-    // The drawer itself is still mounted in the DOM
-    expect(html).toContain('sidebar-test');
   });
 
-  it('renders the drawer opener on /sent (mail-folder route keeps bottom nav too)', () => {
+  it('renders the back chevron on /sent (mail-folder route keeps bottom nav too)', () => {
     mockCurrentPathname = '/sent';
     const html = renderToStaticMarkup(
       <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -122,13 +128,13 @@ describe('AppShell — mobile drawer dead-end fix (secondary routes)', () => {
       </AppShell>,
     );
 
-    expect(html).toContain('data-testid="shell-mobile-menu-button"');
     expect(html).toContain('data-testid="shell-mobile-back-button"');
+    expect(html).not.toContain('shell-mobile-menu-button');
     // Mail-folder routes keep the contextual bottom bar (existing behavior)
     expect(html).toContain('contextual navigation');
   });
 
-  it('renders the drawer opener on /settings and /search', () => {
+  it('renders the back chevron on /settings, /search, /notifications and /admin', () => {
     for (const route of ['/settings', '/search', '/notifications', '/admin']) {
       mockCurrentPathname = route;
       const html = renderToStaticMarkup(
@@ -136,12 +142,12 @@ describe('AppShell — mobile drawer dead-end fix (secondary routes)', () => {
           <div>Content</div>
         </AppShell>,
       );
-      expect(html).toContain('data-testid="shell-mobile-menu-button"');
       expect(html).toContain('data-testid="shell-mobile-back-button"');
+      expect(html).not.toContain('shell-mobile-menu-button');
     }
   });
 
-  it('does NOT render the secondary header on main suite routes (pillar bar owns the hamburger there)', () => {
+  it('does NOT render the secondary header on main suite routes, and no hamburger anywhere', () => {
     for (const route of ['/', '/calendar', '/drive', '/contacts', '/quantgit']) {
       mockCurrentPathname = route;
       const html = renderToStaticMarkup(
@@ -151,12 +157,13 @@ describe('AppShell — mobile drawer dead-end fix (secondary routes)', () => {
       );
       expect(html).not.toContain('shell-mobile-menu-button');
       expect(html).not.toContain('shell-mobile-back-button');
-      // The pillar bar's own hamburger is the drawer opener on suite routes
-      expect(html).toContain('data-testid="pillar-menu-button"');
+      // The pillar bar no longer has a hamburger either.
+      expect(html).not.toContain('pillar-menu-button');
+      expect(html).not.toContain('Open navigation menu');
     }
   });
 
-  it('does NOT render the secondary header when no sidebar is mounted (no drawer in DOM)', () => {
+  it('does NOT render the secondary header when no sidebar is mounted', () => {
     mockCurrentPathname = '/labels';
     const html = renderToStaticMarkup(
       <AppShell>

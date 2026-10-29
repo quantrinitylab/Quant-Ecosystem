@@ -347,23 +347,8 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       unmaskable: true,
       run: openHelp,
     },
-    {
-      id: 'view.toggleSidebar',
-      label: 'Toggle sidebar',
-      group: 'View',
-      keys: '[',
-      icon: 'sidebar',
-      keywords: ['collapse', 'expand', 'navigation'],
-      // CUST-P1-4: the desktop rail is pinned (toggling is a no-op by design
-      // on wide screens), so the key is only enabled where it can act: the
-      // mobile drawer below `md`. Without this the `?` sheet advertises a
-      // dead key on desktop. The touch path is the hamburger in the mobile
-      // pillar top bar (2026-10-11), which dispatches this same event.
-      enabled: () => typeof window === 'undefined' || window.innerWidth < 768,
-      run: () => {
-        window.dispatchEvent(new CustomEvent('quant:sidebar:toggle'));
-      },
-    },
+    // There is no `[` sidebar command: it only ever acted on the mobile
+    // navigation drawer, which no longer exists (the desktop rail is pinned).
     {
       id: 'view.refresh',
       label: 'Refresh mail',

@@ -661,6 +661,21 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).not.toContain('translateY(-105%)');
     });
 
+    it('puts the People | Inbox toggle in the Mail search row only, next to the palette and Quanty', () => {
+      const mail = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
+      expect(mail).toContain('aria-label="Mailbox view"');
+      expect(mail).toContain('data-testid="topbar-command-palette"');
+      expect(mail).toContain('data-testid="topbar-quanty"');
+      // The search field may shrink so toggle + search + palette + Quanty fit 360px.
+      expect(mail).toContain('flex-1 min-w-0');
+
+      for (const pillar of ['calendar', 'drive', 'contacts', 'quantgit'] as const) {
+        const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride={pillar} />);
+        expect(html, pillar).not.toContain('aria-label="Mailbox view"');
+        expect(html, pillar).toContain('data-testid="topbar-command-palette"');
+      }
+    });
+
     it('renders the sticky bar in pure black with no divider lines', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
       // --quant-background is #000000 in the dark theme (QM-UIUX-072 law).
