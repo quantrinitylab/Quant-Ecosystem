@@ -16,6 +16,13 @@
  * tab → `/` with no queryParam) and desktop (`desktopContextTabs`, Inbox tab
  * → `/?lens=all`), so desktop re-taps of the already-active Inbox now also
  * take the scroll + refresh branch instead of re-pushing the same URL.
+ *
+ * QM-INBOX-NAV-SPAM-VIEW (2026-10-27, P1 [inbox-nav]) supersedes the Spam
+ * target pinned below: RootPage renders PeopleHome unless `?view=inbox` is
+ * present, so the Spam tab now targets `/?view=inbox&lens=spam` (via the
+ * `queryParams` array). Tapping Spam from the OLD `/?lens=spam` URL is
+ * therefore a navigation, not a re-tap; only re-tapping the NEW target
+ * takes the scroll + refresh branch.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -55,7 +62,15 @@ describe.each([['mobile', mobile], ['desktop', desktop]] as const)(
     const tabTargetUrl = (id: string) => {
       const t = tabById(id);
       const base = t.targetPath || '/';
-      return t.queryParam ? `${base}?${t.queryParam.key}=${t.queryParam.value}` : base;
+      // QM-INBOX-NAV-SPAM-VIEW: tabs may carry `queryParams` (Spam needs two).
+      const params = t.queryParams?.length
+        ? t.queryParams
+        : t.queryParam
+          ? [t.queryParam]
+          : [];
+      return params.length
+        ? `${base}?${params.map((p: { key: string; value: string }) => `${p.key}=${p.value}`).join('&')}`
+        : base;
     };
     const inboxTarget = () => tabTargetUrl('inbox');
     const inboxSearch = () => {
@@ -84,11 +99,21 @@ describe.each([['mobile', mobile], ['desktop', desktop]] as const)(
       expect(push).toHaveBeenCalledWith(inboxTarget());
     });
 
-    it('tapping Spam from the Spam lens view does NOT navigate (re-tap: scroll + refresh)', () => {
+    it('tapping Spam from the OLD People spam URL (/?lens=spam) navigates to the inbox spam lens', () => {
       const push = vi.fn();
       mod.executeContextTabClick(tabById('spam'), 'mail', {
         pathname: '/',
         search: '?lens=spam',
+        router: { push },
+      });
+      expect(push).toHaveBeenCalledWith('/?view=inbox&lens=spam');
+    });
+
+    it('tapping Spam while already on the inbox spam lens does NOT navigate (re-tap: scroll + refresh)', () => {
+      const push = vi.fn();
+      mod.executeContextTabClick(tabById('spam'), 'mail', {
+        pathname: '/',
+        search: '?view=inbox&lens=spam',
         router: { push },
       });
       expect(push).not.toHaveBeenCalled();
@@ -104,14 +129,14 @@ describe.each([['mobile', mobile], ['desktop', desktop]] as const)(
       expect(push).not.toHaveBeenCalled();
     });
 
-    it('tapping Spam from the plain inbox navigates to /?lens=spam', () => {
+    it('tapping Spam from the plain inbox navigates to the inbox spam lens', () => {
       const push = vi.fn();
       mod.executeContextTabClick(tabById('spam'), 'mail', {
         pathname: '/',
         search: inboxSearch(),
         router: { push },
       });
-      expect(push).toHaveBeenCalledWith('/?lens=spam');
+      expect(push).toHaveBeenCalledWith('/?view=inbox&lens=spam');
     });
 
     it('tapping a different-path tab (Trash) from the Spam lens view still navigates', () => {
@@ -127,7 +152,7 @@ describe.each([['mobile', mobile], ['desktop', desktop]] as const)(
     it('omitting `search` keeps the legacy pathname-only decision (backward compatible)', () => {
       const push = vi.fn();
       mod.executeContextTabClick(tabById('spam'), 'mail', { pathname: '/', router: { push } });
-      expect(push).toHaveBeenCalledWith('/?lens=spam');
+      expect(push).toHaveBeenCalledWith('/?view=inbox&lens=spam');
 
       push.mockClear();
       mod.executeContextTabClick(tabById('inbox'), 'mail', { pathname: '/', router: { push } });

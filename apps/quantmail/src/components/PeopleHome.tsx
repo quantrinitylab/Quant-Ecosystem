@@ -46,8 +46,8 @@ export function PeopleHome() {
   const currentUserEmail = user?.email ?? '';
   const [world, setWorld] = useState<ConversationWorld>('log');
 
-  // The sidebar's Spam entry links to `/?lens=spam`, which renders this People
-  // view (not the classic inbox). Honor the lens here: spam shows the people
+  // A `?lens=spam` URL without `?view=inbox` (e.g. the /spam shim) renders
+  // this People view (not the classic inbox). Honor the lens here: spam shows the people
   // with spam threads, backed by the real SPAM folder query. Any other lens
   // (or none) shows the regular inbox people.
   const isSpamLens = searchParams?.get('lens') === 'spam';
