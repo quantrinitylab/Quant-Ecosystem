@@ -182,7 +182,7 @@ export default function SearchPage() {
   const {
     data: universalResults,
     isLoading: universalLoading,
-  } = useUniversalSearch(universalQuery);
+  } = useUniversalSearch(universalQuery, scope);
 
   // Mail-scope failure handling: the hook's queryFn now throws on backend
   // failure (it never did before, which made the ErrorState below dead
@@ -371,9 +371,13 @@ export default function SearchPage() {
                 placeholder={
                   scope === 'mail'
                     ? 'Search mail — sender, subject, words…'
-                    : 'Search mail, people, calendar, drive…'
+                    : scope === 'all'
+                      ? 'Search mail, people, calendar, drive…'
+                      : `Search ${scope}…`
                 }
-                aria-label={scope === 'mail' ? 'Search mail' : 'Search everything'}
+                aria-label={
+                  scope === 'mail' ? 'Search mail' : scope === 'all' ? 'Search everything' : `Search ${scope}`
+                }
                 autoFocus
                 className="h-11 w-full rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface)] pl-11 pr-10 text-sm outline-none transition-colors placeholder:text-[var(--quant-muted-foreground)]/60 focus:border-[var(--brand-primary)]/60 focus:ring-2 focus:ring-[var(--brand-primary)]/25"
               />
@@ -406,7 +410,7 @@ export default function SearchPage() {
           </div>
           {scope !== 'mail' && (
             <p className="mt-1.5 px-1 text-[11px] text-[var(--quant-muted-foreground)]">
-              Searches mail, people, calendar, and drive. QuantGit is not indexed yet.
+              {scope === 'all' ? 'Searches mail, people, calendar, and drive. QuantGit is not indexed yet.' : `Searching ${scope} only. QuantGit is not indexed yet.`}
             </p>
           )}
 
