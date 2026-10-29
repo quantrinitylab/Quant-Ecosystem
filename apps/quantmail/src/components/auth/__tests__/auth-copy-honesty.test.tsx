@@ -288,3 +288,83 @@ describe('Auth brand-subtitle "assisted drafting" copy honesty', () => {
     expect(registerUserFacing).toMatch(/mail and scheduling/i);
   });
 });
+
+// ============================================================================
+// Auth brand-footer + help SSO copy honesty (2026-10-26, P2 copy-audit
+// finding).
+//
+// The auth brand footer (rendered on /login, /register, /help, /terms via
+// AuthBrandPanel) and the help "Creating an address" topic claimed one
+// identity gives access to ALL Quant apps. QuantMail is the SSO root
+// (ticket mint/resolve routes) and QuantAI consumes tickets, but there is
+// no live end-to-end SSO proof per app for all 8 Quant apps — only code
+// wiring. Per the provable-truth rule, both strings now say "selected
+// Quant apps". Restore "all" only once SSO is live-verified per app.
+//
+// These tests pin the qualified copy so the absolute claim cannot come back.
+// ============================================================================
+
+describe('Auth SSO copy honesty ("selected Quant apps")', () => {
+  const findSource = (...rels: string[]): string => {
+    let dir = process.cwd();
+    for (let depth = 0; depth < 8; depth++) {
+      for (const rel of rels) {
+        const candidate = join(dir, rel);
+        if (existsSync(candidate)) return candidate;
+      }
+      const parent = join(dir, '..');
+      if (parent === dir) break;
+      dir = parent;
+    }
+    throw new Error(
+      `auth-copy-honesty: could not locate ${rels[0]} from ${process.cwd()}`,
+    );
+  };
+
+  const stripComments = (src: string): string =>
+    src
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+      .replace(/(^|\s)\/\/[^\n]*/g, '');
+
+  const panelUserFacing = stripComments(
+    readFileSync(
+      findSource(
+        'src/components/auth/AuthBrandPanel.tsx',
+        'apps/quantmail/src/components/auth/AuthBrandPanel.tsx',
+      ),
+      'utf8',
+    ),
+  );
+
+  const helpUserFacing = stripComments(
+    readFileSync(
+      findSource(
+        'src/app/help/page.tsx',
+        'apps/quantmail/src/app/help/page.tsx',
+      ),
+      'utf8',
+    ),
+  );
+
+  it('never claims access to ALL Quant apps in the brand footer', () => {
+    expect(panelUserFacing).not.toMatch(/all Quant apps/i);
+  });
+
+  it('keeps the qualified "selected Quant apps" brand footer', () => {
+    expect(panelUserFacing).toMatch(/selected Quant apps/i);
+  });
+
+  it('never claims access to ALL Quant apps in the help topic', () => {
+    expect(helpUserFacing).not.toMatch(/all Quant apps/i);
+  });
+
+  it('keeps the qualified "selected Quant apps" help topic', () => {
+    expect(helpUserFacing).toMatch(/selected Quant apps/i);
+  });
+
+  it('renders the qualified footer copy in the panel DOM', () => {
+    const el = renderPanel();
+    expect(el.textContent).toMatch(/selected Quant apps/i);
+    expect(el.textContent).not.toMatch(/all Quant apps/i);
+  });
+});
