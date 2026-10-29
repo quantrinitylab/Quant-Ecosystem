@@ -61,7 +61,11 @@ export interface QuantMailSuperAppHeaderProps {
   onSearchSubmit?: (query: string) => void;
   /** Search placeholder */
   searchPlaceholder?: string;
-  /** Unread notifications count */
+  /**
+   * Unread notifications count supplied by the host. Omitted = unknown:
+   * the bell then announces no count and renders no badge — a missing
+   * count is never replaced with 0 (same honesty rule as pillarBadges).
+   */
   unreadNotifications?: number;
   /** Quant Credits balance */
   quantCredits?: number | string;
@@ -490,7 +494,7 @@ export function QuantMailSuperAppHeader({
   onSearchChange,
   onSearchSubmit,
   searchPlaceholder = 'Search',
-  unreadNotifications = 0,
+  unreadNotifications,
   quantCredits,
   userInitials,
   userName,
@@ -809,11 +813,15 @@ export function QuantMailSuperAppHeader({
             type="button"
             onClick={() => router.push('/notifications')}
             className="relative p-2 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-surface-elevated)] text-slate-300 hover:text-white hover:border-[#282E3E] transition-all focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            aria-label={`Notifications: ${unreadNotifications} unread`}
+            aria-label={
+              unreadNotifications != null
+                ? `Notifications: ${unreadNotifications} unread`
+                : 'Notifications'
+            }
             title="Notifications"
           >
             <BellNotificationSvg className="size-4 text-slate-300" />
-            {unreadNotifications > 0 && (
+            {unreadNotifications != null && unreadNotifications > 0 && (
               <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold text-white bg-rose-600 rounded-full shadow-sm animate-in zoom-in">
                 {unreadNotifications}
               </span>
