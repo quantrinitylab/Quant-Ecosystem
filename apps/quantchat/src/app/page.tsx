@@ -17,6 +17,7 @@ import { useChatSocket } from '../hooks/useChatSocket';
 import { navItems, routes } from '../lib/navigation';
 import { listContainerVariants, listItemVariants } from '../lib/motion-variants';
 import { EmojiStatusBadge } from '../components/EmojiStatusBadge';
+import { LandingPage } from '../components/landing/LandingPage';
 import type { EmojiStatusView } from '../types';
 
 interface EnhancedConversation {
@@ -216,7 +217,7 @@ function SwipeableChatItem({ item, onSelect, onArchive, onPin }: SwipeableChatIt
   );
 }
 
-export default function ChatListPage() {
+function ChatListPage() {
   const router = useRouter();
   // Current user id — used by displayNameFor below to resolve 1:1 chats to the
   // OTHER participant's real name (declared here, not in UserIndicator).
@@ -507,4 +508,50 @@ export default function ChatListPage() {
       />
     </AppShell>
   );
+}
+
+// ============================================================================
+// Phase 0 — public homepage: the root route's internal gate
+// ============================================================================
+//
+// '/' is PUBLIC in src/lib/route-access.ts (the AuthGate lets every visitor
+// through), so this component decides what a visitor actually sees:
+//
+//   - session still resolving -> brief "Checking sign-in status" splash,
+//     with a 10s timeout mirroring AuthGate's SESSION_CHECK_TIMEOUT_MS
+//   - verified session (user) -> the signed-in chat list, exactly as before
+//   - anything else            -> the public LandingPage
+//
+// FAIL OPEN: a signed-out visitor — or a session check that never settles —
+// always sees the landing page. Never a dead end, never a redirect loop.
+const ROOT_SESSION_CHECK_TIMEOUT_MS = 10_000;
+
+function RootGateSplash() {
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-[var(--quant-background)]">
+      <LoadingState variant="spinner" text="Checking sign-in status..." />
+    </div>
+  );
+}
+
+export default function RootGate() {
+  const { user, isLoading } = useAuth();
+  const [sessionTimedOut, setSessionTimedOut] = useState(false);
+
+  // If the session check hasn't settled within the timeout, stop showing the
+  // splash and fail open to the landing page instead of hanging forever.
+  useEffect(() => {
+    if (!isLoading) return;
+    setSessionTimedOut(false);
+    const timer = window.setTimeout(() => setSessionTimedOut(true), ROOT_SESSION_CHECK_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [isLoading]);
+
+  if (isLoading && !sessionTimedOut) return <RootGateSplash />;
+  // A verified session keeps the existing chat-list experience unchanged.
+  // Note: useAuth mints an 'offline' user when a stored token exists but the
+  // network is down — that keeps the signed-in treatment here, matching the
+  // AuthGate's existing behaviour on the app routes.
+  if (user) return <ChatListPage />;
+  return <LandingPage />;
 }
