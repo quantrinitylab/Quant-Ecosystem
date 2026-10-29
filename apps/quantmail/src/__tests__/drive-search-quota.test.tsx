@@ -171,7 +171,9 @@ describe('DriveAISearch & StorageQuota Architect Test Suite', () => {
       const state = manager.getState();
       expect(state.results.length).toBe(1);
       expect(state.results[0].fileName).toBe('Contract_Report.pdf');
-      expect(state.results[0].score).toBe(1.0);
+      // QM-M39-013 honesty: the metadata endpoint reports no relevance score,
+      // so the badge stays hidden instead of rendering an invented "100% Match".
+      expect(state.results[0].score).toBeNull();
     });
 
     it('handles search API failure gracefully', async () => {

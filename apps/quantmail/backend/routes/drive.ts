@@ -35,6 +35,11 @@ import {
   DefaultAttachmentScanner,
   type AttachmentScannerPort,
 } from '../services/attachment-scanner.service';
+import {
+  afterCutoff,
+  beforeCutoff,
+  mimePatternsForDriveType,
+} from '../lib/drive-search-filters';
 
 const MEMORY_SCAN_LIMIT = 2000;
 const MEMORY_APP_LABELS: Record<string, string> = {
@@ -63,6 +68,19 @@ const AI_SEARCH_SCHEMA = z.object({
   fileId: z.string().min(1).optional(),
   query: z.string().trim().min(1).max(500),
   limit: z.number().int().min(1).max(100).optional(),
+  // Structured filters parsed out of the search box by the frontend
+  // (src/components/drive/drive-search-operators.ts) — Google-Drive-style
+  // `type:` / `before:` / `after:` / `name:` operators forwarded alongside the
+  // semantic query text. Owner is implicit (the route always scopes to the
+  // signed-in user).
+  filters: z
+    .object({
+      type: z.string().trim().min(1).max(32).optional(),
+      name: z.string().trim().min(1).max(200).optional(),
+      before: z.string().trim().min(1).max(32).optional(),
+      after: z.string().trim().min(1).max(32).optional(),
+    })
+    .optional(),
 });
 const AI_ORGANIZE_SCHEMA = z.object({
   fileId: z.string().min(1),
@@ -968,6 +986,7 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
     }
     const results = await searchService.searchContent(parsed.data.query, userId, {
       limit: parsed.data.limit,
+      filters: parsed.data.filters,
     });
     return reply.send({ results });
   });
@@ -1136,45 +1155,259 @@ export default async function driveRoutes(fastify: FastifyInstance, options?: Dr
       hasMore,
     });
   });
-  fastify.get<{ Querystring: { q?: string } }>('/drive/search', async (request, reply) => {
+  fastify.get<{
+    Querystring: {
+      q?: string;
+      type?: string;
+      name?: string;
+      owner?: string;
+      before?: string;
+      after?: string;
+    };
+  }>('/drive/search', async (request, reply) => {
     const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
     const q = (request.query.q || '').trim();
-    if (!q) return reply.send({ files: [] });
+    // Google-Drive-style search operators (`type:` / `name:` / `owner:` /
+    // `before:` / `after:`). The frontend parses them out of the query box
+    // before sending; they arrive here as structured params.
+    const typeFilter = (request.query.type || '').trim().toLowerCase();
+    const nameFilter = (request.query.name || '').trim();
+    const ownerFilter = (request.query.owner || '').trim().toLowerCase();
+    const beforeDate = beforeCutoff(request.query.before);
+    const afterDate = afterCutoff(request.query.after);
+
+    const hasFilters = Boolean(
+      typeFilter || nameFilter || ownerFilter || beforeDate || afterDate,
+    );
+    if (!q && !hasFilters) return reply.send({ files: [] });
+
+    // `type:` → mime predicates. Unknown keyword = honest empty result (the
+    // frontend only sends known keywords, so this guards hand-built URLs).
+    const mimePatterns = typeFilter ? mimePatternsForDriveType(typeFilter) : null;
+    if (typeFilter && mimePatterns === null) return reply.send({ files: [] });
+    const mimeWhere =
+      mimePatterns && mimePatterns.length > 0
+        ? {
+            OR: mimePatterns.map((p) => ({
+              mimeType: { contains: p, mode: 'insensitive' },
+            })),
+          }
+        : undefined;
+    const folderTypeOnly = typeFilter === 'folder';
+
+    // `before:` / `after:` → modified-date window (Google Drive semantics).
+    const updatedAt: Record<string, unknown> = {};
+    if (beforeDate) updatedAt.lt = beforeDate;
+    if (afterDate) updatedAt.gte = afterDate;
+    const dateWhere = Object.keys(updatedAt).length ? { updatedAt } : undefined;
+
+    // `name:` → ANDed onto the name match (both must hold).
+    const nameClauses: Record<string, unknown>[] = [];
+    if (q) nameClauses.push({ name: { contains: q, mode: 'insensitive' } });
+    if (nameFilter) nameClauses.push({ name: { contains: nameFilter, mode: 'insensitive' } });
+
+    // `owner:` → share-scoped unions. `owner:me` is the default search scope
+    // (own items only), so it needs no extra constraint.
+    //
+    // CODEX (revoked shares must not surface in search): share standing is
+    // enforced at query time on BOTH sides of the union. Revocation keeps
+    // the row with status='revoked' (see the revoke endpoint below), so a
+    // share lookup without a standing predicate returns files the viewer
+    // can no longer open (incoming side) and files no longer shared with
+    // the named recipient (outgoing side). The `not: 'revoked'` predicate
+    // below is the same one the shares/sent, shares/received and
+    // decoration queries already use; pending shares still surface, exactly
+    // as they do in the Shared tab (only revocation removes a row here —
+    // the open itself stays gated by fileAccess, which requires 'accepted').
+    const wantShared = ownerFilter === 'shared' || ownerFilter.includes('@');
+    let sharedByMeFileIds: string[] | null = null;
+    let sharedByMeFolderIds: string[] | null = null;
+    // Resolved owner id for `owner:<email>` — used by the incoming side so
+    // that operator also surfaces items that owner shared WITH the viewer.
+    let sharedWithMeOwnerId: string | null = null;
+    if (wantShared) {
+      const outgoing = await prisma.share.findMany({
+        where: { ownerUserId: userId, status: { not: 'revoked' } },
+        select: { fileId: true, folderId: true, sharedWithUserId: true },
+      });
+      if (ownerFilter.includes('@')) {
+        const target = await prisma.user.findUnique({
+          where: { email: { equals: ownerFilter, mode: 'insensitive' } },
+          select: { id: true },
+        });
+        if (target) sharedWithMeOwnerId = target.id;
+        if (!target) return reply.send({ files: [] }); // honest: no such user
+        const toTarget = outgoing.filter(
+          (s: { sharedWithUserId: string }) => s.sharedWithUserId === target.id,
+        );
+        sharedByMeFileIds = toTarget
+          .map((s: { fileId: string | null }) => s.fileId)
+          .filter((id: string | null): id is string => Boolean(id));
+        sharedByMeFolderIds = toTarget
+          .map((s: { folderId: string | null }) => s.folderId)
+          .filter((id: string | null): id is string => Boolean(id));
+      } else {
+        sharedByMeFileIds = outgoing
+          .map((s: { fileId: string | null }) => s.fileId)
+          .filter((id: string | null): id is string => Boolean(id));
+        sharedByMeFolderIds = outgoing
+          .map((s: { folderId: string | null }) => s.folderId)
+          .filter((id: string | null): id is string => Boolean(id));
+      }
+    }
+
     const owner = await ownerInfo(prisma, userId);
+
+    const andClauses = (extra?: Record<string, unknown>) =>
+      [...nameClauses, ...(mimeWhere ? [mimeWhere] : []), ...(dateWhere ? [dateWhere] : []), ...(extra ? [extra] : [])];
+
     // QM-UIUX-079 — search covers documents too (title AND content), so a
     // created document is findable the same way it is listable.
+    // `type:document` matches the virtual document mime as well.
+    // NOTE: folders carry no mimeType column, so any mime-type filter
+    // excludes folders; only `type:folder` (or no type filter) lists them.
+    // Projected documents are documents by kind: they surface for
+    // `type:document` (or no type filter), never for other mime filters.
+    const documentTypeOk = !typeFilter || typeFilter === 'document' || typeFilter === 'doc';
     const [folders, files, documents] = await Promise.all([
-      prisma.folder.findMany({
-        where: { userId, isDeleted: false, name: { contains: q, mode: 'insensitive' } },
-        take: 50,
-      }),
-      prisma.file.findMany({
-        where: { userId, isDeleted: false, name: { contains: q, mode: 'insensitive' } },
-        take: 50,
-      }),
-      prisma.document.findMany({
-        where: {
-          userId,
-          isDeleted: false,
-          OR: [
-            { title: { contains: q, mode: 'insensitive' } },
-            { content: { contains: q, mode: 'insensitive' } },
-          ],
-        },
-        orderBy: { updatedAt: 'desc' },
-        take: 50,
-      }),
+      mimeWhere && !folderTypeOnly
+        ? Promise.resolve([])
+        : prisma.folder.findMany({
+            where: {
+              userId,
+              isDeleted: false,
+              AND: [
+                ...nameClauses,
+                ...(dateWhere ? [dateWhere] : []),
+                ...(sharedByMeFolderIds
+                  ? [{ id: { in: sharedByMeFolderIds.length ? sharedByMeFolderIds : ['__none__'] } }]
+                  : []),
+              ],
+            },
+            take: 50,
+          }),
+      mimeWhere && folderTypeOnly
+        ? Promise.resolve([])
+        : prisma.file.findMany({
+            where: {
+              userId,
+              isDeleted: false,
+              AND: andClauses(
+                sharedByMeFileIds
+                  ? { id: { in: sharedByMeFileIds.length ? sharedByMeFileIds : ['__none__'] } }
+                  : undefined,
+              ),
+            },
+            take: 50,
+          }),
+      // Share-scoped queries (`owner:shared` / `owner:<email>`) never
+      // include documents: documents have no share rows, so no document can
+      // satisfy a share filter — without this exclusion every own document
+      // matching the text leaked into share-scoped results unfiltered.
+      folderTypeOnly || !documentTypeOk || wantShared
+        ? Promise.resolve([])
+        : prisma.document.findMany({
+            where: {
+              userId,
+              isDeleted: false,
+              AND: [
+                ...(q
+                  ? [
+                      {
+                        OR: [
+                          { title: { contains: q, mode: 'insensitive' } },
+                          { content: { contains: q, mode: 'insensitive' } },
+                        ],
+                      },
+                    ]
+                  : []),
+                ...(nameFilter ? [{ title: { contains: nameFilter, mode: 'insensitive' } }] : []),
+                ...(dateWhere ? [dateWhere] : []),
+              ],
+            },
+            orderBy: { updatedAt: 'desc' },
+            take: 50,
+          }),
     ]);
+
+    // `owner:shared` also surfaces items others shared WITH me (outside the
+    // own-user scope of the queries above), and `owner:<email>` surfaces
+    // items that owner shared with me alongside the items I shared with
+    // them. Both sides are standing-filtered (see above), and standing is
+    // re-checked AFTER the file fetch so a revocation landing between the
+    // share lookup and the file fetch cannot resurrect a row: only files
+    // with a still-valid share at send time survive. Folders are never
+    // mime rows, so `type:folder` skips them here as well.
+    // NOTE: incoming folders are not surfaced by this path (pre-existing
+    // gap — the incoming lookup selects fileId only); they never leak, they
+    // are simply absent from `owner:shared` results.
+    let incomingFiles: FileRow[] = [];
+    const wantIncoming = ownerFilter === 'shared' || ownerFilter.includes('@');
+    if (wantIncoming && !folderTypeOnly) {
+      const incomingWhere: Record<string, unknown> = {
+        sharedWithUserId: userId,
+        status: { not: 'revoked' },
+      };
+      if (sharedWithMeOwnerId) incomingWhere.ownerUserId = sharedWithMeOwnerId;
+      const incoming = await prisma.share.findMany({
+        where: incomingWhere,
+        select: { fileId: true },
+      });
+      const incomingIds = [
+        ...new Set(
+          incoming
+            .map((s: { fileId: string | null }) => s.fileId)
+            .filter((id: string | null): id is string => Boolean(id)),
+        ),
+      ];
+      if (incomingIds.length) {
+        const candidates = await prisma.file.findMany({
+          where: {
+            id: { in: incomingIds },
+            isDeleted: false,
+            AND: andClauses(),
+          },
+          take: 50,
+        });
+        const recheck = await prisma.share.findMany({
+          where: {
+            ...incomingWhere,
+            fileId: { in: candidates.map((file: FileRow) => file.id) },
+          },
+          select: { fileId: true },
+        });
+        const stillValid = new Set(
+          recheck
+            .map((s: { fileId: string | null }) => s.fileId)
+            .filter((id: string | null): id is string => Boolean(id)),
+        );
+        incomingFiles = candidates.filter((file: FileRow) => stillValid.has(file.id));
+      }
+    }
+
     const decorations = await loadDecorations(
       prisma,
       files.map((file: any) => file.id),
       folders.map((folder: any) => folder.id),
+    );
+    const incomingOwnerCache = new Map<string, Owner>();
+    const incomingDtos = await Promise.all(
+      incomingFiles.map(async (file: FileRow) => {
+        let fileOwner = incomingOwnerCache.get(file.userId);
+        if (!fileOwner) {
+          fileOwner = await ownerInfo(prisma, file.userId);
+          incomingOwnerCache.set(file.userId, fileOwner);
+        }
+        return fileDto(file, fileOwner);
+      }),
     );
     return reply.send({
       files: [
         ...folders.map((folder: FolderRow) => folderDto(folder, owner, decorations)),
         ...files.map((file: FileRow) => fileDto(file, owner, decorations)),
         ...documents.map((doc: any) => documentDriveDto(doc, owner)),
+        ...incomingDtos,
       ],
     });
   });

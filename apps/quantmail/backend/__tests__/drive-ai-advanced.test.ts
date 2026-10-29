@@ -69,7 +69,11 @@ describe('AISearchContentService', () => {
     const prisma = { fileIndex: { findMany: vi.fn().mockResolvedValue(records) }, file: { findMany: fileFindMany } };
     const service = new AISearchContentService(prisma as never);
     const results = await service.searchContent('quarterly roadmap', USER_ID);
-    expect(fileFindMany).toHaveBeenCalledWith({ where: { id: { in: ['file-active', 'file-deleted'] }, userId: USER_ID, isDeleted: false }, select: { id: true, name: true } });
+    // NOTE (PR #1505 fix): the operator-filter change selects mimeType and
+    // updatedAt too (live file metadata is the authority for `type:` /
+    // `before:` / `after:`); the old exact-call assertion pinned the
+    // pre-operator select and failed on the PR branch before this fix.
+    expect(fileFindMany).toHaveBeenCalledWith({ where: { id: { in: ['file-active', 'file-deleted'] }, userId: USER_ID, isDeleted: false }, select: { id: true, name: true, mimeType: true, updatedAt: true } });
     expect(results).toHaveLength(1);
     expect(results[0]).toMatchObject({ fileId: 'file-active', fileName: 'Q4-roadmap.md', name: 'Q4-roadmap.md' });
     expect(results[0]?.snippet.toLowerCase()).toContain('quarterly roadmap');

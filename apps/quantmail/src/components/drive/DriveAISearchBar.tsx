@@ -2,6 +2,11 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { browserApiRequest } from '../../services/browser-api-request';
+import {
+  parseDriveSearchQuery,
+  removeDriveSearchOperator,
+  type DriveSearchFilters,
+} from './drive-search-operators';
 
 export interface AISearchResultItem {
   fileId: string;
@@ -116,6 +121,47 @@ export class DriveAISearchManager {
     }
   }
 
+  /**
+   * Remove one operator family (e.g. 'type') from the current query and
+   * re-run the search. Backs the removable operator chips in the bar UI.
+   */
+  public removeSearchOperator(operator: string): void {
+    this.setQuery(removeDriveSearchOperator(this.state.query, operator));
+  }
+
+  /**
+   * Build the `/api/drive/search` query string from a parsed query: residual
+   * free text plus any structured operator filters.
+   */
+  private buildNameSearchUrl(query: string): string {
+    const parsed = parseDriveSearchQuery(query);
+    const params = new URLSearchParams();
+    if (parsed.text) params.set('q', parsed.text);
+    const f = parsed.filters;
+    if (f.type) params.set('type', f.type);
+    if (f.name) params.set('name', f.name);
+    if (f.owner) params.set('owner', f.owner);
+    if (f.before) params.set('before', f.before);
+    if (f.after) params.set('after', f.after);
+    return `/api/drive/search?${params.toString()}`;
+  }
+
+  /**
+   * Map `/api/drive/search` file rows onto AI-search result items. The name
+   * search reports no relevance score, so the badge stays hidden (QM-M39-013:
+   * a missing score must never render as an invented match percentage).
+   */
+  private mapNameSearchResults(data: any): AISearchResultItem[] {
+    const files = data.files || [];
+    return files.map((file: any) => ({
+      fileId: file.id || file.fileId || '',
+      fileName: file.name || file.fileName || 'Untitled File',
+      mimeType: file.mimeType || 'application/octet-stream',
+      score: null,
+      snippet: `Matching file name: ${file.name || ''}`,
+    }));
+  }
+
   public setResults(results: AISearchResultItem[]): void {
     this.state.results = [...results];
     this.state.selectedIndex = results.length > 0 ? 0 : -1;
@@ -170,12 +216,38 @@ export class DriveAISearchManager {
     this.state.error = null;
     this.notify();
 
+    // Google-Drive-style operators (`type:` / `name:` / `owner:` / `before:` /
+    // `after:`) are parsed out of the query BEFORE any search runs. The
+    // semantic-NL default keeps working: operators ride along as structured
+    // filters and the residual free text is what gets searched semantically.
+    const parsed = parseDriveSearchQuery(trimmed);
+    const filters: DriveSearchFilters = parsed.filters;
+    const hasFilters = parsed.hasOperators;
+
+    // The semantic content index covers the user's own files only, so an
+    // `owner:shared` / `owner:<email>` operator cannot be honored there —
+    // route those through the metadata search endpoint, which understands
+    // share scoping. A filter-only query (e.g. `type:pdf`, no free text) has
+    // nothing to match semantically and takes the same path.
+    const ownerScoped = filters.owner !== undefined && filters.owner !== 'me';
+    const useNameSearch = !this.state.isSemantic || !parsed.text || ownerScoped;
+
     try {
-      if (this.state.isSemantic) {
+      if (!useNameSearch) {
+        const body: { query: string; limit: number; filters?: DriveSearchFilters } = {
+          query: parsed.text,
+          limit: 10,
+        };
+        if (hasFilters) {
+          // The semantic route scopes to the owner implicitly; drop the
+          // owner key rather than sending a filter the backend would ignore.
+          const { owner: _owner, ...semanticFilters } = filters;
+          body.filters = semanticFilters;
+        }
         const response = await this.apiFetch('/api/drive/ai/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: trimmed, limit: 10 }),
+          body: JSON.stringify(body),
         });
 
         if (!response.ok) {
@@ -203,44 +275,24 @@ export class DriveAISearchManager {
         this.state.error = null;
         return results;
       } else {
-        // Name-based search fallback
+        // Name-based search (toggle off, pure operator query, or an
+        // owner-scoped operator the semantic index cannot honor)
         let results: AISearchResultItem[] = [];
-        const res = await this.apiFetch(`/api/drive/search?q=${encodeURIComponent(trimmed)}`);
-        if (res.ok) {
-          const data = await res.json();
-          const files = data.files || [];
-          results = files.map((file: any) => ({
-            fileId: file.id || file.fileId || '',
-            fileName: file.name || file.fileName || 'Untitled File',
-            mimeType: file.mimeType || 'application/octet-stream',
-            score: 1.0,
-            snippet: `Matching file name: ${file.name || ''}`,
-          }));
-        } else {
-          // Fallback to AI search endpoint if name search route unavailable
-          const fallbackRes = await this.apiFetch('/api/drive/ai/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: trimmed, limit: 10 }),
-          });
-          if (fallbackRes.ok) {
-            const data = await fallbackRes.json();
-            const rawItems = Array.isArray(data) ? data : data.results || [];
-            results = rawItems.map((item: any) => ({
-              fileId: item.fileId || item.id || '',
-              fileName: item.fileName || item.name || 'Untitled File',
-              mimeType: item.mimeType || 'application/octet-stream',
-              score:
-                typeof item.score === 'number'
-                  ? item.score
-                  : typeof item.relevanceScore === 'number'
-                    ? item.relevanceScore
-                    : null,
-              snippet: item.snippet || item.matchSnippet || '',
-              matchedLine: item.matchedLine ?? item.line,
-            }));
-          }
+        const res = await this.apiFetch(this.buildNameSearchUrl(trimmed));
+        if (!res.ok) {
+          // Honest error, never a silent fallback: falling back to the
+          // semantic endpoint would drop every operator filter
+          // (owner:/type:/name:/before:/after:) and present wrong-scope
+          // results — e.g. the viewer's own unshared files answering an
+          // `owner:shared` query, or non-PDF files answering a `type:pdf`
+          // query — as if they answered the query. A metadata-search
+          // failure is an error, distinct from "no matches" (the catch
+          // below surfaces it and clears results instead of showing a
+          // stale or empty list as a successful answer).
+          throw new Error(`Drive search failed with status ${res.status}`);
         }
+        const data = await res.json();
+        results = this.mapNameSearchResults(data);
 
         this.state.results = results;
         this.state.selectedIndex = results.length > 0 ? 0 : -1;
@@ -315,7 +367,7 @@ function renderSnippetWithHighlight(snippet: string, query: string) {
  */
 export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
   onSelectFile,
-  placeholder = 'Search file contents with Quanty AI...',
+  placeholder = 'Search files… try type:pdf owner:me before:2025-01-01',
   manager: customManager,
   initialQuery = '',
   initialSemantic = true,
@@ -554,6 +606,54 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
           </button>
         )}
       </div>
+
+      {/* Active operator chips — parsed out of the query above, removable */}
+      {(() => {
+        const parsed = parseDriveSearchQuery(state.query);
+        if (!parsed.hasOperators) return null;
+        const chips: { key: keyof DriveSearchFilters; label: string }[] = [];
+        if (parsed.filters.type) chips.push({ key: 'type', label: `type:${parsed.filters.type}` });
+        if (parsed.filters.name)
+          chips.push({ key: 'name', label: `name:${parsed.filters.name}` });
+        if (parsed.filters.owner)
+          chips.push({ key: 'owner', label: `owner:${parsed.filters.owner}` });
+        if (parsed.filters.before)
+          chips.push({ key: 'before', label: `before:${parsed.filters.before}` });
+        if (parsed.filters.after)
+          chips.push({ key: 'after', label: `after:${parsed.filters.after}` });
+        return (
+          <div
+            data-testid="drive-search-operator-chips"
+            className="flex flex-wrap items-center gap-1.5 px-1 pt-2"
+          >
+            {chips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={() => manager.removeSearchOperator(chip.key)}
+                data-testid={`operator-chip-${chip.key}`}
+                aria-label={`Remove ${chip.label} filter`}
+                className="inline-flex items-center gap-1 rounded-full border border-[color-mix(in_srgb,var(--app-accent)_35%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)] px-2.5 py-1 text-[11px] font-medium text-[var(--app-accent)] transition-colors hover:bg-[color-mix(in_srgb,var(--app-accent)_22%,transparent)]"
+              >
+                {chip.label}
+                <svg
+                  className="h-3 w-3"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Popover Dropdown Results */}
       {showDropdown && (
