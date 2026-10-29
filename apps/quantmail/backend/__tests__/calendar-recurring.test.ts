@@ -211,9 +211,28 @@ describe('GET /events recurring expansion', () => {
 });
 
 describe('BookingLinkService recurring conflict guards', () => {
+  // Relative-to-now dates (fix/qm-booking-parity-tests): the harness used
+  // to pin the booking day to Jan 7 2030 and the series to Dec 31 2029.
+  // After Jan 2030 getAvailableSlots would mark every slot unavailable for
+  // past-ness and confirmBooking would reject with INVALID_BOOKING_SLOT
+  // (past) instead of SLOT_UNAVAILABLE — both tests failing on the wrong
+  // reason. The booking day is now the next Monday 7-13 days out, built in
+  // UTC (the link carries no timezone, so the service anchors to UTC), and
+  // the weekly series starts exactly one week earlier so its occurrence
+  // lands on the 10:00 slot. UTC construction also keeps the tests
+  // independent of the runner's local timezone.
+  function nextMondayUtc(): Date {
+    const now = new Date();
+    const daysAhead = ((8 - now.getUTCDay()) % 7) + 7;
+    return new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysAhead),
+    );
+  }
+
   function harness() {
-    const bookingDate = new Date(2030, 0, 7, 0, 0, 0, 0);
-    const recurringStart = new Date(2029, 11, 31, 10, 0, 0, 0);
+    const bookingDate = nextMondayUtc();
+    const recurringStart = new Date(bookingDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+    recurringStart.setUTCHours(10, 0, 0, 0);
     const recurringEvent = event({
       startTime: recurringStart,
       endTime: new Date(recurringStart.getTime() + HOUR),
@@ -226,7 +245,7 @@ describe('BookingLinkService recurring conflict guards', () => {
       title: 'Office hours',
       description: '',
       duration: 60,
-      availableDays: JSON.stringify([bookingDate.getDay()]),
+      availableDays: JSON.stringify([bookingDate.getUTCDay()]),
       startHour: 9,
       endHour: 12,
       isActive: true,
@@ -255,10 +274,11 @@ describe('BookingLinkService recurring conflict guards', () => {
 
   it('marks an overlapping recurring slot unavailable and leaves other slots available', async () => {
     const { bookingDate, service } = harness();
+    expect(bookingDate.getTime()).toBeGreaterThan(Date.now());
     const slots = await service.getAvailableSlots('standup', bookingDate);
 
     expect(slots).toHaveLength(3);
-    expect(slots.map((slot) => [slot.start.getHours(), slot.available])).toEqual([
+    expect(slots.map((slot) => [slot.start.getUTCHours(), slot.available])).toEqual([
       [9, true],
       [10, false],
       [11, true],
@@ -268,7 +288,8 @@ describe('BookingLinkService recurring conflict guards', () => {
   it('rejects confirmation when the selected slot overlaps a recurring occurrence', async () => {
     const { bookingDate, prisma, service } = harness();
     const selectedSlot = new Date(bookingDate);
-    selectedSlot.setHours(10, 0, 0, 0);
+    selectedSlot.setUTCHours(10, 0, 0, 0);
+    expect(selectedSlot.getTime()).toBeGreaterThan(Date.now());
 
     await expect(
       service.confirmBooking('standup', selectedSlot, {
