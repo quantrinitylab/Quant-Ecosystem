@@ -1286,6 +1286,15 @@ export default async function calendarRoutes(
   const recurringService = new RecurringService(getPrisma(fastify));
   const callAlertService = options?.callAlertService ?? new CalendarCallAlertService();
 
+  // Lifecycle: the default service owns a real BullMQ TypedQueue when
+  // REDIS_URL is set; close it on Fastify onClose so app.close() never
+  // leaves an orphaned Redis connection (same teardown class as the ci-runs
+  // queue lifecycle fix). Service close() is idempotent and a no-op for
+  // injected (caller-owned) queues, so this hook is safe for both paths.
+  fastify.addHook('onClose', async () => {
+    await callAlertService.close();
+  });
+
   if (!fastify.hasContentTypeParser('text/calendar')) {
     fastify.addContentTypeParser(
       'text/calendar',
