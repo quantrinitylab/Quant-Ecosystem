@@ -37,7 +37,7 @@ import {
   calendarSearchStatus,
 } from './lib/calendar-search';
 import { initPeriodHealthFields, buildSheetSavePayload } from './lib/period-log-form';
-import { isEmailShaped, toAttendeeEmail } from './lib/attendee-validation';
+import { parseAttendeeDeepLink, toAttendeeEmail } from './lib/attendee-validation';
 import { guestNotificationToastText } from './lib/guest-notify';
 // fix/qm-calendar-drag-reschedule-guest-notify: drag-to-reschedule asks
 // "Send update to guests?" (edit-sheet copy) before persisting a moved event
@@ -1043,26 +1043,35 @@ function CalendarPageContent() {
     closeSheet,
   ]);
 
+  // fix/qm-calendar-attendee-prefill: the contacts "Schedule meeting"
+  // button deep-links here with ?attendee=<email>. This follows
+  // searchParams (same pattern as the ?emailDraft= effect above) instead
+  // of a mount-only window.location read, so the link is honoured even
+  // when the calendar page is already mounted, and it scrubs ONLY the
+  // attendee param so ?tab= and friends survive (the old code wiped the
+  // whole query string). A present-but-blank param — an email-less,
+  // phone-only contact — still opens a blank meeting sheet instead of
+  // landing silently on the grid; a malformed value opens the sheet with
+  // an honest error toast and no guest added.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const attendee = params.get('attendee');
-    if (!attendee) return;
+    const link = parseAttendeeDeepLink(searchParams?.get('attendee') ?? null);
+    if (link.kind === 'absent') return;
     openDedicatedSheet('event');
-    // The query value is raw user input — never add it as a guest (or bake
-    // it into the title) without an email-shape check.
-    const email = attendee.trim();
-    if (!isEmailShaped(email)) {
-      showToast({ text: `"${attendee}" is not a valid email address — not added as a guest`, type: 'error' });
-    } else {
+    if (link.kind === 'valid') {
       setFormState((prev) => ({
         ...prev,
-        title: prev.title || `Meeting with ${email}`,
-        attendees: prev.attendees.includes(email) ? prev.attendees : [...prev.attendees, email],
+        title: prev.title || `Meeting with ${link.email}`,
+        attendees: prev.attendees.includes(link.email)
+          ? prev.attendees
+          : [...prev.attendees, link.email],
       }));
+    } else if (link.kind === 'invalid') {
+      showToast({ text: `"${link.raw}" is not a valid email address — not added as a guest`, type: 'error' });
     }
-    window.history.replaceState(null, '', window.location.pathname);
-  }, []);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('attendee');
+    window.history.replaceState(null, '', url.toString());
+  }, [searchParams]);
 
   const handleSaveEntry = useCallback(async () => {
     if (!activeSheetType) return;

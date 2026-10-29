@@ -6,7 +6,7 @@
  * (calendar/page.tsx): only email-shaped strings may become attendees.
  */
 import { describe, it, expect } from 'vitest';
-import { isEmailShaped, toAttendeeEmail, ATTENDEE_EMAIL_PATTERN } from '../attendee-validation';
+import { isEmailShaped, toAttendeeEmail, parseAttendeeDeepLink, ATTENDEE_EMAIL_PATTERN } from '../attendee-validation';
 
 describe('isEmailShaped', () => {
   it('accepts ordinary addresses', () => {
@@ -45,11 +45,49 @@ describe('toAttendeeEmail', () => {
     expect(toAttendeeEmail('  ada@example.com  ')).toBe('ada@example.com');
   });
 
+  it('returns null for a present-but-blank deep-link value (no guest, no error)', () => {
+    // fix/qm-calendar-attendee-prefill: an email-less contact sends
+    // ?attendee= — the calendar opens a blank sheet, it must not invent
+    // a guest from the blank value.
+    expect(toAttendeeEmail('')).toBeNull();
+    expect(toAttendeeEmail('   ')).toBeNull();
+  });
+
   it('returns null for legacy garbage rows so they never surface as chips', () => {
     expect(toAttendeeEmail('hello')).toBeNull();
     expect(toAttendeeEmail({ email: 'hello' })).toBeNull();
     expect(toAttendeeEmail({ name: 'no email here' })).toBeNull();
     expect(toAttendeeEmail('')).toBeNull();
     expect(toAttendeeEmail(null)).toBeNull();
+  });
+});
+
+describe('parseAttendeeDeepLink', () => {
+  it('reports absent when the param is missing so the calendar does nothing', () => {
+    expect(parseAttendeeDeepLink(null)).toEqual({ kind: 'absent' });
+  });
+
+  it('accepts a valid address, trimmed', () => {
+    expect(parseAttendeeDeepLink('ada@example.com')).toEqual({ kind: 'valid', email: 'ada@example.com' });
+    expect(parseAttendeeDeepLink('  ada@example.com  ')).toEqual({ kind: 'valid', email: 'ada@example.com' });
+  });
+
+  it('reports blank for a present-but-empty param (email-less contact)', () => {
+    // fix/qm-calendar-attendee-prefill: ?attendee= must open a blank
+    // meeting sheet, not land silently on the grid and not invent a guest.
+    expect(parseAttendeeDeepLink('')).toEqual({ kind: 'blank' });
+    expect(parseAttendeeDeepLink('   ')).toEqual({ kind: 'blank' });
+  });
+
+  it('reports invalid with the raw value for the honest error toast', () => {
+    expect(parseAttendeeDeepLink('not-an-email')).toEqual({ kind: 'invalid', raw: 'not-an-email' });
+    expect(parseAttendeeDeepLink('user@localhost')).toEqual({ kind: 'invalid', raw: 'user@localhost' });
+  });
+
+  it('never classifies the literal strings "null"/"undefined" as valid', () => {
+    // Contacts guards send '' for a missing email; if a "null" string ever
+    // arrives anyway it must surface as an error, never as a guest.
+    expect(parseAttendeeDeepLink('null')).toEqual({ kind: 'invalid', raw: 'null' });
+    expect(parseAttendeeDeepLink('undefined')).toEqual({ kind: 'invalid', raw: 'undefined' });
   });
 });
