@@ -162,6 +162,25 @@ export function getConfig(): AppConfig {
       '/calendar/booking/*',
       '/api/calendar/booking',
       '/api/calendar/booking/*',
+      // Dual-registered public booking-link routes (fix/qm-calendar-booking-routes):
+      // calendar.ts registers the invitee-facing handlers at BOTH
+      // /calendar/booking/:slug* and /booking/links/:slug*. The prefix rows
+      // above already cover the first; without these rows the second prefix
+      // hit the auth hook and 401'd every guest, so the duplicates were dead
+      // registrations that could never serve a guest. Scoped per shape AND
+      // method on purpose: the host collection (GET/POST /booking/links) and
+      // the host delete (DELETE /booking/links/:id) are NOT listed here and
+      // stay behind the hook — only the invitee shapes pass, and their
+      // handlers serve the public DTO with no userId requirement. The /api
+      // variants mirror the /calendar/booking convention above.
+      { path: '/booking/links/:slug', methods: ['GET'] },
+      { path: '/booking/links/:slug/slots', methods: ['GET'] },
+      { path: '/booking/links/:slug/lock', methods: ['POST'] },
+      { path: '/booking/links/:slug/book', methods: ['POST'] },
+      { path: '/api/booking/links/:slug', methods: ['GET'] },
+      { path: '/api/booking/links/:slug/slots', methods: ['GET'] },
+      { path: '/api/booking/links/:slug/lock', methods: ['POST'] },
+      { path: '/api/booking/links/:slug/book', methods: ['POST'] },
       // Invite preview (/public/invites/:token): shown to people who may not
       // have an account yet. Accepting an invite stays authenticated.
       '/public/invites',

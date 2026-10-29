@@ -20,13 +20,19 @@ describe('booking links proxy allow-list', () => {
     expect(methodsFor('booking/links')).toEqual(['GET', 'POST']);
   });
 
-  it('lists DELETE (and only DELETE) for the id-addressed path /booking/links/:id', () => {
-    expect(methodsFor('booking/links/clx-booking-server-1')).toEqual(['DELETE']);
+  it('lists GET (public slug read) and DELETE (host delete) for the id/slug-addressed path /booking/links/:id', () => {
+    // fix/qm-calendar-booking-routes: GET on this shape is the PUBLIC invitee
+    // read — calendar.ts registers the same public-DTO handler at
+    // /booking/links/:slug and /calendar/booking/:slug, and both prefixes are
+    // public through the backend auth hook. DELETE stays the host delete.
+    // One row carries both because the catch-all takes the FIRST pattern
+    // match: a separate GET row after a DELETE-only row would 405 guests.
+    expect(methodsFor('booking/links/clx-booking-server-1')).toEqual(['GET', 'DELETE']);
   });
 
-  it('does not expose the id-addressed path for reads (public reads stay on /calendar/booking/:slug)', () => {
+  it('exposes the public invitee read on /booking/links/:slug but no POST on the bare shape', () => {
     const methods = methodsFor('booking/links/some-slug');
-    expect(methods).not.toContain('GET');
+    expect(methods).toContain('GET');
     expect(methods).not.toContain('POST');
   });
 
@@ -34,5 +40,25 @@ describe('booking links proxy allow-list', () => {
     expect(methodsFor('calendar/booking/my-slug')).toContain('GET');
     expect(methodsFor('calendar/booking/my-slug/slots')).toContain('GET');
     expect(methodsFor('calendar/booking/my-slug/book')).toContain('POST');
+  });
+
+  it('exposes every public invitee step on BOTH dual-registered prefixes (fix/qm-calendar-booking-routes)', () => {
+    // The /booking/links/:slug* duplicates were registered in the backend but
+    // missing here, so the catch-all 404'd them; the /calendar/booking lock
+    // step was missing too. All four invitee steps must pass on both prefixes.
+    for (const prefix of ['booking/links', 'calendar/booking']) {
+      expect(methodsFor(`${prefix}/my-slug`)).toContain('GET');
+      expect(methodsFor(`${prefix}/my-slug/slots`)).toContain('GET');
+      expect(methodsFor(`${prefix}/my-slug/lock`)).toContain('POST');
+      expect(methodsFor(`${prefix}/my-slug/book`)).toContain('POST');
+    }
+  });
+
+  it('does not widen the invitee rows to host-only verbs', () => {
+    expect(methodsFor('booking/links/my-slug/lock')).not.toContain('GET');
+    expect(methodsFor('booking/links/my-slug/book')).not.toContain('GET');
+    expect(methodsFor('booking/links/my-slug/slots')).not.toContain('POST');
+    expect(methodsFor('calendar/booking/my-slug/lock')).not.toContain('GET');
+    expect(methodsFor('calendar/booking/my-slug/book')).not.toContain('GET');
   });
 });
