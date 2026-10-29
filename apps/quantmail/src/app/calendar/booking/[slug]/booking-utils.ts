@@ -422,6 +422,24 @@ export function formatSlotTimeLabelInTz(d: Date, timeZone: string): string {
   });
 }
 
+/**
+ * Timezone-change selection rule (fix/qm-calendar-booking-tz-day).
+ *
+ * Changing the guest's selected timezone REINTERPRETS the picked day: the
+ * same YYYY-MM-DD key names a different absolute interval in the new zone,
+ * so a slot chosen under the old zone must not survive — confirming it
+ * would book an instant that can fall on a different guest day (off-by-one
+ * at the zone edges) while the page now shows the new zone's context.
+ * Steps 1–2 therefore drop the selection and return to date/slot picking.
+ * Step 3 is a completed booking: its instants are absolute, so a zone
+ * change only relabels the confirmation (labels are derived from the
+ * instant in the current zone at render time, never from a stored label).
+ * Pure function so the rule is unit-testable.
+ */
+export function shouldResetSelectionOnTimezoneChange(currentStep: number): boolean {
+  return currentStep === 1 || currentStep === 2;
+}
+
 // ============================================================================
 // Guest-day request contract (fix/qm-booking-guest-day).
 // The slots request must name the GUEST's calendar day in the SELECTED

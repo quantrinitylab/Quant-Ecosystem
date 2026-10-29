@@ -22,6 +22,7 @@ import {
   resolveSlotsLoadFailure,
   bookingWallTimeToUtcMs,
   formatSlotTimeLabelInTz,
+  shouldResetSelectionOnTimezoneChange,
 } from '../app/calendar/booking/[slug]/booking-utils';
 import {
   BookingLinksModal,
@@ -546,6 +547,29 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       expect(bookingWallTimeToUtcMs(2028, 10, 2, 9, 0, 'America/New_York')).toBe(
         Date.UTC(2028, 9, 2, 13, 0),
       );
+    });
+  });
+
+  describe('shouldResetSelectionOnTimezoneChange (fix/qm-calendar-booking-tz-day)', () => {
+    it('resets the selection in steps 1 and 2: the new zone reinterprets the picked day', () => {
+      expect(shouldResetSelectionOnTimezoneChange(1)).toBe(true);
+      expect(shouldResetSelectionOnTimezoneChange(2)).toBe(true);
+    });
+
+    it('keeps a completed booking in step 3: its instants are absolute, only labels relabel', () => {
+      expect(shouldResetSelectionOnTimezoneChange(3)).toBe(false);
+    });
+  });
+
+  describe('formatSlotTimeLabelInTz day-edge derivation (fix/qm-calendar-booking-tz-day)', () => {
+    it('labels the same instant in the CURRENT zone, not a stored label — the zone-edge case', () => {
+      // 2028-10-02T18:30Z is 02:30 PM the same day in New York but
+      // 12:00 AM the NEXT day in Kolkata. A label stored under one zone
+      // must never be shown under the other zone's date header.
+      const instant = new Date(Date.UTC(2028, 9, 2, 18, 30));
+      expect(formatSlotTimeLabelInTz(instant, 'America/New_York')).toBe('02:30 PM');
+      expect(formatSlotTimeLabelInTz(instant, 'Asia/Kolkata')).toBe('12:00 AM');
+      expect(formatSlotTimeLabelInTz(instant, 'UTC')).toBe('06:30 PM');
     });
   });
 
