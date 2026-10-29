@@ -59,8 +59,9 @@ export function useNotifications(limit = 50) {
   return useQuery({
     queryKey: ['notifications', limit],
     queryFn: () => fetchNotifications(limit),
-    // The bell polls on its own cadence; the center is a manual-refresh screen
-    // so a mark-read/delete never fights a background refetch.
+    // The desktop-alert watcher polls on its own cadence; the center is a
+    // manual-refresh screen so a mark-read/delete never fights a background
+    // refetch.
     staleTime: 60 * 1000,
   });
 }

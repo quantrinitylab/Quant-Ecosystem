@@ -134,6 +134,22 @@ describe('Notifications center', () => {
     expect(html).toContain('backend down');
   });
 
+  it('renders notification rows as real buttons, not dead divs (bell-finding follow-up)', () => {
+    // The deleted NotificationBell rendered motion.div rows with no click
+    // handler and an unused actionUrl. The surviving surface is the center
+    // page: its rows must be <button>s whose label promises the
+    // mark-read-and-open behaviour, with an "Open" affordance exactly when
+    // the backend supplied an actionUrl.
+    loaded([N1, N2], 1);
+    const html = renderToStaticMarkup(<NotificationsPage />);
+    expect(html).toContain('aria-label="Mark read and open: New message from Ada"');
+    expect(html).toContain('aria-label="Open: New sign-in detected"');
+    expect(html).toContain('Open');
+    // N2 carries no actionUrl, so only the N1 row may advertise an Open
+    // affordance: exactly one "Open" marker (plus its aria-labels above).
+    expect(html.match(/>Open </g)?.length ?? 0).toBe(1);
+  });
+
   it('renders skeletons while loading', () => {
     mockUseNotifications.mockReturnValue({
       data: undefined,
