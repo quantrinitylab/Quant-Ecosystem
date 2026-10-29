@@ -45,7 +45,7 @@ export const CreateAuditEventSchema = z.object({
   action: z.nativeEnum(AuditAction),
   resource: z.string().min(1),
   resourceId: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   ip: z.string().optional(),
   userAgent: z.string().optional(),
 });

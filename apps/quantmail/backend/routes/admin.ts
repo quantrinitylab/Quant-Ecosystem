@@ -359,7 +359,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     const parsed = registerMailDomainSchema.safeParse(request.body);
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid domain payload',
+        parsed.error.issues[0]?.message || 'Invalid domain payload',
         400,
         'VALIDATION_ERROR',
       );
@@ -423,7 +423,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     const parsed = verifyMailDomainSchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid verify payload',
+        parsed.error.issues[0]?.message || 'Invalid verify payload',
         400,
         'VALIDATION_ERROR',
       );
@@ -502,7 +502,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     const parsed = deleteMailDomainSchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid delete payload',
+        parsed.error.issues[0]?.message || 'Invalid delete payload',
         400,
         'VALIDATION_ERROR',
       );
@@ -586,7 +586,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     const parsed = adminAuditQuerySchema.safeParse(request.query);
     if (!parsed.success) {
       throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid query parameters',
+        parsed.error.issues[0]?.message || 'Invalid query parameters',
         400,
         'VALIDATION_ERROR',
       );

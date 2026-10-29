@@ -7,7 +7,7 @@
 import { z } from 'zod';
 
 export const ValidateRequestSchema = z.object({
-  headers: z.record(z.string()),
+  headers: z.record(z.string(), z.string()),
 });
 
 /** Known third-party tracking cookie prefixes */

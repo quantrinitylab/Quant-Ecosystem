@@ -52,7 +52,7 @@ overrides:
   tough-cookie@<4.1.3: 4.1.3
   nanoid@<3.3.18: 3.3.18
   body-parser@<1.20.9: 1.20.9
-  zod@>=4.0.0 <4.6.6: 4.6.6
+  zod@<4.6.6: 4.6.6
   deepmerge-ts@<8.0.0: 8.0.1
   browserslist@<=4.28.6: 4.28.8
 
@@ -191,8 +191,8 @@ importers:
         specifier: ^19.0.0
         version: 19.2.6(react@19.2.6)
       zod:
-        specifier: ^3.25.23
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22
@@ -330,8 +330,8 @@ importers:
         specifier: ^4.0.0
         version: 4.18.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       zod:
-        specifier: ^3.25.23
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/react':
         specifier: ^19.0.0
@@ -445,8 +445,8 @@ importers:
         specifier: ^19.0.0
         version: 19.2.6(react@19.2.6)
       zod:
-        specifier: ^3.25.23
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/react':
         specifier: ^19.0.0
@@ -527,8 +527,8 @@ importers:
         specifier: ^19.0.0
         version: 19.2.6(react@19.2.6)
       zod:
-        specifier: ^3.25.23
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/react':
         specifier: ^19.0.0
@@ -633,8 +633,8 @@ importers:
         specifier: ^19.0.0
         version: 19.2.6(react@19.2.6)
       zod:
-        specifier: ^3.25.23
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/react':
         specifier: ^19.0.0
@@ -766,8 +766,8 @@ importers:
         specifier: ^13.6.0
         version: 13.6.30
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/react':
         specifier: ^19.0.0
@@ -881,8 +881,8 @@ importers:
         specifier: ^4.0.0
         version: 4.18.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       zod:
-        specifier: ^3.25.23
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/react':
         specifier: ^19.0.0
@@ -993,8 +993,8 @@ importers:
         specifier: ^4.0.0
         version: 4.18.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       zod:
-        specifier: ^3.25.23
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/react':
         specifier: ^19.0.0
@@ -1075,8 +1075,8 @@ importers:
         specifier: ^19.0.0
         version: 19.2.6(react@19.2.6)
       zod:
-        specifier: ^3.25.23
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@testing-library/jest-dom':
         specifier: ^6.6.3
@@ -1133,8 +1133,8 @@ importers:
         specifier: workspace:*
         version: link:../queue
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1167,8 +1167,8 @@ importers:
         specifier: workspace:*
         version: link:../common
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1190,34 +1190,34 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^1.0.0
-        version: 1.2.12(zod@3.25.76)
+        version: 1.2.12(zod@4.6.6)
       '@ai-sdk/cohere':
         specifier: ^3.0.36
-        version: 3.0.36(zod@3.25.76)
+        version: 3.0.36(zod@4.6.6)
       '@ai-sdk/deepinfra':
         specifier: ^2.0.52
-        version: 2.0.52(zod@3.25.76)
+        version: 2.0.52(zod@4.6.6)
       '@ai-sdk/deepseek':
         specifier: ^2.0.35
-        version: 2.0.35(zod@3.25.76)
+        version: 2.0.35(zod@4.6.6)
       '@ai-sdk/fireworks':
         specifier: ^2.0.53
-        version: 2.0.53(zod@3.25.76)
+        version: 2.0.53(zod@4.6.6)
       '@ai-sdk/google':
         specifier: ^3.0.79
-        version: 3.0.79(zod@3.25.76)
+        version: 3.0.79(zod@4.6.6)
       '@ai-sdk/groq':
         specifier: ^3.0.39
-        version: 3.0.39(zod@3.25.76)
+        version: 3.0.39(zod@4.6.6)
       '@ai-sdk/mistral':
         specifier: ^3.0.37
-        version: 3.0.37(zod@3.25.76)
+        version: 3.0.37(zod@4.6.6)
       '@ai-sdk/openai':
         specifier: ^1.0.0
-        version: 1.3.24(zod@3.25.76)
+        version: 1.3.24(zod@4.6.6)
       '@ai-sdk/togetherai':
         specifier: ^2.0.53
-        version: 2.0.53(zod@3.25.76)
+        version: 2.0.53(zod@4.6.6)
       '@anthropic-ai/sdk':
         specifier: ^0.32.0
         version: 0.32.1
@@ -1232,19 +1232,19 @@ importers:
         version: link:../quant-tools
       ai:
         specifier: ^5.0.52
-        version: 5.0.52(zod@3.25.76)
+        version: 5.0.52(zod@4.6.6)
       js-yaml:
         specifier: 4.3.2
         version: 4.3.2
       ollama-ai-provider:
         specifier: ^1.2.0
-        version: 1.2.0(zod@3.25.76)
+        version: 1.2.0(zod@4.6.6)
       openai:
         specifier: ^4.73.0
-        version: 4.104.0(ws@8.21.0)(zod@3.25.76)
+        version: 4.104.0(ws@8.21.0)(zod@4.6.6)
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/js-yaml':
         specifier: ^4.0.9
@@ -1265,8 +1265,8 @@ importers:
         specifier: workspace:*
         version: link:../common
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1284,8 +1284,8 @@ importers:
         specifier: ^5.60.0
         version: 5.100.14(react@19.2.6)
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1343,8 +1343,8 @@ importers:
         specifier: workspace:*
         version: link:../database
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1468,8 +1468,8 @@ importers:
         specifier: workspace:*
         version: link:../common
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1499,8 +1499,8 @@ importers:
         specifier: workspace:*
         version: link:../common
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1524,8 +1524,8 @@ importers:
         specifier: ^9.0.0
         version: 9.14.0
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1546,8 +1546,8 @@ importers:
         specifier: workspace:*
         version: link:../database
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1565,8 +1565,8 @@ importers:
   packages/cross-app-gaming:
     dependencies:
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1590,8 +1590,8 @@ importers:
         specifier: ^9.6.0
         version: 9.14.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1618,8 +1618,8 @@ importers:
         specifier: ^9.6.0
         version: 9.14.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1704,8 +1704,8 @@ importers:
         specifier: workspace:*
         version: link:../database
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1732,8 +1732,8 @@ importers:
         specifier: ^9.6.0
         version: 9.14.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1767,8 +1767,8 @@ importers:
         specifier: workspace:*
         version: link:../common
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1801,8 +1801,8 @@ importers:
         specifier: ^9.6.0
         version: 9.14.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/fluent-ffmpeg':
         specifier: ^2.1.26
@@ -1844,8 +1844,8 @@ importers:
         specifier: ^1.26.0
         version: 1.26.0
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1863,8 +1863,8 @@ importers:
         specifier: ^1.26.0
         version: 1.26.0
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1888,8 +1888,8 @@ importers:
         specifier: ^0.35.5
         version: 0.35.5(@types/node@22.19.19)
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1916,8 +1916,8 @@ importers:
         specifier: ^3.6.0
         version: 3.6.7
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1968,8 +1968,8 @@ importers:
         specifier: ^9.6.0
         version: 9.14.0
       zod:
-        specifier: ^3.24.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1984,8 +1984,8 @@ importers:
   packages/onboarding:
     dependencies:
       zod:
-        specifier: ^3.24.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2012,8 +2012,8 @@ importers:
         specifier: ^5.0.1
         version: 5.1.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2043,8 +2043,8 @@ importers:
         specifier: ^17.0.0
         version: 17.7.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2062,8 +2062,8 @@ importers:
   packages/performance:
     dependencies:
       zod:
-        specifier: ^3.24.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2081,8 +2081,8 @@ importers:
         specifier: workspace:*
         version: link:../common
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2109,8 +2109,8 @@ importers:
   packages/quant-economy:
     dependencies:
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2233,8 +2233,8 @@ importers:
         specifier: ^9.6.0
         version: 9.14.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2249,8 +2249,8 @@ importers:
   packages/ranking:
     dependencies:
       zod:
-        specifier: ^3.24.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2286,8 +2286,8 @@ importers:
         specifier: ^8.18.0
         version: 8.21.0
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2311,8 +2311,8 @@ importers:
         specifier: workspace:*
         version: link:../triton-client
       zod:
-        specifier: ^3.24.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2357,8 +2357,8 @@ importers:
         specifier: ^9.6.0
         version: 9.14.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2385,8 +2385,8 @@ importers:
         specifier: ^9.6.0
         version: 9.14.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2412,6 +2412,9 @@ importers:
       '@fastify/rate-limit':
         specifier: ^10.2.1
         version: 10.3.0
+      '@fastify/swagger':
+        specifier: ^9.5.1
+        version: 9.9.2
       '@quant/audit':
         specifier: workspace:*
         version: link:../audit
@@ -2455,20 +2458,23 @@ importers:
         specifier: ^5.0.1
         version: 5.1.0
       fastify-type-provider-zod:
-        specifier: ^4.0.2
-        version: 4.0.2(fastify@5.12.5)(zod@3.25.76)
+        specifier: ^7.0.0
+        version: 7.0.0(@fastify/swagger@9.9.2)(fastify@5.12.5)(openapi-types@12.1.3)(zod@4.6.6)
       ioredis:
         specifier: ^5.6.1
         version: 5.10.1
       jose:
         specifier: ^6.0.11
         version: 6.2.3
+      openapi-types:
+        specifier: ^12.1.3
+        version: 12.1.3
       pino:
         specifier: ^9.6.0
         version: 9.14.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2580,8 +2586,8 @@ importers:
         specifier: ^9.6.0
         version: 9.14.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2602,8 +2608,8 @@ importers:
         specifier: ^9.0.0
         version: 9.14.0
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2618,8 +2624,8 @@ importers:
   packages/triton-client:
     dependencies:
       zod:
-        specifier: ^3.24.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2640,8 +2646,8 @@ importers:
         specifier: workspace:*
         version: link:../common
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2656,8 +2662,8 @@ importers:
   packages/user-owned-ai:
     dependencies:
       zod:
-        specifier: ^3.25.76
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2705,8 +2711,8 @@ importers:
         specifier: ^5.4.1
         version: 5.10.1
       zod:
-        specifier: ^3.22.4
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^20.14.9
@@ -2742,8 +2748,8 @@ importers:
         specifier: ^9.6.0
         version: 9.14.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2779,8 +2785,8 @@ importers:
         specifier: ^2.4.0
         version: 2.9.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2795,8 +2801,8 @@ importers:
   services/dns-poller:
     dependencies:
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2832,8 +2838,8 @@ importers:
         specifier: 5.12.5
         version: 5.12.5
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2854,8 +2860,8 @@ importers:
         specifier: ^1.15.0
         version: 1.17.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2885,8 +2891,8 @@ importers:
         specifier: ^5.6.1
         version: 5.10.1
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -2928,8 +2934,8 @@ importers:
         specifier: ^9.6.0
         version: 9.14.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -3002,8 +3008,8 @@ importers:
         specifier: ^9.6.0
         version: 9.14.0
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -3070,8 +3076,8 @@ importers:
         specifier: ^3.13.0
         version: 3.18.4
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/mailparser':
         specifier: ^3.4.0
@@ -3113,8 +3119,8 @@ importers:
         specifier: ^3.13.4
         version: 3.18.4
       zod:
-        specifier: ^3.24.2
-        version: 3.25.76
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/mailparser':
         specifier: ^3.4.4
@@ -3206,7 +3212,7 @@ packages:
     resolution: {integrity: sha512-YSzjlko7JvuiyQFmI9RN1tNZdEiZxc+6xld/0tq/VkJaHpEzGAb1yiNxxvmYVcjvfu/PcvCxAAYXmTYQQ63IHQ==}
     engines: {node: '>=18'}
     peerDependencies:
-      zod: ^3.0.0
+      zod: 4.6.6
 
   '@ai-sdk/cohere@3.0.36':
     resolution: {integrity: sha512-a3xUVhBYP5FuThYA3Q7NjuEyl/ObBhx9z0zFDRebW0UqEoExS3zJwtE9OB+gHc/uvwx93hNg5ZITAFAvqG3GMQ==}
@@ -3266,13 +3272,13 @@ packages:
     resolution: {integrity: sha512-GYXnGJTHRTZc4gJMSmFRgEQudjqd4PUN0ZjQhPwOAYH1yOAvQoG/Ikqs+HyISRbLPCrhbZnPKCNHuRU4OfpW0Q==}
     engines: {node: '>=18'}
     peerDependencies:
-      zod: ^3.0.0
+      zod: 4.6.6
 
   '@ai-sdk/provider-utils@2.2.8':
     resolution: {integrity: sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==}
     engines: {node: '>=18'}
     peerDependencies:
-      zod: ^3.23.8
+      zod: 4.6.6
 
   '@ai-sdk/provider-utils@3.0.28':
     resolution: {integrity: sha512-bXlX1WX7E50a2N+AJW+1a/x63m52aPhm+6xYe5THxWrx9vW9NR7E2Ay+1G1ndlCdMdYKo2Fnsd7kBhuyQPaphw==}
@@ -3942,6 +3948,9 @@ packages:
 
   '@fastify/rate-limit@10.3.0':
     resolution: {integrity: sha512-eIGkG9XKQs0nyynatApA3EVrojHOuq4l6fhB4eeCk4PIOeadvOJz9/4w3vGI44Go17uaXOWEcPkaD8kuKm7g6Q==}
+
+  '@fastify/swagger@9.9.2':
+    resolution: {integrity: sha512-ayxItVgf/1axBvw33lqsA5ns02YMpT1r59G/HCJraRNWWBzvLgN+oiCBPhuzTiN67TvctlCYkG0+40WLKYuusQ==}
 
   '@fastify/websocket@11.0.2':
     resolution: {integrity: sha512-1oyJkNSZNJGjo/A5fXvlpEcm1kTBD91nRAN9lA7RNVsVNsyC5DuhOXdNL9/4UawVe7SKvzPT/QVI4RdtE9ylnA==}
@@ -6060,11 +6069,16 @@ packages:
   fastify-plugin@5.1.0:
     resolution: {integrity: sha512-FAIDA8eovSt5qcDgcBvDuX/v0Cjz0ohGhENZ/wpc3y+oZCY2afZ9Baqql3g/lC+OHRnciQol4ww7tuthOb9idw==}
 
-  fastify-type-provider-zod@4.0.2:
-    resolution: {integrity: sha512-FDRzSL3ZuoZ+4YDevR1YOinmDKkxOdy3QB9dDR845sK+bQvDroPKhHAXLEAOObDxL7SMA0OZN/A4osrNBTdDTQ==}
+  fastify-plugin@6.0.1:
+    resolution: {integrity: sha512-4wW4RxSmvPXLrh5mgQEiu43qU3bw44N2ss4FTkTkQIbprUhE+/s43QX0j/ttcztdWK7PEkHqVthdc5GdEGDvjA==}
+
+  fastify-type-provider-zod@7.0.0:
+    resolution: {integrity: sha512-yUEKMyy+kml+4fzUU9GxVtYVKmPKNFo8OVd2N/RH2I/7JZiKvOqF1BUj3f/JJU3DDQDM7pMv2bf/Y8COPaxUWg==}
     peerDependencies:
+      '@fastify/swagger': '>=9.5.1'
       fastify: 5.12.5
-      zod: ^3.14.2
+      openapi-types: ^12.1.3
+      zod: 4.6.6
 
   fastify@5.12.5:
     resolution: {integrity: sha512-OB2k1dlxs5/NAABqeKV2FUHkSD2BbENsCak8yULVcymn3fHIPDVa9TI3SDnJSWYSllZmSYuZXy2gTnsT+Sut1A==}
@@ -6624,6 +6638,10 @@ packages:
   json-schema-ref-resolver@3.0.0:
     resolution: {integrity: sha512-hOrZIVL5jyYFjzk7+y7n5JDzGlU8rfWDuYyHwGa2WA8/pcmMHezp2xsVwxrebD/Q9t8Nc5DboieySDpCp4WG4A==}
 
+  json-schema-resolver@3.0.0:
+    resolution: {integrity: sha512-HqMnbz0tz2DaEJ3ntsqtx3ezzZyDE7G56A/pPY/NGmrPu76UzsWquOpHFRAf5beTNXoH2LU5cQePVvRli1nchA==}
+    engines: {node: '>=20'}
+
   json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
 
@@ -7181,7 +7199,7 @@ packages:
     resolution: {integrity: sha512-jTNFruwe3O/ruJeppI/quoOUxG7NA6blG3ZyQj3lei4+NnJo7bi3eIRWqlVpRlu/mbzbFXeJSBuYQWF6pzGKww==}
     engines: {node: '>=18'}
     peerDependencies:
-      zod: ^3.0.0
+      zod: 4.6.6
     peerDependenciesMeta:
       zod:
         optional: true
@@ -7221,12 +7239,15 @@ packages:
     hasBin: true
     peerDependencies:
       ws: ^8.18.0
-      zod: ^3.23.8
+      zod: 4.6.6
     peerDependenciesMeta:
       ws:
         optional: true
       zod:
         optional: true
+
+  openapi-types@12.1.3:
+    resolution: {integrity: sha512-N4YtSYJqghVu4iek2ZUvcN/0aqH1kRDuNqzcycDxhOUpg7GdvLa2F3DgS6yBNhInhv2r/6I0Flkn7CqL8+nIcw==}
 
   openpgp@6.3.0:
     resolution: {integrity: sha512-pLzCU8IgyKXPSO11eeharQkQ4GzOKNWhXq79pQarIRZEMt1/ssyr+MIuWBv1mNoenJLg04gvPx+fi4gcKZ4bag==}
@@ -8466,106 +8487,101 @@ packages:
     resolution: {integrity: sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ==}
     engines: {node: '>=12.20'}
 
-  zod-to-json-schema@3.25.2:
-    resolution: {integrity: sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA==}
-    peerDependencies:
-      zod: 4.6.6
-
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+  zod@4.6.6:
+    resolution: {integrity: sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==}
 
 snapshots:
 
   '@adobe/css-tools@4.5.0': {}
 
-  '@ai-sdk/anthropic@1.2.12(zod@3.25.76)':
+  '@ai-sdk/anthropic@1.2.12(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 2.2.8(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/cohere@3.0.36(zod@3.25.76)':
+  '@ai-sdk/cohere@3.0.36(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.33(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/deepinfra@2.0.52(zod@3.25.76)':
+  '@ai-sdk/deepinfra@2.0.52(zod@4.6.6)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.48(zod@3.25.76)
+      '@ai-sdk/openai-compatible': 2.0.48(zod@4.6.6)
       '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.33(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/deepseek@2.0.35(zod@3.25.76)':
+  '@ai-sdk/deepseek@2.0.35(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.33(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/fireworks@2.0.53(zod@3.25.76)':
+  '@ai-sdk/fireworks@2.0.53(zod@4.6.6)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.48(zod@3.25.76)
+      '@ai-sdk/openai-compatible': 2.0.48(zod@4.6.6)
       '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.33(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/gateway@1.0.29(zod@3.25.76)':
+  '@ai-sdk/gateway@1.0.29(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.28(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 3.0.28(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/google@3.0.79(zod@3.25.76)':
+  '@ai-sdk/google@3.0.79(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.33(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/groq@3.0.39(zod@3.25.76)':
+  '@ai-sdk/groq@3.0.39(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.33(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/mistral@3.0.37(zod@3.25.76)':
+  '@ai-sdk/mistral@3.0.37(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.33(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/openai-compatible@2.0.48(zod@3.25.76)':
+  '@ai-sdk/openai-compatible@2.0.48(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.33(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/openai@1.3.24(zod@3.25.76)':
+  '@ai-sdk/openai@1.3.24(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 2.2.8(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/provider-utils@2.2.8(zod@3.25.76)':
+  '@ai-sdk/provider-utils@2.2.8(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
       nanoid: 3.3.18
       secure-json-parse: 2.7.0
-      zod: 3.25.76
+      zod: 4.6.6
 
-  '@ai-sdk/provider-utils@3.0.28(zod@3.25.76)':
+  '@ai-sdk/provider-utils@3.0.28(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 2.0.3
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.1.0
-      zod: 3.25.76
+      zod: 4.6.6
 
-  '@ai-sdk/provider-utils@4.0.33(zod@3.25.76)':
+  '@ai-sdk/provider-utils@4.0.33(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.12
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.1.0
-      zod: 3.25.76
+      zod: 4.6.6
 
   '@ai-sdk/provider@1.1.3':
     dependencies:
@@ -8587,12 +8603,12 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/togetherai@2.0.53(zod@3.25.76)':
+  '@ai-sdk/togetherai@2.0.53(zod@4.6.6)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.48(zod@3.25.76)
+      '@ai-sdk/openai-compatible': 2.0.48(zod@4.6.6)
       '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.33(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 4.0.33(zod@4.6.6)
+      zod: 4.6.6
 
   '@alloc/quick-lru@5.2.0': {}
 
@@ -9437,6 +9453,16 @@ snapshots:
       '@lukeed/ms': 2.0.2
       fastify-plugin: 5.1.0
       toad-cache: 3.7.1
+
+  '@fastify/swagger@9.9.2':
+    dependencies:
+      fastify-plugin: 6.0.1
+      json-schema-resolver: 3.0.0
+      openapi-types: 12.1.3
+      rfdc: 1.4.1
+      yaml: 2.9.0
+    transitivePeerDependencies:
+      - supports-color
 
   '@fastify/websocket@11.0.2':
     dependencies:
@@ -10913,13 +10939,13 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  ai@5.0.52(zod@3.25.76):
+  ai@5.0.52(zod@4.6.6):
     dependencies:
-      '@ai-sdk/gateway': 1.0.29(zod@3.25.76)
+      '@ai-sdk/gateway': 1.0.29(zod@4.6.6)
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.28(zod@3.25.76)
+      '@ai-sdk/provider-utils': 3.0.28(zod@4.6.6)
       '@opentelemetry/api': 1.9.0
-      zod: 3.25.76
+      zod: 4.6.6
 
   ajv-formats@3.0.1(ajv@8.20.0):
     optionalDependencies:
@@ -11793,12 +11819,15 @@ snapshots:
 
   fastify-plugin@5.1.0: {}
 
-  fastify-type-provider-zod@4.0.2(fastify@5.12.5)(zod@3.25.76):
+  fastify-plugin@6.0.1: {}
+
+  fastify-type-provider-zod@7.0.0(@fastify/swagger@9.9.2)(fastify@5.12.5)(openapi-types@12.1.3)(zod@4.6.6):
     dependencies:
       '@fastify/error': 4.2.0
+      '@fastify/swagger': 9.9.2
       fastify: 5.12.5
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.2(zod@3.25.76)
+      openapi-types: 12.1.3
+      zod: 4.6.6
 
   fastify@5.12.5:
     dependencies:
@@ -12458,6 +12487,14 @@ snapshots:
     dependencies:
       dequal: 2.0.3
 
+  json-schema-resolver@3.0.0:
+    dependencies:
+      debug: 4.4.3
+      fast-uri: 4.2.1
+      rfdc: 1.4.1
+    transitivePeerDependencies:
+      - supports-color
+
   json-schema-traverse@0.4.1: {}
 
   json-schema-traverse@1.0.0: {}
@@ -13033,13 +13070,13 @@ snapshots:
 
   ohash@2.0.11: {}
 
-  ollama-ai-provider@1.2.0(zod@3.25.76):
+  ollama-ai-provider@1.2.0(zod@4.6.6):
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.76)
+      '@ai-sdk/provider-utils': 2.2.8(zod@4.6.6)
       partial-json: 0.1.7
     optionalDependencies:
-      zod: 3.25.76
+      zod: 4.6.6
 
   on-exit-leak-free@2.1.2: {}
 
@@ -13069,7 +13106,7 @@ snapshots:
       global-agent: 4.1.3
       onnxruntime-common: 1.26.0
 
-  openai@4.104.0(ws@8.21.0)(zod@3.25.76):
+  openai@4.104.0(ws@8.21.0)(zod@4.6.6):
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
@@ -13080,9 +13117,11 @@ snapshots:
       node-fetch: 2.7.0
     optionalDependencies:
       ws: 8.21.0
-      zod: 3.25.76
+      zod: 4.6.6
     transitivePeerDependencies:
       - encoding
+
+  openapi-types@12.1.3: {}
 
   openpgp@6.3.0: {}
 
@@ -14531,8 +14570,4 @@ snapshots:
 
   yocto-queue@1.2.2: {}
 
-  zod-to-json-schema@3.25.2(zod@3.25.76):
-    dependencies:
-      zod: 3.25.76
-
-  zod@3.25.76: {}
+  zod@4.6.6: {}

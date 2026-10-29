@@ -32,7 +32,7 @@ export const CreatorProfileSchema = z.object({
   userId: z.string(),
   tier: CreatorTierSchema,
   earnings: z.number().min(0),
-  payoutInfo: z.record(z.string()),
+  payoutInfo: z.record(z.string(), z.string()),
   verified: z.boolean(),
   createdAt: z.date(),
 });

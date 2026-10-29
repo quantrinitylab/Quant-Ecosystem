@@ -10,7 +10,7 @@ import {
 
 const triggerSchema = z.object({
   type: z.enum(['schedule', 'event', 'condition', 'webhook', 'manual']),
-  config: z.record(z.unknown()).default({}),
+  config: z.record(z.string(), z.unknown()).default({}),
   schedule: z.string().optional(),
   event: z.string().optional(),
   condition: z.string().optional(),
@@ -21,7 +21,7 @@ const actionSchema = z.object({
   id: z.string().optional(),
   type: z.string().min(1).max(100),
   app: z.string().max(100).optional(),
-  params: z.record(z.unknown()).default({}),
+  params: z.record(z.string(), z.unknown()).default({}),
   order: z.number().int().min(0).default(0),
   retryOnFail: z.boolean().default(false),
   timeout: z.number().int().positive().max(600000).default(30000),

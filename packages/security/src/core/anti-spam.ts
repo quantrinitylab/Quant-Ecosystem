@@ -38,7 +38,7 @@ export type SpamResult = z.infer<typeof SpamResultSchema>;
 export const TrainingSampleSchema = z.object({
   content: z.string(),
   isSpam: z.boolean(),
-  features: z.record(z.number()).optional(),
+  features: z.record(z.string(), z.number()).optional(),
 });
 
 export type TrainingSample = z.infer<typeof TrainingSampleSchema>;

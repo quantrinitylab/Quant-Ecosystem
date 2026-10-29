@@ -12,7 +12,7 @@ const sendMessageSchema = z.object({
     .optional(),
   mediaUrl: z.string().optional(),
   replyToId: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   // QC-F-019: view-once intent must survive the HTTP layer. Without this
   // field the client's `disappearMode: 'after_view'` was silently stripped
   // by zod, so snaps were stored as ordinary permanent media and the

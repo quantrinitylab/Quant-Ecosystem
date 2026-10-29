@@ -4,7 +4,7 @@ export const DeliveryJobSchema = z.object({
   activityId: z.string(),
   recipientInbox: z.string(),
   payload: z.string(),
-  signedHeaders: z.record(z.string()).optional(),
+  signedHeaders: z.record(z.string(), z.string()).optional(),
   attempt: z.number().int().min(0),
   maxAttempts: z.number().int().min(1),
   nextAttemptAfter: z.number().optional(),

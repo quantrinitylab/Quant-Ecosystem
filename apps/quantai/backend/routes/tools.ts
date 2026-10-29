@@ -4,7 +4,7 @@ import { createAppError } from '@quant/server-core';
 import { ToolService } from '../services/tool.service';
 
 const executeToolSchema = z.object({
-  args: z.record(z.unknown()),
+  args: z.record(z.string(), z.unknown()),
 });
 
 export default async function toolsRoutes(fastify: FastifyInstance) {

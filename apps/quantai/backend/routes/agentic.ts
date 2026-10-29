@@ -14,7 +14,7 @@ const workflowSchema = z.object({
 const runAgentSchema = z.object({
   agentId: z.string(),
   input: z.string(),
-  context: z.record(z.unknown()).optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
 });
 
 const agenticChatSchema = z.object({
@@ -32,7 +32,7 @@ const agenticChatSchema = z.object({
 
 const confirmSchema = z.object({
   approved: z.boolean(),
-  editedParams: z.record(z.unknown()).optional(),
+  editedParams: z.record(z.string(), z.unknown()).optional(),
 });
 
 export default async function agenticRoutes(fastify: FastifyInstance) {
