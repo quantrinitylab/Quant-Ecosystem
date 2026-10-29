@@ -40,17 +40,29 @@ import { getInvalidRecipientReason } from '../lib/email-validation';
  * right after the empty-To block and before subject, in the order a user
  * fixes the form top-down. Callers must pass the same recipient list `to`
  * was derived from, so the string check and the address check agree.
+ *
+ * CHAT-KIND EXCEPTION: a chat thread is not a letter — its subject is
+ * auto-supplied at send time (`Chat with <recipients>`) by every send path
+ * (DockedComposer's sendSubject, EmailComposer's no-`onSend` fallback, and
+ * the /compose page's composeDraft fallback), so an empty subject is NOT a
+ * missing field for `messageKind === 'chat'` and must not block the send or
+ * force a "Send without a subject?" confirm. Before this fix the hard block
+ * here made all three fallbacks unreachable dead code on the /compose path
+ * (the Send button stayed disabled with a subject error) and the docked
+ * confirm asked a question whose premise was false. Mail kind keeps the
+ * hard subject block unchanged.
  */
 export function getSendBlockReason(
   to: string,
   subject: string,
   body: string,
   recipients: Array<{ email: string }> = [],
+  messageKind: 'mail' | 'chat' = 'mail',
 ): string | null {
   if (!to.trim()) return 'Please specify at least one recipient (To:)';
   const invalidReason = getInvalidRecipientReason(recipients);
   if (invalidReason) return invalidReason;
-  if (!subject.trim()) return 'Please enter an email subject';
+  if (messageKind !== 'chat' && !subject.trim()) return 'Please enter an email subject';
   return null;
 }
 
@@ -58,19 +70,23 @@ export function getSendBlockReason(
  * Whether sending needs the Gmail-style empty-body confirm.
  *
  * True exactly when nothing hard-blocks the send (`getSendBlockReason`
- * returns `null`) but the body is empty: recipients valid, subject present,
- * body missing. Callers show a confirm ("Send this message without text in
- * the body?") with an explicit send-anyway override, BEFORE the undo-send
- * countdown is queued — the 10s undo window must never be promised for a
- * send the user never confirmed.
+ * returns `null`) but the body is empty: recipients valid, subject present
+ * (or auto-supplied for a chat kind — see above), body missing. Callers show
+ * a confirm ("Send this message without text in the body?") with an explicit
+ * send-anyway override, BEFORE the undo-send countdown is queued — the 10s
+ * undo window must never be promised for a send the user never confirmed.
  */
 export function needsEmptyBodyConfirm(
   to: string,
   subject: string,
   body: string,
   recipients: Array<{ email: string }> = [],
+  messageKind: 'mail' | 'chat' = 'mail',
 ): boolean {
-  return getSendBlockReason(to, subject, body, recipients) === null && !body.trim();
+  return (
+    getSendBlockReason(to, subject, body, recipients, messageKind) === null &&
+    !body.trim()
+  );
 }
 
 /**
@@ -88,16 +104,20 @@ export function needsEmptyBodyConfirm(
  * path can announce the unfinished draft the same way a block would. A
  * malformed recipient address maps to `mail:noRecipients` — it is a
  * recipient problem, in the same position as in `getSendBlockReason`.
+ * A second asymmetry: for a chat kind an empty subject is NOT missing (the
+ * send path auto-supplies `Chat with <recipients>`), so it never yields
+ * `mail:noSubject` — the check falls through to the body instead.
  */
 export function getSendBlockReaction(
   to: string,
   subject: string,
   body: string,
   recipients: Array<{ email: string }> = [],
+  messageKind: 'mail' | 'chat' = 'mail',
 ): 'mail:noRecipients' | 'mail:noSubject' | 'mail:noBody' | null {
   if (!to.trim()) return 'mail:noRecipients';
   if (getInvalidRecipientReason(recipients)) return 'mail:noRecipients';
-  if (!subject.trim()) return 'mail:noSubject';
+  if (messageKind !== 'chat' && !subject.trim()) return 'mail:noSubject';
   if (!body.trim()) return 'mail:noBody';
   return null;
 }

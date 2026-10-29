@@ -202,6 +202,21 @@ describe('Send button disabled state mirrors validation (QM-UIUX-024)', () => {
     expect(sendTitle(html)).toBe('Please enter an email subject');
   });
 
+  it('is enabled with only To filled for a chat kind (subject auto-supplied at send)', () => {
+    const html = renderToStaticMarkup(
+      <EmailComposer
+        isOpen={true}
+        onClose={() => {}}
+        initialTo="a@b.com"
+        initialMessageKind="chat"
+      />,
+    );
+    expect(isSendDisabled(html)).toBe(false);
+    // No block reason → no error title; the send path supplies
+    // "Chat with a@b.com" as the subject, so nothing is missing.
+    expect(sendTitle(html)).toBeNull();
+  });
+
   it('is enabled with only To and subject filled (empty body is a confirm, not a block)', () => {
     const html = renderToStaticMarkup(
       <EmailComposer
