@@ -4,7 +4,7 @@
 // ============================================================================
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import Fastify from 'fastify';
+import Fastify, { type FastifyRequest, type FastifyReply, type DoneCallback } from 'fastify';
 import { ProjectMemoryService, type ProjectMemory } from '../services/project-memory.service';
 import projectMemoryRoutes from '../routes/project-memory';
 
@@ -349,7 +349,7 @@ describe('Fastify Routes: /projects/:projectId/memory', () => {
     projectMemoryService = new ProjectMemoryService();
 
     app.decorate('projectMemoryService', projectMemoryService);
-    app.addHook('onRequest', (request, _reply, done) => {
+    app.addHook('onRequest', (request: FastifyRequest, _reply: FastifyReply, done: DoneCallback) => {
       const userId = request.headers['x-test-user-id'];
       if (typeof userId === 'string' && userId) {
         (request as unknown as { auth: { userId: string } }).auth = { userId };
