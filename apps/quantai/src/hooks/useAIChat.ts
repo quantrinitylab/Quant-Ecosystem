@@ -187,6 +187,23 @@ async function apiFetchAuthed(
   return res;
 }
 
+/**
+ * Stream-body form for the hook's display-string attachments.
+ *
+ * The backend stream handler (backend/routes/messages.ts, sendMessageSchema)
+ * accepts attachments ONLY as an array of records — a verbatim string[]
+ * fails validation with a 400 before the handler runs — and the handler
+ * then drops attachments anyway (it destructures { content } only, and
+ * streamMessage persists attachments: []). So the body carries each display
+ * string losslessly wrapped as a record ({ value }) instead of inventing
+ * semantic keys: rendering stays optimistic-only until a backend unit
+ * defines a real attachment contract. Do NOT treat these record keys as
+ * that contract.
+ */
+function toStreamBodyAttachments(attachments: string[]): Record<string, unknown>[] {
+  return attachments.map((value) => ({ value }));
+}
+
 function mapServerMessage(m: ServerMessage): ChatMessage {
   return {
     id: m.id,
@@ -498,7 +515,12 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
           const res = await apiFetchAuthed(`${API_BASE}/sessions/${convId}/messages/stream`, {
             method: 'POST',
             headers: authHeaders(true),
-            body: JSON.stringify({ content: trimmed }),
+            body: JSON.stringify({
+              content: trimmed,
+              ...(attachments && attachments.length > 0
+                ? { attachments: toStreamBodyAttachments(attachments) }
+                : {}),
+            }),
             signal: controller.signal,
           });
 
@@ -609,6 +631,32 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
           // Reconcile with server truth so messages carry real ids (needed for
           // feedback) and the persisted content/token counts.
           await loadMessages(convId);
+
+          // Server history carries no attachments for stream sends (the
+          // backend persists attachments: []), and loadMessages replaces the
+          // thread with server truth — without this restore, the just-sent
+          // thumbnail/chip would vanish the moment streaming settles.
+          // Restore onto the newest matching user turn (functional updates
+          // run in order, so this sees the reconciled state). History
+          // reloads (conversation switch / refresh) still lose attachments
+          // until the backend persists them — a separate backend unit.
+          if (attachments && attachments.length > 0) {
+            patchConversation(convId, (c) => {
+              let target = -1;
+              for (let i = c.messages.length - 1; i >= 0; i -= 1) {
+                const m = c.messages[i]!;
+                if (m.role === 'user' && m.content === trimmed && !m.attachments?.length) {
+                  target = i;
+                  break;
+                }
+              }
+              if (target < 0) return c;
+              return {
+                ...c,
+                messages: c.messages.map((m, i) => (i === target ? { ...m, attachments } : m)),
+              };
+            });
+          }
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') return;
           const unavailable = streamErrorCode === 'AI_UNAVAILABLE';
