@@ -156,13 +156,9 @@ describe.each([['mobile', mobile], ['desktop', desktop]] as const)(
 
       push.mockClear();
       mod.executeContextTabClick(tabById('inbox'), 'mail', { pathname: '/', router: { push } });
-      if (inboxTarget() === '/') {
-        // Mobile: Inbox has no queryParam — plain '/' is already the Inbox view.
-        expect(push).not.toHaveBeenCalled();
-      } else {
-        // Desktop: Inbox targets '/?lens=all', so legacy `|| tab.queryParam` pushed.
-        expect(push).toHaveBeenCalledWith(inboxTarget());
-      }
+      // QM-INBOX-NAV-VIEW: Inbox now targets `/?view=inbox&lens=all` on
+      // BOTH viewports, so a bare `/` (People view) always pushes.
+      expect(push).toHaveBeenCalledWith(inboxTarget());
     });
   },
 );
