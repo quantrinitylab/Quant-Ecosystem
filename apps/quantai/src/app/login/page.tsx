@@ -454,7 +454,7 @@ function LoginForm() {
         <div className="relative my-6 flex items-center justify-center">
           <div className="w-full border-t border-white/[0.08]" />
           <span className="absolute bg-[#090a10] px-3 font-mono text-[10px] uppercase tracking-widest text-zinc-500">
-            or credentials
+            or
           </span>
         </div>
 
@@ -570,6 +570,15 @@ function LoginForm() {
             </div>
           </div>
 
+          <div className="flex justify-end">
+            <a
+              href="https://quantmail.in/forgot-password"
+              className="text-xs text-zinc-400 underline-offset-4 transition hover:text-zinc-200 hover:underline"
+            >
+              Forgot password?
+            </a>
+          </div>
+
           {error ? (
             <div
               role="alert"
@@ -595,7 +604,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-violet-600 bg-[length:200%_auto] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-600/20 transition-all duration-300 hover:bg-[position:right_center] hover:shadow-violet-600/35 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition-all duration-300 hover:bg-white/10 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">
@@ -619,7 +628,7 @@ function LoginForm() {
               href="https://quantmail.in/register"
               className="font-medium text-violet-400 underline-offset-4 transition hover:text-violet-300 hover:underline"
             >
-              Create a QuantID
+              Create a QuantID on QuantMail
             </a>
           </p>
 
