@@ -1,14 +1,25 @@
 // Sovereign Quant Ecosystem - QuantChat Snap Editor (capture -> edit -> send)
 // Strictly ZERO raw Unicode emojis throughout this file.
 // Strictly ZERO Skia clipPath calls (120Hz Impeller & Skia acceleration).
-// Phase 1A draft — reviewed against quant_theme tokens (all QuantColors names verified).
+// Phase 1A draft + B-recon deltas (reviewed against quant_theme tokens,
+// all QuantColors names verified against quant_theme.dart):
+// - Edit tools live in a RIGHT VERTICAL RAIL (Text, Draw, Sticker, Scissors,
+//   Sound, Timer, Effects, Crop, Link) with text labels, never icon-only.
+//   Text/Draw are functional; Sticker keeps its tray; the rest are stubbed
+//   with explicit TODOs and "Soon" messaging.
+// - Bottom bar left->right: Save (private-copy confirm sheet), Story
+//   (stub with TODO), accent Send To (opens the upgraded Send To sheet).
+// - The expiry picker moved into the Send To sheet; expiry + audience stay
+//   visible on the send action there.
 
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 
-/// Snap expiry options shown in the expiry picker and on the send button.
+import 'send_to_screen.dart';
+
+/// Snap expiry options shown in the Send To sheet and on the send action.
 enum SnapExpiry {
   viewOnce,
   tenSeconds,
@@ -25,7 +36,7 @@ enum SnapExpiry {
     }
   }
 
-  /// Short phrase embedded in the send button, e.g. "disappears in 10s".
+  /// Short phrase embedded in the send action, e.g. "disappears in 10s".
   String get sendPhrase {
     switch (this) {
       case SnapExpiry.viewOnce:
@@ -99,9 +110,18 @@ class _Stroke {
   _Stroke({required this.points, required this.color});
 }
 
-/// Capture -> edit -> send. Receives the captured file, offers the top edit
-/// actions in one row plus a "More" overflow tray, and a send button that
-/// shows the chosen expiry and audience.
+/// Right-rail tool definition: label, icon and whether tapping it is
+/// implemented yet.
+class _RailTool {
+  final String label;
+  final IconData icon;
+  final bool implemented;
+
+  const _RailTool(this.label, this.icon, {this.implemented = true});
+}
+
+/// Capture -> edit -> send. Receives the captured file, offers the edit tools
+/// in a right vertical rail, and a bottom bar with Save, Story and Send To.
 class SnapEditorScreen extends StatefulWidget {
   final String capturedFilePath;
   final bool isVideo;
@@ -126,8 +146,19 @@ class _SnapEditorScreenState extends State<SnapEditorScreen> {
   Color _drawColor = Colors.white;
 
   SnapExpiry _expiry = SnapExpiry.tenSeconds;
-  final Set<String> _selectedRecipientIds = <String>{};
   bool _saveCopy = false;
+
+  static const List<_RailTool> _railTools = [
+    _RailTool('Text', Icons.text_fields_rounded),
+    _RailTool('Draw', Icons.brush_rounded),
+    _RailTool('Sticker', Icons.emoji_emotions_rounded),
+    _RailTool('Scissors', Icons.content_cut_rounded, implemented: false),
+    _RailTool('Sound', Icons.music_note_rounded, implemented: false),
+    _RailTool('Timer', Icons.timer_rounded, implemented: false),
+    _RailTool('Effects', Icons.auto_awesome_rounded, implemented: false),
+    _RailTool('Crop', Icons.crop_rounded, implemented: false),
+    _RailTool('Link', Icons.link_rounded, implemented: false),
+  ];
 
   static const List<Color> _drawPalette = [
     Colors.white,
@@ -136,17 +167,6 @@ class _SnapEditorScreenState extends State<SnapEditorScreen> {
     QuantColors.sovereignCyan,
     QuantColors.sunriseRose,
   ];
-
-  String get _audienceLabel {
-    if (_selectedRecipientIds.isEmpty) return 'no recipient';
-    final names = widget.recipients
-        .where((r) => _selectedRecipientIds.contains(r.id))
-        .map((r) => r.displayName)
-        .toList();
-    if (names.isEmpty) return 'no recipient';
-    if (names.length == 1) return names.first;
-    return '${names.first} +${names.length - 1}';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -161,6 +181,19 @@ class _SnapEditorScreenState extends State<SnapEditorScreen> {
             ],
           ),
           Positioned(top: 0, left: 0, right: 0, child: _buildTopChrome()),
+          Positioned(
+            right: 4,
+            top: 0,
+            bottom: 0,
+            child: Center(child: _buildToolRail()),
+          ),
+          if (_editMode == _EditMode.draw)
+            Positioned(
+              top: 88,
+              left: 0,
+              right: 64,
+              child: _buildDrawPalette(),
+            ),
         ],
       ),
     );
@@ -327,52 +360,30 @@ class _SnapEditorScreenState extends State<SnapEditorScreen> {
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Row(
             children: [
-              Row(
-                children: [
-                  IconButton(
-                    tooltip: 'Discard snap',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const Spacer(),
-                  const Text(
-                    'EDIT SNAP',
-                    style: TextStyle(
-                      color: QuantColors.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const Spacer(),
-                  const SizedBox(width: 48),
-                ],
-              ),
-              const SizedBox(height: 4),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Row(
-                  children: [
-                    _buildEditTool('Text', Icons.text_fields_rounded,
-                        _editMode == _EditMode.text),
-                    _buildEditTool('Draw', Icons.brush_rounded,
-                        _editMode == _EditMode.draw),
-                    _buildEditTool(
-                        'Sticker', Icons.emoji_emotions_rounded, false),
-                    _buildEditTool('Crop', Icons.crop_rounded, false),
-                    _buildEditTool('Timer', Icons.timer_rounded, false),
-                    _buildEditTool('More', Icons.more_horiz_rounded, false),
-                  ],
+              IconButton(
+                tooltip: 'Discard snap',
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.white,
                 ),
               ),
-              if (_editMode == _EditMode.draw) _buildDrawPalette(),
+              const Spacer(),
+              const Text(
+                'EDIT SNAP',
+                style: TextStyle(
+                  color: QuantColors.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              // Balances the discard button; the tool rail now owns the
+              // right edge of the screen.
+              const SizedBox(width: 48),
             ],
           ),
         ),
@@ -380,23 +391,47 @@ class _SnapEditorScreenState extends State<SnapEditorScreen> {
     );
   }
 
-  Widget _buildEditTool(String label, IconData icon, bool isActive) {
-    final color = isActive ? QuantColors.neonGreen : Colors.white;
+  // ------------------------------------------------------------- tool rail
+
+  /// Right vertical rail of labelled edit tools, never icon-only.
+  Widget _buildToolRail() {
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final tool in _railTools)
+            _buildRailTool(
+              tool,
+              isActive: (tool.label == 'Text' &&
+                      _editMode == _EditMode.text) ||
+                  (tool.label == 'Draw' && _editMode == _EditMode.draw),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRailTool(_RailTool tool, {bool isActive = false}) {
+    final color = isActive
+        ? QuantColors.neonGreen
+        : tool.implemented
+            ? Colors.white
+            : QuantColors.textSecondary;
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => _onEditTool(label),
+      onTap: () => _onEditTool(tool),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 22),
+            Icon(tool.icon, color: color, size: 22),
             const SizedBox(height: 2),
             Text(
-              label,
+              tool.label,
               style: TextStyle(
                 color: color,
-                fontSize: 10,
+                fontSize: 9,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -407,48 +442,56 @@ class _SnapEditorScreenState extends State<SnapEditorScreen> {
   }
 
   Widget _buildDrawPalette() {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (final color in _drawPalette)
-            GestureDetector(
-              onTap: () => setState(() => _drawColor = color),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 6),
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: _drawColor == color
-                        ? Colors.white
-                        : Colors.transparent,
-                    width: 2,
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.55),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: QuantColors.hairlineBorder),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final color in _drawPalette)
+              GestureDetector(
+                onTap: () => setState(() => _drawColor = color),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 5),
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: _drawColor == color
+                          ? Colors.white
+                          : Colors.transparent,
+                      width: 2,
+                    ),
                   ),
                 ),
               ),
+            const SizedBox(width: 6),
+            TextButton(
+              onPressed: () => setState(() {
+                _strokes.clear();
+                _currentStroke = null;
+              }),
+              child: const Text(
+                'Clear',
+                style:
+                    TextStyle(color: QuantColors.textSecondary, fontSize: 12),
+              ),
             ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: () => setState(() {
-              _strokes.clear();
-              _currentStroke = null;
-            }),
-            child: const Text(
-              'Clear',
-              style: TextStyle(color: QuantColors.textSecondary, fontSize: 12),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  void _onEditTool(String label) {
-    switch (label) {
+  void _onEditTool(_RailTool tool) {
+    switch (tool.label) {
       case 'Text':
         final entering =
             _editMode != _EditMode.text ? _EditMode.text : _EditMode.none;
@@ -464,16 +507,29 @@ class _SnapEditorScreenState extends State<SnapEditorScreen> {
       case 'Sticker':
         _openStickerTray();
         break;
+      case 'Scissors':
+        // TODO: implement cutout (tap object -> isolate as sticker).
+        _showMessage('Cutout is not implemented yet.');
+        break;
+      case 'Sound':
+        // TODO: implement sound attach sheet (search, trim, attach).
+        _showMessage('Sound is not implemented yet.');
+        break;
+      case 'Timer':
+        // TODO: implement the snap self-timer picker.
+        _showMessage('Timer is not implemented yet.');
+        break;
+      case 'Effects':
+        // TODO: implement post-capture effects (retouch, enhance).
+        _showMessage('Effects are not implemented yet.');
+        break;
       case 'Crop':
         // TODO: implement crop (aspect presets + freeform) on the canvas.
         _showMessage('Crop is not implemented yet.');
         break;
-      case 'Timer':
-        // TODO: implement self-timer capture countdown.
-        _showMessage('Self-timer is not implemented yet.');
-        break;
-      case 'More':
-        _openMoreTray();
+      case 'Link':
+        // TODO: implement link attach (URL entry -> preview -> attach).
+        _showMessage('Link attachments are not implemented yet.');
         break;
     }
   }
@@ -598,108 +654,9 @@ class _SnapEditorScreenState extends State<SnapEditorScreen> {
     );
   }
 
-  void _openMoreTray() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-        decoration: const BoxDecoration(
-          color: QuantColors.darkSlateCard,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-          border: Border(
-            top: BorderSide(color: QuantColors.hairlineBorder, width: 1.5),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: QuantColors.activeBorder,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'MORE',
-              style: TextStyle(
-                color: QuantColors.textMuted,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            // TODO: implement each of these snap attachments.
-            _buildMoreRow(Icons.music_note_rounded, 'Music',
-                'Attach a soundtrack to your snap'),
-            _buildMoreRow(Icons.mic_rounded, 'Voice note',
-                'Record a voice overlay'),
-            _buildMoreRow(Icons.location_on_rounded, 'Location',
-                'Tag where this was taken'),
-            _buildMoreRow(
-                Icons.link_rounded, 'Link', 'Attach a link to your snap'),
-          ],
-        ),
-      ),
-    );
-  }
+  // ------------------------------------------------------------ bottom bar
 
-  Widget _buildMoreRow(IconData icon, String title, String subtitle) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: QuantColors.elevatedCard,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon, color: QuantColors.textMuted, size: 20),
-      ),
-      title: Text(
-        title,
-        style: const TextStyle(
-          color: QuantColors.textSecondary,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: const TextStyle(color: QuantColors.textMuted, fontSize: 12),
-      ),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: QuantColors.elevatedCard,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: QuantColors.hairlineBorder),
-        ),
-        child: const Text(
-          'Soon',
-          style: TextStyle(
-            color: QuantColors.textMuted,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      onTap: () => _showMessage('$title is not implemented yet.'),
-    );
-  }
-
-  // ------------------------------------------------------------ bottom panel
-
+  /// Bottom bar left->right: Save (private copy), Story (stub), Send To.
   Widget _buildBottomPanel() {
     return Container(
       decoration: const BoxDecoration(
@@ -708,318 +665,213 @@ class _SnapEditorScreenState extends State<SnapEditorScreen> {
           top: BorderSide(color: QuantColors.hairlineBorder, width: 1),
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(child: _buildAudienceButton()),
-              const SizedBox(width: 8),
-              Expanded(child: _buildExpiryButton()),
-            ],
+          _buildPanelAction(
+            icon: Icons.download_rounded,
+            label: 'Save',
+            onTap: _openSaveCopySheet,
           ),
-          const SizedBox(height: 4),
-          _buildSaveCopyRow(),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: _buildSendButton(),
+          const SizedBox(width: 4),
+          _buildStoryButton(),
+          const Spacer(),
+          ElevatedButton.icon(
+            onPressed: _openSendTo,
+            icon: const Icon(Icons.send_rounded, size: 16),
+            label: const Text(
+              'Send To',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: QuantColors.neonGreen,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAudienceButton() {
-    return OutlinedButton.icon(
-      onPressed: _openAudiencePicker,
-      icon: const Icon(Icons.person_rounded, size: 16),
-      label: Text(
-        _audienceLabel,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-      ),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: QuantColors.textPrimary,
-        side: const BorderSide(color: QuantColors.activeBorder),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildExpiryButton() {
-    return OutlinedButton.icon(
-      onPressed: _openExpiryPicker,
-      icon: const Icon(Icons.timer_rounded, size: 16),
-      label: Text(
-        _expiry.label,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-      ),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: QuantColors.textPrimary,
-        side: const BorderSide(color: QuantColors.activeBorder),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSaveCopyRow() {
-    return Row(
-      children: [
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Save a private copy',
-                style: TextStyle(
-                  color: QuantColors.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                'Keep a copy in your private gallery before this snap disappears.',
-                style: TextStyle(
-                  color: QuantColors.textMuted,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Switch(
-          value: _saveCopy,
-          activeColor: QuantColors.neonGreen,
-          onChanged: (v) => setState(() => _saveCopy = v),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSendButton() {
-    final canSend = _selectedRecipientIds.isNotEmpty;
-    final label = canSend
-        ? 'Send · ${_expiry.sendPhrase} · to $_audienceLabel'
-        : 'Send · select a recipient';
-    return ElevatedButton(
-      onPressed: canSend ? _send : null,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: QuantColors.neonGreen,
-        disabledBackgroundColor: QuantColors.darkSlateCard,
-        foregroundColor: Colors.white,
-        disabledForegroundColor: QuantColors.textMuted,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-      ),
-    );
-  }
-
-  void _openExpiryPicker() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-        decoration: const BoxDecoration(
-          color: QuantColors.darkSlateCard,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-          border: Border(
-            top: BorderSide(color: QuantColors.hairlineBorder, width: 1.5),
-          ),
-        ),
+  Widget _buildPanelAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: QuantColors.activeBorder,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+            Icon(icon, color: Colors.white, size: 22),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'SNAP EXPIRY',
-              style: TextStyle(
-                color: QuantColors.textMuted,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            for (final option in SnapExpiry.values)
-              RadioListTile<SnapExpiry>(
-                value: option,
-                groupValue: _expiry,
-                activeColor: QuantColors.neonGreen,
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  option.label,
-                  style: const TextStyle(
-                    color: QuantColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                onChanged: (v) {
-                  if (v != null) setState(() => _expiry = v);
-                  Navigator.of(ctx).pop();
-                },
-              ),
           ],
         ),
       ),
     );
   }
 
-  void _openAudiencePicker() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        final selected = Set<String>.from(_selectedRecipientIds);
-        return StatefulBuilder(
-          builder: (sheetCtx, setSheetState) => Container(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(sheetCtx).size.height * 0.7,
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-            decoration: const BoxDecoration(
-              color: QuantColors.darkSlateCard,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
-              ),
-              border: Border(
-                top: BorderSide(color: QuantColors.hairlineBorder, width: 1.5),
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: QuantColors.activeBorder,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'SEND TO',
-                  style: TextStyle(
-                    color: QuantColors.textMuted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (widget.recipients.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Text(
-                      'No recipients yet. Add contacts to send snaps.',
-                      style: TextStyle(
-                        color: QuantColors.textMuted,
-                        fontSize: 13,
-                      ),
-                    ),
-                  )
-                else
-                  Flexible(
-                    child: ListView(
-                      shrinkWrap: true,
-                      children: [
-                        for (final recipient in widget.recipients)
-                          CheckboxListTile(
-                            value: selected.contains(recipient.id),
-                            activeColor: QuantColors.neonGreen,
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              recipient.displayName,
-                              style: const TextStyle(
-                                color: QuantColors.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            onChanged: (v) => setSheetState(() {
-                              if (v == true) {
-                                selected.add(recipient.id);
-                              } else {
-                                selected.remove(recipient.id);
-                              }
-                            }),
-                          ),
-                      ],
-                    ),
-                  ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _selectedRecipientIds
-                          ..clear()
-                          ..addAll(selected);
-                      });
-                      Navigator.of(sheetCtx).pop();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: QuantColors.neonGreen,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text('Done'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+  Widget _buildStoryButton() {
+    return TextButton.icon(
+      onPressed: _onStory,
+      icon: const Icon(Icons.auto_stories_rounded, size: 18),
+      label: const Text(
+        'Story',
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+      style: TextButton.styleFrom(
+        foregroundColor: QuantColors.textPrimary,
+      ),
     );
   }
 
-  void _send() {
-    final audience = widget.recipients
-        .where((r) => _selectedRecipientIds.contains(r.id))
-        .toList();
+  void _onStory() {
+    // TODO: post the edited snap to the user's story once the story
+    // backend exists.
+    _showMessage('Story posting is not implemented yet.');
+  }
+
+  /// "Save a private copy" confirm sheet: the switch moved here from the
+  /// old bottom panel.
+  void _openSaveCopySheet() {
+    var save = _saveCopy;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (sheetCtx, setSheetState) => Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          decoration: const BoxDecoration(
+            color: QuantColors.darkSlateCard,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+            border: Border(
+              top: BorderSide(color: QuantColors.hairlineBorder, width: 1.5),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: QuantColors.activeBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'SAVE A PRIVATE COPY',
+                style: TextStyle(
+                  color: QuantColors.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              SwitchListTile(
+                value: save,
+                activeColor: QuantColors.neonGreen,
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  'Save a private copy',
+                  style: TextStyle(
+                    color: QuantColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Keep a copy in your private gallery before this snap '
+                  'disappears.',
+                  style: TextStyle(
+                    color: QuantColors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
+                onChanged: (v) => setSheetState(() => save = v),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(sheetCtx).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() => _saveCopy = save);
+                        Navigator.of(sheetCtx).pop();
+                        _showMessage(save
+                            ? 'Private copy will be saved with this snap.'
+                            : 'Private copy skipped.');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: QuantColors.neonGreen,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Save'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSendTo() async {
+    final result = await showModalBottomSheet<SendToResult>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => SendToSheet(
+        recipients: widget.recipients,
+        initialExpiry: _expiry,
+      ),
+    );
+    if (result == null || !mounted) return;
+    if (result.storyDestination != null) {
+      // TODO: post to the story destination once the story backend exists.
+      _showMessage('Story posting is not implemented yet.');
+      return;
+    }
+    _showMessage('Sent!');
     Navigator.of(context).pop(SnapSendResult(
       filePath: widget.capturedFilePath,
       isVideo: widget.isVideo,
-      expiry: _expiry,
-      audience: audience,
+      expiry: result.expiry,
+      audience: result.recipients,
       saveCopy: _saveCopy,
     ));
   }

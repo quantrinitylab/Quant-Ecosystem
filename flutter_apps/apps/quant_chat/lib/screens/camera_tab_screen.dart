@@ -1,15 +1,23 @@
 // Sovereign Quant Ecosystem - QuantChat Camera Tab (capture surface)
 // Strictly ZERO raw Unicode emojis throughout this file.
 // Strictly ZERO Skia clipPath calls (120Hz Impeller & Skia acceleration).
-// Phase 1A draft — reviewed against quant_theme tokens (all QuantColors names verified).
-// Corrections applied: Effects-tray toggle renders its icon; ASCII apostrophe in hint.
+// Phase 1A draft + B-recon deltas (reviewed against quant_theme tokens,
+// all QuantColors names verified against quant_theme.dart):
+// - TAP capture ring = photo; LONG-PRESS ring = video recording.
+//   The Photo/Video toggle stays as an alternative ergonomics path.
+// - Recording state: top-center tabular timer + accent progress arc around
+//   the ring + stop square inside the ring; tap ring to stop.
+// - Video stops go to a dark post-record interstitial (Undo / Preview);
+//   photos still enter the editor directly.
 
 import 'dart:async';
+import 'dart:math';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 
+import 'capture_review_screen.dart';
 import 'snap_editor_screen.dart';
 
 /// Capture mode for the camera tab.
@@ -17,9 +25,11 @@ enum CameraCaptureMode { photo, video }
 
 /// Full-screen camera tab: live preview, labelled tools, one-handed capture.
 ///
-/// After a capture the user is pushed to [SnapEditorScreen]. The editor pops
-/// a [SnapSendResult], which is forwarded through [onSnapReady] when provided.
-/// Send-to-backend wiring is a later phase; see the TODO in [_openEditor].
+/// Video captures pass through [CaptureReviewScreen] (Undo / Preview) before
+/// the editor; photos go to [SnapEditorScreen] directly. The editor pops a
+/// [SnapSendResult], which is forwarded through [onSnapReady] when provided.
+/// Send-to-backend wiring is a later phase; see the TODO in
+/// [_handleCapturedFile].
 class CameraTabScreen extends StatefulWidget {
   final List<SnapRecipient> recipients;
   final ValueChanged<SnapSendResult>? onSnapReady;
@@ -45,6 +55,11 @@ class _CameraTabScreenState extends State<CameraTabScreen>
   FlashMode _flashMode = FlashMode.off;
   bool _isRecording = false;
 
+  /// Recording timer state. The arc progress is seconds / max seconds.
+  Timer? _recordingTimer;
+  int _recordingSeconds = 0;
+  static const int _maxRecordingSeconds = 60;
+
   // Effects-tray state.
   bool _gridEnabled = false;
   bool _shutterTimerEnabled = false;
@@ -65,6 +80,7 @@ class _CameraTabScreenState extends State<CameraTabScreen>
 
   @override
   void dispose() {
+    _recordingTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
     super.dispose();
@@ -77,6 +93,12 @@ class _CameraTabScreenState extends State<CameraTabScreen>
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized) return;
     if (state == AppLifecycleState.inactive) {
+      if (_isRecording) {
+        _recordingTimer?.cancel();
+        _recordingTimer = null;
+        _isRecording = false;
+        _recordingSeconds = 0;
+      }
       unawaited(controller.dispose());
       _controller = null;
     } else if (state == AppLifecycleState.resumed) {
@@ -187,55 +209,126 @@ class _CameraTabScreenState extends State<CameraTabScreen>
     }
   }
 
-  Future<void> _onCapture() async {
-    final controller = _controller;
-    if (controller == null || !controller.value.isInitialized) return;
+  /// Tap the ring: photo in photo mode, start/stop video in video mode,
+  /// stop when a recording is running.
+  Future<void> _onCaptureTap() async {
     if (_isRecording) {
       await _stopRecording();
       return;
     }
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
     try {
       if (_mode == CameraCaptureMode.video) {
-        await controller.startVideoRecording();
-        setState(() => _isRecording = true);
-        _markToolUsed('Video');
+        await _startRecording();
       } else {
         // TODO: implement the 3s countdown shutter overlay when
         // _shutterTimerEnabled is true (see Effects tray).
         final file = await controller.takePicture();
         _markToolUsed('Photo');
-        await _openEditor(file.path, isVideo: false);
+        await _handleCapturedFile(file.path, isVideo: false);
       }
     } on CameraException catch (e) {
       _showMessage('Capture failed: ${e.description ?? e.code}');
     }
   }
 
-  Future<void> _stopRecording() async {
+  /// Long-press the ring: start a video recording in either mode.
+  Future<void> _onCaptureLongPress() async {
+    if (_isRecording) return;
+    await _startRecording();
+  }
+
+  Future<void> _startRecording() async {
     final controller = _controller;
-    if (controller == null) return;
+    if (controller == null ||
+        !controller.value.isInitialized ||
+        _isRecording) {
+      return;
+    }
     try {
-      final file = await controller.stopVideoRecording();
-      if (!mounted) return;
-      setState(() => _isRecording = false);
-      await _openEditor(file.path, isVideo: true);
+      await controller.startVideoRecording();
+      _recordingTimer?.cancel();
+      _recordingSeconds = 0;
+      _recordingTimer =
+          Timer.periodic(const Duration(seconds: 1), (timer) async {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        if (_recordingSeconds + 1 >= _maxRecordingSeconds) {
+          // TODO: surface a "max length reached" hint when stopping here.
+          await _stopRecording();
+        } else {
+          setState(() => _recordingSeconds++);
+        }
+      });
+      setState(() => _isRecording = true);
+      _markToolUsed('Video');
     } on CameraException catch (e) {
-      if (!mounted) return;
-      setState(() => _isRecording = false);
       _showMessage('Recording failed: ${e.description ?? e.code}');
     }
   }
 
-  Future<void> _openEditor(String path, {required bool isVideo}) async {
-    final result = await Navigator.of(context).push<SnapSendResult>(
-      MaterialPageRoute(
-        builder: (_) => SnapEditorScreen(
-          capturedFilePath: path,
-          isVideo: isVideo,
-          recipients: widget.recipients,
+  Future<void> _stopRecording() async {
+    final controller = _controller;
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    if (controller == null || !_isRecording) return;
+    try {
+      final file = await controller.stopVideoRecording();
+      final durationSeconds = _recordingSeconds;
+      if (!mounted) return;
+      setState(() {
+        _isRecording = false;
+        _recordingSeconds = 0;
+      });
+      await _handleCapturedFile(
+        file.path,
+        isVideo: true,
+        durationSeconds: durationSeconds,
+      );
+    } on CameraException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isRecording = false;
+        _recordingSeconds = 0;
+      });
+      _showMessage('Recording failed: ${e.description ?? e.code}');
+    }
+  }
+
+  String get _recordingLabel =>
+      '0:${_recordingSeconds.toString().padLeft(2, '0')}';
+
+  Future<void> _handleCapturedFile(
+    String path, {
+    required bool isVideo,
+    int durationSeconds = 0,
+  }) async {
+    final SnapSendResult? result;
+    if (isVideo) {
+      // Post-record interstitial: Undo / Preview before the editor.
+      result = await Navigator.of(context).push<SnapSendResult>(
+        MaterialPageRoute(
+          builder: (_) => CaptureReviewScreen(
+            filePath: path,
+            durationSeconds: durationSeconds,
+            recipients: widget.recipients,
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      result = await Navigator.of(context).push<SnapSendResult>(
+        MaterialPageRoute(
+          builder: (_) => SnapEditorScreen(
+            capturedFilePath: path,
+            isVideo: false,
+            recipients: widget.recipients,
+          ),
+        ),
+      );
+    }
     if (result == null || !mounted) return;
     // TODO: hand the SnapSendResult to the chat send pipeline
     // (upload + disappearing-message scheduling) once it exists.
@@ -469,7 +562,8 @@ class _CameraTabScreenState extends State<CameraTabScreen>
               child: IgnorePointer(child: CustomPaint(painter: _GridPainter())),
             ),
           Positioned(top: 0, left: 0, right: 0, child: _buildTopChrome()),
-          if (_recentTools.isNotEmpty)
+          if (_isRecording) _buildRecordingTimer(),
+          if (_recentTools.isNotEmpty && !_isRecording)
             Positioned(
               top: 92,
               left: 0,
@@ -488,6 +582,46 @@ class _CameraTabScreenState extends State<CameraTabScreen>
             child: _buildBottomControls(),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Top-center recording timer with tabular numerals, shown while
+  /// a video is being recorded.
+  Widget _buildRecordingTimer() {
+    return Positioned(
+      top: 60,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.55),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: QuantColors.hairlineBorder),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.fiber_manual_record_rounded,
+                color: QuantColors.statusError,
+                size: 10,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _recordingLabel,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -723,26 +857,6 @@ class _CameraTabScreenState extends State<CameraTabScreen>
               const SizedBox(width: 56),
             ],
           ),
-          if (_isRecording)
-            const Padding(
-              padding: EdgeInsets.only(top: 12),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.fiber_manual_record_rounded,
-                      color: QuantColors.statusError, size: 10),
-                  SizedBox(width: 6),
-                  Text(
-                    'Recording - tap capture to stop',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );
@@ -792,30 +906,58 @@ class _CameraTabScreenState extends State<CameraTabScreen>
     );
   }
 
+  /// Capture ring: tap = photo (or start/stop video), long-press = video.
+  /// While recording, an accent progress arc wraps the ring and a stop
+  /// square sits inside it.
   Widget _buildCaptureButton() {
     return GestureDetector(
-      onTap: _onCapture,
-      child: Container(
-        width: 78,
-        height: 78,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: _isRecording
-                ? QuantColors.statusError
-                : QuantColors.neonGreen,
-            width: 4,
-          ),
-        ),
-        child: Center(
-          child: Container(
-            width: 62,
-            height: 62,
-            decoration: BoxDecoration(
-              color: _isRecording ? QuantColors.statusError : Colors.white,
-              shape: BoxShape.circle,
-            ),
-          ),
+      onTap: _onCaptureTap,
+      onLongPress: _onCaptureLongPress,
+      child: SizedBox(
+        width: 92,
+        height: 92,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (_isRecording)
+              CustomPaint(
+                size: const Size(92, 92),
+                painter: _RecordingArcPainter(
+                  progress: _recordingSeconds / _maxRecordingSeconds,
+                ),
+              )
+            else
+              Container(
+                width: 78,
+                height: 78,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: QuantColors.neonGreen,
+                    width: 4,
+                  ),
+                ),
+              ),
+            if (_isRecording)
+              // Stop square: tapping it stops the recording.
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(7),
+                ),
+              )
+            else
+              Container(
+                width: 62,
+                height: 62,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -852,6 +994,44 @@ class _CameraTabScreenState extends State<CameraTabScreen>
       ),
     );
   }
+}
+
+/// Progress arc around the capture ring while recording.
+/// Uses drawArc only - no clipPath calls.
+class _RecordingArcPainter extends CustomPainter {
+  final double progress;
+
+  const _RecordingArcPainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 5;
+    final track = Paint()
+      ..color = Colors.white.withOpacity(0.25)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5;
+    canvas.drawCircle(center, radius, track);
+    final arc = Paint()
+      ..color = QuantColors.statusError
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    final sweep = progress.clamp(0.0, 1.0) * 2 * pi;
+    if (sweep > 0) {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        -pi / 2,
+        sweep,
+        false,
+        arc,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RecordingArcPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
 
 /// First-use overlay painter: dimmed scrim with an oval face guide.
