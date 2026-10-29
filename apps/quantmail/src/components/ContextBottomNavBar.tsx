@@ -132,6 +132,26 @@ function ArchiveIcon({ className }: { className?: string; active?: boolean }) {
   );
 }
 
+// Search icon, drawn for this bar in the same 1.8-stroke style — own
+// artwork, not copied from any competitor icon.
+function SearchIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  );
+}
+
 // SIA-P1-5: folder icons matching the drawer glyph set, same 1.8 stroke.
 function DraftsIcon({ className }: { className?: string; active?: boolean }) {
   return (
@@ -780,6 +800,17 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         targetPath: '/archive',
       },
       {
+        // Mail Search slice (Phase 1.3): /search is the mail pillar's
+        // search surface, so it gets a primary one-tap tab instead of
+        // living only behind the keyboard shortcut and the inbox's
+        // "Search" button. Primary, not mobileOverflow: search is a
+        // destination, not a folder that only joins the bar while active.
+        id: 'search',
+        label: 'Search',
+        icon: SearchIcon,
+        targetPath: '/search',
+      },
+      {
         id: 'spam',
         mobileOverflow: true,
         label: 'Spam',
@@ -1056,6 +1087,7 @@ export function resolveActiveTab(
   const lensParam = searchParams?.get('lens');
 
   if (pillar === 'mail') {
+    if (pathname.startsWith('/search')) return 'search';
     if (pathname.startsWith('/sent') || tabParam === 'sent') return 'sent';
     if (pathname.startsWith('/scheduled')) return 'scheduled';
     if (pathname.startsWith('/archive') || tabParam === 'archive') return 'archive';

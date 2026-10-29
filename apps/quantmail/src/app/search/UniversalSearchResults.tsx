@@ -11,6 +11,12 @@
 
 import { useRouter } from 'next/navigation';
 import { EmptyState } from '@quant/shared-ui';
+import {
+  SEARCH_COUNT_BANNER,
+  describeSearchCountLabel,
+  describeSearchEmpty,
+  selectTopResultSlots,
+} from '../../lib/search-results-label';
 import type {
   UniversalSearchResults,
   UniversalSearchScope,
@@ -245,10 +251,13 @@ export function UniversalSearchResults({
   results,
   scope,
   onOpenMail,
+  onReset,
 }: {
   results: UniversalSearchResults;
   scope: UniversalSearchScope;
   onOpenMail: (email: Email) => void;
+  /** Reset action for the no-result state; omitted when the caller has none. */
+  onReset?: () => void;
 }) {
   const showAll = scope === 'all';
   const sections: React.ReactNode[] = [];
@@ -340,19 +349,83 @@ export function UniversalSearchResults({
 
   if (totalHits === 0 && !anyError) {
     return (
-      <EmptyState
-        title="No results"
-        description={`Nothing across mail, people, calendar, or drive matched “${results.query}”.`}
-      />
+      <div className="p-4">
+        <EmptyState
+          title="No results"
+          description={describeSearchEmpty({ query: results.query, scope })}
+          actionLabel={onReset ? 'Reset search' : undefined}
+          onAction={onReset}
+        />
+      </div>
     );
   }
 
+  // Top Results (scope='all' only): first matches from each source, in
+  // source order — there is no ranking signal in this answer, so the
+  // caption says exactly that instead of implying "best matches". The
+  // per-source sections below stay the full answer; this section is a
+  // short head, not a second count (the count line above counts each
+  // hit once, across all sections).
+  const topSlots = showAll
+    ? selectTopResultSlots({
+        mail: results.mail.items.length,
+        people: results.people.items.length,
+        calendar: results.calendar.items.length,
+        driveDocuments: results.drive.documents.length,
+        driveFiles: results.drive.files.length,
+      })
+    : null;
+  const hasTopResults =
+    topSlots !== null &&
+    (topSlots.mail > 0 ||
+      topSlots.people > 0 ||
+      topSlots.calendar > 0 ||
+      topSlots.driveDocuments > 0 ||
+      topSlots.driveFiles > 0);
+  const topSection = hasTopResults && topSlots ? (
+    <div className="mb-5">
+      <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-[var(--quant-muted-foreground)]">
+        Top results
+      </h3>
+      <p className="mb-2 px-1 text-[11px] text-[var(--quant-muted-foreground)]">
+        First matches from each source, in source order — not a relevance ranking.
+      </p>
+      <div className={listClass}>
+        {results.mail.items.slice(0, topSlots.mail).map((email) => (
+          <MailRow key={`top-mail-${email.id}`} email={email} onOpen={onOpenMail} />
+        ))}
+        {results.people.items.slice(0, topSlots.people).map((person) => (
+          <PersonRow key={`top-person-${person.id}`} person={person} />
+        ))}
+        {results.calendar.items.slice(0, topSlots.calendar).map((event) => (
+          <EventRow key={`top-event-${event.id}`} event={event} />
+        ))}
+        {results.drive.documents.slice(0, topSlots.driveDocuments).map((doc) => (
+          <DocumentRow key={`top-doc-${doc.id}`} doc={doc} />
+        ))}
+        {results.drive.files.slice(0, topSlots.driveFiles).map((file) => (
+          <FileRow key={`top-file-${file.id}`} file={file} />
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className="p-4">
-      <p className="mb-3 px-1 text-xs text-[var(--quant-muted-foreground)]">
-        {totalHits}{' '}result{totalHits !== 1 ? 's' : ''}{' '}for “{results.query}”
-        {anyError ? ' — some sources could not be searched' : ''} across mail, people, calendar, drive.
-      </p>
+      <div className="mb-3 px-1" role="status">
+        <p className="text-xs text-[var(--quant-muted-foreground)]">
+          {describeSearchCountLabel({
+            query: results.query,
+            scope,
+            total: totalHits,
+            partial: Boolean(anyError),
+          })}
+        </p>
+        <p className="mt-0.5 text-[11px] text-[var(--quant-muted-foreground)]">
+          {SEARCH_COUNT_BANNER}
+        </p>
+      </div>
+      {topSection}
       {sections}
     </div>
   );

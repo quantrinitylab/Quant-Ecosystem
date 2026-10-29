@@ -46,6 +46,7 @@ describe('QM-MOBILE-QUANTY-TAB — Quanty in the mobile Mail bottom bar', () => 
   it('mobile Mail config wires the logoOnly Quanty slot in the second position', () => {
     const tabs = mobile.PILLAR_SUB_CONFIGS.mail.tabs;
     const ids = tabs.map((t) => t.id);
+    // Search added after Archive by the Mail Search slice (Phase 1.3).
     expect(ids).toEqual([
       'inbox',
       'quanty',
@@ -53,6 +54,7 @@ describe('QM-MOBILE-QUANTY-TAB — Quanty in the mobile Mail bottom bar', () => 
       'scheduled',
       'drafts',
       'archive',
+      'search',
       'spam',
       'trash',
     ]);
@@ -123,7 +125,8 @@ describe('QM-MOBILE-QUANTY-TAB — Quanty in the mobile Mail bottom bar', () => 
     const quanty = mobile.PILLAR_SUB_CONFIGS.mail.tabs.find((t) => t.id === 'quanty')!;
     expect(quanty.mobileOverflow).toBeFalsy();
     const primary = mobile.PILLAR_SUB_CONFIGS.mail.tabs.filter((t) => !t.mobileOverflow);
-    expect(primary.map((t) => t.id)).toEqual(['inbox', 'quanty', 'sent', 'drafts', 'archive']);
+    // Search joined the primary slots with the Mail Search slice (Phase 1.3).
+    expect(primary.map((t) => t.id)).toEqual(['inbox', 'quanty', 'sent', 'drafts', 'archive', 'search']);
   });
 
   it('QM-FIX mobile-nav-quanty-dead: QuantGit pillar defines no quanty tab', () => {

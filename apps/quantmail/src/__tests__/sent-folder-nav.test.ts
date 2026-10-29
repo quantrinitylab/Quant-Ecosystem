@@ -103,9 +103,11 @@ describe('QM-UIUX-082 — Sent folder in the live navigation', () => {
     ).toBe('spam');
   });
 
-  it('mobile bottom nav (ContextBottomNavBar) lists Inbox, Quanty, Sent, Scheduled, Drafts, Archive, Spam, Trash in order', () => {
+  it('mobile bottom nav (ContextBottomNavBar) lists Inbox, Quanty, Sent, Scheduled, Drafts, Archive, Search, Spam, Trash in order', () => {
     const ids = mobile.PILLAR_SUB_CONFIGS.mail.tabs.map((t) => t.id);
-    expect(ids).toEqual(['inbox', 'quanty', 'sent', 'scheduled', 'drafts', 'archive', 'spam', 'trash']);
+    // Search added by the Mail Search slice (Phase 1.3) as a primary tab
+    // after Archive; the desktop list above is unchanged.
+    expect(ids).toEqual(['inbox', 'quanty', 'sent', 'scheduled', 'drafts', 'archive', 'search', 'spam', 'trash']);
   });
 
   it('mobile Sent tab targets the real /sent route with no fake badge', () => {
