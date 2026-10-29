@@ -2669,6 +2669,53 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       // Check BranchProtection rules on target branch (Task G05)
       const protectionRule = await getBranchProtectionRule(prisma, repo.id, pr.targetBranch);
       if (protectionRule) {
+        // GitHub parity (GH006): an outstanding "Request changes" review
+        // blocks the merge until the SAME reviewer approves the changes or
+        // the review is dismissed. The approval COUNT alone cannot express
+        // this: a PR with one approver plus one changes-requester satisfies
+        // requiredApprovals yet must not merge. Per reviewer, only the
+        // latest decisive verdict counts — COMMENTED/PENDING reviews never
+        // create or clear a block, a later approval from the same reviewer
+        // clears it, and dismissed reviews never block (same rule as the
+        // approval count below). The PR author is excluded, matching the
+        // approval count: self-reviews cannot block (or approve) a merge.
+        // This check runs before the count check and is NOT gated on
+        // requiredApprovals: a protected branch with requiredApprovals: 0
+        // still honors an outstanding changes-request.
+        if (prisma.review?.findMany) {
+          const decisiveReviews = await prisma.review.findMany({
+            where: {
+              prId: pr.id,
+              status: { in: ['APPROVED', 'CHANGES_REQUESTED'] },
+              reviewerId: { not: pr.authorId },
+              dismissed: { not: true },
+            },
+            include: {
+              reviewer: { select: { username: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+          const latestByReviewer = new Map<string, any>();
+          for (const review of decisiveReviews) {
+            if (!latestByReviewer.has(review.reviewerId)) {
+              latestByReviewer.set(review.reviewerId, review);
+            }
+          }
+          const blockingRequesters: string[] = [];
+          for (const review of latestByReviewer.values()) {
+            if (review.status === 'CHANGES_REQUESTED') {
+              blockingRequesters.push(review.reviewer?.username ?? review.reviewerId);
+            }
+          }
+          if (blockingRequesters.length > 0) {
+            throw createAppError(
+              `Changes have been requested by ${blockingRequesters.join(', ')} — this pull request cannot be merged until they approve the changes or the review is dismissed`,
+              403,
+              'CHANGES_REQUESTED',
+            );
+          }
+        }
+
         if (protectionRule.requiredApprovals > 0) {
           // Dismissed (stale) approvals never count: an approval revoked by a
           // later push must be re-issued on the new head (GitHub parity).
