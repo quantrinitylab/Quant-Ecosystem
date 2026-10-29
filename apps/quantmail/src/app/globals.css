@@ -1376,7 +1376,10 @@ body {
   caret-color: #fff;
   transition: background-color 9999s ease-in-out 0s, color 9999s ease-in-out 0s;
 }
-.auth-shell-mobile-brand { display: none; }.auth-shell-brand { position: relative; min-height: 100dvh; overflow: hidden; border-right: 1px solid rgba(255,255,255,.075); }
+/* No-divider lock (privacy divider fix): the brand column has no border-right
+   separator and the brand footer has no border-top — the two panels are
+   separated by their backgrounds + spacing only. Do not re-add hairlines here. */
+.auth-shell-mobile-brand { display: none; }.auth-shell-brand { position: relative; min-height: 100dvh; overflow: hidden; }
 .auth-shell-form { position: relative; display: flex; min-height: 100dvh; align-items: center; overflow: hidden; padding: 3rem clamp(2rem, 5vw, 5.2rem); background: #0b0b0c; }
 .auth-shell-form-grid, .auth-brand-grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px); background-size: 44px 44px; mask-image: linear-gradient(to bottom, black, transparent 78%); }
 .auth-shell-form-glow { position: absolute; inset: -12rem -14rem auto auto; width: 36rem; height: 36rem; border-radius: 50%; background: radial-gradient(circle, var(--quant-accent-faint), transparent 68%); }
@@ -1407,7 +1410,7 @@ body {
 .auth-proof-topline { display: flex; align-items: center; justify-content: space-between; padding: .9rem 1rem; border-bottom: 1px solid rgba(255,255,255,.07); color: #A1A4AC; font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; }.auth-proof-topline > div { display: flex; align-items: center; gap: .5rem; color: #c8c8c8; }.auth-proof-pulse { width: .4rem; height: .4rem; border-radius: 50%; background: var(--quant-primary); box-shadow: 0 0 10px rgba(255, 140, 66,.7); }
 .auth-preview-row { display: grid; grid-template-columns: 2rem minmax(0,1fr) auto; align-items: center; gap: .65rem; padding: .75rem 1rem; border-bottom: 1px solid rgba(255,255,255,.055); }.auth-preview-row.is-active { background: linear-gradient(90deg, var(--quant-accent-faint), transparent); }.auth-preview-avatar { display: grid; width: 1.8rem; height: 1.8rem; place-items: center; border: 1px solid rgba(255,255,255,.08); border-radius: .55rem; background: #222225; color: #bdbdc1; font-size: .65rem; font-weight: 700; }.auth-preview-row strong { color: #c7c7c9; font-size: .64rem; }.auth-preview-row p { margin-top: .18rem; color: #99999e; font-size: .64rem; }.auth-preview-row p span { color: #83838A; }.auth-preview-row time { color: #A1A4AC; font-size: var(--q-type-xs); }
 .auth-proof-footer { display: flex; gap: .45rem; padding: .7rem 1rem; }.auth-proof-footer span { border-radius: 999px; padding: .22rem .5rem; background: rgba(255,255,255,.04); color: #A1A4AC; font-size: var(--q-type-xs); }
-.auth-brand-desktop > footer { display: flex; justify-content: space-between; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,.07); color: #A1A4AC; font-size: .63rem; letter-spacing: .1em; text-transform: uppercase; }
+.auth-brand-desktop > footer { display: flex; justify-content: space-between; padding-top: 1rem; color: #A1A4AC; font-size: .63rem; letter-spacing: .1em; text-transform: uppercase; }
 
 /* ---- v2: honest feature cards (replaces the fabricated demo-inbox proof card) ---- */
 .auth-feature-cards { display: grid; gap: .8rem; max-width: 36rem; margin-top: 2.2rem; }
@@ -1600,13 +1603,10 @@ body {
   transform: rotateX(1deg) rotateY(3deg) translateZ(8px) scale(1.025);
 }
 
-.auth-brand-panel::after {
-  position: absolute;
-  inset: auto 8% 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 140, 66,.44), rgba(255,255,255,.18), rgba(19,136,8,.44), transparent);
-  content: '';
-}
+/* No-divider lock (privacy divider fix): the brand panel carries no bottom
+   rule — the former ::after 1px gradient line read as a divider across the
+   /privacy + /terms + auth surfaces on desktop and under the mobile brand
+   strip. Spacing, not lines, separates the panel from what follows. */
 
 @media (max-width: 1023px) {
   .quantmail-root section[data-theme]:has(.quant-sidebar) > div > header {
