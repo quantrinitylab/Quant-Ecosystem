@@ -94,6 +94,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
   // Phase 1B — screenshot notice wiring (detection + notice only).
   final _ScreenshotWatch _screenshotWatch = _ScreenshotWatch();
 
+  // Mobbin Flow-4: screenshot/record system notices render as stacked
+  // DISMISSIBLE pills above the date divider, never as chat bubbles.
+  // The ids here are permanently dismissed for this thread view.
+  final Set<String> _dismissedNoticeIds = <String>{};
+
   // Voice memo recording state
   bool _isRecordingVoiceMemo = false;
   int _recordingDurationSeconds = 0;
@@ -406,12 +411,135 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   /// Reports a screenshot of the currently-viewed snap. The backend posts
   /// the in-thread system notice ("<name> took a screenshot", Task 14.10),
-  /// which this client renders via _buildSystemNotice.
+  /// which this client renders as a dismissible pill in _buildNoticeBanner.
   /// Detection + notice ONLY — never prevention.
   void _reportScreenshot(String messageId) {
     // TODO(transport): POST /conversations/messages/:messageId/screenshot
     // once the API client exists in this tree.
     _transportNotWiredNotice('Screenshot notice');
+  }
+
+  /// System notices currently visible as banner pills (Mobbin Flow-4):
+  /// screenshot/record notices posted by the backend (Task 14.10), minus
+  /// any the user dismissed.
+  List<ChatMessage> _visibleNotices() {
+    return _messages
+        .where((m) => m.type == MessageType.system && !_dismissedNoticeIds.contains(m.id))
+        .toList();
+  }
+
+  void _dismissNotice(String messageId) {
+    setState(() {
+      _dismissedNoticeIds.add(messageId);
+    });
+  }
+
+  /// Stacked dismissible notice pills + the TODAY divider (Mobbin Flow-4).
+  /// Renders above the message stream: screenshot/record notices are
+  /// detection + notice only — never prevention.
+  Widget _buildNoticeBanner() {
+    final notices = _visibleNotices();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final n in notices)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: QuantColors.darkSlateCard,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: QuantColors.hairlineBorder),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.visibility_rounded, size: 14, color: QuantColors.moltenOrange),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      n.text,
+                      style: const TextStyle(
+                        color: QuantColors.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => _dismissNotice(n.id),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.close_rounded, size: 14, color: QuantColors.textMuted),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        // Date divider (Mobbin Flow-4): notice pills sit above it.
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              const Expanded(child: Divider(color: QuantColors.hairlineBorder, thickness: 1)),
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: QuantColors.darkSlateCard,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: QuantColors.hairlineBorder),
+                ),
+                child: const Text(
+                  'TODAY',
+                  style: TextStyle(
+                    color: QuantColors.textMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ),
+              const Expanded(child: Divider(color: QuantColors.hairlineBorder, thickness: 1)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// TODAY divider without any notice pills (keeps thread chrome
+  /// consistent when there is nothing to announce).
+  Widget _buildDateDividerOnly() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          const Expanded(child: Divider(color: QuantColors.hairlineBorder, thickness: 1)),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: QuantColors.darkSlateCard,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: QuantColors.hairlineBorder),
+            ),
+            child: const Text(
+              'TODAY',
+              style: TextStyle(
+                color: QuantColors.textMuted,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+          const Expanded(child: Divider(color: QuantColors.hairlineBorder, thickness: 1)),
+        ],
+      ),
+    );
   }
 
   /// True for a view-once snap the recipient has not opened yet.
@@ -799,6 +927,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
             // Disappearing Messages Status Bar (if active)
             if (_isDisappearingMode) _buildDisappearingModeNotice(),
 
+            // Mobbin Flow-4: stacked dismissible notice pills above the
+            // TODAY divider, ahead of the message stream.
+            if (_visibleNotices().isNotEmpty) _buildNoticeBanner() else _buildDateDividerOnly(),
+
             // Message Stream
             Expanded(
               child: ListView.builder(
@@ -1026,11 +1158,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   Widget _buildMessageItem(ChatMessage msg) {
-    // In-thread system notices (e.g. "<name> took a screenshot", posted by
-    // the backend screenshot endpoint) render as centered captions, never
-    // as chat bubbles.
+    // Mobbin Flow-4: screenshot/record system notices live in the
+    // dismissible banner stack above the date divider (see
+    // _buildNoticeBanner), never as inline bubbles.
     if (msg.type == MessageType.system) {
-      return _buildSystemNotice(msg);
+      return const SizedBox.shrink();
     }
     if (msg.isOutgoing) {
       return _buildOutgoingBubble(msg);
@@ -1151,6 +1283,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                // Mobbin Flow-4: outgoing view-once snaps lead with the
+                // glyph + label status row (Delivered / Opened).
+                if (msg.isViewOnce && !msg.isServerDestroyed && !msg.isRevoked)
+                  _buildSentSnapStatusRow(msg),
+
                 // Disappearing message timer header (if applicable)
                 if (msg.isDisappearing) _buildDisappearingHeader(msg),
 
@@ -1282,7 +1419,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
         color: QuantColors.statusError,
       );
     }
-    if (msg.hasBeenViewed) {
+    // View-once messages say "Opened" via the status row above — the
+    // generic "Viewed" chip is for timer-based disappearing messages.
+    if (msg.hasBeenViewed && !msg.isViewOnce) {
       return _buildSnapStateChip(
         icon: Icons.visibility_rounded,
         label: 'Viewed',
@@ -1377,42 +1516,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
-  /// Centered in-thread system notice (Phase 1B). The backend posts these
-  /// for screenshot detection ("<name> took a screenshot", Task 14.10).
-  /// Detection + notice only — never prevention.
-  Widget _buildSystemNotice(ChatMessage msg) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: QuantColors.darkSlateCard,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: QuantColors.hairlineBorder),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.info_outline_rounded, size: 12, color: QuantColors.textMuted),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  msg.text,
-                  style: const TextStyle(
-                    color: QuantColors.textMuted,
-                    fontSize: 11,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   /// Expiry badge shown BEFORE a view-once snap is opened (and on other
   /// disappearing messages). Icon + text only — never the content.
   Widget _buildExpiryBadge(ChatMessage msg) {
@@ -1443,64 +1546,69 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
-  /// Placeholder bubble for an unopened view-once snap: the expiry badge is
-  /// VISIBLE, the content is NOT. Tapping opens the snap and starts the
-  /// view timer.
+  /// Unopened view-once snap as a full-width media status row (Mobbin
+  /// Flow-4): leading square glyph + "Tap to view" label. The expiry badge
+  /// stays VISIBLE (Phase 1B differentiator — our spec wins here); the
+  /// content is NEVER shown. Tapping the row opens the snap full-screen
+  /// and starts the view timer.
   Widget _buildUnopenedSnapPlaceholder(ChatMessage msg) {
     return GestureDetector(
       onTap: () => _openSnap(msg),
+      behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        child: Row(
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: QuantColors.moltenOrange.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: QuantColors.moltenOrange.withOpacity(0.6),
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.visibility_rounded,
-                    color: QuantColors.moltenOrange,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'View-once snap',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Tap to view · ${_formatExpiryLabel(msg)}',
-                      style: const TextStyle(
-                        color: QuantColors.textMuted,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+            const Icon(
+              Icons.crop_square_rounded,
+              color: QuantColors.moltenOrange,
+              size: 20,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(width: 10),
+            const Text(
+              'Tap to view',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const Spacer(),
             _buildExpiryBadge(msg),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Outgoing view-once snap status row (Mobbin Flow-4): leading arrow
+  /// glyph + "Delivered" (sent, unopened) or "Opened" (viewed). The expiry
+  /// badge stays visible until the snap is gone (Phase 1B spec wins).
+  Widget _buildSentSnapStatusRow(ChatMessage msg) {
+    final viewed = msg.hasBeenViewed;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.arrow_upward_rounded,
+            size: 13,
+            color: viewed ? QuantColors.sovereignCyan : QuantColors.textMuted,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            viewed ? 'Opened' : 'Delivered',
+            style: TextStyle(
+              color: viewed ? QuantColors.sovereignCyan : QuantColors.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 8),
+          _buildExpiryBadge(msg),
+        ],
       ),
     );
   }
@@ -1765,10 +1873,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Attachment Button
+          // Mobbin Flow-4: the camera action is FIRST in the composer.
+          // This build has no dedicated capture surface yet (camera tab is
+          // Phase 1A); it opens the media sheet's camera path meanwhile.
           IconButton(
-            icon: const Icon(Icons.add_circle_outline_rounded, color: QuantColors.textSecondary, size: 24),
-            tooltip: 'Share Media & Data',
+            icon: const Icon(Icons.photo_camera_rounded, color: QuantColors.textSecondary, size: 24),
+            tooltip: 'Capture',
             onPressed: _openMediaSheet,
           ),
 
@@ -1844,6 +1954,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
             icon: const Icon(Icons.mic_rounded, color: QuantColors.moltenOrange, size: 24),
             tooltip: 'Record Voice Memo',
             onPressed: _startVoiceMemoRecording,
+          ),
+
+          // Mobbin Flow-4: the attachment (+) action sits after mic,
+          // before send.
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline_rounded, color: QuantColors.textSecondary, size: 24),
+            tooltip: 'Share Media & Data',
+            onPressed: _openMediaSheet,
           ),
 
           // Send Button
