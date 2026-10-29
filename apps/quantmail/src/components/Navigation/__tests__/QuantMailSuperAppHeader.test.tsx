@@ -100,6 +100,42 @@ describe('QuantMailSuperAppHeader — Amazon/Flipkart-Class Super-App Command He
       expect(html).toContain('aria-label="User Profile: Abhishek Kumar"');
     });
 
+    it('renders NO presence dot on the profile avatar without a real presence signal', () => {
+      // Regression guard (avatar presence fabrication): the avatar used to
+      // render an unconditional emerald "Online status" dot whenever
+      // userName/userInitials were passed, although no presence source
+      // exists anywhere in the app. Without isOnline, no dot may appear.
+      const html = renderToStaticMarkup(
+        <QuantMailSuperAppHeader userInitials="AK" userName="Abhishek Kumar" />
+      );
+      expect(html).toContain('aria-label="User Profile: Abhishek Kumar"');
+      expect(html).not.toContain('aria-label="Online"');
+      expect(html).not.toContain('aria-label="Online status"');
+    });
+
+    it('renders NO presence dot when isOnline is explicitly false', () => {
+      const html = renderToStaticMarkup(
+        <QuantMailSuperAppHeader
+          userInitials="AK"
+          userName="Abhishek Kumar"
+          isOnline={false}
+        />
+      );
+      expect(html).not.toContain('aria-label="Online"');
+    });
+
+    it('renders the presence dot ONLY when a real presence signal sets isOnline', () => {
+      const html = renderToStaticMarkup(
+        <QuantMailSuperAppHeader
+          userInitials="AK"
+          userName="Abhishek Kumar"
+          isOnline
+        />
+      );
+      expect(html).toContain('aria-label="Online"');
+      expect(html).toContain('bg-emerald-500');
+    });
+
     it('bell announces NO count when the host omits unreadNotifications (no phantom "0 unread")', () => {
       const html = renderToStaticMarkup(<QuantMailSuperAppHeader />);
 
