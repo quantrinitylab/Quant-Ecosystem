@@ -10,7 +10,7 @@ const upsertResponderSchema = z.object({
   startAt: z.coerce.date().nullable().optional(),
   endAt: z.coerce.date().nullable().optional(),
   onlyContacts: z.boolean().optional(),
-  intervalDays: z.coerce.number().int().min(0).optional(),
+  intervalDays: z.coerce.number().int().min(1).optional(),
 });
 
 export default async function vacationResponderRoutes(fastify: FastifyInstance) {
