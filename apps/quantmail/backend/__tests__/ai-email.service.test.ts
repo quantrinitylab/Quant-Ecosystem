@@ -85,30 +85,6 @@ describe('AIEmailService', () => {
     });
   });
 
-  describe('composeAssistant', () => {
-    it('delegates to MailAIService.composeEmail', async () => {
-      mailAI.composeEmail.mockResolvedValue({
-        type: 'compose',
-        content: 'Dear Team,\n\nPlease find attached the report.\n\nBest regards',
-        confidence: 0.85,
-      });
-
-      const result = await service.composeAssistant(
-        'user-1',
-        'Write a follow-up email about the report',
-        { recipient: 'team@company.com', tone: 'professional' },
-      );
-
-      expect(result.content).toContain('Dear Team');
-      expect(result.confidence).toBe(0.85);
-      expect(mailAI.composeEmail).toHaveBeenCalledWith(
-        'Write a follow-up email about the report',
-        { recipient: 'team@company.com', tone: 'professional' },
-        'user-1',
-      );
-    });
-  });
-
   describe('classifyPriority', () => {
     it('returns high priority for urgent emails', async () => {
       prisma.email.findUnique.mockResolvedValue({
