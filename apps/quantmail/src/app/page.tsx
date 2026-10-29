@@ -40,7 +40,12 @@ import {
   type SelectableCategory,
 } from '../lib/category-filter';
 import { CategoryPicker } from '../components/CategoryPicker';
-import { deriveFilterChip } from '../lib/filter-chip';
+import {
+  deriveFilterPills,
+  describeEmptyView,
+  removeFilterPill,
+  type FilterPill,
+} from '../lib/filter-pill';
 import { AppSidebar } from '../components/AppSidebar';
 import { EmailSnooze } from '../components/EmailSnooze';
 import { AnchoredMenu } from '../components/AnchoredMenu';
@@ -2866,19 +2871,39 @@ function InboxPageContent() {
   const categoryPills = useMemo(() => deriveCategoryPills(activeCategories), [activeCategories]);
 
   /**
-   * U3.2: the single active chip beside the Filter trigger. Derived
-   * solely from `activeTurn` + `activeFilters` (see `filter-chip.ts`):
-   * it holds no state, filters nothing, and is `null` — unrendered —
-   * at zero narrowings. Search `q` and the active lens are not inputs,
-   * so the chip never counts a search and persists across lens changes
-   * (lens switches clear `q` only, not turn/filters). Activating it
-   * only opens the existing Filter popover below; the footer's
-   * "Clear N narrowing(s)" remains the sole clear path.
+   * U3.3: removable applied-filter pills replacing the U3.2 single
+   * chip beside the Filter trigger. Derived solely from `activeTurn`
+   * + `activeFilters` (see `filter-pill.ts`): one pill per narrowing,
+   * turn first, then filters in canonical order. A pill holds no
+   * state and filters nothing. Search `q` and the active lens are
+   * not inputs, so pills never count a search and persist across
+   * lens changes (lens switches clear `q` only, not turn/filters).
+   * A pill's X removes ONLY that narrowing (`removeFilterPill`);
+   * the popover footer's "Clear N narrowing(s)" remains the
+   * clear-all path. The U3.2 chip is gone — there is no second
+   * display of the same state doing the same job.
    */
-  const filterChip = useMemo(
-    () => deriveFilterChip(activeTurn, activeFilters, narrowingCount),
-    [activeTurn, activeFilters, narrowingCount],
+  const filterPills = useMemo(
+    () => deriveFilterPills(activeTurn, activeFilters),
+    [activeTurn, activeFilters],
   );
+
+  /** U3.3: remove exactly one pill's narrowing, nothing else. */
+  const removeFilterPillByKey = useCallback(
+    (pill: FilterPill) => {
+      const next = removeFilterPill(activeTurn, activeFilters, pill);
+      setActiveTurn(next.turn);
+      setActiveFilters(next.filters);
+      setShowArchivedView(false);
+    },
+    [activeTurn, activeFilters],
+  );
+
+  /** U3.3: clear turn + filters only; the lens stays where it is. */
+  const clearNarrowingsOnly = useCallback(() => {
+    setActiveTurn('any');
+    setActiveFilters(new Set());
+  }, []);
 
   /** What the archived shelf calls the population it is counting. */
   const viewLabel = useMemo(() => {
@@ -4004,34 +4029,62 @@ function InboxPageContent() {
             )}
             <div className="relative shrink-0 flex items-center gap-1.5" ref={filterMenuRef}>
               {/*
-                U3.2: one active chip beside the Filter trigger, rendered
-                only while a narrowing is on. It is a second disclosure
-                for the SAME popover, not a second trigger: it sets the
-                same `isFilterMenuOpen` state, points at the same panel
-                id, and is dismissed by the same outside-click/Escape
-                effect (Escape returns focus to the Filter trigger, as
-                before). It clears nothing and filters nothing.
-                390px: the label truncates with an ellipsis inside a
-                capped chip (full label in `title` + aria-label) so the
-                chip cannot push the trigger or the U3.1 folder row off
-                the strip; the count badge never truncates.
+                U3.3: removable applied-filter pills beside the Filter
+                trigger, replacing the U3.2 single chip (which is
+                deleted with its tests — one display of this state, not
+                two). Each pill is a span, not a nested button: its
+                label button opens the SAME Filter popover below (same
+                `isFilterMenuOpen` state, same panel id, same
+                outside-click/Escape effect; Escape returns focus to
+                the Filter trigger, as before), and its X button
+                removes ONLY that pill's narrowing. The popover
+                footer's "Clear N narrowing(s)" remains the clear-all
+                path. Pills never filter and never count a search.
+                390px: the row is horizontally scrollable
+                (`overflow-x-auto`, pills `shrink-0`, trigger
+                `shrink-0` outside it), so pills can never push the
+                trigger or the U3.1 folder row off the strip and no
+                control is clipped — a +N overflow menu was rejected
+                here because it would hide the very X buttons that
+                make pills removable. Each pill is 44px tall on touch
+                widths (min-h-[44px] on the row's buttons via the X
+                target below) and its X is a separate 28px+ target.
               */}
-              {filterChip && (
-                <button
-                  type="button"
-                  onClick={() => setIsFilterMenuOpen(true)}
-                  aria-expanded={isFilterMenuOpen}
-                  aria-controls={isFilterMenuOpen ? filterPanelId : undefined}
-                  aria-label={`Show active filters: ${filterChip.label}, ${filterChip.count} narrowing${filterChip.count === 1 ? '' : 's'}`}
-                  title={filterChip.label}
-                  className="inline-flex items-center gap-1.5 px-2.5 min-h-[34px] max-w-[160px] sm:max-w-none rounded-full text-xs font-semibold whitespace-nowrap bg-[var(--quant-primary)]/12 text-[var(--quant-primary)] border border-[var(--quant-primary)]/35 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              {filterPills.length > 0 && (
+                <div
+                  role="list"
+                  aria-label="Active filters"
+                  className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto"
                 >
-                  <IconFilter size={13} className="shrink-0" />
-                  <span className="truncate">{filterChip.label}</span>
-                  <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded-full font-semibold leading-tight bg-[var(--quant-primary)]/20 text-[var(--quant-primary-hover)]">
-                    {filterChip.count}
-                  </span>
-                </button>
+                  {filterPills.map((pill) => (
+                    <span
+                      key={pill.key}
+                      role="listitem"
+                      className="inline-flex shrink-0 items-center gap-1 pl-2.5 pr-1 min-h-[34px] rounded-full text-xs font-semibold whitespace-nowrap bg-[var(--quant-primary)]/12 text-[var(--quant-primary)] border border-[var(--quant-primary)]/35"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setIsFilterMenuOpen(true)}
+                        aria-expanded={isFilterMenuOpen}
+                        aria-controls={isFilterMenuOpen ? filterPanelId : undefined}
+                        aria-label={`Show filter options for ${pill.label}`}
+                        title={pill.label}
+                        className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded-full"
+                      >
+                        {pill.label}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeFilterPillByKey(pill)}
+                        aria-label={`Remove ${pill.label} filter`}
+                        title={`Remove ${pill.label}`}
+                        className="inline-flex items-center justify-center min-w-[28px] min-h-[28px] rounded-full text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                      >
+                        <IconX size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
               )}
               <button
                 type="button"
@@ -4715,19 +4768,51 @@ function InboxPageContent() {
                       <div className="size-12 rounded-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] flex items-center justify-center mx-auto mb-1">
                         <IconFilter size={22} />
                       </div>
-                      <h3 className="text-base font-bold text-white">Nothing in this view</h3>
+                      {/*
+                        U3.3: QuantWorkplace's own filtered-empty state
+                        (NOT claimed as an Outlook copy — no filtered
+                        zero-match state was captured for Outlook).
+                        When narrowings are on, the state names the
+                        active lens + pills (via `describeEmptyView`)
+                        so a zero-match list is never mistaken for an
+                        empty inbox, and offers two distinct actions:
+                        "Clear filters" removes turn + filters only
+                        (lens stays), "Show all conversations" is the
+                        existing view-all reset. A search query is not
+                        named here because the search-empty branch
+                        above already names it when a search is active.
+                        With no narrowings on, the previous wording is
+                        kept unchanged.
+                      */}
+                      <h3 className="text-base font-bold text-white">
+                        {narrowingCount > 0 ? 'Nothing matches this view' : 'Nothing in this view'}
+                      </h3>
                       <p className="text-xs text-[var(--quant-muted-foreground)] max-w-xs mx-auto">
-                        {activeTurn === 'needs_you'
-                          ? 'Nothing here is on your turn — no one is waiting on a reply from you.'
-                          : activeTurn === 'waiting'
-                            ? 'Nothing here is on their turn — you are not waiting on a reply from anyone.'
-                            : 'No conversation matches everything you have on.'}
+                        {narrowingCount > 0
+                          ? describeEmptyView({
+                              lensLabel:
+                                INBOX_LENSES.find((lens) => lens.key === activeLens)?.label ??
+                                (typeof activeLens === 'string' && activeLens.startsWith('folder_')
+                                  ? 'this folder'
+                                  : activeLens),
+                              pillLabels: filterPills.map((pill) => pill.label),
+                            })
+                          : activeTurn === 'needs_you'
+                            ? 'Nothing here is on your turn — no one is waiting on a reply from you.'
+                            : activeTurn === 'waiting'
+                              ? 'Nothing here is on their turn — you are not waiting on a reply from anyone.'
+                              : 'No conversation matches everything you have on.'}
                         {heldBackCount > 0 &&
                           ` ${heldBackCount} automated ${
                             heldBackCount === 1 ? 'conversation is' : 'conversations are'
                           } held out of this view.`}
                       </p>
-                      <div className="pt-2 flex justify-center">
+                      <div className="pt-2 flex justify-center gap-2 flex-wrap">
+                        {narrowingCount > 0 && (
+                          <Button variant="primary" onClick={clearNarrowingsOnly}>
+                            Clear filters
+                          </Button>
+                        )}
                         <Button variant="secondary" onClick={resetInboxView}>
                           Show all conversations
                         </Button>
