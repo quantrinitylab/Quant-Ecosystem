@@ -7,6 +7,14 @@
  *
  * Counts are honest: a badge renders only when the count is a real number
  * above zero. A zero count shows no badge — never a "0" or a placeholder.
+ *
+ * Tabs-pattern wiring: the three tabs share ONE panel — the world list in
+ * PeopleHome — exactly like the inbox lens chips in app/page.tsx, which swap
+ * one list in place rather than revealing three. `panelId` is that panel's
+ * id; every tab's aria-controls points at it, and the panel's
+ * aria-labelledby follows the active tab. When no panel exists (standalone
+ * renders, unit tests), `panelId` is omitted and no aria-controls is
+ * emitted at all — a tab must never carry an IDREF to nothing.
  */
 
 import { useRef } from 'react';
@@ -16,6 +24,8 @@ export interface PeopleWorldTabsProps {
   world: ConversationWorld;
   onChange: (world: ConversationWorld) => void;
   counts: Record<ConversationWorld, number>;
+  /** Id of the single tabpanel these tabs control (PeopleHome's list region). */
+  panelId?: string;
 }
 
 const TABS: { key: ConversationWorld; label: string }[] = [
@@ -24,7 +34,7 @@ const TABS: { key: ConversationWorld; label: string }[] = [
   { key: 'updates', label: 'Updates' },
 ];
 
-export function PeopleWorldTabs({ world, onChange, counts }: PeopleWorldTabsProps) {
+export function PeopleWorldTabs({ world, onChange, counts, panelId }: PeopleWorldTabsProps) {
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const focusTab = (index: number) => {
@@ -65,7 +75,7 @@ export function PeopleWorldTabs({ world, onChange, counts }: PeopleWorldTabsProp
             type="button"
             role="tab"
             aria-selected={active}
-            aria-controls={`world-panel-${tab.key}`}
+            aria-controls={panelId}
             id={`world-tab-${tab.key}`}
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(tab.key)}
