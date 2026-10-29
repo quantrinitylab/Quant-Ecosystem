@@ -33,6 +33,13 @@ import {
   reconcileFolderLens,
   resolveLensSync,
 } from '../lib/inbox-lens';
+import {
+  deriveCategoryPills,
+  matchesCategories,
+  removeCategory,
+  type SelectableCategory,
+} from '../lib/category-filter';
+import { CategoryPicker } from '../components/CategoryPicker';
 import { AppSidebar } from '../components/AppSidebar';
 import { EmailSnooze } from '../components/EmailSnooze';
 import { AnchoredMenu } from '../components/AnchoredMenu';
@@ -1482,6 +1489,16 @@ function InboxPageContent() {
 
   const [activeTurn, setActiveTurn] = useState<InboxTurn>('any');
   const [activeFilters, setActiveFilters] = useState<Set<InboxFilter>>(() => new Set());
+  /**
+   * U3.4: the committed category narrowing. It persists across lens
+   * changes exactly like turn/filters (lens switches clear `q` only),
+   * and it is NOT in the URL — same as turn/filters. The picker
+   * edits a draft (`draftCategories`) that only becomes this state
+   * on Apply; Cancel/X abandons the draft.
+   */
+  const [activeCategories, setActiveCategories] = useState<Set<SelectableCategory>>(() => new Set());
+  const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
+  const [draftCategories, setDraftCategories] = useState<Set<SelectableCategory>>(() => new Set());
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   /**
@@ -2449,14 +2466,20 @@ function InboxPageContent() {
       lens: InboxLens,
       turn: InboxTurn,
       filters: Set<InboxFilter>,
+      // U3.4: optional so every pre-existing call site keeps working
+      // unchanged; call sites that render a list pass activeCategories.
+      // Categories are OR within themselves and AND with lens + turn +
+      // filters, via the pure `matchesCategories` helper.
+      categories: ReadonlySet<SelectableCategory> = new Set(),
     ): ConversationThread[] => {
       const active = Array.from(filters);
-      if (lens === 'all' && turn === 'any' && active.length === 0) return list;
+      if (lens === 'all' && turn === 'any' && active.length === 0 && categories.size === 0) return list;
       return list.filter(
         (t) =>
           matchesLens(t, lens) &&
           (turn === 'any' || threadFocus(t, currentEmail) === turn) &&
-          active.every((f) => matchesFilter(t, f)),
+          active.every((f) => matchesFilter(t, f)) &&
+          matchesCategories(t.category, categories),
       );
     },
     [currentEmail, matchesFilter, matchesLens],
@@ -2466,6 +2489,9 @@ function InboxPageContent() {
     setActiveLens('all');
     setActiveTurn('any');
     setActiveFilters(new Set());
+    // U3.4: view-all resets categories too — a reset that left a
+    // category narrowing on would not be "all conversations".
+    setActiveCategories(new Set());
     // CUST-P1-6: the reset drops ?q from the URL, so the search state is
     // cleared alongside — otherwise the URL says no-search while the
     // searchbox still shows the old text and the panel stays in search mode.
@@ -2588,6 +2614,17 @@ function InboxPageContent() {
     };
   }, [isFilterMenuOpen]);
 
+  /**
+   * U3.4: closing the Filter popover abandons any unapplied picker
+   * draft with it. Without this, reopening the popover would show
+   * the picker section still open over a stale draft the user never
+   * applied — the draft must be re-seeded from the committed
+   * selection on every open instead.
+   */
+  useEffect(() => {
+    if (!isFilterMenuOpen) setIsCategoryPickerOpen(false);
+  }, [isFilterMenuOpen]);
+
   /** Dismiss the search-scope popover on an outside click or Escape. */
   useEffect(() => {
     if (!isScopeMenuOpen) return;
@@ -2668,7 +2705,7 @@ function InboxPageContent() {
       : showArchivedView
         ? allArchivedThreads
         : (threads ?? []);
-    const pool = narrowThreads(basePool, 'all', activeTurn, activeFilters);
+    const pool = narrowThreads(basePool, 'all', activeTurn, activeFilters, activeCategories);
     let allUnread = 0;
     let allTotal = 0;
     let primaryUnread = 0;
@@ -2772,6 +2809,7 @@ function InboxPageContent() {
     allSnoozedThreads,
     activeTurn,
     activeFilters,
+    activeCategories,
     narrowThreads,
     isGroupThread,
     isImportantThread,
@@ -2788,7 +2826,7 @@ function InboxPageContent() {
    * says so out loud rather than leaving the gap to look like a bug.
    */
   const turnCounts = useMemo(() => {
-    const pool = narrowThreads(activeThreadPool, activeLens, 'any', activeFilters);
+    const pool = narrowThreads(activeThreadPool, activeLens, 'any', activeFilters, activeCategories);
     const counts: Record<InboxTurn, number> = { any: pool.length, needs_you: 0, waiting: 0 };
     for (const t of pool) {
       const focus = threadFocus(t, currentEmail);
@@ -2796,7 +2834,7 @@ function InboxPageContent() {
       else if (focus === 'waiting') counts.waiting += 1;
     }
     return counts;
-  }, [activeThreadPool, activeLens, activeFilters, narrowThreads, currentEmail]);
+  }, [activeThreadPool, activeLens, activeFilters, activeCategories, narrowThreads, currentEmail]);
 
   /**
    * Each filter's count is "how many rows you would get by turning this on",
@@ -2808,18 +2846,23 @@ function InboxPageContent() {
     for (const { key } of INBOX_FILTERS) {
       const others = new Set(activeFilters);
       others.delete(key);
-      counts[key] = narrowThreads(activeThreadPool, activeLens, activeTurn, others).filter((t) =>
+      counts[key] = narrowThreads(activeThreadPool, activeLens, activeTurn, others, activeCategories).filter((t) =>
         matchesFilter(t, key),
       ).length;
     }
     return counts;
-  }, [activeThreadPool, activeLens, activeTurn, activeFilters, narrowThreads, matchesFilter]);
+  }, [activeThreadPool, activeLens, activeTurn, activeFilters, activeCategories, narrowThreads, matchesFilter]);
 
   const heldBackCount =
     activeTurn === 'any' ? 0 : turnCounts.any - turnCounts.needs_you - turnCounts.waiting;
 
   /** How many narrowings are on, for the Filter trigger's badge and its footer. */
-  const narrowingCount = (activeTurn === 'any' ? 0 : 1) + activeFilters.size;
+  // U3.4: categories count exactly like a filter — one per selected
+  // bucket — so the badge, the footer, and the filtered-empty
+  // branches all see a category narrowing, and Clear resets it.
+  const narrowingCount = (activeTurn === 'any' ? 0 : 1) + activeFilters.size + activeCategories.size;
+  /** U3.4: the category pills, derived by the pure helper (canonical order). */
+  const categoryPills = useMemo(() => deriveCategoryPills(activeCategories), [activeCategories]);
 
   /** What the archived shelf calls the population it is counting. */
   const viewLabel = useMemo(() => {
@@ -2851,15 +2894,16 @@ function InboxPageContent() {
                         : activeLens === 'teams'
                           ? `team ${turnPart}`
                           : turnPart;
-    return activeFilters.size > 0 ? `filtered ${lensPart}` : lensPart;
-  }, [activeLens, activeTurn, activeFilters]);
+    // U3.4: a category narrowing also makes the shelf "filtered".
+    return activeFilters.size > 0 || activeCategories.size > 0 ? `filtered ${lensPart}` : lensPart;
+  }, [activeLens, activeTurn, activeFilters, activeCategories]);
 
   const currentArchivedThreads = useMemo(() => {
-    return narrowThreads(allArchivedThreads, activeLens, activeTurn, activeFilters);
-  }, [allArchivedThreads, activeLens, activeTurn, activeFilters, narrowThreads]);
+    return narrowThreads(allArchivedThreads, activeLens, activeTurn, activeFilters, activeCategories);
+  }, [allArchivedThreads, activeLens, activeTurn, activeFilters, activeCategories, narrowThreads]);
 
   const displayThreads = useMemo(() => {
-    const sourceThreads = narrowThreads(activeThreadPool, activeLens, activeTurn, activeFilters);
+    const sourceThreads = narrowThreads(activeThreadPool, activeLens, activeTurn, activeFilters, activeCategories);
 
     return [...sourceThreads].sort((a, b) => {
       const aPinned = (a as { isPinned?: boolean }).isPinned === true;
@@ -2869,7 +2913,7 @@ function InboxPageContent() {
       }
       return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
     });
-  }, [activeThreadPool, activeLens, activeTurn, activeFilters, narrowThreads]);
+  }, [activeThreadPool, activeLens, activeTurn, activeFilters, activeCategories, narrowThreads]);
 
   /**
    * Whether to say out loud that starred conversations are held at the top.
@@ -3885,6 +3929,63 @@ function InboxPageContent() {
             >
               Drafts
             </Link>
+            {/*
+              U3.4: the category pills, in the U3.3 pill direction —
+              one pill per selected category, outside the tablist
+              (categories are narrowings, not destinations), beside
+              the Filter trigger. The row itself scrolls horizontally
+              (`overflow-x-auto` gives a flex item a zero automatic
+              minimum size) and every pill is `shrink-0`, so pills
+              can never push the trigger or the lens row off the
+              strip at 390px; a +N overflow menu was rejected
+              because it would hide the X buttons. A pill's label
+              opens the Filter popover with the picker open; its X
+              removes only that category. Turn/filter pills belong
+              to U3.3 (open PR #1728, not in this tree) and are
+              deliberately NOT duplicated here — when U3.3 merges,
+              this row becomes the category section of its pill row.
+            */}
+            {categoryPills.length > 0 && (
+              <div
+                role="list"
+                aria-label="Active categories"
+                className="flex items-center gap-1.5 overflow-x-auto min-w-0"
+              >
+                {categoryPills.map((pill) => {
+                  const category = pill.key.slice('category:'.length) as SelectableCategory;
+                  return (
+                    <span
+                      key={pill.key}
+                      role="listitem"
+                      className="inline-flex shrink-0 items-center h-[34px] rounded-full border border-[var(--quant-primary)]/35 bg-[var(--quant-primary)]/12 text-[var(--quant-primary)]"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDraftCategories(new Set(activeCategories));
+                          setIsCategoryPickerOpen(true);
+                          setIsFilterMenuOpen(true);
+                        }}
+                        aria-label={`Edit categories, ${pill.label} selected`}
+                        title="Edit categories"
+                        className="inline-flex items-center h-full px-2.5 text-xs font-semibold whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] rounded-l-full"
+                      >
+                        {pill.label}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveCategories((prev) => removeCategory(prev, category))}
+                        aria-label={`Remove ${pill.label} category`}
+                        title={`Remove ${pill.label}`}
+                        className="inline-flex items-center justify-center size-[28px] shrink-0 rounded-r-full hover:bg-[var(--quant-primary)]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)]"
+                      >
+                        <IconX size={12} />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
             <div className="relative shrink-0" ref={filterMenuRef}>
               <button
                 type="button"
@@ -4056,12 +4157,57 @@ function InboxPageContent() {
                         );
                       })}
                     </div>
+                    {/*
+                      U3.4: the categories entry. It is a button, not
+                      a checkbox row, because the picker below is a
+                      section with its own draft — ticking a category
+                      here would commit it immediately, which breaks
+                      the picker's Apply/abandon contract. Opening it
+                      seeds the draft from the committed selection
+                      every time, so a previously abandoned draft can
+                      never resurface.
+                    */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraftCategories(new Set(activeCategories));
+                        setIsCategoryPickerOpen((prev) => !prev);
+                      }}
+                      aria-expanded={isCategoryPickerOpen}
+                      className="w-full min-h-[44px] px-3 flex items-center gap-2.5 text-left text-xs transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)] border-t border-[var(--quant-surface-elevated)]"
+                    >
+                      <span className="flex-1 truncate text-[var(--quant-muted-foreground)]">
+                        Categories
+                        {activeCategories.size > 0 && (
+                          <span className="text-[var(--quant-primary)] font-semibold">
+                            {` · ${activeCategories.size} selected`}
+                          </span>
+                        )}
+                      </span>
+                      <span aria-hidden="true" className="text-[var(--quant-muted-foreground)]">
+                        {isCategoryPickerOpen ? '▴' : '▾'}
+                      </span>
+                    </button>
+                    <CategoryPicker
+                      open={isCategoryPickerOpen}
+                      draft={draftCategories}
+                      onDraftChange={setDraftCategories}
+                      onApply={() => {
+                        setActiveCategories(new Set(draftCategories));
+                        setIsCategoryPickerOpen(false);
+                      }}
+                      onCancel={() => setIsCategoryPickerOpen(false)}
+                    />
                     {narrowingCount > 0 && (
                       <button
                         type="button"
                         onClick={() => {
                           setActiveTurn('any');
                           setActiveFilters(new Set());
+                          // U3.4: the footer is clear-ALL — categories
+                          // and any picker draft go with it.
+                          setActiveCategories(new Set());
+                          setIsCategoryPickerOpen(false);
                           setIsFilterMenuOpen(false);
                         }}
                         className="w-full min-h-[44px] px-3 flex items-center gap-2 text-left text-xs font-semibold text-[var(--quant-muted-foreground)] border-t border-[var(--quant-surface-elevated)] transition-colors hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--quant-primary)]"
