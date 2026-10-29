@@ -1247,7 +1247,7 @@ export function ChatMessages({
                       <span
                         key={`${msg.id}-attachment-${index}`}
                         aria-label="Attached file"
-                        className="flex items-center gap-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-hover)] px-2.5 py-1.5 text-xs font-medium text-[var(--foreground)]"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-hover)] px-2.5 py-1.5 text-xs font-medium text-[var(--foreground)] max-w-full break-words"
                       >
                         {attachment}
                       </span>
