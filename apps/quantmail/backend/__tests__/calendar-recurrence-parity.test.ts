@@ -1061,7 +1061,32 @@ describe('Wave 6 (Phase C) Calendar Recurrence Parity & Exceptions Suite', () =>
 
   describe('14. Working Hours Conflict Check on Booking Links (Task C25)', () => {
     const bookingSlug = 'founder-office-hours';
-    const mondayDate = new Date(2030, 0, 7); // Monday Jan 7, 2030
+    // Relative-to-now slots (fix/qm-booking-parity-tests): this block used
+    // to pin slots to fixed Jan 2030 dates. After Jan 2030 every slot here
+    // would be in the past, so the engine's past-slot check
+    // (startTime < Date.now(), which shares the INVALID_BOOKING_SLOT code
+    // with the hour/day violations) would reject them first — the hour/day
+    // assertions would stay green but prove nothing, and the confirms-booking
+    // test would fail outright. Slots are therefore derived from "now":
+    // the next Monday 7-13 days out, built in UTC (the link carries no
+    // timezone, so the service anchors to UTC). Each rejection test also
+    // asserts its slot is in the future, so a rejection can only be
+    // attributed to the asserted violation — never to past-ness. The
+    // dedicated past-slot test below pins the past check as its own reason.
+    function futureMondayUtc(): Date {
+      const now = new Date();
+      // 7..13 days ahead; arithmetic lands on a Monday for every weekday.
+      const daysAhead = ((8 - now.getUTCDay()) % 7) + 7;
+      return new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysAhead),
+      );
+    }
+    function slotOn(dayUtc: Date, hour: number, minute = 0): Date {
+      return new Date(
+        Date.UTC(dayUtc.getUTCFullYear(), dayUtc.getUTCMonth(), dayUtc.getUTCDate(), hour, minute),
+      );
+    }
+    const DAY_MS = 24 * 60 * 60 * 1000;
 
     beforeEach(async () => {
       await prisma.bookingLink.create({
@@ -1083,8 +1108,11 @@ describe('Wave 6 (Phase C) Calendar Recurrence Parity & Exceptions Suite', () =>
     });
 
     it('rejects booking requested before link.startHour with 400 INVALID_BOOKING_SLOT', async () => {
-      const earlySlot = new Date(mondayDate);
-      earlySlot.setHours(8, 0, 0, 0);
+      const monday = futureMondayUtc();
+      const earlySlot = slotOn(monday, 8);
+      // Rejection-reason guard: the slot must be future, so the rejection
+      // cannot be the past-slot check wearing the same error code.
+      expect(earlySlot.getTime()).toBeGreaterThan(Date.now());
 
       const res = await app.inject({
         method: 'POST',
@@ -1102,8 +1130,11 @@ describe('Wave 6 (Phase C) Calendar Recurrence Parity & Exceptions Suite', () =>
     });
 
     it('rejects booking that ends after link.endHour with 400 INVALID_BOOKING_SLOT', async () => {
-      const lateSlot = new Date(mondayDate);
-      lateSlot.setHours(16, 30, 0, 0);
+      const monday = futureMondayUtc();
+      const lateSlot = slotOn(monday, 16, 30);
+      // Rejection-reason guard: future slot, so only the endHour check can
+      // reject it (16:30 + 60min duration ends 17:30, past the 17:00 close).
+      expect(lateSlot.getTime()).toBeGreaterThan(Date.now());
 
       const res = await app.inject({
         method: 'POST',
@@ -1121,7 +1152,12 @@ describe('Wave 6 (Phase C) Calendar Recurrence Parity & Exceptions Suite', () =>
     });
 
     it('rejects booking on unavailable day (Sunday) with 400 INVALID_BOOKING_SLOT', async () => {
-      const sundaySlot = new Date(2030, 0, 6, 11, 0, 0, 0); // Sunday Jan 6, 2030
+      const monday = futureMondayUtc();
+      const sundaySlot = slotOn(new Date(monday.getTime() - DAY_MS), 11);
+      // Rejection-reason guard: a future Sunday at 11:00 is inside working
+      // hours, so only the availableDays check can reject it.
+      expect(sundaySlot.getTime()).toBeGreaterThan(Date.now());
+      expect(sundaySlot.getUTCDay()).toBe(0);
 
       const res = await app.inject({
         method: 'POST',
@@ -1138,9 +1174,34 @@ describe('Wave 6 (Phase C) Calendar Recurrence Parity & Exceptions Suite', () =>
       expect(json.error.code).toBe('INVALID_BOOKING_SLOT');
     });
 
+    it('rejects a past slot even when it is inside availableDays and working hours', async () => {
+      // Pins the past-slot check as its own rejection reason: a Monday
+      // 10:00 UTC slot 14 days before the future Monday (1-7 days in the
+      // past) violates no hour/day rule, so only past-ness rejects it.
+      const monday = futureMondayUtc();
+      const pastSlot = slotOn(new Date(monday.getTime() - 14 * DAY_MS), 10);
+      expect(pastSlot.getTime()).toBeLessThan(Date.now());
+      expect(pastSlot.getUTCDay()).toBe(1);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/booking/links/${bookingSlug}/book`,
+        payload: {
+          slot: pastSlot.toISOString(),
+          name: 'Too Late',
+          email: 'late@example.com',
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const json = res.json();
+      expect(json.error.code).toBe('INVALID_BOOKING_SLOT');
+    });
+
     it('confirms booking when slot is strictly within availableDays and working hours', async () => {
-      const validSlot = new Date(mondayDate);
-      validSlot.setHours(10, 0, 0, 0);
+      const monday = futureMondayUtc();
+      const validSlot = slotOn(monday, 10);
+      expect(validSlot.getTime()).toBeGreaterThan(Date.now());
 
       const res = await app.inject({
         method: 'POST',
