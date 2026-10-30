@@ -126,9 +126,11 @@ describe('QC-F-142 deep-link parity — shared vectors', () => {
     }
   });
 
-  it('every shared vector output is a real app route (never a 404)', () => {
+  // QC-F-142 route-existence guard: 'app' or 'public' both count ('/' is
+  // the public landing, a real route); only 'unknown' (a 404) fails.
+  it('every shared vector output is a real route (never a 404)', () => {
     for (const v of vectors) {
-      expect(classifyPath(v.expected), `${v.category} -> ${v.expected}`).toBe('app');
+      expect(classifyPath(v.expected), `${v.category} -> ${v.expected}`).not.toBe('unknown');
     }
   });
 });
