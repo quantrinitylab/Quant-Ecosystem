@@ -79,7 +79,12 @@ export function describeSearchEmpty(input: {
   const filters = (input.filterLabels ?? []).filter((label) => label.trim().length > 0);
   const where =
     input.scope === 'all'
-      ? 'across mail, people, calendar, and drive'
+      // Wave-9 slice A4: the universal empty state must name the four searched
+      // sources in the "mail, people, calendar, or drive" form pinned by
+      // universal-search-results.test.tsx. SCOPE_LABELS.all is deliberately NOT
+      // changed: it feeds describeSearchCountLabel, whose "and drive" count copy
+      // is pinned separately by search-results-u13.test.ts.
+      ? 'across mail, people, calendar, or drive'
       : `in ${SCOPE_LABELS[input.scope]}`;
   const withFilters =
     filters.length > 0 ? ` with ${filters.join(', ')}` : '';

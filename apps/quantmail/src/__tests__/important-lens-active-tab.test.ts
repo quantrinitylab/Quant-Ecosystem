@@ -100,7 +100,13 @@ describe('QM-IMPORTANT-LENS-ACTIVE-TAB — Important lens highlights a real tab'
     const tab = mobile.PILLAR_SUB_CONFIGS.mail.tabs.find((t) => t.id === 'important')!;
     expect(tab.mobileOverflow).toBe(true);
     const primary = mobile.PILLAR_SUB_CONFIGS.mail.tabs.filter((t) => !t.mobileOverflow);
-    expect(primary.map((t) => t.id)).toEqual(['inbox', 'quanty', 'sent', 'drafts', 'archive']);
+    // Wave-9 slice A4: 'search' IS a primary slot — the Mail Search slice (Phase 1.3)
+    // made /search a primary one-tap tab ("Primary, not mobileOverflow" in
+    // ContextBottomNavBar.tsx), pinned by search-bottom-nav-u13.test.ts
+    // (mobileOverflow falsy) and mobile-quanty-tab.test.ts (primary list already
+    // includes 'search'). This list was stale without it; the invariant this test
+    // locks — Important stays overflow and joins only while active — is unchanged.
+    expect(primary.map((t) => t.id)).toEqual(['inbox', 'quanty', 'sent', 'drafts', 'archive', 'search']);
   });
 
   it('tapping Important navigates to the real lens view; re-tapping it does not navigate', () => {
