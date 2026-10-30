@@ -45,13 +45,19 @@ describe('booking links proxy allow-list', () => {
   it('exposes every public invitee step on BOTH dual-registered prefixes (fix/qm-calendar-booking-routes)', () => {
     // The /booking/links/:slug* duplicates were registered in the backend but
     // missing here, so the catch-all 404'd them; the /calendar/booking lock
-    // step was missing too. All four invitee steps must pass on both prefixes.
+    // step was missing too. Slug read, slots and lock must pass on both
+    // prefixes. EXCEPTION (wave-9 slice A8, phase-r-m R-D4): the book step
+    // is NOT proxied on /booking/links — that duplicate is internal and
+    // non-public, so the catch-all must not resolve it; the canonical guest
+    // booking path is /calendar/booking/:slug/book only (the only web caller
+    // posts there).
     for (const prefix of ['booking/links', 'calendar/booking']) {
       expect(methodsFor(`${prefix}/my-slug`)).toContain('GET');
       expect(methodsFor(`${prefix}/my-slug/slots`)).toContain('GET');
       expect(methodsFor(`${prefix}/my-slug/lock`)).toContain('POST');
-      expect(methodsFor(`${prefix}/my-slug/book`)).toContain('POST');
     }
+    expect(methodsFor('calendar/booking/my-slug/book')).toContain('POST');
+    expect(methodsFor('booking/links/my-slug/book')).toBeUndefined();
   });
 
   it('does not widen the invitee rows to host-only verbs', () => {
