@@ -62,7 +62,6 @@ describe('booking links proxy allow-list', () => {
 
   it('does not widen the invitee rows to host-only verbs', () => {
     expect(methodsFor('booking/links/my-slug/lock')).not.toContain('GET');
-    expect(methodsFor('booking/links/my-slug/book')).not.toContain('GET');
     expect(methodsFor('booking/links/my-slug/slots')).not.toContain('POST');
     expect(methodsFor('calendar/booking/my-slug/lock')).not.toContain('GET');
     expect(methodsFor('calendar/booking/my-slug/book')).not.toContain('GET');

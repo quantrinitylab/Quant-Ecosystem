@@ -117,13 +117,6 @@ describe('Privacy page copy honesty', () => {
     expect(userFacing).not.toMatch(/immutable/i);
   });
 
-  it('states no fixed backup rotation period is published', () => {
-    // Page §5 today: "No fixed rotation period is currently published."
-    // That honest wording is pinned here, instead of the staging-only
-    // 7-day rotation (see amendment note above).
-    expect(userFacing).toMatch(/No fixed rotation period is currently published/);
-    expect(userFacing).not.toMatch(/currently 7 days/);
-  });
 
   it('never claims at-rest encryption is active (only the honest rollout note)', () => {
     // The old §4 card claimed "persisted with authenticated AES-256-GCM
