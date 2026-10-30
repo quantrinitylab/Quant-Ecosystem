@@ -81,16 +81,21 @@ export default async function toolsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/:name/quote', async (request: FastifyRequest) => {
-    const userId = requireUserId(request);
+    requireUserId(request);
     const registry = await getRegistry();
     const { name } = request.params as { name: string };
     const params =
       request.body && typeof request.body === 'object' ? (request.body as unknown) : {};
-    return registry.quote(name, params, contextFromRequest(request, 'ui', userId));
+    // contextFromRequest derives the same userId from request.auth and
+    // returns null when absent; requireUserId above already 401s in
+    // that case, so this guard is defensive, not a behaviour change.
+    const ctx = contextFromRequest(request, 'ui');
+    if (!ctx) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    return registry.quote(name, params, ctx);
   });
 
   fastify.post('/:name/invoke', async (request: FastifyRequest, reply) => {
-    const userId = requireUserId(request);
+    requireUserId(request);
     const registry = await getRegistry();
     const { name } = request.params as { name: string };
     const body = (request.body ?? {}) as {
@@ -99,10 +104,13 @@ export default async function toolsRoutes(fastify: FastifyInstance) {
       idempotencyKey?: string;
     };
     const params = 'params' in body ? body.params : body;
+    // Same defensive null guard as the quote handler above.
+    const ctx = contextFromRequest(request, 'ui');
+    if (!ctx) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     const result = await registry.invoke(
       name,
       params,
-      contextFromRequest(request, 'ui', userId),
+      ctx,
       {
         ...(body.quoteId ? { quoteId: body.quoteId } : {}),
         ...(body.idempotencyKey ? { idempotencyKey: body.idempotencyKey } : {}),

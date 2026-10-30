@@ -30,6 +30,6 @@
       "@quant/quanty-contracts/*": ["../../packages/quanty-contracts/src/*"]
     }
   },
-  "include": ["backend/**/*.ts", "src/**/*.ts"],
+  "include": ["backend/**/*.ts"],
   "exclude": ["node_modules"]
 }

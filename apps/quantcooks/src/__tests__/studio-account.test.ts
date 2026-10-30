@@ -99,6 +99,9 @@ describe('account lib — panels and ledger', () => {
   it('models the ledger as not-configured with NO numeric balance field', () => {
     const view = ledgerBalanceView(LEDGER_CONNECTION);
     expect(view.kind).toBe('not_configured');
+    // `code` exists only on the not_configured/error variants, so narrow
+    // before reading it — the expect above does not narrow the union.
+    if (view.kind !== 'not_configured') throw new Error('expected not_configured ledger view');
     expect(view.code).toBe('CREDITS_NOT_CONFIGURED');
     expect(view.tool).toBe(CREDIT_TOOLS.balance);
     // Structural honesty: no key that could carry a balance figure exists.

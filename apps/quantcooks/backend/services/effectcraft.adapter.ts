@@ -341,7 +341,9 @@ export class NodeEffectCraftRunner implements EffectCraftRunner {
  * the caller treats null as CRAFT_NOT_CONFIGURED and fails closed. The
  * binary is never vendored into or downloaded by this codebase.
  */
-export function resolveEffectCraftBin(env: NodeJS.ProcessEnv = process.env): string | null {
+export function resolveEffectCraftBin(
+  env: Record<string, string | undefined> = process.env,
+): string | null {
   const bin = env['EFFECTCRAFT_BIN'];
   if (!bin) return null;
   try {

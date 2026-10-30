@@ -14,6 +14,21 @@
 // degrades to `{}` (an unconstrained schema node) rather than throwing —
 // the executor always re-validates against the real zod schema, so the
 // JSON Schema is discovery metadata, never the validator (§2.3).
+//
+// Zod 4 note (repo override pins zod 4.6.6): this file reads zod's
+// runtime internals, which zod 4 reshaped — `_def.type` is now a
+// lowercase string ('object', 'string', …) instead of `typeName`
+// ('ZodObject', …); string/number/array bounds live in `_def.checks`
+// as check objects whose payload is `check._zod.def`
+// ({check: 'min_length', minimum} / {check: 'greater_than', value,
+// inclusive} / {check: 'number_format', format: 'safeint'}); transforms
+// are `pipe` nodes (follow `in` for the input schema); arrays carry
+// `element` (not `type`); literals carry `values` (not `value`); enums
+// carry `entries`. The converter maps those back onto the old names so
+// every switch case below — and therefore the emitted JSON Schema
+// shape — is unchanged from the zod 3 version. `_def` is deliberately
+// read through `unknown` (see defOf): zod 4 types it opaquely, and this
+// file's whole job is dynamic introspection of it.
 // ============================================================================
 
 import { z } from 'zod';
@@ -21,8 +36,36 @@ import type { ToolInputSchema } from '@quant/quant-tools';
 
 type Json = Record<string, unknown>;
 
+/** The raw zod 4 definition object, read as a record for introspection. */
+function defOf(schema: z.ZodTypeAny): Record<string, unknown> {
+  const def: unknown = (schema as { _def?: unknown })._def;
+  return def !== null && typeof def === 'object'
+    ? (def as Record<string, unknown>)
+    : {};
+}
+
+const TYPE_NAMES: Record<string, string> = {
+  object: 'ZodObject',
+  string: 'ZodString',
+  number: 'ZodNumber',
+  boolean: 'ZodBoolean',
+  array: 'ZodArray',
+  enum: 'ZodEnum',
+  literal: 'ZodLiteral',
+  union: 'ZodUnion',
+  record: 'ZodRecord',
+  optional: 'ZodOptional',
+  nullable: 'ZodNullable',
+  default: 'ZodDefault',
+  unknown: 'ZodUnknown',
+  any: 'ZodAny',
+  // A zod 4 transform is a pipe node; unwrap follows its input side.
+  pipe: 'ZodEffects',
+};
+
 function typeName(schema: z.ZodTypeAny): string {
-  return (schema._def as { typeName?: string }).typeName ?? '';
+  const type = defOf(schema)['type'];
+  return typeof type === 'string' ? (TYPE_NAMES[type] ?? '') : '';
 }
 
 function unwrap(schema: z.ZodTypeAny): z.ZodTypeAny {
@@ -30,17 +73,54 @@ function unwrap(schema: z.ZodTypeAny): z.ZodTypeAny {
   for (;;) {
     const name = typeName(current);
     if (name === 'ZodEffects') {
-      current = (current._def as { schema: z.ZodTypeAny }).schema;
-      continue;
+      const def = defOf(current);
+      const inner = def['in'] ?? def['schema'];
+      if (inner !== null && typeof inner === 'object') {
+        current = inner as z.ZodTypeAny;
+        continue;
+      }
     }
     return current;
   }
 }
 
+interface CheckDef {
+  check?: string;
+  minimum?: number;
+  maximum?: number;
+  value?: number;
+  inclusive?: boolean;
+  format?: string;
+}
+
+/** Zod 4 check payloads: `_def.checks[i]._zod.def`. */
+function checkDefs(def: Record<string, unknown>): CheckDef[] {
+  const checks = def['checks'];
+  if (!Array.isArray(checks)) return [];
+  const out: CheckDef[] = [];
+  for (const check of checks) {
+    const payload: unknown = (check as { _zod?: { def?: unknown } })._zod?.def;
+    if (payload !== null && typeof payload === 'object') {
+      const d = payload as Record<string, unknown>;
+      const num = (v: unknown): number | undefined =>
+        typeof v === 'number' ? v : undefined;
+      out.push({
+        check: typeof d['check'] === 'string' ? d['check'] : undefined,
+        minimum: num(d['minimum']),
+        maximum: num(d['maximum']),
+        value: num(d['value']),
+        inclusive: typeof d['inclusive'] === 'boolean' ? d['inclusive'] : undefined,
+        format: typeof d['format'] === 'string' ? d['format'] : undefined,
+      });
+    }
+  }
+  return out;
+}
+
 export function zodToJsonSchema(schema: z.ZodTypeAny): Json {
   const s = unwrap(schema);
   const name = typeName(s);
-  const def = s._def as Record<string, unknown>;
+  const def = defOf(s);
   const description = (s as { description?: string }).description;
   const withDesc = (out: Json): Json => (description ? { ...out, description } : out);
 
@@ -61,43 +141,64 @@ export function zodToJsonSchema(schema: z.ZodTypeAny): Json {
       });
     }
     case 'ZodString': {
-      const checks = (def['checks'] as { kind: string; value?: number }[] | undefined) ?? [];
       const out: Json = { type: 'string' };
-      for (const check of checks) {
-        if (check.kind === 'min') out['minLength'] = check.value;
-        if (check.kind === 'max') out['maxLength'] = check.value;
+      for (const check of checkDefs(def)) {
+        if (check.check === 'min_length' && check.minimum !== undefined) {
+          out['minLength'] = check.minimum;
+        }
+        if (check.check === 'max_length' && check.maximum !== undefined) {
+          out['maxLength'] = check.maximum;
+        }
       }
       return withDesc(out);
     }
     case 'ZodNumber': {
-      const checks = (def['checks'] as { kind: string; value?: number }[] | undefined) ?? [];
       const out: Json = { type: 'number' };
-      for (const check of checks) {
-        if (check.kind === 'int') out.type = 'integer';
-        if (check.kind === 'min') out['minimum'] = check.value;
-        if (check.kind === 'max') out['maximum'] = check.value;
+      for (const check of checkDefs(def)) {
+        if (check.check === 'number_format' && check.format !== undefined) {
+          if (check.format.includes('int')) out.type = 'integer';
+        }
+        if (check.check === 'greater_than' && check.value !== undefined) {
+          if (check.inclusive === false) out['exclusiveMinimum'] = check.value;
+          else out['minimum'] = check.value;
+        }
+        if (check.check === 'less_than' && check.value !== undefined) {
+          if (check.inclusive === false) out['exclusiveMaximum'] = check.value;
+          else out['maximum'] = check.value;
+        }
       }
       return withDesc(out);
     }
     case 'ZodBoolean':
       return withDesc({ type: 'boolean' });
     case 'ZodArray': {
-      const inner = def['type'] as z.ZodTypeAny;
+      const inner = (def['element'] ?? def['type']) as z.ZodTypeAny;
       const out: Json = { type: 'array', items: zodToJsonSchema(inner) };
-      if (typeof def['minLength'] === 'object' && def['minLength']) {
-        out['minItems'] = (def['minLength'] as { value: number }).value;
-      }
-      if (typeof def['maxLength'] === 'object' && def['maxLength']) {
-        out['maxItems'] = (def['maxLength'] as { value: number }).value;
+      for (const check of checkDefs(def)) {
+        if (check.check === 'min_length' && check.minimum !== undefined) {
+          out['minItems'] = check.minimum;
+        }
+        if (check.check === 'max_length' && check.maximum !== undefined) {
+          out['maxItems'] = check.maximum;
+        }
       }
       return withDesc(out);
     }
     case 'ZodEnum': {
-      const values = (s as z.ZodEnum<[string, ...string[]]>).options;
-      return withDesc({ type: 'string', enum: [...values] });
+      const entries = def['entries'];
+      let values: unknown[] = [];
+      if (entries !== null && typeof entries === 'object') {
+        values = Object.values(entries as Record<string, unknown>);
+      }
+      if (!values.length) {
+        const opts = (s as unknown as { options?: readonly unknown[] }).options;
+        if (opts) values = [...opts];
+      }
+      return withDesc({ type: 'string', enum: values });
     }
     case 'ZodLiteral': {
-      const value = def['value'];
+      const values = def['values'];
+      const value = Array.isArray(values) ? values[0] : def['value'];
       return withDesc({ const: value });
     }
     case 'ZodUnion': {
@@ -120,7 +221,11 @@ export function zodToJsonSchema(schema: z.ZodTypeAny): Json {
     }
     case 'ZodDefault': {
       const inner = zodToJsonSchema(def['innerType'] as z.ZodTypeAny);
-      return { ...inner, default: (def['defaultValue'] as () => unknown)() };
+      const defaultValue = def['defaultValue'];
+      return {
+        ...inner,
+        default: typeof defaultValue === 'function' ? (defaultValue as () => unknown)() : defaultValue,
+      };
     }
     case 'ZodUnknown':
     case 'ZodAny':
@@ -134,7 +239,11 @@ function isOptionalField(schema: z.ZodTypeAny): boolean {
   const name = typeName(schema);
   if (name === 'ZodOptional' || name === 'ZodDefault') return true;
   if (name === 'ZodEffects') {
-    return isOptionalField((schema._def as { schema: z.ZodTypeAny }).schema);
+    const def = defOf(schema);
+    const inner = def['in'] ?? def['schema'];
+    if (inner !== null && typeof inner === 'object') {
+      return isOptionalField(inner as z.ZodTypeAny);
+    }
   }
   return false;
 }
@@ -171,7 +280,15 @@ export function zodToFieldMap(schema: z.ZodTypeAny): ToolInputSchema {
         key,
     };
     if (fname === 'ZodDefault') {
-      entry.default = ((f._def as { defaultValue: () => unknown }).defaultValue)();
+      // Zod 3 stored defaultValue as a thunk; zod 4 stores the value
+      // itself. Accept both so the field map keeps its default.
+      const defaultValue = defOf(f)['defaultValue'];
+      if (defaultValue !== undefined) {
+        entry.default =
+          typeof defaultValue === 'function'
+            ? (defaultValue as () => unknown)()
+            : defaultValue;
+      }
     }
     out[key] = entry;
   }
