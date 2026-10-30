@@ -14,9 +14,29 @@ const PAGE = path.resolve(__dirname, '../app/drive/page.tsx');
 describe('Drive quarantine notice card: pure-black surface, destructive accent via border/text', () => {
   const lines = fs.readFileSync(PAGE, 'utf8').split('\n');
 
-  // Locate the quarantine card: the className line immediately preceding role="alert"
+  // Locate the QM-M39-009 quarantine card — NOT the first role="alert" in the
+  // file. That first alert is the deep-link search error ("Could not open the
+  // file from search"), an amber warning notice, not a quarantine card; a
+  // first-alert locator therefore asserted against the wrong card. The
+  // quarantine card is the alert whose body says "This file is quarantined".
+  function quarantineAlertIndex(): number {
+    const alertIdxs = lines
+      .map((l, i) => ({ l, i }))
+      .filter(({ l }) => l.includes('role="alert"'))
+      .map(({ i }) => i);
+    const quarantineIdx = alertIdxs.find((idx) =>
+      lines.slice(idx, idx + 25).some((l) => l.includes('This file is quarantined')),
+    );
+    expect(
+      quarantineIdx,
+      'quarantine notice card (role="alert" + "This file is quarantined") must exist in drive page.tsx',
+    ).toBeDefined();
+    return quarantineIdx!;
+  }
+
+  // Locate the quarantine card: the className line immediately preceding its role="alert"
   function quarantineCardClassLine(): number {
-    const alertIdx = lines.findIndex((l) => l.includes('role="alert"'));
+    const alertIdx = quarantineAlertIndex();
     expect(alertIdx, 'quarantine notice card (role="alert") must exist in drive page.tsx').toBeGreaterThan(0);
     const classIdx = lines
       .slice(0, alertIdx)
@@ -42,7 +62,7 @@ describe('Drive quarantine notice card: pure-black surface, destructive accent v
     const classLine = lines[quarantineCardClassLine()];
     expect(classLine).toContain('border-[var(--quant-destructive)]');
     // The warning icon directly under the card must stay destructive-colored
-    const alertIdx = lines.findIndex((l) => l.includes('role="alert"'));
+    const alertIdx = quarantineAlertIndex();
     const iconSpan = lines.slice(alertIdx, alertIdx + 6).find((l) => l.includes('className'));
     expect(iconSpan).toContain('text-[var(--quant-destructive)]');
   });
