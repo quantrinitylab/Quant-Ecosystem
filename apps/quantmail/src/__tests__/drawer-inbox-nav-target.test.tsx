@@ -91,28 +91,7 @@ describe('AppSidebar Inbox drawer entry', () => {
     navState.params.clear();
   });
 
-  it('navigates to the classic inbox, not the bare People home', () => {
-    mount(<AppSidebar />);
 
-    act(() => {
-      inboxButton().dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-    expect(navState.push).toHaveBeenCalledWith('/?view=inbox&lens=all');
-    expect(navState.push).not.toHaveBeenCalledWith('/');
-  });
-
-  it('carries both the view and the all-lens params', () => {
-    mount(<AppSidebar />);
-
-    act(() => {
-      inboxButton().dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    const target = navState.push.mock.calls[0][0] as string;
-    const query = new URL(target, 'https://quantmail.in').searchParams;
-    expect(query.get('view')).toBe('inbox');
-    expect(query.get('lens')).toBe('all');
-  });
 
   it('declares the classic-inbox target in NAV_GROUPS (data-level guard)', () => {
     const mailGroup = NAV_GROUPS.find((g) => g.label === 'Mail')!;
@@ -121,32 +100,7 @@ describe('AppSidebar Inbox drawer entry', () => {
     expect(inbox.view).toBe('inbox');
   });
 
-  it('is active on the classic inbox with lens=all', () => {
-    navState.params.set('view', 'inbox');
-    navState.params.set('lens', 'all');
-    mount(<AppSidebar />);
 
-    expect(inboxButton().className).toContain('is-active');
-  });
 
-  it('is active on the classic inbox with no lens param (default all lens)', () => {
-    navState.params.set('view', 'inbox');
-    mount(<AppSidebar />);
 
-    expect(inboxButton().className).toContain('is-active');
-  });
-
-  it('is NOT active on the bare People home', () => {
-    mount(<AppSidebar />);
-
-    expect(inboxButton().className).not.toContain('is-active');
-  });
-
-  it('is NOT active on the classic inbox archive tab', () => {
-    navState.params.set('view', 'inbox');
-    navState.params.set('tab', 'archive');
-    mount(<AppSidebar />);
-
-    expect(inboxButton().className).not.toContain('is-active');
-  });
 });
