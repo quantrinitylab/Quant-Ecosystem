@@ -62,7 +62,12 @@ describe('booking links proxy allow-list', () => {
 
   it('does not widen the invitee rows to host-only verbs', () => {
     expect(methodsFor('booking/links/my-slug/lock')).not.toContain('GET');
-    expect(methodsFor('booking/links/my-slug/book')).not.toContain('GET');
+    // /booking/links/:slug/book is INTENTIONALLY unproxied (wave-9 slice A8:
+    // no routes-config row, pinned as undefined above), so methodsFor()
+    // returns undefined here and chai's toContain rejects undefined as the
+    // actual value. Defaulting to [] keeps the "no GET proxied" assertion
+    // itself — it does not add a config row and does not drop the check.
+    expect(methodsFor('booking/links/my-slug/book') ?? []).not.toContain('GET');
     expect(methodsFor('booking/links/my-slug/slots')).not.toContain('POST');
     expect(methodsFor('calendar/booking/my-slug/lock')).not.toContain('GET');
     expect(methodsFor('calendar/booking/my-slug/book')).not.toContain('GET');
