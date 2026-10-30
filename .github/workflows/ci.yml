@@ -74,6 +74,9 @@ jobs:
       - name: Test dependency audit parser
         run: pnpm test:dependency-audit
 
+      - name: Test OCI deploy SSH-key preparation
+        run: node --test scripts/__tests__/prepare-oci-deploy-key.test.mjs
+
       - name: Audit installed dependency graph (high/critical)
         run: pnpm audit:dependencies
 
