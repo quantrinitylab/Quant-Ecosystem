@@ -40,6 +40,8 @@ function splitCandidate(candidate: string): { pathname: string; suffix: string }
 /**
  * Validate a candidate post-login target. Returns the candidate unchanged
  * when it is a safe internal app-route path, otherwise null.
+ * Exception: '/' with a ?/# suffix is signed-in chat-list state (RootGate)
+ * and round-trips; a bare '/' is still rejected below.
  */
 export function sanitizeInternalReturnPath(
   candidate: string | null | undefined,
@@ -55,7 +57,21 @@ export function sanitizeInternalReturnPath(
   // No whitespace or control characters anywhere in the target.
   if (/[\s\u0000-\u001f\u007f]/.test(value)) return null;
 
-  const { pathname } = splitCandidate(value);
+  const { pathname, suffix } = splitCandidate(value);
+  // Narrow exception: '/' is BOTH the public landing and the signed-in
+  // chat list (RootGate). A root path WITH a query/hash suffix is real
+  // app state ('/?view=…') and must round-trip through login; a bare
+  // '/' (no suffix) still falls through to the registry check below
+  // and is rejected, preserving the '/login' default. Other public
+  // paths are untouched by this branch: their pathname is not '/', so
+  // they still fail the registry check.
+  if (
+    pathname === '/' &&
+    suffix !== '' &&
+    (suffix.startsWith('?') || suffix.startsWith('#'))
+  ) {
+    return value;
+  }
   // The registry is the single source of truth for real routes: public
   // paths (including '/login' — a loop) and unknown paths are not valid
   // post-login targets.

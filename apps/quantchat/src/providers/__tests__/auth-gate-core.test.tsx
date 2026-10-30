@@ -101,18 +101,16 @@ describe('AuthGateCore', () => {
     expect(container.textContent).not.toContain('protected content');
   });
 
-  it('adds no returnTo for the app root — it is already the post-login default', () => {
+  it('public root renders children logged-out (no redirect) — / is the Phase-0 public landing', () => {
     renderGate('/');
-    expect(onRedirect).toHaveBeenCalledWith('/login');
+    expect(onRedirect).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('protected content');
   });
 
-  it('preserves a root-route suffix across the bounce (PR #961 review)', () => {
+  it('public root with a suffix renders children (no redirect) — suffix round-trip is covered by return-to tests', () => {
     renderGate('/', '?view=inbox&lens=snoozed');
-    expect(onRedirect).toHaveBeenCalledTimes(1);
-    expect(onRedirect).toHaveBeenCalledWith(
-      '/login?returnTo=%2F%3Fview%3Dinbox%26lens%3Dsnoozed',
-    );
-    expect(container.textContent).not.toContain('protected content');
+    expect(onRedirect).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('protected content');
   });
 
   it('waits for suffix readiness before redirecting, then redirects once with the suffix (PR #961 review)', () => {
@@ -140,9 +138,17 @@ describe('AuthGateCore', () => {
     expect(container.textContent).toContain('protected content');
   });
 
-  it('shows the session spinner while identity resolves and does not redirect yet', () => {
+  it('public root renders children even while identity resolves (no spinner — the splash lives in RootGate)', () => {
     authState.isLoading = true;
     renderGate('/');
+    expect(onRedirect).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('protected content');
+    expect(container.textContent).not.toContain('Verifying your session...');
+  });
+
+  it('shows the session spinner on a gated route while identity resolves and does not redirect yet', () => {
+    authState.isLoading = true;
+    renderGate('/settings');
     expect(onRedirect).not.toHaveBeenCalled();
     expect(container.textContent).toContain('Verifying your session...');
     expect(container.textContent).not.toContain('protected content');

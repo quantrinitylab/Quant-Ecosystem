@@ -100,12 +100,12 @@ describe('AuthGateCore QC-F-502 — 5xx honesty', () => {
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
   });
 
-  it('NC-502-2b: a 503 userinfo error is intercepted the same way', () => {
+  it('NC-502-2b (public path): a public path steps aside even with a 5xx error — children render, no error state', () => {
     authState.error = 'userinfo failed: 503';
     renderGate('/');
     expect(onRedirect).not.toHaveBeenCalled();
-    expect(container.textContent).not.toContain('protected content');
-    expect(container.textContent).toContain('Something went wrong on our side');
+    expect(container.textContent).toContain('protected content');
+    expect(container.textContent).not.toContain('Something went wrong on our side');
   });
 
   it('PIN-502-2a: logged out with NO error still redirects to /login (unchanged)', () => {
