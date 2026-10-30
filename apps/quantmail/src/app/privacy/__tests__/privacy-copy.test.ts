@@ -2,6 +2,18 @@
 // Privacy page copy-honesty: every word is an instruction or a provable truth
 // (user-locked 2026-10-07 design rule).
 //
+// AMENDMENT 2026-10-30 (Wave-9 Slice A5, retention-claims wins):
+// The two 7-day tests below are re-pinned to the page's current "no fixed
+// schedule" wording. Reason, evidenced on main: the 7-day figures are
+// staging-AWS terraform only (log_retention_days = 7, RDS backup 7),
+// while production terraform says 30 (logs) / 35 (primary backups) / 14
+// (prod-v2), app audit logs are immutable (403), and the live OCI target
+// has no retention config at all. Stating staging figures as live policy
+// on a public page would be false for production, and privacy-copy's
+// 7-day requirements directly contradict privacy-retention-claims.test.ts
+// (which forbids those exact substrings on the raw page source). The
+// privacy page itself is NOT changed by this amendment.
+//
 // Findings (lane-1 QM-SCREEN-018 R3 audit, 2026-10-12):
 //   P1. The page contradicted itself on operational-log retention: the data
 //       matrix said "scrubbed within 7 days" while §5 said "scrubbed and
@@ -88,10 +100,14 @@ const accountUserFacing = accountSettingsSource
   .replace(/(^|\s)\/\/[^\n]*/g, '');
 
 describe('Privacy page copy honesty', () => {
-  it('states a single consistent operational-log retention figure (7 days)', () => {
+  it('states no fixed operational-log scrubbing/destruction schedule is published', () => {
+    // Page §5 today: "No fixed scrubbing or destruction schedule is
+    // currently published for them." That honest wording is pinned here,
+    // instead of the staging-only 7-day figures (see amendment note above).
     // Data matrix row ("App Performance & Logs") and §5 must agree.
-    expect(userFacing).toMatch(/scrubbed within 7 days/);
-    expect(userFacing).toMatch(/permanently destroyed within 7 days/);
+    expect(userFacing).toMatch(/No fixed scrubbing or/);
+    expect(userFacing).not.toMatch(/scrubbed within 7 days/);
+    expect(userFacing).not.toMatch(/permanently destroyed within 7 days/);
     // The old contradictory 30-day operational-log figure must not return.
     expect(userFacing).not.toMatch(/within 30 days/);
   });
@@ -101,9 +117,12 @@ describe('Privacy page copy honesty', () => {
     expect(userFacing).not.toMatch(/immutable/i);
   });
 
-  it('states the evidenced 7-day backup rotation, honestly worded', () => {
-    expect(userFacing).toMatch(/rolling rotation/);
-    expect(userFacing).toMatch(/currently 7 days/);
+  it('states no fixed backup rotation period is published', () => {
+    // Page §5 today: "No fixed rotation period is currently published."
+    // That honest wording is pinned here, instead of the staging-only
+    // 7-day rotation (see amendment note above).
+    expect(userFacing).toMatch(/No fixed rotation period is currently published/);
+    expect(userFacing).not.toMatch(/currently 7 days/);
   });
 
   it('never claims at-rest encryption is active (only the honest rollout note)', () => {
