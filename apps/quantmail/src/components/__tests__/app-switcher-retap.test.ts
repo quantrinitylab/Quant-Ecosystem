@@ -120,7 +120,14 @@ describe('app-switcher re-tap refresh', () => {
         // (src/app/sent/page.tsx, backed by `GET /emails?folderType=SENT`).
         // `/drafts`, `/spam`, `/trash` added by SIA-P1-5 (unified folder list):
         // all are real routes (src/app/drafts|spam|trash/page.tsx).
-        expect(tab.targetPath).toMatch(/^\/(archive|sent|drafts|spam|trash|scheduled|calendar|drive|contacts|quantgit(\/repositories)?)?$/);
+        // `/search` added by the Mail Search slice (Phase 1.3): it is a real
+        // route (src/app/search/page.tsx, backed by UniversalSearchResults
+        // + useUniversalSearch), and ContextBottomNavBar's resolveActiveTab
+        // maps /search to the 'search' tab. The tab is therefore kept and
+        // the allowlist is extended — removing the tab would drop a real
+        // destination that is also linked from not-found, the keyboard
+        // shortcut, and the SuperAppHeader search box.
+        expect(tab.targetPath).toMatch(/^\/(archive|sent|drafts|spam|trash|scheduled|search|calendar|drive|contacts|quantgit(\/repositories)?)?$/);
       }
     }
   });
