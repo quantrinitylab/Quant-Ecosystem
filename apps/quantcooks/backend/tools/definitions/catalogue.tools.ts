@@ -24,7 +24,7 @@ import { createAppError } from '@quant/server-core';
 import type { ToolRegistry } from '../registry';
 import { out } from './shared';
 import { setTimeline, type LayerInput } from './projects.tools';
-import { TemplateNotFoundError } from '../../services/template.service';
+import { TemplateNotFoundError, type ProjectType } from '../../services/template.service';
 import { ROLES } from '../../services/collaboration.service';
 import type { BrandKitPatch, EditorElement } from '../../services/brand-kit.service';
 
@@ -33,6 +33,20 @@ const TEMPLATE_KIND_MAP: Record<string, LayerInput['type']> = {
   media: 'video',
   shape: 'shape',
   audio: 'audio',
+};
+
+/**
+ * Template vocabulary → project vocabulary. TemplateService speaks
+ * 'VIDEO' | 'PHOTO' | 'COLLAGE'; ProjectService.createProject only
+ * accepts 'video' | 'image' | 'audio'. A collage is a photo composition,
+ * so it maps to 'image' — there is no 'collage' project type. Passing
+ * the template type through verbatim stored an out-of-vocabulary type
+ * on the created project.
+ */
+const PROJECT_TYPE_MAP: Record<ProjectType, 'video' | 'image' | 'audio'> = {
+  VIDEO: 'video',
+  PHOTO: 'image',
+  COLLAGE: 'image',
 };
 
 const jsonObject = z.record(z.string(), z.unknown());
@@ -86,7 +100,7 @@ export function registerCatalogueTools(registry: ToolRegistry): void {
       const project = await deps.projects.createProject({
         userId: ctx.actorUserId,
         name: draft.name,
-        type: draft.type,
+        type: PROJECT_TYPE_MAP[draft.type],
       });
       if (draft.layers.length > 0) {
         const layers: LayerInput[] = draft.layers.map((layer, index) => ({
@@ -140,7 +154,10 @@ export function registerCatalogueTools(registry: ToolRegistry): void {
             id: e.id,
             kind: 'effect',
             name: e.name,
-            description: e.description ?? '',
+            // Effect carries no description field; at runtime the old
+            // `e.description ?? ''` always produced '' — keep exactly
+            // that output instead of inventing description text.
+            description: '',
             category: e.category,
           });
         }

@@ -176,6 +176,29 @@ export class ToolRegistry {
 
   constructor(private readonly deps: ToolDeps) {}
 
+  /**
+   * Register a tool definition. The generic overload infers each
+   * executor's `input` from its own inputSchema (z.infer), so executors
+   * read schema fields with types instead of `never` — the old
+   * `register(def: ToolDefinition)` signature typed every executor's
+   * input as `never` and broke typecheck for every definition that
+   * reads a field off `input`. The plain overload covers re-registering
+   * an already-stored definition (its input is erased to `never`).
+   * Stored definitions keep the erased `ToolDefinition` shape: invoke
+   * passes already-validated params via `as never`.
+   */
+  register<S extends z.ZodTypeAny>(
+    def: Omit<ToolDefinition, 'execute' | 'consentCheck' | 'inputSchema'> & {
+      inputSchema: S;
+      execute: (
+        input: z.infer<S>,
+        ctx: ToolContext,
+        deps: ToolDeps,
+      ) => Promise<unknown>;
+      consentCheck?: (input: z.infer<S>) => void;
+    },
+  ): void;
+  register(def: ToolDefinition): void;
   register(def: ToolDefinition): void {
     if (this.defs.has(def.name)) {
       throw new Error(`Tool already registered: ${def.name}`);
@@ -412,12 +435,14 @@ export class ToolRegistry {
       try {
         result = await def.execute(params as never, execCtx, this.deps);
       } catch (err) {
-        if (reservedCredits > 0) {
+        // reservedCredits > 0 implies credits was non-null at reserve
+        // time; the guard only re-narrows across the await boundary.
+        if (reservedCredits > 0 && this.deps.credits) {
           await this.deps.credits.release(scopeId); // settle at 0 (§6.1)
         }
         throw err;
       }
-      if (reservedCredits > 0) {
+      if (reservedCredits > 0 && this.deps.credits) {
         // Settle at the quoted amount — never above it (§6.1 cap rule).
         await this.deps.credits.settle(scopeId, reservedCredits);
       }

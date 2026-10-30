@@ -425,7 +425,9 @@ export class NodePhotoCraftRunner implements PhotoCraftRunner {
  * the caller treats null as PHOTO_NOT_CONFIGURED and fails closed. The
  * binary is never vendored into or downloaded by this codebase.
  */
-export function resolvePhotoCraftBin(env: NodeJS.ProcessEnv = process.env): string | null {
+export function resolvePhotoCraftBin(
+  env: Record<string, string | undefined> = process.env,
+): string | null {
   const bin = env['PHOTOCRAFT_BIN'];
   if (!bin) return null;
   try {
