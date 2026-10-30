@@ -12,6 +12,7 @@
 
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
+import type { PrismaClient } from '@prisma/client';
 import { isAppError } from '@quant/server-core';
 import { ZodError } from 'zod';
 import { chmodSync } from 'node:fs';
@@ -48,10 +49,13 @@ async function buildCraftApp(options: {
 }) {
   const app = Fastify();
   const assetFake = createFakeEditAssetPrisma();
+  // Test harness only: see assets.routes.test.ts note — the composed fake
+  // carries only the two delegates CraftRenderService uses, not the full
+  // PrismaClient. Cast is confined to the Fastify decoration.
   app.decorate('prisma', {
     editCraftRenderJob: options.craftPrisma.editCraftRenderJob,
     editAsset: assetFake.editAsset,
-  });
+  } as unknown as PrismaClient);
   app.decorate('storagePort', options.storage);
   app.decorate('effectCraftBin', options.bin);
   // Mirror server-core's error-handler plugin (see exports.routes.test.ts).
