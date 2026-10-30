@@ -1356,7 +1356,7 @@ body {
    browser's UA autofill paint overrides the author background on returning
    visits — the /login email field rendered mid-gray rgb(59,59,59) while the
    password wrapper stayed near-black, even though both fields declare the
-   same bg-[var(--quant-surface)] (dark theme: #000000). The UA paint only
+   same bg-[var(--quant-surface)] (dark theme: var(--quant-surface)). The UA paint only
    touches real <input> elements, so the password wrapper div looked fine
    while the autofilled email input did not. The inset shadow repaints the
    field near-black (#000, the same --quant-surface the class declares) and
