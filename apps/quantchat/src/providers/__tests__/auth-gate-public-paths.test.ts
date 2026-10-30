@@ -17,8 +17,11 @@ describe('isPublicPath', () => {
     expect(isPublicPath(path)).toBe(true);
   });
 
+  it('keeps the public landing at / public (Phase-0: RootGate decides signed-in vs landing)', () => {
+    expect(isPublicPath('/')).toBe(true);
+  });
+
   it('still gates authed routes', () => {
-    expect(isPublicPath('/')).toBe(false);
     expect(isPublicPath('/chat/abc123')).toBe(false);
     expect(isPublicPath('/stories')).toBe(false);
   });

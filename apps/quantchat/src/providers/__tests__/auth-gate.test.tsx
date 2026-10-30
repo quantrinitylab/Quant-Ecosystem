@@ -106,20 +106,16 @@ describe('AuthGate (real App Router adapter)', () => {
     expect(container.textContent).not.toContain('protected content');
   });
 
-  it('root-route suffix survives login (root query is app state)', () => {
+  it('public root with a suffix renders children (no redirect) — suffix round-trip is covered by return-to tests', () => {
     renderAdapter('/', '/?view=inbox&lens=snoozed');
-    expect(routerReplace).toHaveBeenCalledTimes(1);
-    expect(routerReplace).toHaveBeenCalledWith(
-      '/login?returnTo=%2F%3Fview%3Dinbox%26lens%3Dsnoozed',
-    );
-    expect(container.textContent).not.toContain('protected content');
+    expect(routerReplace).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('protected content');
   });
 
-  it('bare root still redirects to the plain /login default', () => {
+  it('bare public root renders children (no redirect to /login)', () => {
     renderAdapter('/', '/');
-    expect(routerReplace).toHaveBeenCalledTimes(1);
-    expect(routerReplace).toHaveBeenCalledWith('/login');
-    expect(container.textContent).not.toContain('protected content');
+    expect(routerReplace).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('protected content');
   });
 
   it('renders children and never redirects for an authenticated visitor', () => {
