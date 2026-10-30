@@ -23,6 +23,7 @@ FROM node:22-slim AS deps
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json turbo.json ./
+COPY .pnpmfile.cjs ./
 COPY patches/ ./patches/
 COPY packages/ ./packages/
 COPY apps/quantmail/ ./apps/quantmail/
