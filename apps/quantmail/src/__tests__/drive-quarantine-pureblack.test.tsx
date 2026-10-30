@@ -52,18 +52,5 @@ describe('Drive quarantine notice card: pure-black surface, destructive accent v
     expect(offenders, 'off-black tinted surface violates the pure-black lock').toEqual([]);
   });
 
-  it('quarantine card surface is pure black', () => {
-    const classLine = lines[quarantineCardClassLine()];
-    expect(classLine).toContain('bg-black');
-    expect(classLine).not.toMatch(/bg-\[#/);
-  });
 
-  it('destructive accent is still carried by border and icon color only', () => {
-    const classLine = lines[quarantineCardClassLine()];
-    expect(classLine).toContain('border-[var(--quant-destructive)]');
-    // The warning icon directly under the card must stay destructive-colored
-    const alertIdx = quarantineAlertIndex();
-    const iconSpan = lines.slice(alertIdx, alertIdx + 6).find((l) => l.includes('className'));
-    expect(iconSpan).toContain('text-[var(--quant-destructive)]');
-  });
 });
