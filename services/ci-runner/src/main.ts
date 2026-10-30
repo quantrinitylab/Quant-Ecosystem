@@ -10,7 +10,7 @@ const CIRunJobSchema = z.object({
   runId: z.string(),
   repoId: z.string(),
   configYaml: z.string(),
-  variables: z.record(z.string()).optional(),
+  variables: z.record(z.string(), z.string()).optional(),
 });
 
 export type CIRunJob = z.infer<typeof CIRunJobSchema>;
