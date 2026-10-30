@@ -10,6 +10,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
+import type { PrismaClient } from '@prisma/client';
 import { ZodError } from 'zod';
 import projectsRoutes from '../routes/projects';
 import layersRoutes from '../routes/layers';
@@ -30,7 +31,13 @@ async function buildApp(prisma: FakePrisma, userId: string | null) {
     const statusCode = (error as { statusCode?: number }).statusCode ?? 500;
     return reply.status(statusCode).send({ success: false });
   });
-  app.decorate('prisma', prisma);
+  // Test harness only: the fake implements the narrow delegate surface the
+  // service under test uses, not the full generated PrismaClient (all model
+  // delegates + $on/$connect/$disconnect/$executeRaw/...). The cast is
+  // confined to the Fastify decoration; services still receive the fake
+  // through their own narrow-typed constructors/adapters. Precedent:
+  // quantchat otp-request / qc-f-118 tests use the same cast.
+  app.decorate('prisma', prisma as unknown as PrismaClient);
   if (userId !== null) {
     app.addHook('onRequest', async (request) => {
       (request as unknown as { auth: { userId: string } }).auth = { userId };
