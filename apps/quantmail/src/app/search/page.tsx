@@ -23,7 +23,6 @@ import {
 import { UniversalSearchResults } from './UniversalSearchResults';
 import {
   SEARCH_COUNT_BANNER,
-  describeSearchCountLabel,
   describeSearchEmpty,
   deriveSearchSuggestions,
 } from '../../lib/search-results-label';
@@ -719,7 +718,7 @@ export default function SearchPage() {
 
           {scope === 'mail' && hasSearched && !isLoading && !error && (!results || results.length === 0) && (
             <EmptyState
-              title="No results"
+              title="Nothing matched"
               description={describeSearchEmpty({
                 query,
                 scope: 'mail',
@@ -740,12 +739,19 @@ export default function SearchPage() {
             >
               <div className="mb-2 px-1" role="status">
                 <p className="text-xs text-[var(--quant-muted-foreground)]">
-                  {describeSearchCountLabel({
-                    query,
-                    scope: 'mail',
-                    total: visibleResults.length,
-                  })}
-                  {mailSearchOffline && ' — offline results only; the server search is unavailable.'}
+                  {/*
+                    Mail-scope count in the page's own words, not the shared
+                    universal helper: a successful search is a plain
+                    "N result(s) for …", and an offline answer must qualify
+                    the count itself ("N offline result(s)"), never an
+                    unqualified count with the offline note detached after
+                    it. The banner above already says the server search is
+                    unavailable, and SEARCH_COUNT_BANNER below still carries
+                    the search-vs-pool distinction.
+                  */}
+                  {mailSearchOffline
+                    ? `${visibleResults.length} offline ${visibleResults.length === 1 ? 'result' : 'results'} for “${query}”`
+                    : `${visibleResults.length} ${visibleResults.length === 1 ? 'result' : 'results'} for “${query}”`}
                 </p>
                 <p className="mt-0.5 text-[11px] text-[var(--quant-muted-foreground)]">
                   {SEARCH_COUNT_BANNER}
