@@ -11,11 +11,12 @@
     "build:backend": "tsc --noEmit -p tsconfig.backend.json",
     "start": "next start",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.backend.json",
-    "test": "node scripts/install-photo-editor.mjs; vitest run",
+    "test": "node scripts/install-photo-editor.mjs; node scripts/install-design-editor.mjs; vitest run",
     "install:photo-editor": "node scripts/install-photo-editor.mjs",
     "test:phase0-gate": "node scripts/phase0-gate.mjs",
     "test:phase0-smoke": "PHASE0_SMOKE=1 vitest run backend/__tests__/phase0-restart-smoke.e2e.test.ts",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "install:design-editor": "node scripts/install-design-editor.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
