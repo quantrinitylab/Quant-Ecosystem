@@ -66,7 +66,10 @@ describe('search empty state', () => {
 
   it('without filters it does not invent a filter to remove', () => {
     const text = describeSearchEmpty({ query: 'zzz-no-match', scope: 'all' });
-    expect(text).toContain('across mail, people, calendar, and drive');
+    // Wave-9 slice A4: canonical empty copy for scope 'all' is now the "or drive"
+    // form pinned by universal-search-results.test.tsx; this test's real intent
+    // (no invented filter, broader-phrase advice) is unchanged.
+    expect(text).toContain('across mail, people, calendar, or drive');
     expect(text).not.toContain('remove filters');
     expect(text).toContain('broader phrase');
   });
