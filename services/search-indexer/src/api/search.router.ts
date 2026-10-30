@@ -29,7 +29,7 @@ export const SearchAPIResponseSchema = z.object({
       score: z.number(),
       title: z.string(),
       snippet: z.string(),
-      metadata: z.record(z.unknown()),
+      metadata: z.record(z.string(), z.unknown()),
     }),
   ),
   total: z.number(),
