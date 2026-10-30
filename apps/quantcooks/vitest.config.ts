@@ -12,6 +12,11 @@ const here = fileURLToPath(new URL('.', import.meta.url));
 // that implements the small surface the app-router routes use
 // (NextRequest/NextResponse.json on top of the Fetch API).
 export default {
+  oxc: {
+    jsx: {
+      runtime: 'automatic',
+    },
+  },
   resolve: {
     alias: {
       'next/server': resolve(here, 'src/__tests__/stubs/next-server.ts'),
