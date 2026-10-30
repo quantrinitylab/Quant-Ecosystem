@@ -199,6 +199,12 @@ describe.each([['mobile', mobile], ['desktop', desktop]] as const)(
     it('single-param synthetic tab builds exactly its old target', () => {
       const tab = {
         ...tabById('spam'),
+        // Since #1717 the real Spam tab carries queryParams
+        // ([view=inbox, lens=spam]), and the handlers give queryParams
+        // precedence over queryParam — so a spread alone is no longer a
+        // single-param tab. Clear it explicitly to restore the premise
+        // this test pins; the handler contract itself is unchanged.
+        queryParams: undefined,
         targetPath: '/calendar',
         queryParam: { key: 'tab', value: 'day' },
       };
