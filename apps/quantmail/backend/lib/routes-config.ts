@@ -153,11 +153,18 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   // so a separate GET row after a DELETE-only row would never be reached and
   // guests would 405 on the public read. GET on that shape is the public slug
   // read; DELETE is the host delete; POST on the bare shape does not exist.
+  // EXCEPTION (wave-9 slice A8, phase-r-m R-D4): there is intentionally NO
+  // row for /booking/links/:slug/book. The /booking/links duplicate is the
+  // internal non-public prefix for the book step; the canonical guest
+  // booking path through the proxy is /calendar/booking/:slug/book (the
+  // only web caller, src/app/calendar/booking/[slug]/page.tsx, posts
+  // there), so the catch-all must answer API_ROUTE_NOT_FOUND for
+  // /api/booking/links/:slug/book. The backend handler and its app.ts
+  // publicPaths row are untouched — this change closes only the proxy door.
   { pattern: /^booking\/links$/, methods: ['GET', 'POST'] },
   { pattern: /^booking\/links\/[^/]+$/, methods: ['GET', 'DELETE'] },
   { pattern: /^booking\/links\/[^/]+\/slots$/, methods: ['GET'] },
   { pattern: /^booking\/links\/[^/]+\/lock$/, methods: ['POST'] },
-  { pattern: /^booking\/links\/[^/]+\/book$/, methods: ['POST'] },
   { pattern: /^calendar\/booking\/[^/]+$/, methods: ['GET'] },
   { pattern: /^calendar\/booking\/[^/]+\/slots$/, methods: ['GET'] },
   { pattern: /^calendar\/booking\/[^/]+\/lock$/, methods: ['POST'] },
