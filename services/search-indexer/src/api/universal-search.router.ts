@@ -62,7 +62,7 @@ export const UniversalSearchResponseSchema = z.object({
     z.object({
       id: z.string(),
       score: z.number(),
-      document: z.record(z.unknown()),
+      document: z.record(z.string(), z.unknown()),
       snippet: z.object({
         text: z.string(),
         matchCount: z.number(),
@@ -124,7 +124,7 @@ export const FindSimilarResponseSchema = z.object({
       score: z.number(),
       title: z.string().optional(),
       snippet: z.string().optional(),
-      metadata: z.record(z.unknown()),
+      metadata: z.record(z.string(), z.unknown()),
     }),
   ),
   took: z.number(),
