@@ -12,6 +12,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.backend.json",
     "test": "vitest run",
+    "install:photo-editor": "node scripts/install-photo-editor.mjs",
     "test:phase0-gate": "node scripts/phase0-gate.mjs",
     "test:phase0-smoke": "PHASE0_SMOKE=1 vitest run backend/__tests__/phase0-restart-smoke.e2e.test.ts",
     "lint": "eslint ."
