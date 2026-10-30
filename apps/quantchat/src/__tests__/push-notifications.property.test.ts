@@ -290,8 +290,10 @@ describe('Push notifications — Property 22 (deep-link resolution)', () => {
       expect(route).toBe(vector.expected);
       // Routes are always absolute…
       expect(route.startsWith('/')).toBe(true);
-      // …and always REAL routes — the QC-F-142 route-existence guard.
-      expect(classifyPath(route)).toBe('app');
+      // …and always REAL routes — the QC-F-142 route-existence guard:
+      // 'app' or 'public' both count ('/' is the public landing, a real
+      // route); only 'unknown' (a 404) fails.
+      expect(classifyPath(route)).not.toBe('unknown');
     }
   });
 });
