@@ -1,0 +1,20 @@
+{
+  "selfSend": {
+    "apiStatus": 201,
+    "apiReportedSuccess": true,
+    "deliveredToOwnInbox": true
+  },
+  "crossSend": {
+    "apiStatus": 201,
+    "deliveredToDestInbox": true
+  },
+  "ccSelf": {
+    "senderGotInboxCopyWhenCcingSelf": true
+  },
+  "calendar": {
+    "requestedCalendarId": "cmvi072we0018qp0ukvrmw889",
+    "createStatus": 201,
+    "returnedEventCalendarId": "cmvi072we0018qp0ukvrmw889",
+    "linkedToRequestedCalendar": true
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "run": "mvi033e3",
+  "base": "http://127.0.0.1:3010",
+  "config": {
+    "READ_CONC": 60,
+    "READ_SECS": 15,
+    "WRITE_CONC": 20,
+    "WRITE_SECS": 10,
+    "SEED_MAILS": 25
+  },
+  "phases": [
+    {
+      "name": "GET /livez (health)",
+      "requests": 76946,
+      "ok": 76946,
+      "errPct": 0,
+      "rps": 9614.9,
+      "p50": 3.7,
+      "p95": 6.6,
+      "p99": 9.7,
+      "max": 192.7,
+      "codes": {
+        "200": 76946
+      },
+      "concurrency": 40,
+      "durationS": 8
+    },
+    {
+      "name": "GET /emails (inbox list)",
+      "requests": 6927,
+      "ok": 6927,
+      "errPct": 0,
+      "rps": 457.1,
+      "p50": 116.1,
+      "p95": 230.8,
+      "p99": 259.1,
+      "max": 315.1,
+      "codes": {
+        "200": 6927
+      },
+      "concurrency": 60,
+      "durationS": 15.2
+    },
+    {
+      "name": "GET /search/emails (broken fast-path->fallback)",
+      "requests": 13331,
+      "ok": 13331,
+      "errPct": 0,
+      "rps": 886,
+      "p50": 66,
+      "p95": 83.7,
+      "p99": 103.6,
+      "max": 131,
+      "codes": {
+        "200": 13331
+      },
+      "concurrency": 60,
+      "durationS": 15
+    },
+    {
+      "name": "POST /emails (compose+send)",
+      "requests": 2208,
+      "ok": 2208,
+      "errPct": 0,
+      "rps": 219.6,
+      "p50": 90.7,
+      "p95": 100.4,
+      "p99": 105.8,
+      "max": 114.6,
+      "codes": {
+        "201": 2208
+      },
+      "concurrency": 20,
+      "durationS": 10.1
+    },
+    {
+      "name": "POST /auth/login (rate-limit probe, 30 reqs)",
+      "requests": 30,
+      "ok": 5,
+      "errPct": 83.33,
+      "rps": null,
+      "p50": 5.6,
+      "p95": 114.9,
+      "p99": 147.7,
+      "max": 147.7,
+      "codes": {
+        "200": 5,
+        "429": 25
+      }
+    }
+  ],
+  "generatedAt": "2026-10-21T11:00:47.652Z"
+}
