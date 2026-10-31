@@ -86,9 +86,11 @@ export interface PopupDataDeps {
   executor: QuantyExecutor;
   toolAppOf: (toolName: string) => QuantyToolApp | undefined;
   /**
-   * Prisma client. Approvals are served from the durable per-user grant log
-   * when it carries the durability tables; when absent the in-memory mirror
-   * is used as honest degradation (see durableTaskStore() in routes).
+   * Prisma client. Approvals are served from the durable per-user grant log.
+   * FAIL CLOSED: when the durable DB is absent, or the durable read fails
+   * (DB outage/migration), the popup shows an empty approval list — never
+   * the process-global in-memory mirror, which mixes users on shared
+   * deployments.
    */
   prisma?: unknown;
 }
@@ -96,18 +98,23 @@ export interface PopupDataDeps {
 /**
  * Approval history for the popup. Served from the durable per-user grant
  * log (never the process-global in-memory list, which mixes users on shared
- * deployments) — the in-memory mirror is only the fallback when the durable
- * DB is absent. Returned shape is still QuantyApproval[].
+ * deployments). FAIL CLOSED: on durable-read failure, and when the durable
+ * DB is absent, return the empty list — never the global list. Returning the
+ * global mirror on a DB outage/migration would leak other users' approvals
+ * into this user's popup (cross-user approval leak).
  */
 async function popupApprovals(prisma: unknown, userId: string): Promise<QuantyApproval[]> {
   if (hasDurableDb(prisma)) {
     try {
       return await listApprovals(prisma, userId, 50);
     } catch {
-      // Durable read failed — fall through to the in-memory mirror below.
+      // Durable read failed — fail closed: empty, never the global list.
+      return [];
     }
   }
-  return quantyAgentState.listApprovals(50);
+  // No durable DB at all — the global in-memory mirror mixes users, so it
+  // must never serve a per-user view. Empty is the honest answer.
+  return [];
 }
 
 /** Assemble the full popup payload. Honest empty states, never fabricated rows. */
