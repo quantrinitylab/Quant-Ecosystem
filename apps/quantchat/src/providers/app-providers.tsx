@@ -7,22 +7,30 @@ import {
   CommandPaletteUI,
   QuantSidekickProvider,
   QuantSidekick,
+  UniversalSSOTokenBridge,
 } from '@quant/shared-ui';
-import type { CommandPaletteItem } from '@quant/shared-ui';
+import type { CommandPaletteItem, CoreQuantAppId } from '@quant/shared-ui';
+import { buildCommands } from '../lib/ecosystem-commands';
 import { MicroInteractionProvider } from './MicroInteractionProvider';
 import { AuthGate } from './auth-gate';
 import { InAppToastContainer } from '../components/ui/InAppToast';
 import { ForegroundToastBridge } from '../components/ui/ForegroundToastBridge';
 
-const commands: CommandPaletteItem[] = [
-  { id: 'new-chat', label: 'New Chat', shortcut: 'N', action: () => {} },
-  { id: 'search', label: 'Search Conversations', shortcut: '/', action: () => {} },
-  { id: 'settings', label: 'Settings', action: () => {} },
-];
-
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  // QC-F-050: the palette commands are REAL now. The old module-scope entries
+  // were dead `() => {}` stubs — `search` and `settings` had no UI to go to
+  // (no global search, no /settings route) and are honestly removed instead
+  // of faked. The bridge lookup happens at click time (client-side only).
+  const commands: CommandPaletteItem[] = buildCommands(
+    (path: string) => router.push(path),
+    (appId: CoreQuantAppId) => {
+      const url = UniversalSSOTokenBridge.getInstance().buildCrossAppJumpUrl(appId);
+      window.location.href = url;
+    },
+  );
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
