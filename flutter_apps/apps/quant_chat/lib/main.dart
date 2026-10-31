@@ -9,6 +9,7 @@ import 'package:quant_ui/quant_ui.dart';
 import 'screens/chat_list_screen.dart';
 import 'screens/calls_tab_screen.dart';
 import 'screens/audio_space_screen.dart';
+import 'screens/camera_tab_screen.dart';
 import 'screens/settings_screen.dart';
 
 void main() {
@@ -42,6 +43,7 @@ class _QuantChatHomeScreenState extends State<QuantChatHomeScreen> {
   final List<Widget> _screens = const [
     ChatListScreen(),
     CallsTabScreen(),
+    CameraTabScreen(),
     AudioSpaceScreen(),
     SettingsScreen(),
   ];
@@ -186,8 +188,9 @@ class _QuantChatHomeScreenState extends State<QuantChatHomeScreen> {
               // that did not exist.
               _buildNavItem(0, Icons.chat_bubble_rounded, Icons.chat_bubble_outline_rounded, 'Chats'),
               _buildNavItem(1, Icons.phone_in_talk_rounded, Icons.phone_outlined, 'Calls'),
-              _buildNavItem(2, Icons.radio_button_checked_rounded, Icons.radio_button_off_rounded, 'Spaces'),
-              _buildNavItem(3, Icons.settings_rounded, Icons.settings_outlined, 'Settings'),
+              _buildNavItem(2, Icons.camera_alt_rounded, Icons.camera_alt_outlined, 'Camera'),
+              _buildNavItem(3, Icons.radio_button_checked_rounded, Icons.radio_button_off_rounded, 'Spaces'),
+              _buildNavItem(4, Icons.settings_rounded, Icons.settings_outlined, 'Settings'),
             ],
           ),
         ),
@@ -285,3 +288,4 @@ class _QuantChatHomeScreenState extends State<QuantChatHomeScreen> {
     );
   }
 }
+
