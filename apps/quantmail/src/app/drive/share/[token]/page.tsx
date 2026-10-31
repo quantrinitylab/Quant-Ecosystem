@@ -20,9 +20,11 @@ import { formatBytes } from '../../../../lib/format-bytes';
 import {
   SHARE_ERROR_COPY,
   ShareResolveError,
-  downloadUrlFor,
+  downloadShareFile,
+  fetchShareDownload,
   previewKindFor,
   resolveShareToken,
+  sharePreviewObjectUrl,
   TEXT_PREVIEW_MAX_BYTES,
   type ResolvedShare,
 } from './share-resolve';
@@ -58,19 +60,64 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
   const [textPreviewState, setTextPreviewState] = useState<'idle' | 'loading' | 'error' | 'too-large'>(
     'idle',
   );
+  const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null);
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const previewKind = previewKindFor(file.mimeType);
   const expiresLabel = formatDate(file.expiresAt);
   const sizeTooLargeForText = typeof file.size === 'number' && file.size > TEXT_PREVIEW_MAX_BYTES;
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback(async () => {
     if (file.requiresPassword && !password) {
       setPasswordHint('Enter the link password to download this file.');
       return;
     }
     setPasswordHint(null);
-    window.location.href = downloadUrlFor(token, password || undefined);
-  }, [file.requiresPassword, password, token]);
+    setIsDownloading(true);
+    try {
+      // fix/qm-share-pw-query-param: blob download via the password header —
+      // no navigation URL ever carries the secret.
+      await downloadShareFile(token, password || undefined, file.name);
+    } catch (err) {
+      // Honest errors only: the backend gate answers 401 (missing) / 403
+      // (wrong password); anything else is a network failure.
+      if (err instanceof ShareResolveError && (err.status === 401 || err.status === 403)) {
+        setPasswordHint('That password didn\u2019t unlock this file — check it and try again.');
+      } else {
+        setPasswordHint('Download failed — check your connection and try again.');
+      }
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [file.requiresPassword, file.name, password, token]);
+
+  // Image/PDF previews fetch through the password header into a blob object
+  // URL — the secret never appears in an <img>/<iframe> src URL.
+  useEffect(() => {
+    if (previewKind !== 'image' && previewKind !== 'pdf') return;
+    if (file.requiresPassword && !password) return;
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setPreviewFailed(false);
+    sharePreviewObjectUrl(token, password || undefined)
+      .then((url) => {
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        objectUrl = url;
+        setPreviewObjectUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setPreviewFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setPreviewObjectUrl(null);
+    };
+  }, [previewKind, file.requiresPassword, token, password]);
 
   useEffect(() => {
     if (previewKind !== 'text' || textPreviewState !== 'idle') return;
@@ -80,7 +127,7 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
     }
     let cancelled = false;
     setTextPreviewState('loading');
-    fetch(downloadUrlFor(token, password || undefined), { credentials: 'include' })
+    fetchShareDownload(token, password || undefined)
       .then(async (res) => {
         if (!res.ok) throw new Error('preview failed');
         const text = await res.text();
@@ -100,8 +147,6 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
       cancelled = true;
     };
   }, [previewKind, textPreviewState, sizeTooLargeForText, token, password]);
-
-  const previewUrl = downloadUrlFor(token, password || undefined);
 
   return (
     <Card padding="none" className="p-6">
@@ -156,17 +201,41 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
       {previewKind === 'image' && (
         <div className="mt-5 overflow-hidden rounded-xl bg-black">
           {/* Real bytes from the backend download endpoint — not a placeholder. */}
-          <img src={previewUrl} alt={file.name} className="max-h-[60vh] w-full object-contain" />
+          {previewObjectUrl ? (
+            <img
+              src={previewObjectUrl}
+              alt={file.name}
+              className="max-h-[60vh] w-full object-contain"
+            />
+          ) : (
+            <p className="p-4 text-center text-xs text-[var(--quant-muted-foreground)]">
+              {previewFailed
+                ? 'Preview failed to load — download the file to view it.'
+                : file.requiresPassword && !password
+                  ? 'Enter the link password above to preview this file.'
+                  : 'Loading preview…'}
+            </p>
+          )}
         </div>
       )}
       {previewKind === 'pdf' && (
         <div className="mt-5 overflow-hidden rounded-xl bg-black">
-          <iframe
-            src={previewUrl}
-            title={file.name}
-            className="h-[60vh] w-full"
-            sandbox="allow-same-origin"
-          />
+          {previewObjectUrl ? (
+            <iframe
+              src={previewObjectUrl}
+              title={file.name}
+              className="h-[60vh] w-full"
+              sandbox="allow-same-origin"
+            />
+          ) : (
+            <p className="p-4 text-center text-xs text-[var(--quant-muted-foreground)]">
+              {previewFailed
+                ? 'Preview failed to load — download the file to view it.'
+                : file.requiresPassword && !password
+                  ? 'Enter the link password above to preview this file.'
+                  : 'Loading preview…'}
+            </p>
+          )}
         </div>
       )}
       {previewKind === 'text' && (
@@ -200,9 +269,10 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
           variant="primary"
           fullWidth
           onClick={handleDownload}
+          disabled={isDownloading}
           className="bg-[var(--app-accent,var(--quant-success))] border-[var(--app-accent,var(--quant-success))] text-black"
         >
-          Download file
+          {isDownloading ? 'Downloading…' : 'Download file'}
         </Button>
       </div>
     </Card>

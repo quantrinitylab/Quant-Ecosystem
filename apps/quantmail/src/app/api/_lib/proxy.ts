@@ -50,11 +50,28 @@ export async function proxyToBackend(
   // would strip the key the web client minted and every mutation would 400.
   const idempotencyKey = request.headers.get('Idempotency-Key');
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  // fix/qm-share-pw-query-param: share-link passwords travel ONLY in this
+  // header (never the query string). The proxy must forward it, or the
+  // backend's header-only gate would 401 every password-protected public
+  // download. Same allow-list pattern as Idempotency-Key above.
+  const sharePassword = request.headers.get('x-share-password');
+  if (sharePassword) headers['x-share-password'] = sharePassword;
 
   const url = new URL(backendPath, base);
-  // Forward search params for GET requests
+  // Forward search params for GET requests — EXCEPT a `password` param.
+  // fix/qm-share-pw-query-param (deep-fix): the generic forwarder used to
+  // copy every inbound query param onto the backend URL, so a stale
+  // `?password=<secret>` link (bookmark, pasted URL, old client) was
+  // re-attached to the backend request URL and landed in backend logs even
+  // though the backend gate itself ignores query passwords. A secret must
+  // never travel in a URL on any hop: strip it here (case-insensitive key
+  // match, so `Password=`/`PASSWORD=` variants cannot slip through either).
+  // No legitimate GET backend route reads a `password` query param — all
+  // password inputs are request bodies or the `x-share-password` header —
+  // so dropping it cannot break a real caller; other params pass through.
   if (method === 'GET') {
     request.nextUrl.searchParams.forEach((value, key) => {
+      if (key.toLowerCase() === 'password') return;
       url.searchParams.set(key, value);
     });
   }
