@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { describeAttachmentChip } from '../lib/compose-attachment-chip';
 import { showToast } from './InboxToast';
 import { useContacts } from '../hooks/useContacts';
+import { useContactSuggestions } from '../hooks/useContactSuggestions';
+import { usePlusMention } from '../hooks/usePlusMention';
+import { PlusMentionDropdown } from './PlusMentionDropdown';
 import { useConfirm } from '../hooks/useConfirm';
 import { apiClient } from '../services/api-client';
 import { useUndoSend } from './UndoSendCountdownBar';
@@ -464,6 +467,39 @@ export function DockedComposer({
   // (Recipient autocomplete is owned by RecipientChipInput now.)
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  // Inline "+" mentions in the body (Gmail parity, same contract as
+  // EmailComposer): typing "+name" opens the contact picker; picking one
+  // inserts "@Name" into the body AND adds the contact to To. The picker
+  // reuses the frequent-contacts list (not the paged useContacts page) so
+  // a mention can reach any of the 100 frequent contacts. Format ranges
+  // shift with the edit exactly like every other body edit.
+  const { contacts: frequentSuggestions } = useContactSuggestions();
+  const plusMention = usePlusMention({
+    body,
+    contacts: frequentSuggestions,
+    excludedEmails: [
+      ...toRecipients.map((r) => r.email),
+      ...ccRecipients.map((r) => r.email),
+      ...bccRecipients.map((r) => r.email),
+    ],
+    onSelect: (contact, nextBody, nextCaret) => {
+      setBodyFormats((prev) => adjustRangesForEdit(prev, body, nextBody));
+      setBody(nextBody);
+      setToRecipients((prev) =>
+        prev.some((r) => r.email.toLowerCase() === contact.email.toLowerCase())
+          ? prev
+          : [...prev, { email: contact.email, name: contact.name, avatarUrl: contact.avatar }],
+      );
+      requestAnimationFrame(() => {
+        const el = bodyRef.current;
+        if (el) {
+          el.focus();
+          el.setSelectionRange(nextCaret, nextCaret);
+        }
+      });
+    },
+  });
 
   // Unsaved-changes guard for the discard button — same protection as the
   // full composer: typed content is never silently thrown away.
@@ -1498,9 +1534,15 @@ export function DockedComposer({
 
         {/* Rich Body Editor Area */}
         <div className="flex-1 flex flex-col p-4 relative min-h-[160px]">
+          <div className="relative flex flex-1 flex-col">
           <textarea
             ref={bodyRef}
             value={body}
+            onKeyDown={(e) => {
+              // An open mention picker owns Arrow/Enter/Tab/Escape; Cmd+Enter
+              // still bubbles to the container handler and sends.
+              plusMention.handleKeyDown(e);
+            }}
             onChange={(e) => {
               const next = e.target.value;
               // The placeholder promises "Type '++' for writing-assistant templates" —
@@ -1515,10 +1557,20 @@ export function DockedComposer({
               // Keep format ranges glued to their words as the text changes.
               setBodyFormats((prev) => adjustRangesForEdit(prev, body, next));
               setBody(next);
+              plusMention.updateFromEdit(next, e.target.selectionStart ?? next.length);
             }}
             placeholder="Write your email here... Type '++' for writing-assistant templates."
             className="w-full flex-1 bg-transparent text-white placeholder-[#4B5563] resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] rounded text-xs leading-relaxed"
           />
+          {plusMention.isOpen && (
+            <PlusMentionDropdown
+              suggestions={plusMention.suggestions}
+              activeIndex={plusMention.activeIndex}
+              onSelect={plusMention.select}
+              onHover={plusMention.setActiveIndex}
+            />
+          )}
+          </div>
 
           {/* Attached Files Strip */}
           {attachments.length > 0 && (

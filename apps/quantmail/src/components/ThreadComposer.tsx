@@ -4,6 +4,9 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { apiClient } from '../services/api-client';
 import { showToast } from '../components/InboxToast';
+import { useContactSuggestions } from '../hooks/useContactSuggestions';
+import { usePlusMention } from '../hooks/usePlusMention';
+import { PlusMentionDropdown } from './PlusMentionDropdown';
 import { UndoSendContext } from './UndoSendCountdownBar';
 import { ScheduleSendModal, isPastScheduleTime } from './ScheduleSendModal';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
@@ -17,6 +20,7 @@ import {
   switchThreadDraft,
   threadDraftAccountKey,
   windowThreadDraftStorage,
+  type MentionedRecipient,
 } from '../lib/threadReplyDrafts';
 import { draftSaveStateLabel } from './useDraftAutosave';
 
@@ -208,6 +212,99 @@ function IconTemplate({ className = 'size-4' }: { className?: string }) {
 }
 
 /**
+ * Add a "+"-picked contact to the thread reply's real recipient list.
+ *
+ * Pure function so the picker → recipient contract is unit-testable
+ * without a DOM. Rules, each closing a concrete dishonesty:
+ * - A blank email adds nothing (a contact row without an address can
+ *   never become a recipient).
+ * - The thread person themself adds nothing — they are already the
+ *   primary recipient, and a second identical To entry would be a
+ *   duplicate delivery, not a second person.
+ * - An already-listed address (case-insensitive) adds nothing — picking
+ *   the same contact twice must not double-address the send.
+ * Otherwise the contact appends in pick order, name kept when present
+ * (the chips render it; the send itself only needs the address).
+ */
+export function addMentionedRecipient(
+  recipients: MentionedRecipient[],
+  contact: { email: string; name?: string },
+  threadEmail: string,
+): MentionedRecipient[] {
+  const email = (contact.email ?? '').trim();
+  if (!email) return recipients;
+  const folded = email.toLowerCase();
+  if (folded === (threadEmail ?? '').trim().toLowerCase()) return recipients;
+  if (recipients.some((r) => r.email.toLowerCase() === folded)) return recipients;
+  const name = contact.name?.trim() ? contact.name.trim() : undefined;
+  return [...recipients, name ? { email, name } : { email }];
+}
+
+/**
+ * Union two recipient lists (failure/undo restore: the in-flight send's
+ * snapshot plus anything the user picked during the recall window).
+ * First occurrence wins, case-insensitive — nothing is silently lost,
+ * nothing is duplicated.
+ */
+export function mergeMentionedRecipients(
+  a: MentionedRecipient[],
+  b: MentionedRecipient[],
+): MentionedRecipient[] {
+  const seen = new Set<string>();
+  const out: MentionedRecipient[] = [];
+  for (const recipient of [...a, ...b]) {
+    const folded = recipient.email.toLowerCase();
+    if (seen.has(folded)) continue;
+    seen.add(folded);
+    out.push(recipient);
+  }
+  return out;
+}
+
+/**
+ * The exact To list a thread reply sends to: the thread person first,
+ * then the "+"-picked contacts in pick order. Defensive re-filtering
+ * (blank / thread-person duplicate / repeated address dropped) so a stale
+ * or hand-built list can never double-address or mis-address the send —
+ * the compose call below is the last gate before delivery.
+ */
+export function threadSendRecipients(
+  conversation: PersonConversation,
+  mentioned: MentionedRecipient[],
+): Array<{ email: string }> {
+  const to: Array<{ email: string }> = [{ email: conversation.email }];
+  const seen = new Set([conversation.email.toLowerCase()]);
+  for (const recipient of mentioned ?? []) {
+    const email = (recipient.email ?? '').trim();
+    if (!email) continue;
+    const folded = email.toLowerCase();
+    if (seen.has(folded)) continue;
+    seen.add(folded);
+    to.push({ email });
+  }
+  return to;
+}
+
+/**
+ * The recipient display the undo-send bar shows ("Sending to …"): the
+ * thread person, then each picked contact by name (email when nameless).
+ * The bar must name everyone the send will reach — showing only the
+ * thread person while extras are addressed would be the same fake
+ * affordance one layer down.
+ */
+export function threadSendDisplayRecipients(
+  conversation: PersonConversation,
+  mentioned: MentionedRecipient[],
+): string {
+  const names = [conversation.name || conversation.email];
+  for (const recipient of threadSendRecipients(conversation, mentioned).slice(1)) {
+    const picked = (mentioned ?? []).find((r) => r.email.toLowerCase() === recipient.email.toLowerCase());
+    names.push(picked?.name?.trim() || recipient.email);
+  }
+  return names.join(', ');
+}
+
+/**
  * The fixed #771 send path for a thread reply: compose a chat-kind draft
  * addressed to the person, in-reply-to the thread's last message, then send
  * it. Success toasts "Message sent" (or "Message scheduled" for a scheduled
@@ -219,6 +316,12 @@ function IconTemplate({ className = 'size-4' }: { className?: string }) {
  * and the /compose page's EmailComposer. The backend 400s past times and
  * the modal rejects them client-side; the component's `handleSend` repeats
  * the past-time guard as belt-and-braces.
+ *
+ * `additionalRecipients` (CODEX-REVIEW on PR #1549) is the "+"-picked
+ * list: contacts the user added from the body picker are addressed on
+ * the compose call itself, so a picked contact genuinely receives the
+ * message. Omitted, the call shape is byte-identical to before (thread
+ * person only) — every pre-existing send-path test pins that shape.
  */
 export async function executeThreadSend(
   deps: ThreadSendDeps,
@@ -226,10 +329,11 @@ export async function executeThreadSend(
   subject: string,
   bodyText: string,
   scheduledAt?: string,
+  additionalRecipients: MentionedRecipient[] = [],
 ): Promise<ThreadSendOutcome> {
   try {
     const composeRes = await deps.composeEmail({
-      to: [{ email: conversation.email }],
+      to: threadSendRecipients(conversation, additionalRecipients),
       subject,
       bodyText,
       messageKind: 'chat',
@@ -291,8 +395,44 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
   const [body, setBody] = useState(suggestedReply?.text ?? restoredDraft?.body ?? '');
   const [newTopic, setNewTopic] = useState(restoredDraft?.newTopic ?? false);
   const [customSubject, setCustomSubject] = useState(restoredDraft?.customSubject ?? '');
+  // CODEX-REVIEW on PR #1549: the "+" picker used to insert only "@Name"
+  // text and add NOBODY — a recipient affordance that delivered to nobody.
+  // A thread reply has no To FIELD, but it now has a real recipient list:
+  // picking a contact appends them here, the chips below show the list,
+  // and the send path addresses every entry alongside the thread person.
+  // Seeded from the per-person draft (same namespace as the body) so a
+  // pick survives a person switch or reload exactly like the text does.
+  const [mentionedRecipients, setMentionedRecipients] = useState<MentionedRecipient[]>(
+    restoredDraft?.mentionedRecipients ?? [],
+  );
   const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Inline "+" mentions in the body (Gmail parity, same trigger contract
+  // as EmailComposer/DockedComposer). The picker excludes the thread
+  // person (already the primary recipient) and anyone already picked, so
+  // it can never offer a duplicate — the same exclusion EmailComposer
+  // applies to its To/Cc/Bcc rows.
+  const { contacts: frequentSuggestions } = useContactSuggestions();
+  const plusMention = usePlusMention({
+    body,
+    contacts: frequentSuggestions,
+    excludedEmails: [
+      conversation.email,
+      ...mentionedRecipients.map((r) => r.email),
+    ],
+    onSelect: (contact, nextBody, nextCaret) => {
+      setBody(nextBody);
+      setMentionedRecipients((prev) => addMentionedRecipient(prev, contact, conversation.email));
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (el) {
+          el.focus();
+          el.setSelectionRange(nextCaret, nextCaret);
+        }
+      });
+    },
+  });
 
   // Saved email templates (backend /email-templates CRUD, via the
   // EmailTemplates picker) — the same backend-backed surface the docked
@@ -334,8 +474,10 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
 
   // Mirror of the latest composer values, assigned during render so the
   // person-switch flush below can never lose a keystroke that raced the tap.
-  const latestDraftRef = useRef({ body, newTopic, customSubject });
-  latestDraftRef.current = { body, newTopic, customSubject };
+  // The picked-recipient list rides along: a switch flushes it under the
+  // outgoing person's draft, never under the incoming person's.
+  const latestDraftRef = useRef({ body, newTopic, customSubject, mentionedRecipients });
+  latestDraftRef.current = { body, newTopic, customSubject, mentionedRecipients };
   // Which person's draft is currently settled in the box, and under which
   // account namespace. Guards the write-through effect during a switch so it
   // can't write one person's text under another person's key — or one
@@ -362,7 +504,13 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
     if (settledAccountKeyRef.current !== accountKey) return;
     if (!accountKey) return;
     const store = windowThreadDraftStorage();
-    const draft = { body, newTopic, customSubject, updatedAt: Date.now() };
+    const draft = {
+      body,
+      newTopic,
+      customSubject,
+      updatedAt: Date.now(),
+      ...(mentionedRecipients.length > 0 ? { mentionedRecipients } : {}),
+    };
     if (isThreadDraftEmpty(draft)) {
       clearThreadDraft(store, conversation.personKey, accountKey);
       setDraftSaveState('pristine');
@@ -371,7 +519,7 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
     setDraftSaveState(
       saveThreadDraft(store, conversation.personKey, accountKey, draft) ? 'saved' : 'error',
     );
-  }, [body, newTopic, customSubject, conversation.personKey, accountKey]);
+  }, [body, newTopic, customSubject, mentionedRecipients, conversation.personKey, accountKey]);
 
   // A different person is a different draft: flush the outgoing person's
   // latest text synchronously, then restore the incoming person's saved
@@ -393,7 +541,12 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
     const store = windowThreadDraftStorage();
     const latest = latestDraftRef.current;
     const now = Date.now();
-    let incoming: { body: string; newTopic: boolean; customSubject: string } | null;
+    let incoming: {
+      body: string;
+      newTopic: boolean;
+      customSubject: string;
+      mentionedRecipients?: MentionedRecipient[];
+    } | null;
     let hadSavedDraft = false;
     if (prevAccount !== nextAccount) {
       // Account switch (no remount): keep the outgoing account's text in its
@@ -418,6 +571,10 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
     setBody(incoming?.body ?? '');
     setNewTopic(incoming?.newTopic ?? false);
     setCustomSubject(incoming?.customSubject ?? '');
+    // A switch never carries the outgoing person's picked recipients into
+    // the incoming thread: the incoming list is that person's own saved
+    // picks, or empty — a stale chip must never address a new thread.
+    setMentionedRecipients(incoming?.mentionedRecipients ?? []);
     setDraftSaveState(hadSavedDraft ? 'saved' : 'pristine');
     settledPersonKeyRef.current = nextKey;
     settledAccountKeyRef.current = nextAccount;
@@ -503,14 +660,23 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
     // send or an Undo hands them back via restoreDraft.
     const wasNewTopic = newTopic;
     const savedCustomSubject = customSubject;
+    // The picked recipients travel with this send exactly like the words:
+    // the box and the chips clear together (the send owns both now), and a
+    // failure or Undo hands both back — a failed send must never eat a
+    // pick the user already made.
+    const savedMentionedRecipients = mentionedRecipients;
     setBody('');
     setCustomSubject('');
     setNewTopic(false);
+    setMentionedRecipients([]);
 
     // Never clobber a newer draft the user started typing during the recall
-    // window — same guard as quick reply's restoreToReplyBar.
+    // window — same guard as quick reply's restoreToReplyBar. Recipients
+    // merge instead of overwriting: picks made during the window belong to
+    // the next send, and the failed send's picks belong back too.
     const restoreDraft = () => {
       setBody((prev) => (prev.trim() ? prev : text));
+      setMentionedRecipients((prev) => mergeMentionedRecipients(savedMentionedRecipients, prev));
       if (wasNewTopic) {
         setNewTopic(true);
         setCustomSubject((prev) => (prev.trim() ? prev : savedCustomSubject));
@@ -539,13 +705,20 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
         // `executeThreadSend` already showed the honest error toast, so no
         // second toast is fired here).
         undoSend.queueSend({
-          to: conversation.name || conversation.email,
+          to: threadSendDisplayRecipients(conversation, savedMentionedRecipients),
           subject,
           body: text,
           scheduledAt,
           successLabel: scheduledAt ? 'Email scheduled!' : undefined,
           onSendNow: async () => {
-            const outcome = await executeThreadSend(deps, conversation, subject, text, scheduledAt);
+            const outcome = await executeThreadSend(
+              deps,
+              conversation,
+              subject,
+              text,
+              scheduledAt,
+              savedMentionedRecipients,
+            );
             if (!outcome.ok) {
               throw new Error(outcome.errorMessage || 'Failed to send message');
             }
@@ -566,7 +739,14 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
         // No undo provider above this composer: the direct send keeps
         // today's exact behavior — success toasts and clears, failure toasts
         // and keeps the text. Nothing navigates, nothing is discarded.
-        const outcome = await executeThreadSend(deps, conversation, subject, text, scheduledAt);
+        const outcome = await executeThreadSend(
+          deps,
+          conversation,
+          subject,
+          text,
+          scheduledAt,
+          savedMentionedRecipients,
+        );
         if (outcome.ok) {
           onSent?.(text, subject, sendClientId);
         } else {
@@ -585,6 +765,8 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // An open mention picker owns Enter (pick, never send) and Arrow/Escape.
+    if (plusMention.handleKeyDown(event)) return;
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       void handleSend();
@@ -604,6 +786,43 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
           className="mb-2 w-full rounded-xl bg-[var(--quant-surface-elevated)] px-3.5 py-2.5 text-sm text-white placeholder-[#6B6E76] focus:outline-none focus:ring-2 focus:ring-[#F97316]"
         />
       )}
+      {/* The "+"-picked recipient list, always visible before sending: the
+          user sees exactly who else this reply will reach, and can remove
+          anyone before hitting Send. Hidden when empty, so a plain 1:1
+          reply keeps today's exact layout. */}
+      {mentionedRecipients.length > 0 && (
+        <div
+          className="mb-2 flex flex-wrap items-center gap-1.5 px-1"
+          aria-label="Additional recipients"
+        >
+          <span className="text-[11px] text-[#6B6E76]">Also sending to:</span>
+          {mentionedRecipients.map((recipient) => {
+            const label = recipient.name?.trim() || recipient.email;
+            return (
+              <span
+                key={recipient.email.toLowerCase()}
+                className="inline-flex items-center gap-1 rounded-full bg-[#F97316]/15 px-2 py-1 text-[11px] font-semibold text-white"
+              >
+                {label}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMentionedRecipients((prev) =>
+                      prev.filter((r) => r.email.toLowerCase() !== recipient.email.toLowerCase()),
+                    )
+                  }
+                  aria-label={`Remove ${label} from recipients`}
+                  title={`Remove ${label} from recipients`}
+                  disabled={isSending}
+                  className="flex size-4 items-center justify-center rounded-full text-[#9BA0AA] hover:bg-[#F97316]/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316] disabled:opacity-40"
+                >
+                  ×
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
       <div className="flex items-end gap-2 rounded-2xl bg-[var(--quant-surface-elevated)] px-2 py-2">
         <button
           type="button"
@@ -616,11 +835,18 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
         >
           {newTopic ? 'Re:' : 'New topic'}
         </button>
+        <div className="relative flex min-w-0 flex-1">
         <textarea
           id="people-reply-input"
           ref={textareaRef}
           value={body}
-          onChange={(event) => setBody(event.target.value)}
+          onChange={(event) => {
+            setBody(event.target.value);
+            plusMention.updateFromEdit(
+              event.target.value,
+              event.target.selectionStart ?? event.target.value.length,
+            );
+          }}
           onKeyDown={handleKeyDown}
           // P1-1 (mobile): when the iOS keyboard opens, make sure the box
           // is scrolled into the resized visible area.
@@ -633,6 +859,16 @@ export function ThreadComposer({ conversation, currentUserId, suggestedReply, on
           disabled={isSending}
           className="max-h-40 min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-sm text-white placeholder-[#6B6E76] focus:outline-none disabled:opacity-60"
         />
+        {plusMention.isOpen && (
+          <PlusMentionDropdown
+            placement="above"
+            suggestions={plusMention.suggestions}
+            activeIndex={plusMention.activeIndex}
+            onSelect={plusMention.select}
+            onHover={plusMention.setActiveIndex}
+          />
+        )}
+        </div>
         {/* Saved email templates — the real backend-backed picker
             (EmailTemplates.tsx, /email-templates CRUD), the same surface the
             docked composer wires. Anchored above the chat bar via the portaled
