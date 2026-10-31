@@ -27,6 +27,13 @@ export interface DriveFileShareInfo {
   expiresAt: string | null;
   scope: string;
   requiresSignIn: boolean;
+  /**
+   * QM-M39-006 (hide-download-action): owner hid the download action for
+   * viewers on this link. Wire field keeps the legacy name
+   * `disableDownload` (migration 0111); semantics are hide-the-button
+   * only, NOT copy protection.
+   */
+  disableDownload: boolean;
 }
 
 export interface DocumentShareInfo {
@@ -189,10 +196,24 @@ export async function resolveShareToken(
  * bytes from object storage; a link password travels as the `password` query
  * param — the backend's own documented fallback for plain-navigation downloads
  * (preferred `x-share-password` header is unavailable to a navigation).
+ *
+ * QM-M39-006 (hide-download-action): when the owner hides the download
+ * action for viewers on a link, the backend's download endpoint 403s plain
+ * downloads. Previews must go through `previewUrlFor` instead — but only
+ * for previewable types: the `?preview=1` lane streams those bytes inline
+ * so the file stays viewable, and 403s (SHARE_PREVIEW_UNAVAILABLE, no
+ * bytes) for every other type. Hiding the button is NOT copy protection:
+ * a viewer who can preview the file can still save what they can see.
  */
 export function downloadUrlFor(token: string, password?: string): string {
   const base = `/api/drive/public/share/${encodeURIComponent(token)}/download`;
   return password ? `${base}?password=${encodeURIComponent(password)}` : base;
+}
+
+/** Preview URL for a share token: the backend's read-only preview lane. */
+export function previewUrlFor(token: string, password?: string): string {
+  const base = `/api/drive/public/share/${encodeURIComponent(token)}/download?preview=1`;
+  return password ? `${base}&password=${encodeURIComponent(password)}` : base;
 }
 
 const IMAGE_MIME = /^image\//;

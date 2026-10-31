@@ -18,6 +18,13 @@ export interface DriveLinkEntry {
   audienceEmails: string[];
   audienceOrgs: string[];
   requiresPassword: boolean;
+  /**
+   * QM-M39-006 (hide-download-action): owner hid the download action for
+   * viewers on this link. Wire field keeps the legacy name
+   * `disableDownload` (migration 0111); it hides the button only, it is
+   * NOT copy protection.
+   */
+  disableDownload: boolean;
   expiresAt: string | null;
   expired: boolean;
   createdAt: string;
@@ -30,6 +37,14 @@ export interface LinkFormValues {
   role: LinkRole;
   /** YYYY-MM-DD from the date picker, or null for "no expiry". */
   expiresDate: string | null;
+  /**
+   * QM-M39-006 (hide-download-action): applies to viewer-role links only.
+   * Optional — callers that never set it get the backend default (false),
+   * so compose-time link creation stays download-enabled. The server
+   * normalizes editor+true to false; hiding the button is NOT copy
+   * protection.
+   */
+  disableDownload?: boolean;
 }
 
 async function readError(res: Response, fallback: string): Promise<Error> {
@@ -63,6 +78,7 @@ export async function createDriveLink(
       scope: values.scope,
       audienceEmails: values.audienceEmails,
       expiresAt: values.expiresDate,
+      disableDownload: values.disableDownload,
     }),
   });
   if (!res.ok) throw await readError(res, 'Could not create share link');
@@ -84,6 +100,7 @@ export async function updateDriveLink(
       scope: values.scope,
       audienceEmails: values.audienceEmails,
       expiresAt: values.expiresDate,
+      disableDownload: values.disableDownload,
     }),
   });
   if (!res.ok) throw await readError(res, 'Could not update share link');
