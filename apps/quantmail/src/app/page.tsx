@@ -3596,7 +3596,7 @@ function InboxPageContent() {
             intercepting its clicks/taps. See components/MailboxViewToggle.tsx.
           */}
           <div className="mailbox-view-row">
-            <MailboxViewToggle isInbox />
+            <MailboxViewToggle isInbox lens={activeLens === 'spam' ? 'spam' : undefined} />
           </div>
           <header className="inbox-hero">
             <div>
