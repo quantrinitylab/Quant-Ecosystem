@@ -90,6 +90,7 @@ model User {
   sentMessages       Message[]            @relation("MessageSender")
   conversations      ConversationMember[]
   emails             Email[]
+  sendAsIdentities   SendAsIdentity[]
   posts              Post[]
   comments           Comment[]
   videos             Video[]
@@ -714,6 +715,18 @@ model Email {
   folderId       String?
   fromAddress    String
   fromName       String?
+  // fix/qm-accounts-import-corrective-3: the authoritative send-as identity
+  // id persisted on each email row, so send() can re-authorize it at send
+  // time (fail-closed) instead of trusting the stamped From strings. The
+  // column already exists in the database (migration
+  // 0110_email_send_as_identity_id); this field only repairs the schema,
+  // which never declared it — the generated client rejected the argument
+  // ("Unknown argument sendAsIdentityId") and every draft create/update
+  // failed live with 500. Deliberately NO foreign key (per that migration):
+  // deleting an identity must never cascade to mail rows, and a draft whose
+  // identity was deleted must be DENIED at send, not silently re-addressed.
+  // NULL = the account's own address. No new migration: the column exists.
+  sendAsIdentityId String?
   toAddresses    Json          @default("[]")
   ccAddresses    Json          @default("[]")
   bccAddresses   Json          @default("[]")
@@ -818,6 +831,34 @@ model Email {
   // header — and every row written before this column was populated — coexist.
   @@unique([userId, messageId])
   @@map("emails")
+}
+
+// fix/qm-accounts-import: send-mail-as identities (Settings → Account
+// Management). The table already exists in the database (migration
+// 0109_send_as_identities); this model only repairs the schema, which never
+// declared it — the backend reached it only through `(prisma as any)`
+// casts, so the generated client had no SendAsIdentity delegate. Field
+// mapping mirrors that migration exactly: one row per (user, address),
+// UNVERIFIED while verifiedAt is NULL, only the SHA-256 digest of a
+// single-use 6-digit code stored, 15-minute-bounded, attempt-capped.
+// No new migration: the table exists.
+model SendAsIdentity {
+  id            String    @id @default(cuid())
+  userId        String
+  email         String
+  displayName   String?
+  verifiedAt    DateTime?
+  codeHash      String?
+  codeExpiresAt DateTime?
+  codeAttempts  Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, email])
+  @@index([userId])
+  @@map("send_as_identities")
 }
 
 enum EmailPriority {
