@@ -1346,6 +1346,22 @@ export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
           seen.add(local.id);
         }
       }
+      // Chronological sorts must hold across the unified set, not just the
+      // server slice: a local-only hit appended at the end would otherwise
+      // break newest/oldest order. Relevance keeps server order — local
+      // extras have no server score, so they stay after the ranked rows
+      // rather than pretending to be ranked.
+      if (params?.sort === 'newest' || params?.sort === 'oldest') {
+        const timeOf = (e: Email): number => {
+          const raw = (e as { receivedAt?: unknown; createdAt?: unknown }).receivedAt
+            ?? (e as { createdAt?: unknown }).createdAt;
+          const t = raw instanceof Date ? raw.getTime() : Date.parse(String(raw ?? ''));
+          return Number.isNaN(t) ? 0 : t;
+        };
+        combined.sort((a, b) =>
+          params.sort === 'oldest' ? timeOf(a) - timeOf(b) : timeOf(b) - timeOf(a),
+        );
+      }
       // Belt-and-suspenders: the backend applies every filter it can, but the
       // `to` bare-fragment case is intentionally client-side (Postgres Json
       // arrays only support exact element matches), so re-apply the chips to

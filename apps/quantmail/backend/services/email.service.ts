@@ -28,6 +28,101 @@ export interface PaginationOptions {
 }
 
 /**
+ * How `EmailService.search` orders its results.
+ *
+ * Gmail sorts search results by relevance by default (newest/oldest are
+ * options); QuantMail used to hard-code `receivedAt DESC`, so a 6-month-old
+ * highly-matching mail was buried under every recent partial match.
+ * `relevance` is now the default; `newest`/`oldest` are the explicit
+ * chronological options. Unknown values are treated as `relevance` so a
+ * stray client value can never 500 a search.
+ */
+export type EmailSearchSort = 'relevance' | 'newest' | 'oldest';
+
+/** `PaginationOptions` plus the search sort order. */
+export interface EmailSearchOptions extends PaginationOptions {
+  sort?: EmailSearchSort;
+}
+
+/**
+ * Relevance ranking is done in memory over a bounded candidate window:
+ * Postgres `contains` matching cannot rank, so the service fetches the
+ * newest candidates and scores them. The cap keeps a search to one bounded
+ * query instead of a full-table scan; mailboxes with more matches than this
+ * still rank their newest slice, and `total` still reports the true count.
+ */
+export const MAX_RELEVANCE_CANDIDATES = 500;
+
+function searchField(value: unknown): string {
+  return typeof value === 'string' ? value.toLowerCase() : '';
+}
+
+function searchAddressList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === 'string')
+    : [];
+}
+
+/** Split a query into terms: whitespace-separated, edge punctuation trimmed. */
+function searchTerms(query: string): string[] {
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .map((t) => t.replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, ''))
+    .filter(Boolean);
+}
+
+function searchTime(value: unknown): number {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? 0 : value.getTime();
+  if (typeof value === 'string') {
+    const t = Date.parse(value);
+    return Number.isNaN(t) ? 0 : t;
+  }
+  return 0;
+}
+
+/**
+ * Deterministic relevance score for one mail against a free-text query.
+ *
+ * Field weights, strongest first: an exact-phrase hit in the subject (40)
+ * beats a per-term subject hit (20/term), which beats a sender hit (10/term),
+ * which beats a body hit (5/term, plus 10 for an exact body phrase) and a
+ * recipient hit (5/term). Presence — not occurrence count — is scored, so a
+ * mail that repeats one word ten times cannot outrank a mail matching every
+ * term once. Ties are broken by recency in `search` itself, never here.
+ */
+export function computeSearchScore(
+  email: {
+    subject?: string | null;
+    bodyPlain?: string | null;
+    fromAddress?: string | null;
+    fromName?: string | null;
+    toAddresses?: unknown;
+    ccAddresses?: unknown;
+  },
+  query: string,
+): number {
+  const phrase = query.trim().toLowerCase();
+  if (!phrase) return 0;
+  const subject = searchField(email.subject);
+  const body = searchField(email.bodyPlain);
+  const sender = `${searchField(email.fromAddress)} ${searchField(email.fromName)}`;
+  const recipients = [...searchAddressList(email.toAddresses), ...searchAddressList(email.ccAddresses)]
+    .join(' ')
+    .toLowerCase();
+  let score = 0;
+  if (subject.includes(phrase)) score += 40;
+  if (body.includes(phrase)) score += 10;
+  for (const term of searchTerms(phrase)) {
+    if (subject.includes(term)) score += 20;
+    if (sender.includes(term)) score += 10;
+    if (body.includes(term)) score += 5;
+    if (recipients.includes(term)) score += 5;
+  }
+  return score;
+}
+
+/**
  * Advanced search refinements for `EmailService.search`.
  *
  * These are the server-side half of the /search page's filter chips
@@ -1809,12 +1904,16 @@ export class EmailService {  constructor(
   async search(
     userId: string,
     query: string,
-    options: PaginationOptions = {},
+    options: EmailSearchOptions = {},
     filters: EmailSearchFilters = {},
   ): Promise<PaginatedResult<Email>> {
     const page = options.page ?? 1;
     const pageSize = options.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
+    // Default relevance (Gmail behaviour); an unknown value degrades to
+    // relevance rather than failing the search.
+    const sort: EmailSearchSort =
+      options.sort === 'newest' || options.sort === 'oldest' ? options.sort : 'relevance';
 
     // Trash and spam stay out. A search is a way of finding mail you filed, not of
     // exhuming mail you threw away — the same line the thread view draws when it
@@ -1905,15 +2004,44 @@ export class EmailService {  constructor(
       where.AND = andClauses;
     }
 
-    const [data, total] = await Promise.all([
-      this.prisma.email.findMany({
-        where: where as never,
-        skip,
-        take: pageSize,
-        orderBy: { receivedAt: 'desc' },
-      }),
-      this.prisma.email.count({ where: where as never }),
-    ]);
+    // Chronological sorts paginate in the database exactly as before.
+    // Relevance cannot: Postgres `contains` has no ranking, so fetch the
+    // newest candidate window, score it, sort by score (recency breaks
+    // ties), then slice the requested page out of the ranked list.
+    let data: Email[];
+    let total: number;
+    if (sort === 'relevance') {
+      const [candidates, counted] = await Promise.all([
+        this.prisma.email.findMany({
+          where: where as never,
+          take: MAX_RELEVANCE_CANDIDATES,
+          orderBy: { receivedAt: 'desc' },
+        }),
+        this.prisma.email.count({ where: where as never }),
+      ]);
+      total = counted;
+      const ranked = candidates
+        .map((email) => ({ email, score: computeSearchScore(email, query) }))
+        .sort(
+          (a, b) =>
+            b.score - a.score ||
+            searchTime((b.email as { receivedAt?: unknown }).receivedAt) -
+              searchTime((a.email as { receivedAt?: unknown }).receivedAt),
+        );
+      data = ranked.slice(skip, skip + pageSize).map((r) => r.email);
+    } else {
+      const [rows, counted] = await Promise.all([
+        this.prisma.email.findMany({
+          where: where as never,
+          skip,
+          take: pageSize,
+          orderBy: { receivedAt: sort === 'oldest' ? 'asc' : 'desc' },
+        }),
+        this.prisma.email.count({ where: where as never }),
+      ]);
+      data = rows;
+      total = counted;
+    }
 
     const totalPages = Math.ceil(total / pageSize);
     return {
@@ -1955,7 +2083,7 @@ export class EmailService {  constructor(
   async searchEmails(
     userId: string,
     query: string,
-    options: PaginationOptions = {},
+    options: EmailSearchOptions = {},
     filters: EmailSearchFilters = {},
   ): Promise<PaginatedResult<Email>> {
     return this.search(userId, query, options, filters);
