@@ -25,6 +25,7 @@ import { useUndoSend } from './UndoSendCountdownBar';
 import { ScheduleSendModal, isPastScheduleTime } from './ScheduleSendModal';
 import { SmartReplySuggestions } from './SmartReplySuggestions';
 import { IdentityAvatar } from './IdentityAvatar';
+import { SenderHovercard } from './SenderHovercard';
 import { EmailLetterCard } from './EmailLetterCard';
 import { EmailSafetyBanner } from './EmailSafetyBanner';
 import { MessageKindBadge, ThreadKindBadge } from './MessageKindBadge';
@@ -2877,9 +2878,30 @@ export function ConversationalThreadView({
                           the warm surface under it already say who spoke, and those
                           are surfaces rather than the loudest colour on the palette.
                         */}
-                        <span className="truncate text-xs font-semibold text-[var(--quant-foreground)]">
-                          {msgFromName}
-                        </span>
+                        {/* fix/qm-contacts-sender-hovercard: sender hovercard on the
+                            collapsed strip. Outbound (own) messages keep plain
+                            text — a contact card for yourself is nonsense. The
+                            trigger is a span, not a button, and the card itself
+                            portals to document.body, so no button nests inside
+                            this expand button. Keyboard focus is off here (a
+                            focusable span inside a button is poor a11y); the
+                            expanded header below is the keyboard path. */}
+                        {isOutbound ? (
+                          <span className="truncate text-xs font-semibold text-[var(--quant-foreground)]">
+                            {msgFromName}
+                          </span>
+                        ) : (
+                          <SenderHovercard
+                            name={msgFromName}
+                            email={msgFromEmail}
+                            threadSubject={threadSubject}
+                            onSchedule={() => handleCreateEventFromEmail('event')}
+                            keyboardFocusable={false}
+                            className="truncate text-xs font-semibold text-[var(--quant-foreground)]"
+                          >
+                            {msgFromName}
+                          </SenderHovercard>
+                        )}
 
                         {/* Badges: Mail or Chat */}
                         <span className="flex items-center gap-1.5 shrink-0">
@@ -3104,9 +3126,25 @@ export function ConversationalThreadView({
 
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-semibold text-[var(--quant-foreground)]">
-                              {msgFromName}
-                            </span>
+                            {/* fix/qm-contacts-sender-hovercard: sender hovercard on the
+                                expanded message header (the keyboard path — this
+                                header is a div, not a button, so the trigger span
+                                is focusable here). Own messages keep plain text. */}
+                            {isOutbound ? (
+                              <span className="text-sm font-semibold text-[var(--quant-foreground)]">
+                                {msgFromName}
+                              </span>
+                            ) : (
+                              <SenderHovercard
+                                name={msgFromName}
+                                email={msgFromEmail}
+                                threadSubject={threadSubject}
+                                onSchedule={() => handleCreateEventFromEmail('event')}
+                                className="text-sm font-semibold text-[var(--quant-foreground)]"
+                              >
+                                {msgFromName}
+                              </SenderHovercard>
+                            )}
                             {showKindBadges && <MessageKindBadge kind={messageKind} />}
                             <span className="text-xs text-[var(--quant-muted-foreground)] font-mono" title={formatFullDate(message.receivedAt)}>
                               {formatMessageDate(message.receivedAt)}
