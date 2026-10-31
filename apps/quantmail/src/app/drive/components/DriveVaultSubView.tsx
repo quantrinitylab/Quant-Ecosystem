@@ -1,43 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
-import { formatBytes } from '../../../lib/format-bytes';
-import {
-  VaultShieldIcon,
-  PadlockIcon,
-  CopyIcon,
-  CheckIcon,
-} from './DriveIcons';
+import { VaultShieldIcon, PadlockIcon } from './DriveIcons';
 
-export interface EncryptedVaultItem {
-  id: string;
-  name: string;
-  cipherSize: number;
-  cipherAlgorithm: string;
-  sha256Checksum: string;
-  encryptedAt: string;
-}
-
-export interface DriveVaultSubViewProps {
-  items?: EncryptedVaultItem[];
-}
-
-export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const handleCopySha256 = async (id: string, hash: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(hash);
-      }
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2500);
-    } catch {
-      // fallback
-    }
-  };
-
+/**
+ * Drive vault placeholder.
+ *
+ * The vault (lock-to-vault with client-side encryption) is not built yet:
+ * there is no backend vault store and no lock/unlock action anywhere in the
+ * app. Accepting an `items` prop would invite fabricated vault data — the
+ * exact failure this surface was purged for — so this component renders only
+ * the honest "not available yet" state. When real client-side encryption plus
+ * a lock-to-vault action ship, reintroduce an items prop backed by the real
+ * vault store.
+ */
+export function DriveVaultSubView() {
   return (
     <div
       id="drive-panel-vault"
@@ -54,86 +30,23 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
           <div>
             <h3 className="text-sm sm:text-base font-bold text-[#F8FAFC]">Vault</h3>
             <p className="text-xs text-[#94A3B8] mt-0.5">
-              Lock files here to keep them separate from your main Drive.
-              Client-side encryption is not available yet.
+              The vault is not available yet.
             </p>
           </div>
         </div>
       </div>
 
-      {/* 2. Vault Items */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-[#94A3B8]">
-            Vault Items ({items.length})
-          </h4>
+      {/* 2. Honest empty state — no impossible instructions */}
+      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center">
+        <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[var(--quant-border)] flex items-center justify-center text-[#64748B]">
+          <PadlockIcon className="size-5" />
         </div>
-
-        {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-6 py-12 text-center">
-            <div className="size-10 rounded-xl bg-[var(--quant-background)] border border-[var(--quant-border)] flex items-center justify-center text-[#64748B]">
-              <PadlockIcon className="size-5" />
-            </div>
-            <p className="text-sm font-semibold text-[#F8FAFC]">No vault items yet</p>
-            <p className="text-xs text-[#94A3B8]">Lock a file to add it to your vault.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {items.map((item) => {
-              const isCopied = copiedId === item.id;
-              const truncatedHash = `${item.sha256Checksum.slice(0, 10)}...${item.sha256Checksum.slice(-8)}`;
-
-              return (
-                <div
-                  key={item.id}
-                  className="group relative flex flex-col justify-between p-4 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] hover:bg-[var(--quant-surface-elevated)] transition-all shadow-[0_2px_14px_rgba(0,0,0,0.3)] space-y-3"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="size-9 rounded-lg bg-[color-mix(in_srgb,var(--app-accent)_15%,transparent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] flex items-center justify-center text-[var(--app-accent)] shrink-0">
-                        <PadlockIcon className="size-4" />
-                      </div>
-
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] uppercase tracking-wider">
-                        {item.cipherAlgorithm}
-                      </span>
-                    </div>
-
-                    <p className="text-xs font-bold text-[#F8FAFC] truncate group-hover:text-[var(--app-accent)] transition-colors">
-                      {item.name}
-                    </p>
-                    <p className="text-[11px] text-[#94A3B8] mt-0.5">
-                      {formatBytes(item.cipherSize)} · Locked{' '}
-                      {new Date(item.encryptedAt).toLocaleDateString()}
-                    </p>
-                  </div>
-
-                  {/* SHA-256 Copy Chip */}
-                  <div className="flex items-center justify-between gap-2 pt-1">
-                    <button
-                      type="button"
-                      aria-label={`Copy SHA-256 checksum for ${item.name}`}
-                      onClick={(e) => handleCopySha256(item.id, item.sha256Checksum, e)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--quant-background)] border border-[var(--quant-border)] text-[11px] font-mono text-[#94A3B8] hover:text-[#F8FAFC] hover:border-[color-mix(in_srgb,var(--app-accent)_40%,transparent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
-                    >
-                      {isCopied ? (
-                        <>
-                          <CheckIcon className="size-3 text-emerald-400 shrink-0" />
-                          <span className="text-emerald-400 font-semibold">Checksum Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <CopyIcon className="size-3 text-[#64748B] shrink-0" />
-                          <span>SHA-256: {truncatedHash}</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <p className="text-sm font-semibold text-[#F8FAFC]">Vault is not available yet</p>
+        <p className="text-xs text-[#94A3B8] max-w-sm">
+          Locking a file into the vault needs client-side encryption first.
+          Client-side encryption is not available yet, so there is no
+          lock-to-vault action in Drive — your files stay in your main Drive.
+        </p>
       </div>
     </div>
   );

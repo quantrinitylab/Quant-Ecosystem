@@ -153,7 +153,13 @@ vi.mock('framer-motion', () => {
   it('DriveVaultSubView: honest "not available yet" copy, no encryption claims', () => {
     const html = renderToStaticMarkup(<DriveVaultSubView />);
     assertNoFalseEncryptionClaims('DriveVaultSubView', html);
+    // The vault is a placeholder: it must say so plainly and must not hand
+    // the user an impossible "Lock a file" instruction (no lock-to-vault
+    // action exists anywhere in the app).
+    expect(html).toContain('Vault is not available yet');
     expect(html).toContain('Client-side encryption is not available yet');
+    expect(html).not.toContain('Lock a file to add it to your vault');
+    expect(html).not.toContain('No vault items yet');
   });
 
   it('PostcardCanvas: no "E2EE VERIFIED" security-theater seal', () => {
