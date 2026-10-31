@@ -652,9 +652,12 @@ export default async function documentRoutes(fastify: FastifyInstance) {
       throw createAppError('Forbidden: not authorized to delete this document', 403, 'FORBIDDEN');
     }
 
+    // Same explicit trash-time stamp as the Drive trash path: documents
+    // age on updatedAt in the retention purge, so the clock must start at
+    // trash time regardless of implicit @updatedAt behaviour.
     await prisma.document.update({
       where: { id: existing.id },
-      data: { isDeleted: true },
+      data: { isDeleted: true, updatedAt: new Date() },
     });
 
     return reply.send({
