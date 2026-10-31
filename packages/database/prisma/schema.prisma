@@ -3753,9 +3753,11 @@ model MessageOutbox {
   attempts       Int       @default(0)
   processedAt    DateTime?
   lastError      String?
+  claimedAt      DateTime?
+  leaseExpiresAt DateTime?
   createdAt      DateTime  @default(now())
 
-  @@index([processedAt, createdAt])
+  @@index([processedAt, leaseExpiresAt, createdAt])
   @@map("message_outbox")
 }
 
