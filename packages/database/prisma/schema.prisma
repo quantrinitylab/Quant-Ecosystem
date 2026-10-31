@@ -80,6 +80,7 @@ model User {
   twoFactorBackupCodes TwoFactorBackupCode[]
   passwordResetTokens  PasswordResetToken[]
   emailVerificationCodes EmailVerificationCode[]
+  newDeviceChallenges NewDeviceChallenge[]
   recoveryEmailVerifications RecoveryEmailVerification[]
   twoFactorRecoveryChallenges TwoFactorRecoveryChallenge[]
   followUpReminders FollowUpReminder[]
@@ -357,6 +358,36 @@ model EmailVerificationCode {
   @@index([userId])
   @@index([expiresAt])
   @@map("email_verification_codes")
+}
+
+/**
+ * Risk-based new-device sign-in challenge (fix/qm-new-device-challenge).
+ * A password login from a device that matches no live browser session mints
+ * one of these rows instead of a session; POST /auth/new-device/verify burns
+ * it for the session. Same contract as EmailVerificationCode — only the
+ * SHA-256 digest is stored, single-use, 15-minute-bounded, attempt-capped —
+ * but a SEPARATE table, so a sign-in challenge can never be consumed by
+ * /auth/verify-email (or vice versa) and never marks an address verified.
+ * `deviceFingerprint` binds the challenge to the login request's
+ * ipAddress+userAgent pair: the code is redeemable only from the device
+ * that started the sign-in.
+ */
+model NewDeviceChallenge {
+  id                String    @id @default(cuid())
+  userId            String
+  deviceFingerprint String
+  codeHash          String
+  expiresAt         DateTime
+  usedAt            DateTime?
+  attempts          Int       @default(0)
+  requestedIp       String?
+  createdAt         DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("new_device_challenges")
 }
 
 /**
