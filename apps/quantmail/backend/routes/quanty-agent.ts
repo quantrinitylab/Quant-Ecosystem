@@ -438,10 +438,10 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: await listDurableApprovals(prisma, userId, 50) });
   });
 
-  // GET /api/quanty/browser-tasks — browser task history.
+  // GET /api/quanty/browser-tasks — browser task history, scoped to the caller.
   fastify.get('/api/quanty/browser-tasks', async (request, reply) => {
-    reqUserId(request);
-    return reply.send({ success: true, data: quantyAgentState.listBrowserTasks(50) });
+    const userId = reqUserId(request);
+    return reply.send({ success: true, data: quantyAgentState.listBrowserTasks(userId, 50) });
   });
 
   // GET /api/quanty/identity — soul + memory cards (placeholder for now).
@@ -452,10 +452,11 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
 
   // GET /api/quanty/status — live status text for the popup header.
   fastify.get('/api/quanty/status', async (request, reply) => {
-    reqUserId(request);
+    const userId = reqUserId(request);
     const live = executor.liveStatus();
-    // A running browser task also counts as active ("browsing").
-    const browsing = quantyAgentState.listBrowserTasks(5).some((t) => t.status === 'running');
+    // A running browser task also counts as active ("browsing") — scoped to
+    // the caller so one user's browsing never shows up in another's status.
+    const browsing = quantyAgentState.listBrowserTasks(userId, 5).some((t) => t.status === 'running');
     const status: QuantyLiveStatus =
       live.status === 'is working' ? live : browsing ? { status: 'browsing', detail: 'Browsing the web' } : live;
     return reply.send({ success: true, data: status });
