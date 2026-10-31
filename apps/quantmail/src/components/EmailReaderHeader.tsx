@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Quanty } from './Quanty';
+import { ContactHoverCard } from './ContactHoverCard';
 import { showToast } from './InboxToast';
 
 export interface EmailReaderHeaderProps {
@@ -139,7 +140,17 @@ export function EmailReaderHeader({
 
           <div className="flex items-center gap-1.5 text-[11px] text-[var(--quant-muted-foreground)] font-mono truncate">
             <span className="truncate text-[var(--quant-foreground)] font-medium">
-              {senderName || senderEmail || 'QuantMail Conversation'}
+              {senderEmail ? (
+                <ContactHoverCard
+                  email={senderEmail}
+                  name={senderName}
+                  className="cursor-pointer underline decoration-dotted decoration-[var(--quant-muted-foreground)]/50 underline-offset-4"
+                >
+                  {senderName || senderEmail}
+                </ContactHoverCard>
+              ) : (
+                senderName || senderEmail || 'QuantMail Conversation'
+              )}
             </span>
             {senderEmail && senderName && (
               <span className="hidden lg:inline text-[var(--quant-muted-foreground)] truncate">
