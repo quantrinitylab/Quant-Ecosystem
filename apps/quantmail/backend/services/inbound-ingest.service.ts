@@ -161,9 +161,17 @@ interface FolderLookupPrisma {
     // Case-insensitive: legacy user rows predate email normalization and may
     // carry mixed case (e.g. `LegacyCase@Example.com`), which a lowercased
     // address never matches with an exact-match findUnique.
-    findFirst(args: {
-      where: { email: { equals: string; mode: 'insensitive' } };
-    }): Promise<{ id: string } | null>;
+    //
+    // Deliberately findMany (take: 2), NOT findFirst: two live rows can share
+    // one address modulo case (the @unique index is case-sensitive), and a
+    // first-row-wins lookup would silently deliver one twin's mail to the
+    // other by row order. The caller holds on >1 live match instead.
+    // Tombstoned rows (deletedAt set) are never eligible: a deleted account
+    // must not swallow mail addressed to a live row of the same address.
+    findMany(args: {
+      where: { email: { equals: string; mode: 'insensitive' }; deletedAt: null };
+      take: number;
+    }): Promise<{ id: string }[]>;
   };
 }
 
@@ -565,21 +573,42 @@ export class InboundIngestAdapter {
     }
   }
 
-  /** Resolve the first recipient address that maps to a known local user. */
+  /**
+   * Resolve the first recipient address that maps to exactly one live local
+   * user. Mirrors routes/auth.ts findUserByEmailInsensitive.
+   *
+   * Case-insensitive match: legacy user rows predate email normalization and
+   * may carry mixed case (e.g. `LegacyCase@Example.com`), which the lowercased
+   * address would never hit with an exact-match findUnique — dropping their
+   * inbound mail with INBOUND_NO_RECIPIENT.
+   *
+   * Ambiguity is a HOLD, never a guess: when two or more live rows match one
+   * address modulo case, ingest throws INBOUND_RECIPIENT_AMBIGUOUS (409) and
+   * delivers to nobody — delivering to the first row by storage order would
+   * hand one twin's mail to the other. The caller (SMTP bridge / SES webhook)
+   * must hold or bounce the message, never retry it into a mailbox. Only
+   * live rows count: a tombstoned row (deletedAt set) is skipped, so a
+   * deleted account can neither swallow mail nor create ambiguity against a
+   * live row of the same address. Zero live matches returns null and the
+   * caller reports INBOUND_NO_RECIPIENT as before.
+   */
   private async resolveRecipientUser(recipients: string[]): Promise<string | null> {
     const db = this.prisma as unknown as FolderLookupPrisma;
     for (const raw of recipients) {
       const address = stripPlusTag((extractAddress(raw) ?? raw).toLowerCase());
-      // Case-insensitive match, mirroring routes/auth.ts findUserByEmailInsensitive:
-      // legacy user rows predate email normalization and may carry mixed case
-      // (e.g. `LegacyCase@Example.com`), which the lowercased address would
-      // never hit with an exact-match findUnique — dropping their inbound mail
-      // with INBOUND_NO_RECIPIENT.
-      const user = await db.user.findFirst({
-        where: { email: { equals: address, mode: 'insensitive' } },
+      const matches = await db.user.findMany({
+        where: { email: { equals: address, mode: 'insensitive' }, deletedAt: null },
+        take: 2,
       });
-      if (user) {
-        return user.id;
+      if (matches.length > 1) {
+        throw createAppError(
+          `Ambiguous local recipient for inbound message: ${matches.length} live accounts share address ${address} modulo case — holding, delivering to none`,
+          409,
+          'INBOUND_RECIPIENT_AMBIGUOUS',
+        );
+      }
+      if (matches.length === 1) {
+        return matches[0]!.id;
       }
     }
     return null;
