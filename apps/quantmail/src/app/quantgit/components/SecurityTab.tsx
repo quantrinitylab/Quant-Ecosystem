@@ -304,9 +304,66 @@ export function toCodeQLAlert(raw: unknown): CodeQLAlert | null {
  */
 export type SecurityAlertsPayload = {
   securityPolicy?: unknown;
+  dependabot?: unknown;
   secrets?: unknown;
   codeql?: unknown;
 };
+
+const DEPENDABOT_SEVERITIES: ReadonlySet<string> = new Set([
+  'critical',
+  'high',
+  'moderate',
+  'low',
+]);
+const DEPENDABOT_STATES: ReadonlySet<string> = new Set([
+  'open',
+  'resolved',
+  'dismissed',
+  'closed',
+]);
+
+/**
+ * Normalize one server Dependabot row into SecurityAlert.
+ * Returns null when the row is not renderable (missing id, package, cve,
+ * title, or an unrecognized severity/state) — such rows are dropped rather
+ * than rendered with fabricated values. Optional fields pass through only
+ * when correctly typed; nothing is invented (the card render already guards
+ * missing cvss/cweTitle and falls back for missing version ranges).
+ * Exported for unit tests.
+ *
+ * WHY THIS EXISTS (fix/qm-securitytab-fake-pr): the GET /:id/security/alerts
+ * effect used to normalize only secrets and codeql and discard the
+ * backend's `dependabot` list, so the Dependabot sub-tab could only ever
+ * show caller-passed props — and page.tsx never sets those (its
+ * securityAlerts state stays []). The "Create fix PR" button was therefore
+ * unreachable from any server data. Wiring the list through here makes the
+ * button reachable the moment a real scanner seeds the store.
+ */
+export function toDependabotAlert(raw: unknown): SecurityAlert | null {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  if (typeof row.id !== 'string' || !row.id) return null;
+  if (typeof row.package !== 'string' || !row.package) return null;
+  if (typeof row.severity !== 'string' || !DEPENDABOT_SEVERITIES.has(row.severity))
+    return null;
+  if (typeof row.cve !== 'string' || !row.cve) return null;
+  if (typeof row.title !== 'string' || !row.title) return null;
+  if (typeof row.state !== 'string' || !DEPENDABOT_STATES.has(row.state)) return null;
+  return {
+    id: row.id,
+    package: row.package,
+    severity: row.severity as unknown as SecuritySeverity,
+    cve: row.cve,
+    title: row.title,
+    state: row.state as unknown as SecurityAlertState,
+    vulnerableRange: typeof row.vulnerableRange === 'string' ? row.vulnerableRange : undefined,
+    patchedVersion: typeof row.patchedVersion === 'string' ? row.patchedVersion : undefined,
+    cvss: typeof row.cvss === 'number' ? row.cvss : undefined,
+    cweTitle: typeof row.cweTitle === 'string' ? row.cweTitle : undefined,
+    createdAt: typeof row.createdAt === 'string' ? row.createdAt : undefined,
+    dismissedReason: typeof row.dismissedReason === 'string' ? row.dismissedReason : undefined,
+    fixPrId: typeof row.fixPrId === 'number' ? row.fixPrId : undefined,
+  };
+}
 
 /**
  * Normalize the GET /:id/security/alerts envelope's data payload into what
@@ -317,12 +374,18 @@ export type SecurityAlertsPayload = {
  */
 export function normalizeSecurityAlertsPayload(data: unknown): {
   policy: string | null;
+  dependabot: SecurityAlert[];
   secrets: SecretScanningAlert[];
   codeql: CodeQLAlert[];
 } {
   const payload = (data ?? {}) as SecurityAlertsPayload;
   return {
     policy: typeof payload.securityPolicy === 'string' ? payload.securityPolicy : null,
+    dependabot: Array.isArray(payload.dependabot)
+      ? payload.dependabot
+          .map(toDependabotAlert)
+          .filter((a): a is SecurityAlert => a !== null)
+      : [],
     secrets: Array.isArray(payload.secrets)
       ? payload.secrets
           .map(toSecretScanningAlert)
@@ -565,14 +628,19 @@ export function SecurityTab({
         showToast(
           `Fix PR #${prId} opened: bump ${alert.package} to ${alert.patchedVersion || 'patched'}.`,
         );
+        // Only a backend-confirmed PR number may notify the parent: the
+        // callback must NOT fire on the 501 / failure paths above, where no
+        // PR exists (fix/qm-securitytab-fake-pr). A parent that treated the
+        // callback as "PR created" would re-introduce the fake-PR claim
+        // through the back door.
+        if (onCreateFixPR) {
+          onCreateFixPR(alert.package, alert.cve, alert.patchedVersion || 'latest');
+        }
       } else {
         showToast(json?.data?.message || 'Fix PR request completed with no PR created.');
       }
     } catch {
       showToast('Fix PR generation is not available for this repository yet — no PR was created.');
-    }
-    if (onCreateFixPR) {
-      onCreateFixPR(alert.package, alert.cve, alert.patchedVersion || 'latest');
     }
   };
 
@@ -780,10 +848,10 @@ export function SecurityTab({
   // --------------------------------------------------------------------------
 
   // Load the saved SECURITY.md policy (QM-SCREEN-013 P1) plus the server's
-  // stored secret-scanning and CodeQL alert lists from the single
-  // GET /:id/security/alerts call (fix/qm-securitytab-alerts-wired). The lists
-  // render as stored; when the server truly has none the sub-tabs keep their
-  // honest empty state.
+  // stored secret-scanning, CodeQL, and Dependabot alert lists from the single
+  // GET /:id/security/alerts call (fix/qm-securitytab-alerts-wired, dependabot
+  // wired by fix/qm-securitytab-fake-pr). The lists render as stored; when the
+  // server truly has none the sub-tabs keep their honest empty state.
   useEffect(() => {
     const target = repoId || selectedRepo?.id;
     if (!target) return;
@@ -796,9 +864,11 @@ export function SecurityTab({
           data?: SecurityAlertsPayload;
         } | null;
         if (cancelled) return;
-        const { policy, secrets, codeql } = normalizeSecurityAlertsPayload(json?.data);
+        const { policy, dependabot, secrets, codeql } =
+          normalizeSecurityAlertsPayload(json?.data);
         if (cancelled) return;
         if (policy !== null) setSecurityPolicy(policy);
+        setDependabotAlerts(dependabot);
         setSecretAlerts(secrets);
         setCodeqlAlerts(codeql);
       })
