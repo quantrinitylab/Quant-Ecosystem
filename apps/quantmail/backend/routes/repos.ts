@@ -1984,6 +1984,72 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         author?: { username: string; displayName: string | null } | null;
         _count?: { reviewComments: number };
       }>;
+      // Review-requirement honesty (qm-review-required-chip): the list row
+      // "Review required" chip may ONLY reflect real data — the target
+      // branch's protection rule plus the PR's effective review verdicts
+      // (same semantics as MergeEligibilityService: latest verdict per
+      // reviewer wins, dismissed/stale approvals are invisible). One rules
+      // query + one reviews query for the whole list. The verdict is
+      // TRUE | FALSE | NULL end-to-end, where NULL means UNKNOWN: an
+      // unreadable verdict source (thrown query, missing model/method, or
+      // non-array result) makes every OPEN row's verdict NULL — fail-closed
+      // to unknown, NEVER false. False is reserved for verdicts actually
+      // computed from readable sources (no rule, satisfied reviews) plus
+      // closed/merged PRs, whose verdict is settled by status alone and
+      // consults no review source. Collapsing unknown into false would let
+      // the UI silently assert "no review required" for a verdict it does
+      // not have.
+      let protectionRules: Array<{ branchPattern: string; requiredApprovals: number }> = [];
+      let reviewSourcesReadable = true;
+      try {
+        const rules = await prisma.branchProtection?.findMany?.({ where: { repoId: repo.id } });
+        if (Array.isArray(rules)) protectionRules = rules;
+        else reviewSourcesReadable = false;
+      } catch {
+        reviewSourcesReadable = false;
+      }
+      const reviewsByPr = new Map<
+        string,
+        Array<{ reviewerId: string; status: string; dismissed?: boolean }>
+      >();
+      try {
+        const allReviews = await prisma.review?.findMany?.({
+          where: { prId: { in: rows.map((r) => r.id) } },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (Array.isArray(allReviews)) {
+          for (const review of allReviews) {
+            const list = reviewsByPr.get(review.prId) ?? [];
+            list.push(review);
+            reviewsByPr.set(review.prId, list);
+          }
+        } else {
+          reviewSourcesReadable = false;
+        }
+      } catch {
+        reviewSourcesReadable = false;
+      }
+      const reviewRequiredFor = (pull: {
+        id: string;
+        status: string;
+        targetBranch: string;
+      }): boolean | null => {
+        // Closed/merged PRs never require a review — settled by status
+        // alone, no review source is consulted for them.
+        if (pull.status !== 'OPEN') return false;
+        // Fail closed to unknown: any unreadable verdict source → null.
+        if (!reviewSourcesReadable) return null;
+        const rule = protectionRules.find((r) => branchMatches(pull.targetBranch, r.branchPattern));
+        if (!rule || !(rule.requiredApprovals > 0)) return false;
+        const latestByReviewer = new Map<string, { status: string; dismissed?: boolean }>();
+        for (const review of reviewsByPr.get(pull.id) ?? []) {
+          if (!latestByReviewer.has(review.reviewerId)) latestByReviewer.set(review.reviewerId, review);
+        }
+        const effective = [...latestByReviewer.values()].filter((r) => !r.dismissed);
+        const approvals = effective.filter((r) => r.status === 'APPROVED').length;
+        const changesRequested = effective.some((r) => r.status === 'CHANGES_REQUESTED');
+        return approvals < rule.requiredApprovals || changesRequested;
+      };
       const data = await Promise.all(
         rows.map(async (pull) => ({
           id: pull.number,
@@ -2007,6 +2073,10 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           additions: null,
           deletions: null,
           changedFiles: null,
+          // Real review-requirement verdict for the row chip — true, false,
+          // or null (unknown, fail-closed) — never hardcoded, never false
+          // for an undetermined verdict.
+          reviewRequired: reviewRequiredFor(pull),
         })),
       );
       return reply.send({

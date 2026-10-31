@@ -144,6 +144,14 @@ export type PRItem = {
   checksStatus: 'passing' | 'pending' | 'failing' | 'unknown';
   // null = unknown (count source unavailable) — never render an invented 0.
   commentsCount: number | null;
+  // Real review-requirement verdict from GET /:id/pulls (target branch
+  // protection rule + effective review verdicts). TRUE | FALSE | NULL:
+  // null means UNKNOWN (a verdict source was unreadable — fail-closed) and
+  // must stay distinguishable from false through the whole chain
+  // (backend → page pass-through → row). The list row chip renders ONLY
+  // when this is exactly true; false and null/undefined render no chip —
+  // never a hardcoded "Review required" badge, never false-for-unknown.
+  reviewRequired?: boolean | null;
   createdAt: string;
   body?: string;
   additions?: number;
