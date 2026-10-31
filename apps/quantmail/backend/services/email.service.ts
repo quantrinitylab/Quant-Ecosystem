@@ -11,6 +11,7 @@ import { MutationOptions, resolveRequestId } from '../lib/mutation-context';
 import { versionedUpdate, VersionedTx } from '../lib/optimistic-update';
 import { buildSnippet } from '../lib/snippet';
 import { mintOpenToken, withOpenTrackingPixel } from './open-tracking.service';
+import { SearchQueryService, extractSpamTrashScope } from './search-query.service';
 import {
   RecipientAttachmentCopier,
   type RecipientAttachmentStore,
@@ -1816,9 +1817,27 @@ export class EmailService {  constructor(
     const pageSize = options.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
 
-    // Trash and spam stay out. A search is a way of finding mail you filed, not of
-    // exhuming mail you threw away — the same line the thread view draws when it
-    // resolves a conversation over INBOX ∪ ARCHIVE.
+    // Trash and spam stay out by default. A search is a way of finding mail you
+    // filed, not of exhuming mail you threw away — the same line the thread view
+    // draws when it resolves a conversation over INBOX ∪ ARCHIVE. Gmail's escape
+    // hatch applies here too: `in:trash`, `in:spam`, `is:spam`, or `in:anywhere`
+    // in the query lifts the corresponding exclusion (this legacy path serves
+    // filter-chip searches and the operator route's fallback, and used to match
+    // those tokens literally while still excluding trash/spam, so a user who
+    // trashed something had no search path back to it). The scope semantics are
+    // borrowed verbatim from `SearchQueryService.buildEmailWhere()` — the same
+    // code the operator route runs — so both paths always agree: `in:trash` =
+    // trash only, `in:spam`/`is:spam` = spam only, `in:anywhere` = everything.
+    // Only the four scope tokens are interpreted; every other token stays
+    // literal free text.
+    const scope = extractSpamTrashScope(query);
+    const scopeWhere = scope.scopeQuery
+      ? new SearchQueryService().buildEmailWhere(userId, scope.scopeQuery)
+      : null;
+    // The scope where carries its own userId/deletedAt; keep this query's.
+    const { userId: _scopeUserId, deletedAt: _scopeDeletedAt, ...scopeConditions } =
+      scopeWhere ?? {};
+    const textQuery = scope.scopeQuery ? scope.text : query;
     //
     // `toAddresses` is a `Json` array, so Postgres can only be asked for an exact
     // element (`array_contains`, the pattern `search-query.service.ts` already uses for
@@ -1829,16 +1848,19 @@ export class EmailService {  constructor(
     const where: Record<string, unknown> = {
       userId,
       deletedAt: null,
-      isTrash: false,
-      isSpam: false,
-      OR: [
-        { subject: { contains: query, mode: 'insensitive' as const } },
-        { bodyPlain: { contains: query, mode: 'insensitive' as const } },
-        { fromAddress: { contains: query, mode: 'insensitive' as const } },
-        { fromName: { contains: query, mode: 'insensitive' as const } },
-        { toAddresses: { array_contains: query } },
-        { ccAddresses: { array_contains: query } },
-      ],
+      ...(scopeWhere ? scopeConditions : { isTrash: false, isSpam: false }),
+      ...(textQuery
+        ? {
+            OR: [
+              { subject: { contains: textQuery, mode: 'insensitive' as const } },
+              { bodyPlain: { contains: textQuery, mode: 'insensitive' as const } },
+              { fromAddress: { contains: textQuery, mode: 'insensitive' as const } },
+              { fromName: { contains: textQuery, mode: 'insensitive' as const } },
+              { toAddresses: { array_contains: textQuery } },
+              { ccAddresses: { array_contains: textQuery } },
+            ],
+          }
+        : {}),
     };
 
     // --- Advanced search filters (ANDed with the free-text match) ------------
@@ -1902,7 +1924,12 @@ export class EmailService {  constructor(
     }
 
     if (andClauses.length > 0) {
-      where.AND = andClauses;
+      // A scope operator already contributed its own AND (folder branches) —
+      // replacing it would silently drop the trash/spam scope, so append.
+      const existingAnd = Array.isArray(where.AND)
+        ? (where.AND as Record<string, unknown>[])
+        : [];
+      where.AND = [...existingAnd, ...andClauses];
     }
 
     const [data, total] = await Promise.all([
