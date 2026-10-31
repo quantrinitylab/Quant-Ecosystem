@@ -15,6 +15,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // React 19's act(...) requires this flag in the test environment.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -57,13 +58,20 @@ import { AppSidebar, NAV_GROUPS } from '../components/AppSidebar';
 
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
+let queryClient: QueryClient | null = null;
 
 function mount(node: React.ReactNode) {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
+  // SidebarNavGroups now consumes useNotifications. Provide its real query
+  // context, but disable unrelated network I/O in this navigation unit test.
+  queryClient = new QueryClient({
+    defaultOptions: { queries: { enabled: false, retry: false, gcTime: Infinity } },
+  });
+  queryClient.setQueryData(['notifications', 50], { notifications: [], unreadCount: 0 });
   act(() => {
-    root!.render(node);
+    root!.render(<QueryClientProvider client={queryClient!}>{node}</QueryClientProvider>);
   });
 }
 
@@ -81,8 +89,10 @@ afterEach(() => {
     root?.unmount();
   });
   container?.remove();
+  queryClient?.clear();
   root = null;
   container = null;
+  queryClient = null;
 });
 
 describe('AppSidebar Inbox drawer entry', () => {
@@ -91,7 +101,25 @@ describe('AppSidebar Inbox drawer entry', () => {
     navState.params.clear();
   });
 
+  it('navigates to the classic inbox, not the bare People home', () => {
+    mount(<AppSidebar />);
+    act(() => {
+      inboxButton().dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(navState.push).toHaveBeenCalledWith('/?view=inbox&lens=all');
+    expect(navState.push).not.toHaveBeenCalledWith('/');
+  });
 
+  it('carries both the view and the all-lens params', () => {
+    mount(<AppSidebar />);
+    act(() => {
+      inboxButton().dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const target = navState.push.mock.calls[0][0] as string;
+    const query = new URL(target, 'https://quantmail.in').searchParams;
+    expect(query.get('view')).toBe('inbox');
+    expect(query.get('lens')).toBe('all');
+  });
 
   it('declares the classic-inbox target in NAV_GROUPS (data-level guard)', () => {
     const mailGroup = NAV_GROUPS.find((g) => g.label === 'Mail')!;
@@ -100,7 +128,28 @@ describe('AppSidebar Inbox drawer entry', () => {
     expect(inbox.view).toBe('inbox');
   });
 
+  it('is active on the classic inbox with lens=all', () => {
+    navState.params.set('view', 'inbox');
+    navState.params.set('lens', 'all');
+    mount(<AppSidebar />);
+    expect(inboxButton().getAttribute('aria-current')).toBe('page');
+  });
 
+  it('is active on the classic inbox with no lens param (default all lens)', () => {
+    navState.params.set('view', 'inbox');
+    mount(<AppSidebar />);
+    expect(inboxButton().getAttribute('aria-current')).toBe('page');
+  });
 
+  it('is NOT active on the bare People home', () => {
+    mount(<AppSidebar />);
+    expect(inboxButton().getAttribute('aria-current')).toBeNull();
+  });
 
+  it('is NOT active on the classic inbox archive tab', () => {
+    navState.params.set('view', 'inbox');
+    navState.params.set('tab', 'archive');
+    mount(<AppSidebar />);
+    expect(inboxButton().getAttribute('aria-current')).toBeNull();
+  });
 });
