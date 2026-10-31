@@ -4799,6 +4799,44 @@ model DriveShare {
   @@map("drive_share_links")
 }
 
+/// A team-owned Shared Drive (Google Drive parity, slice 1: container +
+/// membership only). Unlike a personal Folder (which has one ownerUserId),
+/// a Shared Drive has NO owner: membership rows ARE the ownership, so the
+/// drive survives any single member's departure. `createdById` is audit-only
+/// (who created it), never an owner that can delete it out from under the
+/// team. Roles mirror Google's five Shared Drive permission levels:
+/// manager (manage members + settings), contentManager (add/edit/remove
+/// content), contributor (add/edit own content), commenter (view + comment),
+/// viewer (view only). Content living inside a shared drive (files/folders
+/// rooted at it) is a follow-up slice; this slice stores the container, its
+/// members, and the role rules that later slices enforce.
+model SharedDrive {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([createdById])
+  @@map("drive_shared_drives")
+}
+
+model SharedDriveMember {
+  id            String   @id @default(cuid())
+  sharedDriveId String
+  userId        String
+  role          String   @default("viewer") // manager | contentManager | contributor | commenter | viewer
+  addedById     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([sharedDriveId, userId])
+  @@index([sharedDriveId])
+  @@index([userId])
+  @@map("drive_shared_drive_members")
+}
+
 
 model FileVersion {
   id                String   @id @default(cuid())
