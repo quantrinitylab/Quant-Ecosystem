@@ -28,6 +28,10 @@ import attachmentRoutes from './routes/attachments';
 import e2eeRoutes from './routes/e2ee';
 import federationRoutes, { createFederationService } from './routes/federation';
 import { oauthRoutes } from './routes/oauth';
+import {
+  PrismaConsentTokenStore,
+  setConsentTokenStore,
+} from './services/oauth-consent-session';
 import { ssoTicketRoutes } from './routes/sso-tickets';
 import { quantyMcpRoutes } from './routes/quanty-mcp';
 // Phone OTP login was REMOVED per the locked 2026-10-05 / 2026-10-11 SSO design:
@@ -450,6 +454,14 @@ export async function buildApp(config?: AppConfig) {
   await app.register(sendAsRoutes);
   await app.register(settingsTokenRoutes);
   await app.register(oauthRoutes);
+  // Cross-instance single-use for OAuth consent tokens: the default
+  // in-memory consumed-jti store is per-process, so in a multi-replica
+  // deploy a token consumed on replica A could replay on replica B.
+  // Wire the DB-backed store (table `oauth_consent_tokens`, migration
+  // 0115 — UNIQUE(jti) is the cross-replica mutex). Route-level tests
+  // register oauthRoutes without this boot path and keep the hermetic
+  // in-memory store.
+  setConsentTokenStore(new PrismaConsentTokenStore((app as any).prisma));
   await app.register(ssoTicketRoutes);
   await app.register(quantyMcpRoutes, { prefix: '/api/quanty/mcp' });
   // No phoneRoutes: SMS OTP login/verify removed per locked design (see note above).

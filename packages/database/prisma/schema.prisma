@@ -516,6 +516,20 @@ model OAuthConsent {
   @@map("oauth_consents")
 }
 
+model OAuthConsentToken {
+  // Consumed single-use OAuth consent tokens (services/oauth-consent-session.ts).
+  // One row per consumed jti. The UNIQUE jti is the cross-instance replay
+  // mutex: two replicas consuming the same token race on INSERT and exactly
+  // one wins. Rows carry the token's expiry so a lazy sweep can delete them
+  // afterwards; no user relation (the jti is opaque and short-lived).
+  jti       String   @id
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("oauth_consent_tokens")
+}
+
 model AuthorizationCode {
   id                  String   @id @default(cuid())
   code                String   @unique
