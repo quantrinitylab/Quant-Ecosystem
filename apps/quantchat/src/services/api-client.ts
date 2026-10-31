@@ -31,6 +31,7 @@ import type {
   MessageRequestInboxView,
   MessageRequestSentView,
   CreateStoryRequest,
+  CreateMemoryRequest,
   SendSnapRequest,
   InitiateCallRequest,
   CreateGroupRequest,
@@ -539,6 +540,11 @@ export class QuantChatApiClient {
 
   async saveToMemories(snapId: string): Promise<ApiResponse<SnapMemory>> {
     return this.post(`/snaps/${snapId}/memories`, {});
+  }
+
+  /** Create a memory directly from captured media (QC-F-138) — POST /memories. */
+  async createMemory(request: CreateMemoryRequest): Promise<ApiResponse<SnapMemory>> {
+    return this.post('/memories', request);
   }
 
   // --------------------------------------------------------------------------

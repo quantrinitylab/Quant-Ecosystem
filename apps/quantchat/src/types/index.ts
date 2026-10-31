@@ -398,6 +398,14 @@ export interface SnapMemory extends BaseEntity {
   isFavorite: boolean;
 }
 
+/** POST /memories body (backend/routes/memories.ts create schema). */
+export interface CreateMemoryRequest {
+  mediaUrl: string;
+  mediaType: 'PHOTO' | 'VIDEO';
+  caption?: string;
+  location?: string;
+}
+
 // ============================================================================
 // Call Types
 // ============================================================================
