@@ -112,7 +112,8 @@
       "body-parser@<1.20.9": "1.20.9",
       "zod@<4.6.6": "4.6.6",
       "deepmerge-ts@<8.0.0": "8.0.1",
-      "browserslist@<=4.28.6": "4.28.8"
+      "browserslist@<=4.28.6": "4.28.8",
+      "follow-redirects@<1.16.2": "1.16.2"
     },
     "patchedDependencies": {
       "minimatch@3.1.5": "patches/minimatch@3.1.5.patch"
