@@ -1,24 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'screens/superapp/superapp_home_screen.dart';
+import 'screens/superapp/quant_workplace_splash_screen.dart';
+import 'screens/auth/quant_login_screen.dart';
 import 'screens/mail/mail_inbox_screen.dart';
+import 'services/quant_auth_controller.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await QuantAuthController.instance.init();
   runApp(const QuantMailApp());
 }
 
-/// Sovereign QuantMail Flutter Application
+/// Sovereign QuantWorkplace Flutter Application (by Quantrinity)
 ///
 /// Features Impeller 120Hz zero-allocation rendering, local FTS5 search,
-/// Superhuman keyboard workflow,
-/// and unified 5-pillar enterprise productivity super-app orchestration.
+/// Superhuman keyboard workflow, and unified 5-pillar enterprise productivity
+/// super-app orchestration (QuantMail, QuantCalendar, QuantDrive,
+/// QuantContacts, QuantGit).
 class QuantMailApp extends StatelessWidget {
   const QuantMailApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'QuantMail',
+      title: 'QuantWorkplace',
       debugShowCheckedModeBanner: false,
       theme: QuantTheme.obsidianDarkTheme.copyWith(
         primaryColor: QuantColors.moltenAmber,
@@ -26,7 +32,9 @@ class QuantMailApp extends StatelessWidget {
           primary: QuantColors.moltenAmber,
         ),
       ),
-      home: const SuperAppHomeScreen(),
+      home: const QuantWorkplaceSplashScreen(
+        initialSplashDuration: Duration(milliseconds: 3200),
+      ),
     );
   }
 }
