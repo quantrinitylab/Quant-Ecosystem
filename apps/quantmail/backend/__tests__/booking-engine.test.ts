@@ -834,6 +834,65 @@ describe('QuantMail Calendar Booking Engine & Slot Lock Concurrency (Tasks W39-C
       expect(lockB.lockId).toBeDefined();
     });
 
+    it('does NOT let a lock on one link of a host block the same slot on the host\'s other link (fix/qm-slot-lock-scope)', async () => {
+      // Same host, two distinct booking links.
+      await service.createBookingLink({
+        userId: 'host-user-1',
+        slug: 'scope-link-a',
+        title: 'Link A',
+        duration: 30,
+        availableDays: [1, 2, 3, 4, 5],
+        startHour: 9,
+        endHour: 17,
+      });
+      await service.createBookingLink({
+        userId: 'host-user-1',
+        slug: 'scope-link-b',
+        title: 'Link B',
+        duration: 30,
+        availableDays: [1, 2, 3, 4, 5],
+        startHour: 9,
+        endHour: 17,
+      });
+
+      const targetMonday = new Date(2028, 9, 2);
+      const targetSlot = new Date(targetMonday);
+      targetSlot.setHours(14, 0, 0, 0);
+
+      // Guest locks 14:00 on link A.
+      const lockA = await service.lockSlot('scope-link-a', targetSlot, 'alice@crypto.org');
+      expect(lockA.lockId).toMatch(/^lock_/);
+
+      // Store-level scoping: link A's lock is visible only under link A.
+      expect(
+        globalSlotLockStore.getActiveLock('scope-link-a', 'host-user-1', targetSlot.getTime()),
+      ).toBeDefined();
+      expect(
+        globalSlotLockStore.getActiveLock('scope-link-b', 'host-user-1', targetSlot.getTime()),
+      ).toBeUndefined();
+      expect(globalSlotLockStore.isSlotLocked('scope-link-b', 'host-user-1', targetSlot.getTime())).toBe(
+        false,
+      );
+
+      // Link B still shows 14:00 as available...
+      const slotsB = await service.getAvailableSlots('scope-link-b', targetMonday);
+      const slot14B = slotsB.find((s) => s.start.getHours() === 14 && s.start.getMinutes() === 0);
+      expect(slot14B?.available).toBe(true);
+
+      // ...and another guest can lock 14:00 on link B (previously 409'd).
+      const lockB = await service.lockSlot('scope-link-b', targetSlot, 'bob@competitor.com');
+      expect(lockB.lockId).toMatch(/^lock_/);
+      expect(lockB.lockId).not.toBe(lockA.lockId);
+
+      // Same-link guard is intact: a third guest still cannot double-lock link A.
+      await expect(
+        service.lockSlot('scope-link-a', targetSlot, 'carol@elsewhere.com'),
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'SLOT_UNAVAILABLE',
+      });
+    });
+
     it('rejects concurrent lock via HTTP POST /calendar/booking/:slug/lock with 409', async () => {
       await service.createBookingLink({
         userId: 'host-user-1',
