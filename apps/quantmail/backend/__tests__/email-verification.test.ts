@@ -418,7 +418,7 @@ describe('POST /auth/resend-verification — the first mail may not arrive', () 
     // stops a concurrent resend from killing the code this request emails.
     expect(mocks.prisma.emailVerificationCode.findMany).toHaveBeenCalledWith({
       where: { userId: USER.id, usedAt: null },
-      select: { id: true },
+      select: { id: true, attempts: true, expiresAt: true },
     });
     expect(mocks.prisma.emailVerificationCode.updateMany).toHaveBeenCalledWith({
       where: { id: { in: ['evc-1'] }, usedAt: null },
@@ -431,6 +431,48 @@ describe('POST /auth/resend-verification — the first mail may not arrive', () 
     const sent = (sendVerificationEmail as any).mock.calls[0][0];
     const live = mocks.db.codes.find((r: any) => r.usedAt === null);
     expect(live.codeHash).toBe(hashVerificationCode(sent.code));
+  });
+
+  it('a resend does NOT reset the attempt cap: live-code attempts carry over', async () => {
+    const { sendVerificationEmail } = await import('../lib/email-verification');
+    (sendVerificationEmail as any).mockResolvedValue(true);
+    seedLiveCode();
+    mocks.db.codes[0].attempts = 4;
+    const reply = await request({ email: USER.email });
+    expect(reply.statusCode).toBe(200);
+    // Regression (per-account cap, not per-row): the replacement row must
+    // inherit the 4 burned attempts, not start at 0 — otherwise resending
+    // after 5 wrong guesses would mint a fresh 5-guess budget.
+    const live = mocks.db.codes.find((r: any) => r.usedAt === null);
+    expect(live.attempts).toBe(4);
+    // One more wrong guess exhausts the inherited budget…
+    const verify = (body: unknown) => call('/auth/verify-email', { headers: {}, body, ip: '203.0.113.9' });
+    const wrong = await verify({ email: USER.email, code: '000000' });
+    expect(wrong.statusCode).toBe(400);
+    expect(wrong.body.error.code).toBe('INVALID_CODE');
+    expect(live.attempts).toBe(5);
+    // …and the next guess is capped on the NEW row, not given a fresh budget.
+    const capped = await verify({ email: USER.email, code: '000000' });
+    expect(capped.statusCode).toBe(429);
+    expect(capped.body.error.code).toBe('TOO_MANY_ATTEMPTS');
+  });
+
+  it('an expired superseded code does NOT carry attempts: a fresh epoch recovers', async () => {
+    const { sendVerificationEmail } = await import('../lib/email-verification');
+    (sendVerificationEmail as any).mockResolvedValue(true);
+    seedLiveCode();
+    mocks.db.codes[0].expiresAt = new Date(Date.now() - 60_000);
+    mocks.db.codes[0].attempts = 5;
+    const reply = await request({ email: USER.email });
+    expect(reply.statusCode).toBe(200);
+    // Expiry ends the epoch: the capped-out user is not locked out forever.
+    const live = mocks.db.codes.find((r: any) => r.usedAt === null);
+    expect(live.attempts).toBe(0);
+    const sent = (sendVerificationEmail as any).mock.calls[0][0];
+    const verify = (body: unknown) => call('/auth/verify-email', { headers: {}, body, ip: '203.0.113.9' });
+    const ok = await verify({ email: USER.email, code: sent.code });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.body.data.emailVerified).toBe(true);
   });
 
   it('keeps USER_NOT_FOUND non-enumeration and alreadyVerified early-return', async () => {
