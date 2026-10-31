@@ -336,6 +336,63 @@ function fakePrisma() {
         }
         return null;
       }),
+      findMany: vi.fn().mockImplementation(async ({ where, take }: any) => {
+        // Emulates Postgres `mode: 'insensitive'` semantics: compares
+        // lowercased emails and returns ALL matching rows (never first-wins),
+        // so case-collision detection in the collaborator-grant route is
+        // exercised honestly. Honors the `deletedAt: null` eligibility filter
+        // and `take`. The directory mirrors the findFirst rows above.
+        const emailArg =
+          typeof where?.email === 'object' && where.email !== null
+            ? where.email.equals
+            : where?.email;
+        const email =
+          typeof emailArg === 'string' ? emailArg.toLowerCase() : undefined;
+        const directory = [
+          {
+            id: 'user-1',
+            username: 'kundan',
+            displayName: 'Kundan Singh',
+            email: 'kundan@example.test',
+            avatarUrl: 'https://example.test/avatar.png',
+            status: 'ACTIVE',
+            deletedAt: null,
+          },
+          {
+            id: 'user-2',
+            username: 'collab',
+            displayName: 'Collaborator User',
+            email: 'collab@example.test',
+            avatarUrl: 'https://example.test/avatar.png',
+            status: 'ACTIVE',
+            deletedAt: null,
+          },
+          {
+            id: 'user-3',
+            username: 'collabadmin',
+            displayName: 'Collaborator Admin',
+            email: 'collab-admin@example.test',
+            avatarUrl: null,
+            status: 'ACTIVE',
+            deletedAt: null,
+          },
+          {
+            id: 'user-legacy',
+            username: 'legacycase',
+            displayName: 'Legacy Case',
+            email: 'LegacyCase@quantmail.in',
+            avatarUrl: null,
+            status: 'ACTIVE',
+            deletedAt: null,
+          },
+        ];
+        let matched = directory.filter((row) => row.email.toLowerCase() === email);
+        if (where && 'deletedAt' in where && where.deletedAt === null) {
+          matched = matched.filter((row) => row.deletedAt == null);
+        }
+        if (typeof take === 'number') matched = matched.slice(0, take);
+        return matched;
+      }),
     },
     issue: {
       findMany: vi.fn().mockResolvedValue([MOCK_ISSUE]),
@@ -1955,15 +2012,285 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       },
     });
 
-    // The lookup must go out as a case-insensitive Postgres filter, not a
-    // case-exact match on the raw input.
-    expect(prisma.user.findFirst).toHaveBeenCalledWith(
+    // The lookup must go out as a case-insensitive Postgres filter against
+    // LIVE rows only (deletedAt: null), bounded with take: 2 so a
+    // case-collision between two legacy rows surfaces as 409 instead of a
+    // first-row-wins grant — never a case-exact match on the raw input.
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           email: { equals: 'legacycase@quantmail.in', mode: 'insensitive' },
+          deletedAt: null,
         },
+        take: 2,
       }),
     );
+  });
+
+  it('POST /repos/:id/collaborators rejects a case-colliding email with 409 and writes nothing (lowercase row first)', async () => {
+    const app = await buildApp('user-1');
+
+    // Two live rows differ only by case — the exact CODEX-REVIEW 6257321380
+    // shape. Row order must not decide the grant.
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'user-case-a',
+        username: 'persona',
+        displayName: 'Person A',
+        email: 'person@example.com',
+        avatarUrl: null,
+        status: 'ACTIVE',
+        deletedAt: null,
+      },
+      {
+        id: 'user-case-b',
+        username: 'personb',
+        displayName: 'Person B',
+        email: 'Person@example.com',
+        avatarUrl: null,
+        status: 'ACTIVE',
+        deletedAt: null,
+      },
+    ]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        email: 'person@example.com',
+        role: 'WRITE',
+      },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      success: false,
+      error: expect.objectContaining({
+        code: 'EMAIL_CASE_CONFLICT',
+        statusCode: 409,
+      }),
+    });
+
+    // Zero writes: no collaborator row was persisted anywhere.
+    const listRes = await app.inject({
+      method: 'GET',
+      url: '/repos/repo-1/collaborators',
+    });
+    expect(listRes.statusCode).toBe(200);
+    expect(listRes.json()).toEqual({ success: true, data: [] });
+  });
+
+  it('POST /repos/:id/collaborators rejects a case-colliding email with 409 and writes nothing (mixed-case row first)', async () => {
+    const app = await buildApp('user-1');
+
+    // Same collision, opposite row order: the grant must still be rejected,
+    // never silently target the first row.
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'user-case-b',
+        username: 'personb',
+        displayName: 'Person B',
+        email: 'Person@example.com',
+        avatarUrl: null,
+        status: 'ACTIVE',
+        deletedAt: null,
+      },
+      {
+        id: 'user-case-a',
+        username: 'persona',
+        displayName: 'Person A',
+        email: 'person@example.com',
+        avatarUrl: null,
+        status: 'ACTIVE',
+        deletedAt: null,
+      },
+    ]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        email: 'Person@example.com',
+        role: 'WRITE',
+      },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      success: false,
+      error: expect.objectContaining({
+        code: 'EMAIL_CASE_CONFLICT',
+        statusCode: 409,
+      }),
+    });
+
+    const listRes = await app.inject({
+      method: 'GET',
+      url: '/repos/repo-1/collaborators',
+    });
+    expect(listRes.statusCode).toBe(200);
+    expect(listRes.json()).toEqual({ success: true, data: [] });
+  });
+
+  it('POST /repos/:id/collaborators grants to the single matching row when there is no case collision', async () => {
+    const app = await buildApp('user-1');
+
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'user-case-a',
+        username: 'persona',
+        displayName: 'Person A',
+        email: 'person@example.com',
+        avatarUrl: null,
+        status: 'ACTIVE',
+        deletedAt: null,
+      },
+    ]);
+
+    // Uppercase input still resolves the lone lowercase row: the
+    // case-insensitive grant path keeps working for the non-ambiguous case.
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        email: 'PERSON@example.com',
+        role: 'WRITE',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toEqual({
+      success: true,
+      data: expect.objectContaining({
+        userId: 'user-case-a',
+        role: 'WRITE',
+      }),
+    });
+  });
+
+  it('POST /repos/:id/collaborators only counts live rows as eligible for the collision check', async () => {
+    const app = await buildApp('user-1');
+
+    // A tombstoned case-twin must not block a live account: the route sends
+    // `deletedAt: null` in the filter, so the DB returns only the live row
+    // and no conflict is raised.
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'user-case-a',
+        username: 'persona',
+        displayName: 'Person A',
+        email: 'person@example.com',
+        avatarUrl: null,
+        status: 'ACTIVE',
+        deletedAt: null,
+      },
+    ]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        email: 'person@example.com',
+        role: 'WRITE',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().data.userId).toBe('user-case-a');
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ deletedAt: null }),
+      }),
+    );
+  });
+
+  it('POST /repos/:id/collaborators rejects a suspended account with 403 ACCOUNT_SUSPENDED', async () => {
+    const app = await buildApp('user-1');
+
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'user-suspended',
+        username: 'suspendeduser',
+        displayName: 'Suspended User',
+        email: 'suspended@example.com',
+        avatarUrl: null,
+        status: 'SUSPENDED',
+        deletedAt: null,
+      },
+    ]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        email: 'suspended@example.com',
+        role: 'WRITE',
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({
+      success: false,
+      error: expect.objectContaining({
+        code: 'ACCOUNT_SUSPENDED',
+        statusCode: 403,
+      }),
+    });
+  });
+
+  it('POST /repos/:id/collaborators answers 404 for a tombstoned account looked up by userId', async () => {
+    const app = await buildApp('user-1');
+
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'user-tombstoned',
+      username: 'ghost',
+      displayName: 'Ghost',
+      email: 'ghost@example.com',
+      avatarUrl: null,
+      status: 'DEACTIVATED',
+      deletedAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        userId: 'user-tombstoned',
+        role: 'WRITE',
+      },
+    });
+
+    // A tombstoned row answers exactly like a missing one, so the tombstone
+    // cannot be probed for existence.
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({
+      success: false,
+      error: expect.objectContaining({
+        code: 'USER_NOT_FOUND',
+        statusCode: 404,
+      }),
+    });
+  });
+
+  it('POST /repos/:id/collaborators binds to the approved userId when both userId and email are supplied', async () => {
+    const app = await buildApp('user-1');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        userId: 'user-2',
+        email: 'legacycase@quantmail.in',
+        role: 'WRITE',
+      },
+    });
+
+    // The approved recipient ID wins: execution binds to user-2 exactly and
+    // never re-resolves via the email lookup.
+    expect(response.statusCode).toBe(201);
+    expect(response.json().data.userId).toBe('user-2');
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+    expect(prisma.user.findFirst).not.toHaveBeenCalled();
   });
 
   it('POST /repos/:id/collaborators updates an existing collaborator role and returns 200', async () => {
