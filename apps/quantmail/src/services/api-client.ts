@@ -442,7 +442,8 @@ export interface UpsertVacationResponderPreference {
  * the status union is the `DataExportStatus` Prisma enum — the backend has
  * no other states — and a completed export's artifact is an inventory
  * manifest delivered inline by the build call (`artifactRef` is
- * `inline-manifest:<id>`), never a download URL.
+ * `inline-manifest:<id>`) and persisted on the request row, so GET /exports
+ * and GET /exports/:id re-serve it in later sessions; never a download URL.
  */
 export type DataExportStatus = 'requested' | 'completed' | 'failed';
 
@@ -453,6 +454,13 @@ export interface DataExportRequestRecord {
   status: DataExportStatus;
   artifactRef: string | null;
   error: string | null;
+  /**
+   * The inventory manifest stored at completion time (backend
+   * `DataExportRequest.manifest`). Null for exports completed before durable
+   * manifests existed — their manifests were never stored and cannot be
+   * reconstructed, so the UI must say so rather than show a dead note.
+   */
+  manifest: DataExportManifest | null;
   requestedAt: string;
   completedAt: string | null;
 }
@@ -1400,6 +1408,10 @@ export class QuantMailApiClient {
 
   async listDataExports(): Promise<ApiResponse<DataExportRequestRecord[]>> {
     return this.get('/data-lifecycle/exports');
+  }
+
+  async getDataExport(exportId: string): Promise<ApiResponse<DataExportRequestRecord>> {
+    return this.get(`/data-lifecycle/exports/${encodeURIComponent(exportId)}`);
   }
 
   async getFilters(): Promise<ApiResponse<EmailFilter[]>> {
