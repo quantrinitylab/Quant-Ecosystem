@@ -76,10 +76,12 @@ async function renderPage() {
   });
 }
 
+// QC-F-002 fast-follow: the preview is SVG geometry now (the old bare
+// .hair div is gone); hair colour lives on the SVG path's fill attribute.
 function hairColor(): string {
-  const hair = container.querySelector('.hair');
+  const hair = container.querySelector('[data-testid="avatar-hair"]');
   if (!hair) throw new Error('hair preview not rendered');
-  return (hair as HTMLElement).style.backgroundColor;
+  return hair.getAttribute('fill') ?? '';
 }
 
 function saveButton(): HTMLButtonElement {
@@ -120,13 +122,13 @@ describe('Bitmoji page (QC-F-089)', () => {
     });
     await renderPage();
     // Default hair is #2C1B18; the saved #FF4500 proves the load was applied.
-    expect(hairColor()).toBe('rgb(255, 69, 0)');
+    expect(hairColor()).toBe('#FF4500');
     expect(container.textContent).not.toContain('Could not load your saved avatar');
   });
 
   it('config: null means "never saved" — defaults, and no error is shown', async () => {
     await renderPage();
-    expect(hairColor()).toBe('rgb(44, 27, 24)'); // default #2C1B18
+    expect(hairColor()).toBe('#2C1B18'); // default
     expect(container.textContent).not.toContain('Could not load your saved avatar');
     expect(saveButton().disabled).toBe(false);
   });
