@@ -1412,7 +1412,13 @@ model Story {
   textContent  String? // text-story body (StoryType.TEXT only); NULL for photo/video
   duration     Int       @default(15)
   viewCount    Int       @default(0)
-  audience     String    @default("ALL") // ALL | CLOSE_FRIENDS
+  audience     String    @default("ALL") // ALL | FRIENDS | CLOSE_FRIENDS
+  // Phase 2C: optional place tag (Send To -> location/place story) and
+  // optional story name (Memories -> Create Story batches). Display
+  // metadata only; never consulted by the visibility gates.
+  placeId      String?
+  placeName    String?
+  name         String?
   expiresAt    DateTime
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -1422,6 +1428,35 @@ model Story {
   @@index([userId])
   @@index([expiresAt])
   @@map("stories")
+}
+
+/// Phase 2C: one row per (storyId, userId) like -- the Discover viewer rail
+/// reads real counters from here. Relation-free like StoryView (no
+/// back-relations); FK cascades handle story/user deletion.
+model StoryLike {
+  id        String   @id @default(cuid())
+  storyId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([storyId, userId])
+  @@index([storyId])
+  @@index([userId])
+  @@map("story_likes")
+}
+
+/// Phase 2C: per-story comments for the Discover viewer comment sheet.
+/// Relation-free like StoryView; FK cascades handle story/user deletion.
+model StoryComment {
+  id        String   @id @default(cuid())
+  storyId   String
+  userId    String
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([storyId, createdAt])
+  @@index([userId])
+  @@map("story_comments")
 }
 
 enum StoryType {
@@ -4312,216 +4347,6 @@ model EditComment {
 
   @@index([projectId])
   @@map("edit_comments")
-}
-
-
-
-// ==================== QuantEdits Projects =============
-/// A durable QuantEdits edit project — the app's central entity. Before this
-/// model existed, backend/routes/projects.ts called `prisma.editProject`
-/// against a schema with no such model (every project call threw) while the
-/// tested in-memory ProjectService sat unwired. Soft delete via `deletedAt`
-/// mirrors the semantics the ProjectService tests specify; `type` uses the
-/// backend service vocabulary. Canvas/timeline state rides along as columns +
-/// structured JSON (tracks/clips/markers); layers are their own rows
-/// (EditLayer) so they can be addressed individually.
-model EditProject {
-  id        String    @id @default(cuid())
-  userId    String
-  name      String
-  type      String    @default("video") // video | image | audio
-  width     Int       @default(1920)
-  height    Int       @default(1080)
-  fps       Int       @default(30)
-  duration  Float     @default(0)
-  timeline  Json      @default("{}")
-  version   Int       @default(1)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  @@index([userId])
-  @@index([userId, deletedAt])
-  @@map("edit_projects")
-}
-
-/// One editor layer of an EditProject. The heavy structured parts of the
-/// frontend Layer shape (content, position/size/rotation transform, applied
-/// effects, keyframes) are JSON columns; the scalar fields the backend needs
-/// to filter/sort on (project, order, visibility, time window) are columns.
-/// `projectId`/`parentId` are plain references, per the schema convention of
-/// no Prisma relations on the QuantEdits models.
-model EditLayer {
-  id        String   @id @default(cuid())
-  projectId String
-  name      String
-  type      String // video | audio | image | text | shape | effect | overlay | sticker
-  order     Int      @default(0)
-  visible   Boolean  @default(true)
-  locked    Boolean  @default(false)
-  opacity   Float    @default(1)
-  blendMode String   @default("normal")
-  startTime Float    @default(0)
-  endTime   Float    @default(0)
-  content   Json     @default("{}")
-  transform Json     @default("{}")
-  effects   Json     @default("[]")
-  keyframes Json     @default("[]")
-  parentId  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([projectId])
-  @@index([projectId, order])
-  @@map("edit_layers")
-}
-
-/// A media asset belonging to an EditProject. `url` stays null until real
-/// object storage fills it (the old in-memory AssetService fabricated
-/// `storage.quant.example.com` URLs; no code path may produce those any
-/// more). `metadata` carries the frontend AssetMetadata shape (format,
-/// dimensions, duration, ...).
-model EditAsset {
-  id        String   @id @default(cuid())
-  projectId String
-  userId    String?
-  filename  String
-  type      String
-  size      Int      @default(0)
-  url       String?
-  metadata  Json     @default("{}")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([projectId])
-  @@map("edit_assets")
-}
-
-/// A queued/rendered export of an EditProject. Jobs are created QUEUED and
-/// transition through a real processor (previously they stayed QUEUED
-/// forever: no processor, no output file, no download). `error` records the
-/// failure reason on FAILED jobs so a failed render never looks stuck.
-model EditExportJob {
-  id          String    @id @default(cuid())
-  projectId   String
-  userId      String?
-  format      String
-  resolution  String
-  quality     String
-  status      String    @default("QUEUED") // QUEUED | PROCESSING | COMPLETED | FAILED
-  progress    Int       @default(0)
-  outputUrl   String?
-  error       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  completedAt DateTime?
-
-  @@index([projectId])
-  @@index([status])
-  @@map("edit_export_jobs")
-}
-
-// QuantCooks C-2: EffectCraft companion renders (CP-1 job kind CRAFT_RENDER).
-// A dedicated sibling table in the EditExportJob conventions — CP-1 §5.1 J1
-// assigns the generalised EditJob table + JobService to the CP-1 unit itself;
-// this model mirrors EditJob's CRAFT_RENDER subset (provider, params,
-// creditCost, output asset reference) so the CP-1 fold-in is mechanical.
-model EditCraftRenderJob {
-  id            String    @id @default(cuid())
-  projectId     String
-  userId        String?
-  provider      String    @default("effectcraft") // companion id (CP-1 §5.8)
-  comp          String?
-  format        String    @default("h264")
-  resolution    String?
-  quality       String?
-  status        String    @default("QUEUED") // QUEUED | PROCESSING | COMPLETED | FAILED
-  progress      Int       @default(0)
-  stage         String?
-  params        Json      @default("{}")
-  creditCost    Int       @default(0)
-  outputAssetId String?
-  externalRef   String?
-  error         String?
-  attempts      Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  completedAt   DateTime?
-
-  @@index([projectId])
-  @@index([status])
-  @@index([userId, status])
-  @@map("edit_craft_render_jobs")
-}
-
-model EditPhotoEditJob {
-  id            String    @id @default(cuid())
-  projectId     String
-  userId        String?
-  provider      String    @default("photocraft") // companion id (CP-1 §5.8 pattern)
-  sourceAssetId String
-  outputFormat  String    @default("png") // png | jpg | webp | psd
-  status        String    @default("QUEUED") // QUEUED | PROCESSING | COMPLETED | FAILED
-  progress      Int       @default(0)
-  stage         String?
-  params        Json      @default("{}")
-  creditCost    Int       @default(0)
-  outputAssetId String?
-  externalRef   String?
-  error         String?
-  attempts      Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  completedAt   DateTime?
-
-  @@index([projectId])
-  @@index([status])
-  @@index([userId, status])
-  @@index([sourceAssetId])
-  @@map("edit_photo_edit_jobs")
-}
-
-/// ONE async job model for every QuantCooks async surface (CP-1 §5): exports,
-/// generation, Craft companion renders, photo edits, analysis, training,
-/// pipelines and auto-edit all persist here and are written only through
-/// JobService (registry jobs) or the per-kind delegate adapters that fold the
-/// pre-CP-1 services (ExportService / CraftRenderService / PhotoEditService)
-/// onto this table without changing their public shapes. `outputs` holds
-/// asset REFERENCES ({ assetId, kind, meta? }) — never URLs; signed URLs are
-/// minted per read. `result` holds non-asset outcomes (ANALYSIS reports,
-/// TRAINING ids, the export output object key, auto-edit run output).
-model EditJob {
-  id             String    @id @default(cuid())
-  userId         String
-  projectId      String? // null for project-less jobs (loose-asset analysis, persona training)
-  kind           String // EXPORT | IMAGE_GEN | VIDEO_GEN | AUDIO_GEN | TRANSFORM | UPSCALE |
-  // STORYBOARD | SHOT_SEQUENCE | AD_GEN | UGC_GEN | EPISODE | PIPELINE |
-  // AUTO_EDIT | CRAFT_RENDER | PHOTO_EDIT | ANALYSIS | TRAINING
-  toolName       String // the registry tool that created it, e.g. "quantcooks.animate_image"
-  provider       String? // generation provider / companion id ("effectcraft", ...); null for local work
-  status         String    @default("QUEUED") // QUEUED | PROCESSING | COMPLETED | FAILED
-  progress       Int       @default(0) // 0-100, coarse-and-truthful (CP-1 §5.5)
-  stage          String? // human-readable stage label for the job strip
-  params         Json      @default("{}") // the validated tool params (provenance)
-  idempotencyKey String // per-user unique with userId (CP-1 §5.3)
-  quoteId        String? // the accepted quote (CP-1 §6.2); null for FREE jobs
-  creditCost     Int       @default(0) // whole credits settled (or to settle); 0 for FREE / pre-CP-2
-  reservationKey String? // UsageGate/CreditWallet actionKey (CP-1 §6.2); null pre-CP-2
-  outputs        Json      @default("[]") // arr[{ assetId, kind, meta? }] — asset REFERENCES, never URLs
-  result         Json? // non-asset result (ANALYSIS report, TRAINING ids, export output key)
-  error          String? // failure code + message, truncated 500
-  parentJobId    String? // PIPELINE children
-  externalRef    String? // AUTO_EDIT → AutoEditRun id; CRAFT_RENDER/PHOTO_EDIT → companion job ref
-  attempts       Int       @default(0)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  completedAt    DateTime?
-
-  @@unique([userId, idempotencyKey])
-  @@index([userId, status])
-  @@index([status, createdAt]) // the claim query's index (oldest QUEUED first)
-  @@index([projectId])
-  @@map("edit_jobs")
 }
 
 
