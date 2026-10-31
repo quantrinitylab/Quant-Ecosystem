@@ -59,6 +59,33 @@ function safePath(value: string | null): string | null {
   return value;
 }
 
+/**
+ * The collapse key for a desktop alert. Must match the web-push path exactly
+ * (inbound-webhook.ts: `tag: email.threadId ?? email.id`) and the contract on
+ * DesktopNotificationInput.tag ("one tag per conversation"): every message of
+ * one thread shares one tag, so a thread gaining three messages replaces its
+ * own notification instead of stacking three.
+ *
+ * Previously this was `newest.id` — the notification row's own id, unique per
+ * message — which defeated the documented collapse. The thread id comes from
+ * the row's stored `data` first (the same source the push path reads the email
+ * from); the `/thread/<id>` deep link is the fallback for rows whose payload
+ * predates or lacks it; a thread-less mail falls back to its own id, exactly
+ * like the push path's `?? email.id` fallback.
+ */
+export function desktopAlertTag(notification: AppNotification): string {
+  const threadId = notification.data?.threadId;
+  if (threadId) return threadId;
+  const emailId = notification.data?.emailId;
+  const actionUrl = notification.actionUrl;
+  if (actionUrl) {
+    const match = /^\/thread\/([^/?#]+)$/.exec(actionUrl);
+    if (match) return decodeURIComponent(match[1]);
+  }
+  if (emailId) return emailId;
+  return notification.id;
+}
+
 export function useNewMailDesktopAlerts(): void {
   const router = useRouter();
   const primed = useRef(false);
@@ -95,7 +122,7 @@ export function useNewMailDesktopAlerts(): void {
     showDesktopNotification({
       title: newest.title,
       body: newest.body ?? '',
-      tag: newest.id,
+      tag: desktopAlertTag(newest),
       onActivate: () => {
         if (target) router.push(target);
       },
