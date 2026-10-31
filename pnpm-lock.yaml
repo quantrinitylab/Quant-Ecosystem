@@ -449,6 +449,9 @@ importers:
         specifier: 4.6.6
         version: 4.6.6
     devDependencies:
+      '@quant/security':
+        specifier: workspace:*
+        version: link:../../packages/security
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.15
