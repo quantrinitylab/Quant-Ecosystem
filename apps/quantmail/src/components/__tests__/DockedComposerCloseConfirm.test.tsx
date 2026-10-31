@@ -80,6 +80,7 @@ vi.mock('../../lib/email-body', () => ({
 
 vi.mock('../../lib/email-signature-preference', () => ({
   loadDefaultSignatureHtml: async () => '',
+  loadEmailSignatures: async () => [],
 }));
 
 vi.mock('@quant/api-client', () => ({

@@ -40,6 +40,7 @@ vi.mock('../../lib/email-body', () => ({
 // Mock signature loader
 vi.mock('../../lib/email-signature-preference', () => ({
   loadDefaultSignatureHtml: async () => '',
+  loadEmailSignatures: async () => [],
 }));
 
 describe('DockedComposer window gestures', () => {

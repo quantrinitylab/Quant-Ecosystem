@@ -1347,6 +1347,16 @@ export class QuantMailApiClient {
   }
 
   /**
+   * Promote a signature to the account default (fix/qm-multiple-signatures).
+   * The backend demotes every other signature in the same transaction, so
+   * the "exactly one default" invariant cannot be observed broken. The
+   * endpoint takes no body — the id in the path is the whole request.
+   */
+  async setDefaultEmailSignature(id: string): Promise<ApiResponse<EmailSignaturePreference>> {
+    return this.post(`/email-signatures/${id}/default`, {});
+  }
+
+  /**
    * Follow-up reminders (fix/qm-followup-reminders). The dead EmailFollowUpReminder
    * component used to toast-and-forget; these calls persist the reminder on the
    * backend and the People home resurfaces due ones.

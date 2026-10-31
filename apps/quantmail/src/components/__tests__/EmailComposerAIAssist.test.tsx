@@ -41,6 +41,7 @@ vi.mock('../../lib/email-body', () => ({
 }));
 vi.mock('../../lib/email-signature-preference', () => ({
   loadDefaultSignatureHtml: async () => '',
+  loadEmailSignatures: async () => [],
 }));
 vi.mock('../../lib/safe-html', () => ({ useSafeEmailHtml: (html: string) => html }));
 vi.mock('../../providers/auth-provider', () => ({ useAuth: () => ({ user: null }) }));
