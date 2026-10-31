@@ -210,7 +210,9 @@
   color: #0b0c10; background: var(--app-accent); box-shadow: 0 0 0 3px var(--quant-surface, #0d0f14);
 }
 .sidebar-quanty-name { margin-top: -0.35rem; color: #8b93a3; font-size: 0.72rem; font-weight: 550; }
-.sidebar-quanty-cta { background: var(--app-accent); }
+/* NOTE: .sidebar-quanty-cta's background lives in globals.css now (var(--app-accent)
+   there) — the duplicate override that used to sit here was removed so the CTA
+   has exactly one definition and can never lose a cross-file cascade race. */
 
 /* ── Quant Workplace brand (desktop sidebar) ─────────────────────────── */
 .qw-brand { display: flex; align-items: center; gap: 11px; padding: 2px 4px 2px 2px; text-align: left; }
