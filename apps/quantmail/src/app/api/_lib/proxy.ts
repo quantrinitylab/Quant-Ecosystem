@@ -26,7 +26,10 @@ export async function proxyToBackend(
      * Content-Type a browser EventSource requires. When set (or when the
      * backend itself answers with text/event-stream), the response body is
      * piped untouched with SSE headers: no JSON parsing, no buffering, no
-     * caching. Everything else keeps the historic JSON-buffering behavior.
+     * caching. Any other non-JSON backend answer (binary downloads, CSV,
+     * plain text) is likewise piped untouched by the content-type gate
+     * below (fix/qm-drive-public-download-proxy); only JSON answers keep
+     * the historic JSON-buffering behavior.
      */
     stream?: boolean;
   },
@@ -109,6 +112,39 @@ export async function proxyToBackend(
     const connection = res.headers.get('connection');
     if (connection) streamHeaders.set('connection', connection);
     return new Response(res.body, { status: res.status, headers: streamHeaders });
+  }
+
+  // fix/qm-drive-public-download-proxy: non-JSON byte-stream passthrough.
+  // The generic path below does `await res.json()` on every remaining
+  // response, so a backend byte stream — a public-share file download
+  // (GET /drive/public/share/:token/download answers with the file's mime
+  // type + attachment disposition, backend/routes/drive.ts), a CSV export,
+  // any binary/text body — threw into a 502 INVALID_RESPONSE and the file
+  // could never download or preview through the catch-all proxy, even
+  // though the dedicated /api/drive/files/[fileId]/download route already
+  // streams `new NextResponse(res.body)` untouched. Gate on content-type,
+  // not on the route: backend ERROR answers on these same routes are JSON
+  // (Fastify error shape, application/json), so they still fall through to
+  // the JSON path below with their honest status/code intact. The body is
+  // piped as a stream, never buffered through text()/json() — decoding
+  // would corrupt non-UTF-8 bytes. Content-Disposition and Content-Length
+  // are forwarded so the browser downloads/previews exactly what the
+  // backend sent; cache-control is the backend's own when set, else
+  // no-store (shared-link bytes must never be cached as JSON either).
+  if (res.body && !backendContentType.includes('json')) {
+    const passthroughHeaders = new Headers();
+    if (backendContentType) passthroughHeaders.set('content-type', backendContentType);
+    const contentDisposition = res.headers.get('content-disposition');
+    if (contentDisposition) passthroughHeaders.set('content-disposition', contentDisposition);
+    const contentLength = res.headers.get('content-length');
+    if (contentLength) passthroughHeaders.set('content-length', contentLength);
+    passthroughHeaders.set(
+      'cache-control',
+      res.headers.get('cache-control') ?? 'no-store',
+    );
+    const setCookie = res.headers.get('set-cookie');
+    if (setCookie) passthroughHeaders.set('set-cookie', setCookie);
+    return new Response(res.body, { status: res.status, headers: passthroughHeaders });
   }
 
   try {
