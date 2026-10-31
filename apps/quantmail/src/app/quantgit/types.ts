@@ -92,8 +92,13 @@ export type BranchItem = {
   isDefault: boolean;
   isProtected: boolean;
   protection?: string;
-  aheadBy: number;
-  behindBy: number;
+  // Ahead/behind counts vs the default branch. OPTIONAL on purpose: the
+  // branches endpoints do NOT compute them, so absence means "not
+  // computed" — never a measured 0. BranchesTab renders an honest
+  // "not computed" slot when either is undefined; a present number is a
+  // real measurement and renders as the behind/ahead badge.
+  aheadBy?: number;
+  behindBy?: number;
   lastCommitAuthor?: string;
   lastCommitMessage?: string;
   lastCommitTime?: string;
