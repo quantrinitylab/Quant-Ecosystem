@@ -291,6 +291,46 @@ describe('QuantDrive File AI Insights & Entity Extraction Test Suite', () => {
       expect(manager.getState().copied).toBe(false);
     });
 
+    it('never invents boilerplate action items when nothing was extracted', async () => {
+      // Regression: the manager used to fall back to invented boilerplate
+      // ("Review document findings with team", "Verify relevant dates and
+      // terms") when the backend returned no action items and the keypoint
+      // heuristic found none — those rendered with completion checkboxes
+      // and copied into clipboard output as AI-derived actions.
+      const clipboardSpy = vi.fn().mockResolvedValue(undefined);
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          summary: 'Q3 overview with no follow-ups mentioned.',
+          keyPoints: [
+            'Net revenue reached $1,450,000 with 35% margin',
+            'Zero security incidents reported across 20 pods',
+          ],
+          wordCount: 50,
+        }),
+      });
+
+      const manager = new AISummaryManager({
+        fetchFn: mockFetch as unknown as typeof fetch,
+        clipboardFn: clipboardSpy,
+      });
+
+      const result = await manager.generateSummary(sampleFile);
+      expect(result).not.toBeNull();
+      expect(result?.actionItems).toEqual([]);
+      expect(result?.actionItems).not.toContain('Review document findings with team');
+      expect(result?.actionItems).not.toContain('Verify relevant dates and terms');
+
+      // Clipboard output must omit the Action Items section entirely —
+      // no invented items may leak into copied text.
+      const success = await manager.copyToClipboard();
+      expect(success).toBe(true);
+      const copiedText = clipboardSpy.mock.calls[0][0];
+      expect(copiedText).not.toContain('Action Items:');
+      expect(copiedText).not.toContain('Review document findings with team');
+      expect(copiedText).not.toContain('Verify relevant dates and terms');
+    });
+
     it('resets state cleanly on reset() and setFile()', () => {
       const manager = new AISummaryManager({
         initialData: {
@@ -482,6 +522,29 @@ describe('QuantDrive File AI Insights & Entity Extraction Test Suite', () => {
       expect(html).toContain('Deploy latest Fastify backend container image to staging');
       expect(html).toContain('Execute Vitest regression gate for QuantDrive');
       expect(html).toContain('data-testid="action-item-card"');
+    });
+
+    it('renders the honest empty state on the Actions tab when no items were extracted', () => {
+      const html = renderToStaticMarkup(
+        <FileAISummaryDrawer
+          isOpen={true}
+          file={sampleFile}
+          onClose={vi.fn()}
+          initialTab="actions"
+          initialStatus="success"
+          initialData={{
+            summary: 'Q3 overview with no follow-ups mentioned.',
+            keyPoints: ['Net revenue reached $1,450,000'],
+            actionItems: [],
+          }}
+        />,
+      );
+
+      expect(html).toContain('data-testid="tab-actions-content"');
+      expect(html).toContain('No explicit action items detected for this document.');
+      expect(html).not.toContain('data-testid="action-item-card"');
+      expect(html).not.toContain('Review document findings with team');
+      expect(html).not.toContain('Verify relevant dates and terms');
     });
 
     it('displays "Copied!" feedback when manager state has copied === true', () => {
