@@ -99,7 +99,10 @@ describe('GET /contacts', () => {
 
     expect(res.statusCode).toBe(200);
     expect(listWhere()).toMatchObject({ userId: 'user-1' });
-    expect(listWhere().OR).toHaveLength(4);
+    // Name, email, company, phone — plus notes (fix/qm-contacts-notes-field-r3),
+    // so relationship context is searchable, not just names.
+    expect(listWhere().OR).toHaveLength(5);
+    expect(listWhere().OR).toContainEqual({ notes: { contains: 'analytical', mode: 'insensitive' } });
   });
 
   it('reads favorites=true as a filter and favorites=false as no filter', async () => {
@@ -171,6 +174,47 @@ describe('POST /contacts', () => {
     });
   });
 
+  it('persists notes on create (fix/qm-contacts-notes-field-r3)', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contacts',
+      payload: {
+        name: 'Ada Lovelace',
+        email: 'ada@example.com',
+        notes: 'Met at Conf, prefers morning calls',
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const arg = prisma.contact.create.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(arg.data).toMatchObject({ notes: 'Met at Conf, prefers morning calls' });
+  });
+
+  it('stores blank notes as null, not an empty string', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contacts',
+      payload: { name: 'Ada Lovelace', email: 'ada@example.com', notes: '   ' },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const arg = prisma.contact.create.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(arg.data).toMatchObject({ notes: null });
+  });
+
+  it('400s notes longer than the 5000-char cap', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/contacts',
+      payload: { name: 'Ada', email: 'ada@example.com', notes: 'x'.repeat(5001) },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(prisma.contact.create).not.toHaveBeenCalled();
+  });
+
   it('refuses a tag containing the comma the create form splits on', async () => {
     const app = await buildApp();
     const res = await app.inject({
@@ -209,6 +253,44 @@ describe('PUT /contacts/:id', () => {
       where: { id: 'c1' },
       data: { isFavorite: true },
     });
+  });
+
+  it('updates notes, and clearing notes stores null (fix/qm-contacts-notes-field-r3)', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/contacts/c1',
+      payload: { notes: 'Met at Conf, prefers morning calls' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(prisma.contact.update).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: { notes: 'Met at Conf, prefers morning calls' },
+    });
+
+    const clearing = await buildApp();
+    const res2 = await clearing.inject({
+      method: 'PUT',
+      url: '/contacts/c1',
+      payload: { notes: '' },
+    });
+    expect(res2.statusCode).toBe(200);
+    expect(prisma.contact.update).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: { notes: null },
+    });
+  });
+
+  it('400s notes longer than the 5000-char cap on update', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/contacts/c1',
+      payload: { notes: 'x'.repeat(5001) },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(prisma.contact.update).not.toHaveBeenCalled();
   });
 
   it('400s an empty body rather than reporting a no-op as success', async () => {

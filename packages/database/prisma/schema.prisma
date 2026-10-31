@@ -2148,6 +2148,12 @@ model Contact {
   company String?
   tags    String[] @default([])
 
+  // Free-form relationship context ("met at Conf, prefers morning calls") —
+  // the Google Contacts notes field (fix/qm-contacts-notes-field-r3). Plain
+  // text, user-written, never derived: the create/edit form, the detail
+  // sheet's autosaving editor, and the vCard NOTE line all round-trip it.
+  notes   String?
+
   // The star in the list and the "Favorites" tab. `isFavorite` was in the
   // frontend type and in the PUT body the star sent, but not in the schema, so
   // the toggle ran a no-op update, reported success, and reverted on refetch.

@@ -117,6 +117,7 @@ export default function ContactsPage() {
     company: '',
     tags: '',
     avatar: '',
+    notes: '',
   });
 
   // Sync tab from URL query params
@@ -501,7 +502,7 @@ export default function ContactsPage() {
   }, [contactParam, displayedContacts, selectedContact]);
 
   const handleOpenCreate = useCallback(() => {
-    setFormData({ name: '', email: '', phone: '', company: '', tags: '', avatar: '' });
+    setFormData({ name: '', email: '', phone: '', company: '', tags: '', avatar: '', notes: '' });
     setEditingContact(null);
     setShowCreateModal(true);
   }, []);
@@ -521,6 +522,7 @@ export default function ContactsPage() {
       company: contact.company || '',
       tags: contact.tags?.join(', ') || '',
       avatar: contact.avatar || '',
+      notes: contact.notes || '',
     });
     setEditingContact(contact);
     setShowCreateModal(true);
@@ -539,6 +541,10 @@ export default function ContactsPage() {
       // The backend zod schema requires a valid URL for `avatar`; an empty
       // string would 400, so it is omitted when blank.
       avatar: formData.avatar.trim() || undefined,
+      // Notes are always sent (even blank): omitting the key on edit would
+      // leave a cleared note stored, and the service normalizes blank to
+      // null so a cleared note actually clears.
+      notes: formData.notes.trim(),
       tags: formData.tags
         ? formData.tags
             .split(',')
@@ -881,7 +887,7 @@ export default function ContactsPage() {
       className="quantmail-shell"
       searchValue={searchQuery}
       onSearchChange={setSearchQuery}
-      searchPlaceholder="Search contacts by name, email, company…"
+      searchPlaceholder="Search contacts by name, email, company, phone or notes…"
     >
       <div className="workspace-page contacts-workspace flex flex-col h-full bg-[var(--quant-background)] overflow-hidden">
         <input
@@ -1358,6 +1364,9 @@ export default function ContactsPage() {
                 onEdit={(c) => handleOpenEdit(c)}
                 onDelete={(id, name) => handleDelete(id, name)}
                 onToggleFavorite={(c) => handleToggleFavorite(c)}
+                onUpdateNotes={async (id, notes) => {
+                  await updateContact.mutateAsync({ id, data: { notes } });
+                }}
                 onEmail={(email) => router.push(`/compose?to=${encodeURIComponent(email)}`)}
                 onCall={(phone) => {
                   if (phone) window.location.href = `tel:${phone}`;
@@ -1390,6 +1399,9 @@ export default function ContactsPage() {
                 handleDelete(id, name);
               }}
               onToggleFavorite={(c) => handleToggleFavorite(c)}
+              onUpdateNotes={async (id, notes) => {
+                await updateContact.mutateAsync({ id, data: { notes } });
+              }}
               onEmail={(email) => {
                 setShowMobileSheet(false);
                 router.push(`/compose?to=${encodeURIComponent(email)}`);
@@ -1528,6 +1540,28 @@ export default function ContactsPage() {
                 placeholder="https://example.com/photo.jpg"
                 className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
               />
+            </div>
+
+            <div>
+              <label
+                htmlFor="contact-notes"
+                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
+              >
+                Notes
+              </label>
+              <textarea
+                id="contact-notes"
+                name="notes"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                placeholder="Met at Conf, prefers morning calls…"
+                rows={3}
+                maxLength={5000}
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)] resize-y"
+              />
+              <p className="text-[10px] text-[var(--quant-muted-foreground)] mt-1">
+                Relationship context, saved with the contact — also editable from the detail view, where it autosaves.
+              </p>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">

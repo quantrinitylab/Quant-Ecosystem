@@ -682,6 +682,13 @@ export interface ContactDetailSheetProps {
   onMessage?: (contact: any) => void;
   onShare?: (contact: any) => void;
   onScheduleMeeting?: (email: string) => void;
+  /**
+   * Persists a notes edit (fix/qm-contacts-notes-field-r3). When supplied,
+   * the detail sheet renders the autosaving notes editor; when absent
+   * (older callers, tests) existing notes render read-only and no editor
+   * appears, so nothing claims to save that cannot.
+   */
+  onUpdateNotes?: (id: string, notes: string) => Promise<void>;
 }
 
 /**
@@ -704,6 +711,195 @@ export function contactThreadSearchParams(
   ];
 }
 
+/**
+ * The detail sheet's notes editor (fix/qm-contacts-notes-field-r3): the
+ * Google Contacts behaviour of autosaving note edits with a one-step undo.
+ *
+ * Keyed by contact id at the call site (`key={contact.id}`), so switching
+ * contacts remounts with the new note and no sync effect can clobber
+ * in-flight typing when a save's refetch lands mid-keystroke. A draft that
+ * differs from the last saved value saves 800ms after the last keystroke;
+ * `previous` holds the pre-save value so Undo restores exactly one step,
+ * then disables (a second click must not ping-pong into a redo). A failed
+ * save keeps the draft on screen with an honest error — the edit is never
+ * silently dropped, and the next keystroke retries.
+ *
+ * CODEX R3 corrections (PR #1573), both about never losing or regressing
+ * an edit:
+ *
+ * 1. Flush on unmount. The old debounce effect's cleanup cleared the
+ *    pending timer, so switching contacts or closing the sheet within the
+ *    800ms window unmounted this keyed editor and silently dropped the
+ *    draft. The unmount cleanup below now flushes any draft that differs
+ *    from the last saved value (chained behind any in-flight save, so the
+ *    server still sees writes in order). Unmount cannot await, so the
+ *    flush is fire-and-forget — but the fetch itself still runs.
+ * 2. Sequenced saves with a stale-completion guard. The old `save` fired
+ *    one fetch per timer with no ordering, so a slow older save completing
+ *    after a newer one regressed `saved`/`previous`/status (and, server
+ *    side, could overwrite the newer text). Saves now run through a
+ *    promise chain in issue order; a save superseded while queued skips
+ *    its network write entirely, and a completion whose sequence is no
+ *    longer latest is ignored for all state updates. Undo routes through
+ *    the same chain (after cancelling any pending autosave of the
+ *    pre-undo draft, which would otherwise re-save the undone text).
+ */
+export function ContactNotesEditor({
+  initialNotes,
+  onSave,
+}: {
+  initialNotes: string;
+  onSave: (notes: string) => Promise<void>;
+}) {
+  const [draft, setDraft] = React.useState(initialNotes);
+  const [saved, setSaved] = React.useState(initialNotes);
+  const [previous, setPrevious] = React.useState<string | null>(null);
+  const [status, setStatus] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  // Refs mirror the latest values so the unmount flush and the sequenced
+  // saves never act on a stale closure's snapshot.
+  const draftRef = React.useRef(draft);
+  const savedRef = React.useRef(saved);
+  const onSaveRef = React.useRef(onSave);
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seqRef = React.useRef(0);
+  const chainRef = React.useRef<Promise<unknown>>(Promise.resolve());
+  const mountedRef = React.useRef(true);
+  React.useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+  React.useEffect(() => {
+    savedRef.current = saved;
+  }, [saved]);
+  React.useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
+
+  // One sequenced save. `seq` marks this save's issue order; the chain
+  // runs saves in that order, so the server never sees a newer write
+  // followed by an older one from this editor.
+  const runSave = React.useCallback(
+    (value: string, opts?: { undo?: boolean; onApplied?: () => void }) => {
+      const seq = ++seqRef.current;
+      const task = chainRef.current.then(async () => {
+        // Superseded while queued: a newer save carries the truth, so skip
+        // this write entirely instead of sending a stale value afterwards.
+        if (seq !== seqRef.current) return;
+        if (mountedRef.current) setStatus('saving');
+        try {
+          await onSaveRef.current(value);
+        } catch {
+          // A superseding save owns the status now; a genuinely latest
+          // failure keeps the draft on screen with an honest error.
+          if (seq !== seqRef.current || !mountedRef.current) return;
+          setStatus('error');
+          return;
+        }
+        // Stale completion guard: an older save resolving after a newer
+        // one was issued must never regress saved/previous/status.
+        if (seq !== seqRef.current || !mountedRef.current) return;
+        if (opts?.undo) {
+          setPrevious(null);
+        } else {
+          setPrevious(savedRef.current);
+        }
+        savedRef.current = value;
+        setSaved(value);
+        setStatus('saved');
+        opts?.onApplied?.();
+      });
+      chainRef.current = task.catch(() => {});
+      return task;
+    },
+    [],
+  );
+
+  React.useEffect(() => {
+    if (draft === saved) return;
+    setStatus('idle');
+    timerRef.current = setTimeout(() => {
+      void runSave(draft);
+    }, 800);
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [draft, saved, runSave]);
+
+  // Flush-on-unmount: switching contacts (keyed remount) or closing the
+  // sheet must not drop a draft still inside its 800ms debounce window.
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      const pending = draftRef.current;
+      if (pending !== savedRef.current) {
+        void chainRef.current
+          .then(() => onSaveRef.current(pending))
+          .catch(() => {});
+      }
+    };
+  }, []);
+
+  const handleUndo = React.useCallback(() => {
+    if (previous === null) return;
+    const target = previous;
+    // Cancel any pending autosave of the pre-undo draft: it would otherwise
+    // fire after the undo was issued, supersede it, and re-save the undone
+    // text. The undo save itself applies the draft only on success, so a
+    // failed undo leaves the user's edit on screen to retry.
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    void runSave(target, {
+      undo: true,
+      onApplied: () => setDraft(target),
+    });
+  }, [previous, runSave]);
+
+  const canUndo = previous !== null && previous !== saved;
+
+  return (
+    <div>
+      <textarea
+        aria-label="Contact notes"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Met at Conf, prefers morning calls…"
+        rows={4}
+        maxLength={5000}
+        className="w-full bg-[var(--quant-surface-subtle)] border border-[#1E2536] rounded-xl px-3 py-2 text-xs text-white placeholder-[#6B7280] focus:outline-none focus:border-[var(--app-accent)] resize-y"
+      />
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-[11px] text-[#6B7280]" role="status">
+          {status === 'saving'
+            ? 'Saving…'
+            : status === 'saved'
+              ? 'Saved'
+              : status === 'error'
+                ? 'Couldn’t save — your edit is still here; keep typing to retry'
+                : 'Edits save automatically'}
+        </span>
+        <button
+          type="button"
+          onClick={() => void handleUndo()}
+          disabled={!canUndo}
+          className="px-2.5 py-1 rounded-lg border border-[#1E2536] bg-[#161A24] text-[11px] font-semibold text-[var(--quant-muted-foreground)] hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Undo
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ContactDetailSheet({
   contact,
   onClose,
@@ -716,6 +912,7 @@ export function ContactDetailSheet({
   onMessage,
   onShare,
   onScheduleMeeting,
+  onUpdateNotes,
 }: ContactDetailSheetProps) {
   const [copiedField, setCopiedField] = React.useState<string | null>(null);
 
@@ -829,6 +1026,9 @@ export function ContactDetailSheet({
     : 'tag' in contact && typeof contact.tag === 'string'
       ? [contact.tag]
       : [];
+  // SovereignContact rows predate the notes column, so read it defensively
+  // rather than assuming every detail-sheet contact carries one.
+  const notes = (contact as { notes?: string | null }).notes ?? '';
 
   return (
     <div className="h-full flex flex-col space-y-6">
@@ -1045,7 +1245,7 @@ export function ContactDetailSheet({
             if (onShare) {
               onShare(contact);
             } else {
-              handleCopy(`BEGIN:VCARD\r\nVERSION:3.0\r\nFN:${contact.name}\r\nEMAIL:${contact.email}\r\nTEL:${contact.phone || ''}\r\nORG:${contact.company || ''}\r\nEND:VCARD\r\n`, 'share');
+              handleCopy(`BEGIN:VCARD\r\nVERSION:3.0\r\nFN:${contact.name}\r\nEMAIL:${contact.email}\r\nTEL:${contact.phone || ''}\r\nORG:${contact.company || ''}\r\n${notes ? `NOTE:${notes.replace(/\r?\n/g, '\\n')}\r\n` : ''}END:VCARD\r\n`, 'share');
             }
           }}
           className="flex flex-col items-center gap-1.5 group cursor-pointer"
@@ -1170,6 +1370,27 @@ export function ContactDetailSheet({
           )}
         </div>
       </div>
+
+      {/* NOTES — free-form relationship context (fix/qm-contacts-notes-field-r3).
+          With a save callback this is the autosaving editor with one-step
+          undo; without one it renders existing notes read-only, and renders
+          nothing at all when there are no notes to show. */}
+      {(onUpdateNotes || notes) && (
+        <div className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-5 shadow-md space-y-3">
+          <h3 className="text-xs font-extrabold uppercase tracking-widest text-[var(--app-accent)]">
+            Notes
+          </h3>
+          {onUpdateNotes ? (
+            <ContactNotesEditor
+              key={contact.id}
+              initialNotes={notes}
+              onSave={(value) => onUpdateNotes(contact.id, value)}
+            />
+          ) : (
+            <p className="text-xs text-white whitespace-pre-wrap break-words">{notes}</p>
+          )}
+        </div>
+      )}
 
       {/* MAIL THREAD HISTORY WITH THIS CONTACT */}
       <div className="rounded-2xl border border-[#232938] bg-[var(--quant-surface)] p-5 shadow-md space-y-3">

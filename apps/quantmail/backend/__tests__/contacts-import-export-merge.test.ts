@@ -65,9 +65,9 @@ describe('ContactService - Import/Export & Deduplication (Tasks QC-01, QC-02)', 
       ]);
 
       const csv = await service.exportCsv('user-1');
-      expect(csv).toContain('Name,Email,Phone,Company,Tags,IsFavorite');
+      expect(csv).toContain('Name,Email,Phone,Company,Tags,IsFavorite,Notes');
       expect(csv).toContain(
-        '"Charles Babbage","charles@example.com","+44123456","Difference Engine Ltd","engineer",false',
+        '"Charles Babbage","charles@example.com","+44123456","Difference Engine Ltd","engineer",false,""',
       );
     });
   });

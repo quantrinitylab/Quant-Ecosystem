@@ -21,6 +21,13 @@ const contactFieldsSchema = {
   phone: z.string().trim().min(1).max(40),
   company: z.string().trim().min(1).max(200),
   tags: z.array(tagSchema).max(20),
+  /**
+   * Free-form relationship context (fix/qm-contacts-notes-field-r3). Empty
+   * is allowed on purpose: clearing a note sends '' and the service
+   * normalizes it to NULL — a min(1) here would make notes undeletable.
+   * 5000 chars keeps a note an annotation, not a document.
+   */
+  notes: z.string().trim().max(5000),
   isFavorite: z.boolean(),
 };
 
@@ -39,6 +46,7 @@ const addContactSchema = z
     phone: contactFieldsSchema.phone.optional(),
     company: contactFieldsSchema.company.optional(),
     tags: contactFieldsSchema.tags.optional(),
+    notes: contactFieldsSchema.notes.optional(),
     isFavorite: contactFieldsSchema.isFavorite.optional(),
   })
   .strict();
@@ -51,6 +59,7 @@ const updateContactSchema = z
     phone: contactFieldsSchema.phone.optional(),
     company: contactFieldsSchema.company.optional(),
     tags: contactFieldsSchema.tags.optional(),
+    notes: contactFieldsSchema.notes.optional(),
     isFavorite: contactFieldsSchema.isFavorite.optional(),
   })
   .strict()

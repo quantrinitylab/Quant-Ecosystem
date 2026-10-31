@@ -11,6 +11,13 @@ export interface Contact {
   phone?: string | null;
   company?: string | null;
   tags: string[];
+  /**
+   * Free-form relationship context ("met at Conf, prefers morning calls").
+   * User-written only, never derived; blank normalizes to null on write so
+   * "has notes" stays meaningful. Round-trips through the create/edit form,
+   * the detail sheet's autosaving editor, and the vCard NOTE line.
+   */
+  notes?: string | null;
   /** The star in the list, and what the Favorites tab filters on. */
   isFavorite: boolean;
   /** Incremented by {@link ContactService.recordInteraction} on every send. */
@@ -33,6 +40,7 @@ export interface ContactWritableFields {
   phone?: string | null;
   company?: string | null;
   tags?: string[];
+  notes?: string | null;
   isFavorite?: boolean;
 }
 
@@ -264,6 +272,9 @@ export class ContactService {
         phone: input.phone ?? null,
         company: input.company ?? null,
         tags: input.tags ?? [],
+        // Blank notes are not notes: store NULL so "has notes" stays
+        // meaningful and a cleared note actually clears.
+        notes: input.notes?.trim() ? input.notes.trim() : null,
         isFavorite: input.isFavorite ?? false,
         frequency: 0,
       },
@@ -282,13 +293,15 @@ export class ContactService {
 
     const q = options.q?.trim();
     if (q) {
-      // Name, email, company and phone are the four things a person actually
-      // types into a contacts search box.
+      // Name, email, company, phone and notes are the things a person
+      // actually types into a contacts search box — notes included, so
+      // relationship context ("morning calls") is findable, not just names.
       where.OR = [
         { name: { contains: q, mode: 'insensitive' } },
         { email: { contains: q, mode: 'insensitive' } },
         { company: { contains: q, mode: 'insensitive' } },
         { phone: { contains: q, mode: 'insensitive' } },
+        { notes: { contains: q, mode: 'insensitive' } },
       ];
     }
 
@@ -557,6 +570,11 @@ export class ContactService {
     // path, or the update itself creates the duplicate-row problem.
     const patch: ContactWritableFields =
       data.email !== undefined ? { ...data, email: ContactService.canonicalEmail(data.email) } : data;
+    // Same blank-to-null rule as addContact: a cleared note must clear the
+    // column, not store an empty string the UI then treats as "has notes".
+    if (patch.notes !== undefined) {
+      patch.notes = patch.notes?.trim() ? patch.notes.trim() : null;
+    }
 
     return contactModel.update({
       where: { id: contactId },
@@ -882,6 +900,10 @@ export class ContactService {
       // URL-valued here — never a base64 blob.
       if (c.avatar) lines.push(`PHOTO:${c.avatar}`);
       if (c.tags && c.tags.length > 0) lines.push(`CATEGORIES:${c.tags.join(',')}`);
+      // vCard NOTE is a single logical line: fold real newlines to the
+      // escaped form so a multi-line note survives the round-trip instead
+      // of splitting the card into garbage lines on import.
+      if (c.notes) lines.push(`NOTE:${c.notes.replace(/\r?\n/g, '\\n')}`);
       lines.push('END:VCARD');
       cards.push(lines.join('\r\n'));
     }
@@ -902,6 +924,7 @@ export class ContactService {
       let company: string | undefined;
       let tags: string[] | undefined;
       let avatar: string | undefined;
+      let notes: string | undefined;
 
       const lines = block.split(/\r?\n/);
       for (const rawLine of lines) {
@@ -950,6 +973,13 @@ export class ContactService {
               .map((t) => t.trim())
               .filter(Boolean);
           }
+        } else if (upper.startsWith('NOTE:') || upper.startsWith('NOTE;')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            // Inverse of the export's folding: the escaped form restores
+            // real newlines so a multi-line note round-trips.
+            notes = line.slice(colonIdx + 1).trim().replace(/\\n/g, '\n');
+          }
         }
       }
 
@@ -967,6 +997,7 @@ export class ContactService {
           phone,
           company,
           tags,
+          notes,
         });
         imported++;
       } catch (err: any) {
@@ -984,7 +1015,7 @@ export class ContactService {
   async exportCsv(userId: string): Promise<string> {
     const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
     const contacts = await contactModel.findMany({ where: { userId } });
-    const header = 'Name,Email,Phone,Company,Tags,IsFavorite';
+    const header = 'Name,Email,Phone,Company,Tags,IsFavorite,Notes';
 
     const escape = (val: string | null | undefined) => `"${(val ?? '').replace(/"/g, '""')}"`;
     const rows = contacts.map((c) =>
@@ -995,6 +1026,12 @@ export class ContactService {
         escape(c.company),
         escape((c.tags ?? []).join(';')),
         c.isFavorite ? 'true' : 'false',
+        // Notes ride as the last column so older 6-column files still
+        // import (the extra field is just absent). Newlines fold to the
+        // same escaped form vCard uses — this importer splits on real
+        // newlines first, so a raw newline inside a quoted field would
+        // split the row in two on re-import.
+        escape((c.notes ?? '').replace(/\r?\n/g, '\\n')),
       ].join(','),
     );
 
@@ -1037,7 +1074,7 @@ export class ContactService {
       }
       fields.push(current.trim());
 
-      const [name, email, phone, company, tagsRaw, isFavRaw] = fields;
+      const [name, email, phone, company, tagsRaw, isFavRaw, notesRaw] = fields;
       if (!name || !email || !email.includes('@')) {
         errors++;
         continue;
@@ -1057,6 +1094,9 @@ export class ContactService {
                 .filter(Boolean)
             : undefined,
           isFavorite: isFavRaw?.toLowerCase() === 'true',
+          // 7th column, absent in older exports — inverse of the export's
+          // folding above. addContact normalizes blank to null.
+          notes: notesRaw ? notesRaw.replace(/\\n/g, '\n') : undefined,
         });
         imported++;
       } catch (err: any) {
@@ -1140,6 +1180,10 @@ export class ContactService {
     const mergedPhone = primary.phone ?? duplicates.find((d) => !!d.phone)?.phone ?? null;
     const mergedCompany = primary.company ?? duplicates.find((d) => !!d.company)?.company ?? null;
     const mergedAvatar = primary.avatar ?? duplicates.find((d) => !!d.avatar)?.avatar ?? null;
+    // A merge must not silently eat relationship context: keep the primary's
+    // notes, else the first duplicate that has any (same fill rule as
+    // phone/company/avatar above).
+    const mergedNotes = primary.notes ?? duplicates.find((d) => !!d.notes)?.notes ?? null;
     const mergedFrequency =
       primary.frequency + duplicates.reduce((sum, d) => sum + (d.frequency || 0), 0);
     const lastContactedTimes = [
@@ -1161,6 +1205,7 @@ export class ContactService {
         phone: mergedPhone,
         company: mergedCompany,
         avatar: mergedAvatar,
+        notes: mergedNotes,
         frequency: mergedFrequency,
         lastContactedAt: mergedLastContacted,
         isFavorite,
