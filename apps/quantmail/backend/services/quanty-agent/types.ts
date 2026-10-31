@@ -219,9 +219,15 @@ export interface QuantyApproval {
   scope: string;
 }
 
-/** A browser task Quanty ran (or is running). */
+/** A browser task Quanty ran (or is running). userId is the owning user and
+ * is REQUIRED: the in-memory browser-task store is process-global, so an
+ * unowned record could never be scoped on read — the same cross-user leak
+ * class liveStatus() was fixed for by taking a required userId. The Next.js
+ * popup mapper picks fields explicitly and never forwards userId to the
+ * browser; it stays a backend-side ownership tag. */
 export interface QuantyBrowserTask {
   id: string;
+  userId: string;
   title: string;
   url: string;
   thumbnailUrl?: string;

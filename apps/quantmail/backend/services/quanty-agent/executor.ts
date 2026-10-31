@@ -406,10 +406,19 @@ export class QuantyExecutor {
 
   /**
    * Live status for the popup header: what Quanty is doing right now.
-   * Returns the most recently started run's current step label.
+   * Returns the caller's own most recently started run's current step label.
+   *
+   * The executor is a single per-process instance whose `runs` map holds
+   * every user's in-flight tasks, so this MUST be scoped by userId: an
+   * unscoped "latest run wins" read would display another user's task
+   * summary (planSummary / step label) in the caller's popup. The userId
+   * parameter is deliberately required, not optional, so a future caller
+   * cannot silently reintroduce the unscoped read — it fails typecheck.
+   * A caller with no in-flight run gets honest idle, never a neighbour's
+   * status.
    */
-  liveStatus(): QuantyLiveStatus {
-    const runs = [...this.runs.values()];
+  liveStatus(userId: string): QuantyLiveStatus {
+    const runs = [...this.runs.values()].filter((run) => run.task.userId === userId);
     if (runs.length === 0) {
       return { status: 'idle', detail: 'Waiting for your command' };
     }
