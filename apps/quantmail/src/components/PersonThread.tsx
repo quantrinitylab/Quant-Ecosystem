@@ -17,6 +17,8 @@ import type { Email } from '../types';
 import { isFromMe } from '../lib/threading';
 import { htmlToPlainText } from '../lib/htmlToPlainText';
 import { IdentityAvatar } from './IdentityAvatar';
+import { ThreadSummaryCard, messagesToSummaryPayload, type ThreadSummaryResult } from './ThreadSummaryCard';
+import { apiClient } from '../services/api-client';
 import { EmailSafetyBanner } from './EmailSafetyBanner';
 import { AttachmentPreview } from './AttachmentPreview';
 import { EmailReadReceipt, OpenTrackingIndicator } from './EmailReadReceipt';
@@ -425,6 +427,38 @@ export function PersonThread({
   // visible 50-message tail window never clips real messages around it.
   const messages = [...(conversation.messages ?? [])].sort(compareMessagesChronologically);
 
+  /**
+   * fix/qm-mobile-ai-summary — the People view (the default mobile
+   * conversation view) rendered no AI summary above the conversation, while
+   * ConversationalThreadView had ThreadSummaryCard since QM-UIUX-046 and
+   * AISummaryCard shipped with zero render sites. Same entry point as the
+   * thread view: maps the conversation's messages to the backend payload
+   * and calls the real AI service (`POST /api/ai/summarize-thread`).
+   * Throws on failure so the card shows its honest error state (including
+   * the AI_UNAVAILABLE 503 state); never fabricates a summary.
+   */
+  const handleSummarizeThread = useCallback(async (): Promise<ThreadSummaryResult> => {
+    const payload = messagesToSummaryPayload(messages);
+    const res = await apiClient.aiSummarizeThread(payload);
+    const data = res.data;
+    if (!res.success || !data?.summary) {
+      // BB-P1-5 (mirrored from ConversationalThreadView): carry the backend
+      // error code so the card can tell "AI is not available here" apart
+      // from a transient failure.
+      const err = new Error(res.error?.message || 'Summarization failed') as Error & {
+        code?: string;
+      };
+      err.code = res.error?.code;
+      throw err;
+    }
+    return {
+      summary: data.summary,
+      keyPoints: data.keyPoints ?? [],
+      actionItems: data.actionItems ?? [],
+      messageCount: data.messageCount ?? payload.length,
+    };
+  }, [messages]);
+
   /*
    * fix/qm-calendar-nlp-quickadd — one-key event-from-email. Same draft
    * builder as the thread view: attendees from the real participants, time
@@ -555,6 +589,17 @@ export function PersonThread({
           )}
           {messages.length === 0 && (
             <div className="py-10 text-center text-sm text-zinc-500">No messages yet.</div>
+          )}
+          {/* fix/qm-mobile-ai-summary: 1-line AI summary entry point above
+              every conversation — mirrors ConversationalThreadView's
+              QM-UIUX-046 placement. Trigger-based (not auto-generated on
+              open) so opening a conversation never spends AI budget or
+              blocks on the provider; the card's own loading/error states
+              stay honest. */}
+          {messages.length > 0 && (
+            <div className="flex justify-start">
+              <ThreadSummaryCard onSummarize={handleSummarizeThread} />
+            </div>
           )}
           {earlierCount > 0 && (
             <div className="flex justify-center py-2">
