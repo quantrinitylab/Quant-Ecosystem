@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import 'screens/chat_list_screen.dart';
+import 'screens/stories/stories_tab_screen.dart';
 import 'screens/calls_tab_screen.dart';
 import 'screens/audio_space_screen.dart';
 import 'screens/settings_screen.dart';
@@ -41,6 +42,7 @@ class _QuantChatHomeScreenState extends State<QuantChatHomeScreen> {
 
   final List<Widget> _screens = const [
     ChatListScreen(),
+    StoriesTabScreen(),
     CallsTabScreen(),
     AudioSpaceScreen(),
     SettingsScreen(),
@@ -185,9 +187,12 @@ class _QuantChatHomeScreenState extends State<QuantChatHomeScreen> {
               // previously claimed 4 unread chats, 1 call, and a live space
               // that did not exist.
               _buildNavItem(0, Icons.chat_bubble_rounded, Icons.chat_bubble_outline_rounded, 'Chats'),
-              _buildNavItem(1, Icons.phone_in_talk_rounded, Icons.phone_outlined, 'Calls'),
-              _buildNavItem(2, Icons.radio_button_checked_rounded, Icons.radio_button_off_rounded, 'Spaces'),
-              _buildNavItem(3, Icons.settings_rounded, Icons.settings_outlined, 'Settings'),
+              // Phase 2C: Stories tab (feed, viewer, creation). The tab is
+              // real -- it loads from the /stories backend, never a mock.
+              _buildNavItem(1, Icons.auto_stories_rounded, Icons.auto_stories_outlined, 'Stories'),
+              _buildNavItem(2, Icons.phone_in_talk_rounded, Icons.phone_outlined, 'Calls'),
+              _buildNavItem(3, Icons.radio_button_checked_rounded, Icons.radio_button_off_rounded, 'Spaces'),
+              _buildNavItem(4, Icons.settings_rounded, Icons.settings_outlined, 'Settings'),
             ],
           ),
         ),

@@ -583,6 +583,296 @@ paths:
               schema:
                 $ref: '#/components/schemas/SuccessWrapper'
 
+  /stories/feed:
+    get:
+      tags: [Stories]
+      summary: Story groups from non-expired stories, own group first
+      responses:
+        '200':
+          description: Grouped stories with isFriend/isFollowing flags
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /stories/discover:
+    get:
+      tags: [Stories]
+      summary: Public editorial story feed (audience ALL, author pref everyone)
+      responses:
+        '200':
+          description: Discover items with engagement counters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /stories/upload-url:
+    post:
+      tags: [Stories]
+      summary: Presigned PUT URL for story media (provider-agnostic storage interface)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, contentType, contentLength]
+              properties:
+                filename:
+                  type: string
+                  maxLength: 255
+                contentType:
+                  type: string
+                  example: image/jpeg
+                contentLength:
+                  type: integer
+                  example: 245000
+      responses:
+        '201':
+          description: Upload URL minted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Object storage not configured (STORAGE_NOT_CONFIGURED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /stories:
+    post:
+      tags: [Stories]
+      summary: Create a story (24h TTL; audience friendsOnly/public/closeFriends)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [photo, video, text]
+                mediaUrl:
+                  type: string
+                text:
+                  type: string
+                  maxLength: 500
+                duration:
+                  type: integer
+                audience:
+                  type: string
+                  enum: [friendsOnly, public, closeFriends]
+                placeId:
+                  type: string
+                placeName:
+                  type: string
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Story created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /stories/{storyId}/view:
+    post:
+      tags: [Stories]
+      summary: Mark a story viewed (idempotent, per-segment)
+      parameters:
+        - name: storyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: View recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Story not found (or not visible to caller)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /stories/{storyId}/like:
+    post:
+      tags: [Stories]
+      summary: Toggle like on a story
+      parameters:
+        - name: storyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Like toggled ({ liked, likeCount })
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Story not found (or not visible to caller)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /stories/{storyId}/comments:
+    get:
+      tags: [Stories]
+      summary: List story comments, oldest first
+      parameters:
+        - name: storyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Comments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Stories]
+      summary: Add a story comment
+      parameters:
+        - name: storyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /stories/authors/{authorId}/follow:
+    post:
+      tags: [Stories]
+      summary: Follow a story author
+      parameters:
+        - name: authorId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Followed ({ isFollowing })
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '403':
+          description: Blocked pair (CANNOT_FOLLOW)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Stories]
+      summary: Unfollow a story author
+      parameters:
+        - name: authorId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Unfollowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+
   /encryption/keys:
     post:
       tags: [Encryption]
