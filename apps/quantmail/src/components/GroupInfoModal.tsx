@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useFocusTrap } from '@quant/shared-ui';
-import type { ContactGroup, Email, EmailAttachment, GroupInviteLink } from '../types';
+import type { Contact, ContactGroup, Email, EmailAttachment, GroupInviteLink } from '../types';
+import { apiClient } from '../services/api-client';
 import { useConfirm } from '../hooks/useConfirm';
 import { useOptionalAuth } from '../providers/auth-provider';
 import {
@@ -114,6 +116,12 @@ interface InspectorProps {
   onAddMembers?: () => void;
   contactEmail?: string;
   onSaveContactName?: (name: string) => void;
+  /**
+   * Optional action row under the header subtitle — the mail view's contact
+   * card (ContactProfileInspector) renders its Add to Contacts / Edit Contact
+   * action here. Groups never pass it, so group headers are unchanged.
+   */
+  headerAction?: ReactNode;
   /** Present only for groups: admin roles, member removal and invite links. */
   management?: GroupMemberManagement;
 }
@@ -321,6 +329,7 @@ export function Inspector({
   onAddMembers,
   contactEmail,
   onSaveContactName,
+  headerAction,
   management,
 }: InspectorProps) {
   const id = useId();
@@ -449,6 +458,7 @@ export function Inspector({
               </form>
             )}
             <p className="truncate text-xs text-[var(--quant-muted-foreground)]">{subtitle}</p>
+            {headerAction ? <div className="mt-2 flex flex-wrap items-center gap-2">{headerAction}</div> : null}
             {onEdit && (
               <button
                 type="button"
@@ -738,6 +748,145 @@ export function GroupInfoModal(props: GroupInfoModalProps) {
   );
 }
 
+/**
+ * Exact-email match over a contact search result. The backend search is a
+ * substring match over name/email, so a query for `ada@x.com` also returns
+ * `adana@x.com` and name matches — only a case-insensitive email equality
+ * proves this sender is already a saved contact, and only that may flip the
+ * card from "Add to Contacts" to "Edit Contact".
+ */
+export function findContactByEmail(
+  contacts: Array<Pick<Contact, 'email'>> | undefined,
+  email: string,
+): boolean {
+  const wanted = email.trim().toLowerCase();
+  if (!wanted) return false;
+  return (contacts ?? []).some((contact) => contact.email?.trim().toLowerCase() === wanted);
+}
+
+/**
+ * Normalized email equality for keying a lookup/create to one sender.
+ * Case and surrounding whitespace never distinguish two addresses, but a
+ * create started for one address must never reconcile into the card for a
+ * DIFFERENT address after the card's email prop changes.
+ */
+export function isSameContactEmail(a: string, b: string): boolean {
+  const left = normalize(a);
+  const right = normalize(b);
+  return Boolean(left) && left === right;
+}
+
+export type ContactLookupResult =
+  | { status: 'saved'; savedContactId: string }
+  | { status: 'unsaved'; savedContactId: null }
+  | { status: 'unknown'; savedContactId: null };
+
+/**
+ * Success-checked interpretation of a searchContacts envelope. The lookup
+ * MUST check `res.success`: the api client returns error envelopes (401 /
+ * 403 / 5xx / timeout) instead of throwing, so an unchecked lookup reads a
+ * failed response's empty `data` as "not saved" and renders "Add to
+ * Contacts" for a sender who may already be saved. A failed envelope — or a
+ * throw, handled by the caller — is `unknown`, never `unsaved`: the card
+ * must say it could not check, not offer Add as if the answer were known.
+ */
+export function resolveContactLookup(
+  res: { success: boolean; data?: Array<Pick<Contact, 'id' | 'email'>> | null } | null | undefined,
+  email: string,
+): ContactLookupResult {
+  if (!res || !res.success) return { status: 'unknown', savedContactId: null };
+  const match = (res.data ?? []).find(
+    (contact) => contact.email?.trim().toLowerCase() === email.trim().toLowerCase(),
+  );
+  return match ? { status: 'saved', savedContactId: match.id } : { status: 'unsaved', savedContactId: null };
+}
+
+export interface ContactCardActionProps {
+  /** Id of the already-saved contact, or null when the sender is not one yet. */
+  savedContactId: string | null;
+  /** A create is in flight — the button disables instead of double-submitting. */
+  saving: boolean;
+  /** Honest failure text from the last create attempt, or null. */
+  error: string | null;
+  onAdd: () => void;
+  /**
+   * The saved-state lookup failed (401 / 403 / 5xx / timeout / throw), so
+   * the card does NOT know whether the sender is saved. When true the card
+   * renders an honest unknown state — never "Add to Contacts", which would
+   * assert "not saved" on no evidence.
+   */
+  lookupFailed?: boolean;
+  /** Re-runs the saved-state lookup after an unknown state, if provided. */
+  onRetryLookup?: () => void;
+}
+
+/**
+ * The mail view's contact-card action, Gmail parity: "Add to Contacts" for an
+ * unknown sender, "Edit Contact" (deep link to the contact's detail sheet,
+ * where editing lives) once they are saved. Purely presentational — the
+ * inspector owns the lookup and the create — so it renders under
+ * renderToStaticMarkup without an auth or router provider.
+ */
+export function ContactCardAction({
+  savedContactId,
+  saving,
+  error,
+  onAdd,
+  lookupFailed,
+  onRetryLookup,
+}: ContactCardActionProps) {
+  if (lookupFailed && !savedContactId) {
+    return (
+      <>
+        <span role="alert" className="text-xs font-semibold text-amber-300">
+          Couldn&apos;t check whether this sender is already saved.
+        </span>
+        {onRetryLookup ? (
+          <button
+            type="button"
+            onClick={onRetryLookup}
+            className="min-h-[36px] rounded-lg border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] px-3 py-2 text-xs font-bold text-white hover:bg-[var(--quant-primary)]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+          >
+            Try again
+          </button>
+        ) : null}
+      </>
+    );
+  }
+  if (savedContactId) {
+    return (
+      <>
+        <span className="text-xs font-bold text-[var(--quant-muted-foreground)]">
+          ✓ Saved to Contacts
+        </span>
+        <a
+          href={`/contacts?contact=${encodeURIComponent(savedContactId)}`}
+          className="min-h-[36px] rounded-lg bg-[var(--quant-primary)] px-3 py-2 text-xs font-bold text-[var(--quant-background)] hover:bg-[var(--quant-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+        >
+          Edit Contact
+        </a>
+      </>
+    );
+  }
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onAdd}
+        disabled={saving}
+        className="min-h-[36px] rounded-lg bg-[var(--quant-primary)] px-3 py-2 text-xs font-bold text-[var(--quant-background)] hover:bg-[var(--quant-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] disabled:cursor-wait disabled:opacity-60"
+      >
+        {saving ? 'Adding…' : 'Add to Contacts'}
+      </button>
+      {error ? (
+        <span role="alert" className="text-xs font-semibold text-red-400">
+          {error}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 export interface ContactProfileInspectorProps {
   open: boolean;
   email: string;
@@ -782,6 +931,127 @@ export function ContactProfileInspector({
     onSaveContactName?.(newName);
   };
 
+  // Add-to-Contacts (P2 competitor gap): the mail view's contact card is the
+  // one-click place a new sender becomes a contact, Gmail-style. Lookup runs
+  // only while the card is open.
+  //
+  // Honesty + keying rules (CODEX corrective, PR #1562):
+  // - The lookup MUST check res.success. A failed envelope (401 / 403 / 5xx /
+  //   timeout) or a throw is an UNKNOWN saved state, rendered as such — never
+  //   "Add to Contacts", which would assert "not saved" on no evidence.
+  // - Every create / 409 reconciliation is keyed to the email it was started
+  //   for AND to a sequence token. The inspector stays mounted while the
+  //   thread view switches senders, so the email prop can change mid-flight:
+  //   the lookup effect bumps the sequence on every email change, and a
+  //   superseded create's settlement (success, 409 re-search, or error) is
+  //   discarded — A's savedContactId can never land in B's card, and a
+  //   stale finally can never clear a newer create's "Adding…" state.
+  // - A 409 re-resolves via a success-checked lookup for the REQUESTED email
+  //   only, and applies only while that email is still the card's email.
+  const [savedContactId, setSavedContactId] = useState<string | null>(null);
+  // Start true so the first open never flashes "Add to Contacts" for a sender
+  // who is already saved — the lookup below is what clears it.
+  const [checkingContact, setCheckingContact] = useState(true);
+  const [savingContact, setSavingContact] = useState(false);
+  const [saveContactError, setSaveContactError] = useState<string | null>(null);
+  const [lookupFailed, setLookupFailed] = useState(false);
+  const [lookupAttempt, setLookupAttempt] = useState(0);
+  // Always-current email for settlement guards: a promise closure's `email`
+  // is frozen at call time, so it cannot tell whether the card moved on.
+  const emailRef = useRef(email);
+  emailRef.current = email;
+  // Monotonic token: bumped by the lookup effect on every email change (and
+  // by each new create). A settlement applies only if its token is still
+  // current AND its requested email still matches the card's email.
+  const contactOpSeqRef = useRef(0);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    // Supersede any in-flight create / 409 reconciliation from a previous
+    // email: its token stops matching, so its settlement is discarded below.
+    contactOpSeqRef.current += 1;
+    setCheckingContact(true);
+    setSavedContactId(null);
+    setSaveContactError(null);
+    setLookupFailed(false);
+    setSavingContact(false);
+    void apiClient
+      .searchContacts(email)
+      .then((res) => {
+        if (cancelled) return;
+        setCheckingContact(false);
+        const resolved = resolveContactLookup(res, email);
+        if (resolved.status === 'unknown') {
+          setLookupFailed(true);
+          return;
+        }
+        if (resolved.savedContactId) setSavedContactId(resolved.savedContactId);
+      })
+      .catch(() => {
+        // apiClient returns envelopes, never throws — but an unexpected throw
+        // (e.g. a timeout surfacing as a rejection) is still an unknown
+        // state, never evidence of "not saved".
+        if (!cancelled) {
+          setCheckingContact(false);
+          setLookupFailed(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, email, lookupAttempt]);
+
+  const handleAddToContacts = () => {
+    if (savingContact) return;
+    const requestedEmail = email;
+    const requestedName = localName;
+    const seq = contactOpSeqRef.current + 1;
+    contactOpSeqRef.current = seq;
+    const isCurrent = () =>
+      contactOpSeqRef.current === seq && isSameContactEmail(emailRef.current, requestedEmail);
+    setSavingContact(true);
+    setSaveContactError(null);
+    void apiClient
+      .createContact({ name: requestedName, email: requestedEmail })
+      .then(async (res) => {
+        if (!isCurrent()) return;
+        if (res.success && res.data?.id) {
+          setSavedContactId(res.data.id);
+          return;
+        }
+        if (res.error?.statusCode === 409) {
+          // Already a contact (e.g. added from another card): resolve the id
+          // so the card shows Edit Contact instead of reporting an error —
+          // but only for the requested email, and only while it is still
+          // this card's email. A failed re-search is unknown, not "unsaved".
+          const again = await apiClient.searchContacts(requestedEmail);
+          if (!isCurrent()) return;
+          const resolved = resolveContactLookup(again, requestedEmail);
+          if (resolved.status === 'saved' && resolved.savedContactId) {
+            setSavedContactId(resolved.savedContactId);
+            return;
+          }
+          if (resolved.status === 'unknown') {
+            setSaveContactError(
+              'Could not confirm whether this contact was already saved. Please try again.',
+            );
+            return;
+          }
+        }
+        setSaveContactError(res.error?.message || 'Could not add this contact. Please try again.');
+      })
+      .catch(() => {
+        if (!isCurrent()) return;
+        setSaveContactError('Could not add this contact. Please try again.');
+      })
+      .finally(() => {
+        // Only the current operation may clear the spinner: a superseded
+        // create's finally must not re-enable Add while a newer create runs.
+        if (contactOpSeqRef.current === seq) setSavingContact(false);
+      });
+  };
+
   return (
     <Inspector
       open={open}
@@ -793,6 +1063,18 @@ export function ContactProfileInspector({
       onClose={onClose}
       contactEmail={email}
       onSaveContactName={handleSave}
+      headerAction={
+        checkingContact ? undefined : (
+          <ContactCardAction
+            savedContactId={savedContactId}
+            saving={savingContact}
+            error={saveContactError}
+            onAdd={handleAddToContacts}
+            lookupFailed={lookupFailed}
+            onRetryLookup={() => setLookupAttempt((attempt) => attempt + 1)}
+          />
+        )
+      }
     />
   );
 }
