@@ -29,6 +29,7 @@ import { EmailLetterCard } from './EmailLetterCard';
 import { EmailSafetyBanner } from './EmailSafetyBanner';
 import { MessageKindBadge, ThreadKindBadge } from './MessageKindBadge';
 import { AttachmentPreview } from './AttachmentPreview';
+import { InlineEventRsvp } from './InlineEventRsvp';
 import { attachmentServiceId } from '../lib/mail-attachments';
 import {
   QuantyThreadEvidence,
@@ -3268,6 +3269,12 @@ export function ConversationalThreadView({
                      * chrome-free and this wrapper owns the only padding.
                      */}
                     <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+                      {/* fix/qm-inline-rsvp-v4 — Gmail parity: Yes / No / Maybe
+                       * chips at the TOP of the invitation email itself. The
+                       * component renders nothing unless the message carries
+                       * an invitation ICS that resolves to a QuantMail event
+                       * the viewer is invited to. */}
+                      <InlineEventRsvp message={message} viewerEmail={currentEmail} />
                       <EmailLetterCard email={message} />
                     </div>
                     {/*
