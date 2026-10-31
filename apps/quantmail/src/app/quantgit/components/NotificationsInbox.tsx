@@ -4,10 +4,20 @@
 // QuantGit — Notifications Center & Inbox (GitHub Screens 22, 85–86, 145–146)
 //
 // QM-UIUX-065 honesty contract: this inbox renders ONLY notifications it is
-// given via props. There is no seed/sample data anywhere in this file — the
-// backend never creates git notifications (the only notification producer is
-// the inbound-mail webhook), so with no real source wired in, the honest
-// state is an empty inbox, not fabricated rows about merged PRs or CI runs.
+// given via props. There is no seed/sample data anywhere in this file.
+//
+// Data source (fix for the 2026-10-11 P2 "no data source" finding):
+// GET /api/repos/notifications derives items from durable domain rows —
+// PENDING Review rows (created by POST /repos/:id/pulls/:number/
+// request-review) for `review_requested`, OPEN issues for `assigned` /
+// `mentioned`, and comments/reviews for `participating` — see
+// backend/services/git-notifications.service.ts. With no such rows the
+// honest state is still an empty inbox, not fabricated rows.
+//
+// Read-state honesty: derived items have no server-side read store yet, so
+// `unread` arrives true for every item and mark-read / saved / done are
+// local to this browser session (they reset on reload). The component
+// must never claim those triage states persist across devices.
 // ============================================================================
 
 import React, { useEffect, useState } from 'react';
@@ -29,15 +39,33 @@ export interface GitNotificationItem {
 export interface NotificationsInboxProps {
   /** Real notifications only. Defaults to an empty, honest inbox. */
   notifications?: GitNotificationItem[];
+  /** True while the parent is fetching GET /repos/notifications. */
+  loading?: boolean;
+  /** Fetch failure message from the parent, if any — shown, never hidden. */
+  error?: string | null;
+  /** Retry the parent's fetch (rendered only when `error` is set). */
+  onRetry?: () => void;
+  /** Starting tab (default 'inbox'); exists so tests can render Saved/Done. */
+  initialTab?: 'inbox' | 'saved' | 'done';
 }
 
 export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
   notifications: providedNotifications = [],
+  loading = false,
+  error = null,
+  onRetry,
+  initialTab = 'inbox',
 }) => {
-  const [activeMainTab, setActiveMainTab] = useState<'inbox' | 'saved' | 'done'>('inbox');
+  const [activeMainTab, setActiveMainTab] = useState<'inbox' | 'saved' | 'done'>(initialTab);
   const [filterRead, setFilterRead] = useState<'all' | 'unread'>('all');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [notifications, setNotifications] = useState<GitNotificationItem[]>(providedNotifications);
+  // Local-only triage (see header comment): no server store exists yet,
+  // so saved/done survive only this browser session. Previously the
+  // Saved/Done tabs switched the highlight but showed the same unfiltered
+  // list — dead tabs. They now actually filter by these sets.
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
 
   // Keep the inbox in sync with real data supplied after mount (e.g. an
   // async API fetch resolving in the parent). Without this, notifications
@@ -46,7 +74,19 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
     setNotifications(providedNotifications);
   }, [providedNotifications]);
 
+  const toggleId = (set: Set<string>, id: string): Set<string> => {
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  };
+
   const filteredNotifs = notifications.filter((n) => {
+    // Done items leave the inbox (GitHub semantics: triaged away) and
+    // live only under Done; Saved shows saved items not yet done.
+    if (activeMainTab === 'inbox' && doneIds.has(n.id)) return false;
+    if (activeMainTab === 'saved' && (!savedIds.has(n.id) || doneIds.has(n.id))) return false;
+    if (activeMainTab === 'done' && !doneIds.has(n.id)) return false;
     if (filterRead === 'unread' && !n.unread) return false;
     if (selectedFilter !== 'all' && n.category !== selectedFilter) return false;
     return true;
@@ -171,7 +211,24 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
         </div>
 
         {/* Notifications List */}
-        {filteredNotifs.length > 0 ? (
+        {loading ? (
+          <div className="py-16 text-center space-y-4 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-8">
+            <p className="text-xs text-[#8D96A0]">Loading notifications…</p>
+          </div>
+        ) : error ? (
+          <div className="py-16 text-center space-y-4 rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] p-8">
+            <h4 className="font-bold text-sm text-[#E6EDF3]">Couldn&apos;t load notifications</h4>
+            <p className="text-xs text-[#8D96A0] pt-1">{error}</p>
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                className="text-xs text-[#58A6FF] hover:underline font-medium"
+              >
+                Try again
+              </button>
+            )}
+          </div>
+        ) : filteredNotifs.length > 0 ? (
  <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
             {filteredNotifs.map((item) => (
               <div
@@ -205,11 +262,27 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0 pt-0.5">
-                  <span className="text-[11px] text-[#8D96A0] font-mono">{item.timeAgo}</span>
-                  {item.unread && (
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#58A6FF]" title="Unread" />
-                  )}
+                <div className="flex flex-col items-end gap-2 shrink-0 pt-0.5">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] text-[#8D96A0] font-mono">{item.timeAgo}</span>
+                    {item.unread && (
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#58A6FF]" title="Unread" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSavedIds((prev) => toggleId(prev, item.id))}
+                      className="text-[11px] text-[#8D96A0] hover:text-[#E6EDF3] font-medium"
+                    >
+                      {savedIds.has(item.id) ? 'Saved ✓' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => setDoneIds((prev) => toggleId(prev, item.id))}
+                      className="text-[11px] text-[#8D96A0] hover:text-[#E6EDF3] font-medium"
+                    >
+                      {doneIds.has(item.id) ? 'Undo done' : 'Done'}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -221,9 +294,17 @@ export const NotificationsInbox: React.FC<NotificationsInboxProps> = ({
               🧘
             </div>
             <div>
-              <h4 className="font-bold text-sm text-[#E6EDF3]">No notifications</h4>
+              <h4 className="font-bold text-sm text-[#E6EDF3]">
+                {activeMainTab === 'saved'
+                  ? 'No saved notifications'
+                  : activeMainTab === 'done'
+                    ? 'No done notifications'
+                    : 'No notifications'}
+              </h4>
               <p className="text-xs text-[#8D96A0] pt-1">
-                There are no notifications to show right now.
+                {activeMainTab === 'inbox'
+                  ? 'There are no notifications to show right now.'
+                  : 'Nothing here yet — use Save or Done on an inbox item.'}
               </p>
             </div>
           </div>
