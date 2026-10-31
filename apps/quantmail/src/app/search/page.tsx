@@ -48,7 +48,7 @@ const SCOPES: Array<{ id: UniversalSearchScope; label: string }> = [
 ];
 
 interface SearchFilter {
-  type: 'from' | 'to' | 'has' | 'in' | 'date';
+  type: 'from' | 'to' | 'subject' | 'has' | 'in' | 'folder' | 'date' | 'dateTo' | 'unread' | 'starred';
   label: string;
   value: string;
 }
@@ -56,10 +56,24 @@ interface SearchFilter {
 const FILTER_CHIPS: { type: SearchFilter['type']; label: string; placeholder: string }[] = [
   { type: 'from', label: 'From', placeholder: 'sender@example.com' },
   { type: 'to', label: 'To', placeholder: 'recipient@example.com' },
+  { type: 'subject', label: 'Subject', placeholder: 'Words in the subject' },
   { type: 'has', label: 'Has attachment', placeholder: '' },
   { type: 'in', label: 'Label', placeholder: 'Label name' },
+  { type: 'folder', label: 'In folder', placeholder: 'Inbox, Sent, Archive…' },
   { type: 'date', label: 'Since', placeholder: 'YYYY-MM-DD' },
+  { type: 'dateTo', label: 'Until', placeholder: 'YYYY-MM-DD' },
+  { type: 'unread', label: 'Unread', placeholder: '' },
+  { type: 'starred', label: 'Starred', placeholder: '' },
 ];
+
+// Boolean chips: on or off, no value to edit — a second tap turns them off.
+// `has`/`unread`/`starred` all live here so the toggle branch below stays
+// one shape instead of three copies.
+const BOOLEAN_CHIPS: Record<'has' | 'unread' | 'starred', { label: string; value: string }> = {
+  has: { label: 'Has attachment', value: 'attachment' },
+  unread: { label: 'Unread', value: 'unread' },
+  starred: { label: 'Starred', value: 'starred' },
+};
 
 // --- tiny inline icon set (no emoji, no HTML entities) ----------------------
 type IconName = 'search' | 'clock' | 'close' | 'clip' | 'arrow' | 'check';
@@ -167,9 +181,18 @@ export default function SearchPage() {
           query: query.trim(),
           from: activeFilters.find((f) => f.type === 'from')?.value,
           to: activeFilters.find((f) => f.type === 'to')?.value,
+          subject: activeFilters.find((f) => f.type === 'subject')?.value,
           hasAttachment: activeFilters.some((f) => f.type === 'has') ? true : undefined,
           label: activeFilters.find((f) => f.type === 'in')?.value,
+          // In-folder is a folder *name* ("Inbox", "Sent"); the backend
+          // resolves it to a folder id, like the Label chip.
+          folder: activeFilters.find((f) => f.type === 'folder')?.value,
           dateFrom: activeFilters.find((f) => f.type === 'date')?.value,
+          dateTo: activeFilters.find((f) => f.type === 'dateTo')?.value,
+          // Unread means "isRead is false" — sending `false`, not omitting
+          // the field, is what narrows the search; omitting means no opinion.
+          isRead: activeFilters.some((f) => f.type === 'unread') ? false : undefined,
+          isStarred: activeFilters.some((f) => f.type === 'starred') ? true : undefined,
         }
       : null;
 
@@ -242,23 +265,29 @@ export default function SearchPage() {
    * The chip row's one job: open this filter's editor, or toggle the one filter
    * that has no value to edit.
    *
-   * `has` is boolean — "Has attachment" is on or off — so a second tap turns it
-   * off. Every other type carries a value, and tapping an applied chip now
-   * *edits* that value: `filterInput` is seeded from the applied filter, so
-   * "From: a@b.com" opens with `a@b.com` in the field. Blanking it
-   * unconditionally, which is what this did, meant an applied filter could never
-   * be corrected — only deleted and retyped from memory.
+   * Boolean chips (`has` / `unread` / `starred`) carry no value to edit —
+   * "Has attachment" is on or off — so a second tap turns them off. Every
+   * other type carries a value, and tapping an applied chip now *edits* that
+   * value: `filterInput` is seeded from the applied filter, so "From:
+   * a@b.com" opens with `a@b.com` in the field. Blanking it unconditionally,
+   * which is what this did, meant an applied filter could never be corrected
+   * — only deleted and retyped from memory.
    *
    * Removal is not here. It lives on the applied pill below, once per filter,
    * where the value being removed is on screen to read first.
    */
   const handleFilterChipClick = useCallback(
     (type: SearchFilter['type']) => {
-      if (type === 'has') {
+      const booleanChip = (['has', 'unread', 'starred'] as const).includes(
+        type as 'has' | 'unread' | 'starred',
+      )
+        ? BOOLEAN_CHIPS[type as 'has' | 'unread' | 'starred']
+        : undefined;
+      if (booleanChip) {
         setActiveFilters((prev) =>
-          prev.some((f) => f.type === 'has')
-            ? prev.filter((f) => f.type !== 'has')
-            : [...prev, { type: 'has', label: 'Has attachment', value: 'attachment' }],
+          prev.some((f) => f.type === type)
+            ? prev.filter((f) => f.type !== type)
+            : [...prev, { type, label: booleanChip.label, value: booleanChip.value }],
         );
         setEditingFilter(null);
         return;
@@ -478,7 +507,7 @@ export default function SearchPage() {
                   {FILTER_CHIPS.find((c) => c.type === editingFilter)?.label}
                 </span>
                 <input
-                  type={editingFilter === 'date' ? 'date' : 'text'}
+                  type={editingFilter === 'date' || editingFilter === 'dateTo' ? 'date' : 'text'}
                   className="h-11 min-w-0 flex-1 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm outline-none focus:border-[var(--brand-primary)]/60 focus:ring-2 focus:ring-[var(--brand-primary)]/25 sm:h-9"
                   placeholder={FILTER_CHIPS.find((c) => c.type === editingFilter)?.placeholder}
                   aria-label={`${FILTER_CHIPS.find((c) => c.type === editingFilter)?.label} filter value`}
@@ -515,8 +544,9 @@ export default function SearchPage() {
 
         {/*
           Applied filters. This ✕ is now the only remove control per filter, and
-          for `from`, `to`, `in` and `date` it is the *only* way to remove one at
-          all — the chip above edits. So it has to be a real target: it was a
+          for every valued chip (`from`, `to`, `subject`, `in`, `folder`,
+          `date`, `dateTo`) it is the *only* way to remove one at all — the
+          chip above edits. So it has to be a real target: it was a
           20px square with no focus ring, which is 24px short of the floor and
           invisible to a keyboard.
 

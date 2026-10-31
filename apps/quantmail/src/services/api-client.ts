@@ -316,7 +316,10 @@ function hasSearchFilterChips(params: Partial<SearchEmailRequest>): boolean {
       params.hasAttachment === true ||
       params.label?.trim() ||
       params.dateFrom?.trim() ||
-      params.dateTo?.trim(),
+      params.dateTo?.trim() ||
+      typeof params.isRead === 'boolean' ||
+      params.isStarred === true ||
+      params.folder?.trim(),
   );
 }
 

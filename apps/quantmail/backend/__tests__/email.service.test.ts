@@ -38,6 +38,10 @@ function createMockPrisma() {
     label: {
       findMany: vi.fn(),
     },
+    emailFolder: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+    },
     outboxEvent: {
       create: vi.fn(async (args: { data: Record<string, unknown> }) => ({
         id: 'outbox-1',
@@ -815,6 +819,75 @@ describe('EmailService', () => {
           }),
         }),
       );
+    });
+
+    it('applies dateTo as an inclusive end-of-day bound', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+
+      await service.search('user-1', 'hello', {}, { dateTo: '2026-10-05' });
+
+      expect(prisma.email.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            receivedAt: expect.objectContaining({
+              lte: new Date('2026-10-05T23:59:59.999'),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('applies the Unread chip as isRead: false (not as a read-only filter)', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+
+      await service.search('user-1', 'hello', {}, { isRead: false });
+
+      expect(prisma.email.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ isRead: false }),
+        }),
+      );
+    });
+
+    it('applies the Starred chip as isStarred: true', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+
+      await service.search('user-1', 'hello', {}, { isStarred: true });
+
+      expect(prisma.email.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ isStarred: true }),
+        }),
+      );
+    });
+
+    it('resolves a folder name to its id for the folder filter', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+      prisma.emailFolder.findMany.mockResolvedValue([{ id: 'folder-inbox', name: 'Inbox' }]);
+
+      await service.search('user-1', 'hello', {}, { folder: 'inbox' });
+
+      expect(prisma.email.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ folderId: 'folder-inbox' }),
+        }),
+      );
+    });
+
+    it('matches zero rows when the folder name resolves to nothing', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+      prisma.emailFolder.findMany.mockResolvedValue([]);
+
+      await service.search('user-1', 'hello', {}, { folder: 'nope' });
+
+      const where = prisma.email.findMany.mock.calls[0][0].where as Record<string, unknown>;
+      expect(where).toHaveProperty('folderId');
+      expect(where.folderId).not.toBe('nope');
     });
   });
 

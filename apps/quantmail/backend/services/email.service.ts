@@ -62,6 +62,16 @@ export interface EmailSearchFilters {
   dateTo?: string;
   /** Substring of the subject line (case-insensitive). */
   subject?: string;
+  /** Equality filter on the read flag (the Unread chip sends `false`). */
+  isRead?: boolean;
+  /** When true, only starred mail (the /search page's Starred chip). */
+  isStarred?: boolean;
+  /**
+   * Folder *name* (as the UI chip collects it, e.g. "Inbox"); resolved to
+   * the folder id server-side, like `label`. An unresolvable name matches
+   * nothing rather than silently searching everywhere.
+   */
+  folder?: string;
 }
 
 export interface PaginatedResult<T> {
@@ -1901,6 +1911,25 @@ export class EmailService {  constructor(
       where.labels = { array_contains: labelId ?? ' ' };
     }
 
+    // Unread / Starred chips: plain boolean columns, no resolution needed.
+    // `isRead` is an equality filter — the Unread chip sends `false`, a
+    // "read only" caller would send `true`, `undefined` means no opinion.
+    // `isStarred` only ever narrows to starred (`true`); there is no
+    // "unstarred only" chip, so `false` stays a no-op rather than a filter.
+    if (typeof filters.isRead === 'boolean') {
+      where.isRead = filters.isRead;
+    }
+    if (filters.isStarred === true) {
+      where.isStarred = true;
+    }
+
+    if (filters.folder?.trim()) {
+      const folderId = await this.resolveFolderId(userId, filters.folder.trim());
+      // Same sentinel rule as labels: an unresolvable folder name matches
+      // nothing, never "search everywhere and pretend the chip applied".
+      where.folderId = folderId ?? ' ';
+    }
+
     if (andClauses.length > 0) {
       where.AND = andClauses;
     }
@@ -1982,6 +2011,25 @@ export class EmailService {  constructor(
     const match =
       labels.find((l) => l.name === name) ??
       labels.find((l) => l.name.toLowerCase() === name.toLowerCase());
+    return match?.id;
+  }
+
+  /**
+   * Folder-name twin of {@link resolveLabelId}: the search UI's In-folder
+   * chip collects a name ("Inbox", "Sent", "Archive"), emails store a
+   * `folderId`. Matching is exact-then-case-insensitive, like labels.
+   * Returns undefined when no folder matches (search then matches zero
+   * rows) or when the folder delegate is unavailable in this deployment.
+   */
+  private async resolveFolderId(userId: string, name: string): Promise<string | undefined> {
+    const delegate = (this.prisma as unknown as {
+      emailFolder?: { findMany(a: unknown): Promise<Array<{ id: string; name: string }>> };
+    }).emailFolder;
+    if (!delegate) return undefined;
+    const folders = await delegate.findMany({ where: { userId } });
+    const match =
+      folders.find((f) => f.name === name) ??
+      folders.find((f) => f.name.toLowerCase() === name.toLowerCase());
     return match?.id;
   }
 
