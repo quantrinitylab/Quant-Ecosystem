@@ -279,8 +279,11 @@ describe('QC-F-274 send path strips forged server-owned metadata', () => {
     });
   });
 
-  it('case 13: the reserved set is exactly the 17 server-owned keys (snap is sanitized, not stripped)', () => {
-    expect(RESERVED_METADATA_KEYS.size).toBe(17);
+  it('case 13: the reserved set is exactly the 18 server-owned keys (snap is sanitized, not stripped)', () => {
+    // QC-F-231 (R2): 'disappearTimerSeconds' joined the reserved set — the
+    // conversation-timer snapshot stamp is server-owned, never client-forged.
+    expect(RESERVED_METADATA_KEYS.size).toBe(18);
+    expect(RESERVED_METADATA_KEYS.has('disappearTimerSeconds')).toBe(true);
     expect(RESERVED_METADATA_KEYS.has('snap')).toBe(false);
     expect(sanitizeClientMetadata(undefined)).toEqual({});
     expect(sanitizeClientMetadata({ snap: 'not-an-object' })).toEqual({});
