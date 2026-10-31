@@ -294,9 +294,9 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          # printf is a builtin: the key never appears in a process arg list.
-          printf '%s' "$OCI_DEPLOY_SSH_KEY" > ~/.ssh/oci-deploy
-          chmod 600 ~/.ssh/oci-deploy
+          # Normalize final-LF/CRLF and validate non-interactively before SSH.
+          # Neither the configured key nor its derived public key is logged.
+          bash scripts/prepare-oci-deploy-key.sh "$HOME/.ssh/oci-deploy"
           ssh-keyscan -H "$VM_APP_IP" >> ~/.ssh/known_hosts 2>/dev/null
           chmod 600 ~/.ssh/known_hosts
           ssh -i ~/.ssh/oci-deploy -o BatchMode=yes -o ConnectTimeout=15 \
