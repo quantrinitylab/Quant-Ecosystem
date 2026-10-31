@@ -73,6 +73,7 @@ import { ThreadSummaryCard, messagesToSummaryPayload, type ThreadSummaryResult }
 import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInbox } from '../hooks/useInbox';
+import { useMailMutations } from '../hooks/useMailMutations';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { useIsMobile } from '../hooks/useIsMobile';
 import {
@@ -437,6 +438,11 @@ export function ConversationalThreadView({
 }: ConversationalThreadViewProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  // Shared optimistic mutations (same instance shape PeopleHome and the
+  // inbox rows use): snooze below must go through this, never a direct
+  // apiClient loop, so the thread header gets the same instant removal,
+  // success toast and Undo as every other surface.
+  const mutations = useMailMutations();
 
   // Normalized messages state
   const [messages, setMessages] = useState<Email[]>(() => {
@@ -1574,29 +1580,23 @@ export function ConversationalThreadView({
 
   const [snoozeMenuOpen, setSnoozeMenuOpen] = useState(false);
   const handleSnoozeConversation = useCallback(
-    async (until: Date) => {
+    (until: Date) => {
       const ids = conversationMessageIds;
       if (ids.length === 0) return;
-      try {
-        // QM-UIUX-093: apiClient resolves `{ success: false }` on failure —
-        // it never rejects — so the success toast is earned only when every
-        // snooze POST was accepted; any refusal is reported as a failure
-        // (the list invalidation below resyncs whatever partially landed).
-        const results = await Promise.all(ids.map((id) => apiClient.snoozeEmail(id, until)));
-        if (results.every((r) => r?.success)) {
-          showToast({
-            text: `Snoozed until ${until.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
-            type: 'success',
-          });
-        } else {
-          showToast({ text: 'Could not snooze conversation', type: 'error' });
-        }
-        invalidateMailLists(queryClient);
-      } catch {
-        showToast({ text: 'Could not snooze conversation', type: 'error' });
-      }
+      // One code path with the inbox rows and People surfaces: the shared
+      // optimistic mutation removes the conversation from the lists at
+      // once, shows "Snoozed until …" with an Undo (unsnooze), and replays
+      // through the outbox. The old direct apiClient loop had no
+      // optimistic update and its toast had no Undo, so a mis-tapped
+      // snooze from the thread could not be undone. The mutation owns
+      // its own failure path: a full refusal withdraws the confirmation
+      // and rolls back, and a partial refusal (one message refused, the
+      // rest accepted) rolls back only the refused ids and replaces the
+      // confirmation with a partial receipt whose Undo covers only the
+      // ids that snoozed — never a blanket success for a half-landed snooze.
+      void mutations.snooze(ids, until);
     },
-    [conversationMessageIds, queryClient],
+    [conversationMessageIds, mutations],
   );
 
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);

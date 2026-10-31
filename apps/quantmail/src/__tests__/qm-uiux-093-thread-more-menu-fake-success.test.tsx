@@ -79,6 +79,32 @@ const { showToast, api } = vi.hoisted(() => {
 vi.mock('../services/api-client', () => ({ apiClient: api }));
 vi.mock('../components/InboxToast', () => ({ showToast }));
 
+// Thread-snooze-undo: the view now snoozes through useMailMutations, whose
+// transport is the offline outbox (not a direct apiClient loop) and whose
+// cache write is mail-cache. Both are stubbed here so the snooze tests pin
+// the shared path deterministically; the real toast bus stays live so the
+// mutation's Undo toast is observable.
+const outbox = vi.hoisted(() => ({
+  enqueue: vi.fn(async () => ({ sent: true })),
+}));
+vi.mock('../lib/offline/outbox', () => ({
+  enqueue: outbox.enqueue,
+  subscribeToOutbox: () => () => {},
+  getOutboxState: () => ({ pending: 0, rejected: [], isFlushing: false }),
+  clearRejected: () => {},
+  clearOutbox: async () => {},
+  startOutbox: () => () => {},
+  flush: async () => {},
+}));
+vi.mock('../lib/offline/mail-cache', () => ({
+  mailboxKey: vi.fn(),
+  readMailbox: vi.fn(async () => null),
+  writeMailbox: vi.fn(async () => undefined),
+  patchEmail: vi.fn(async () => undefined),
+  removeFromMailbox: vi.fn(async () => undefined),
+  clearMailCache: vi.fn(async () => undefined),
+}));
+
 // --- Heavy neighbours the header does not exercise --------------------------
 
 vi.mock('next/navigation', () => ({
@@ -257,6 +283,11 @@ vi.mock('framer-motion', () => {
 });
 
 import { ConversationalThreadView } from '../components/ConversationalThreadView';
+import {
+  subscribeToDismissals,
+  subscribeToToasts,
+  type ToastMessage,
+} from '../lib/toast-bus';
 
 // --- Fixtures ----------------------------------------------------------------
 
@@ -300,6 +331,7 @@ const incoming = (over: Partial<Email> = {}): Email =>
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 let onStarToggle: ReturnType<typeof vi.fn>;
+let lastClient: QueryClient | null = null;
 
 function renderView(emails: Email[]) {
   host = document.createElement('div');
@@ -308,6 +340,7 @@ function renderView(emails: Email[]) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  lastClient = client;
   act(() => {
     root!.render(
       <QueryClientProvider client={client}>
@@ -377,6 +410,7 @@ afterEach(() => {
   root = null;
   host?.remove();
   host = null;
+  lastClient = null;
 });
 
 // --- Mark unread ---------------------------------------------------------------
@@ -431,6 +465,15 @@ describe('QM-UIUX-093 — Mark unread', () => {
 });
 
 // --- Snooze --------------------------------------------------------------------
+// Thread-snooze-undo: the thread header no longer loops apiClient.snoozeEmail
+// directly (no optimistic update, toast without Undo). It calls the shared
+// mutations.snooze — the same path as inbox rows and People surfaces — so
+// these tests pin the outbox call, the optimistic inbox removal, the Undo
+// toast, and the refusal rollback, instead of the old direct-call behaviour.
+// The mutation's toast travels on the real toast bus (not the mocked
+// InboxToast sink the other sections read), so these tests subscribe to it.
+
+const INBOX_KEY = ['inbox', undefined, undefined, 'INBOX', 1] as const;
 
 describe('QM-UIUX-093 — Snooze', () => {
   async function snoozeViaMenu() {
@@ -439,35 +482,123 @@ describe('QM-UIUX-093 — Snooze', () => {
     await click(buttonByText('Tomorrow'));
   }
 
-  it('API refusal shows the error toast, never the "Snoozed until" success', async () => {
-    api.snoozeEmail.mockResolvedValue(REFUSED);
-    renderView([incoming()]);
-    await flush();
+  it('snoozes through the shared mutation: optimistic removal + Undo toast, no direct apiClient loop', async () => {
+    const seen: ToastMessage[] = [];
+    const unsub = subscribeToToasts((t) => seen.push(t));
+    try {
+      outbox.enqueue.mockResolvedValue({ sent: true });
+      const msg = incoming();
+      renderView([msg]);
+      lastClient!.setQueryData(INBOX_KEY, [msg]);
+      await flush();
 
-    await snoozeViaMenu();
+      await snoozeViaMenu();
 
-    expect(api.snoozeEmail).toHaveBeenCalled();
-    expect(toastCalls()).toContainEqual({
-      text: 'Could not snooze conversation',
-      type: 'error',
-    });
-    expect(toastCalls().some((t) => t.text.startsWith('Snoozed until'))).toBe(
-      false,
-    );
+      // One shared-mutation call per message — not a Promise.all over
+      // apiClient.snoozeEmail, which the view must never call directly now.
+      expect(outbox.enqueue).toHaveBeenCalledWith('snooze', msg.id, {
+        snoozeUntil: expect.any(Date),
+      });
+      expect(api.snoozeEmail).not.toHaveBeenCalled();
+      // The row leaves the inbox list in the same frame as the tap.
+      expect(lastClient!.getQueryData(INBOX_KEY)).toEqual([]);
+      // …and the confirmation carries a working Undo.
+      const confirmation = seen.find(
+        (t) => t.type === 'success' && t.text.startsWith('Snoozed until'),
+      );
+      expect(confirmation).toBeDefined();
+      expect(typeof confirmation!.undoAction).toBe('function');
+      act(() => {
+        confirmation!.undoAction!();
+      });
+      await flush();
+      expect(outbox.enqueue).toHaveBeenCalledWith('unsnooze', msg.id, {});
+    } finally {
+      unsub();
+    }
   });
 
-  it('API success keeps the normal "Snoozed until" behaviour', async () => {
-    api.snoozeEmail.mockResolvedValue(ACCEPTED);
-    renderView([incoming()]);
-    await flush();
+  it('a refused snooze withdraws the confirmation and rolls the row back', async () => {
+    const seen: ToastMessage[] = [];
+    const dismissed: string[] = [];
+    const unsubToast = subscribeToToasts((t) => seen.push(t));
+    const unsubDismiss = subscribeToDismissals((id) => dismissed.push(id));
+    try {
+      outbox.enqueue.mockResolvedValue({
+        sent: false,
+        rejected: { lastError: 'Backend refused' },
+      });
+      const msg = incoming();
+      renderView([msg]);
+      lastClient!.setQueryData(INBOX_KEY, [msg]);
+      await flush();
 
-    await snoozeViaMenu();
+      await snoozeViaMenu();
 
-    const snoozed = toastCalls().find((t) => t.text.startsWith('Snoozed until'));
-    expect(snoozed?.type).toBe('success');
-    expect(
-      toastCalls().some((t) => t.text === 'Could not snooze conversation'),
-    ).toBe(false);
+      expect(outbox.enqueue).toHaveBeenCalledWith('snooze', msg.id, {
+        snoozeUntil: expect.any(Date),
+      });
+      expect(api.snoozeEmail).not.toHaveBeenCalled();
+      // The lie is taken back: row restored, confirmation dismissed, error shown.
+      expect(lastClient!.getQueryData(INBOX_KEY)).toEqual([msg]);
+      const confirmation = seen.find((t) => t.text.startsWith('Snoozed until'));
+      expect(confirmation).toBeDefined();
+      expect(dismissed).toContain(confirmation!.id);
+      expect(seen).toContainEqual(
+        expect.objectContaining({ type: 'error', text: 'Backend refused' }),
+      );
+    } finally {
+      unsubToast();
+      unsubDismiss();
+    }
+  });
+
+  it('a partially refused thread snooze rolls back only the refused message and receipts the split', async () => {
+    const seen: ToastMessage[] = [];
+    const dismissed: string[] = [];
+    const unsubToast = subscribeToToasts((t) => seen.push(t));
+    const unsubDismiss = subscribeToDismissals((id) => dismissed.push(id));
+    try {
+      // First message refused (e.g. a 409 on a trashed/draft/spam member),
+      // second accepted: the thread path must not report either a blanket
+      // success or a blanket failure for the conversation.
+      outbox.enqueue
+        .mockResolvedValueOnce({
+          sent: false,
+          rejected: { lastError: 'Backend refused' },
+        })
+        .mockResolvedValueOnce({ sent: true });
+      const first = incoming();
+      const second = incoming();
+      renderView([first, second]);
+      lastClient!.setQueryData(INBOX_KEY, [first, second]);
+      await flush();
+
+      await snoozeViaMenu();
+
+      expect(outbox.enqueue).toHaveBeenCalledTimes(2);
+      expect(api.snoozeEmail).not.toHaveBeenCalled();
+      // Only the refused message comes back; the accepted one stays snoozed.
+      expect(lastClient!.getQueryData(INBOX_KEY)).toEqual([first]);
+      const confirmation = seen.find((t) => t.text.startsWith('Snoozed until'));
+      expect(confirmation).toBeDefined();
+      expect(dismissed).toContain(confirmation!.id);
+      const partial = seen[seen.length - 1];
+      expect(partial.type).toBe('error');
+      expect(partial.text).toContain('1 of 2');
+      expect(partial.text).toContain('could not be saved');
+      // The partial receipt's Undo reverses only the message that snoozed.
+      expect(typeof partial.undoAction).toBe('function');
+      act(() => {
+        partial.undoAction!();
+      });
+      await flush();
+      expect(outbox.enqueue).toHaveBeenCalledWith('unsnooze', second.id, {});
+      expect(outbox.enqueue).not.toHaveBeenCalledWith('unsnooze', first.id, {});
+    } finally {
+      unsubToast();
+      unsubDismiss();
+    }
   });
 });
 

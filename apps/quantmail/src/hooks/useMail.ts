@@ -414,8 +414,23 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
     }, RECONCILE_DELAY_MS);
   }, [queryClient]);
 
+  /**
+   * An optimistic rollback: calling it restores every cached list to its
+   * pre-patch snapshot. `.only(ids)` restores just those ids — the partial
+   * path in `run` needs it, because a multi-id mutation whose server
+   * replies split (one id refused, the rest accepted) must put back exactly
+   * the refused ids and leave the accepted ones snoozed/archived/trashed.
+   * Restoring the whole snapshot there would resurrect rows the server did
+   * snooze, until the reconcile refetch removed them again — and the
+   * blanket error toast would deny a change that actually landed.
+   */
+  type OptimisticRollback = {
+    (): void;
+    only: (ids: string[]) => void;
+  };
+
   const applyOptimistic = useCallback(
-    (ids: string[], patch: EmailPatch): (() => void) => {
+    (ids: string[], patch: EmailPatch): OptimisticRollback => {
       const snapshots = emailListQueries(queryClient);
 
       const patched = new Map<string, Email>();
@@ -423,7 +438,11 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
         const current = findCachedEmail(queryClient, id);
         if (current) patched.set(id, { ...current, ...patch });
       }
-      if (patched.size === 0) return () => {};
+      if (patched.size === 0) {
+        const noop = (() => {}) as OptimisticRollback;
+        noop.only = () => {};
+        return noop;
+      }
 
       for (const [key, data] of snapshots) {
         const next = reconcileList(data, patched, folderTypeOf(key));
@@ -434,9 +453,48 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
 
       for (const [id, email] of patched) void patchEmail(id, email);
 
-      return () => {
+      const rollback = (() => {
         for (const [key, data] of snapshots) queryClient.setQueryData(key, data);
+      }) as OptimisticRollback;
+
+      // Restore only `failedIds`, starting from the lists as they are now
+      // (not from the snapshot wholesale) so unrelated interim changes —
+      // new mail, another mutation — survive. A failed id goes back to its
+      // snapshot row at its snapshot position, or leaves a list the patch
+      // alone had admitted it to; its offline copy is reverted the same way.
+      rollback.only = (failedIds: string[]) => {
+        if (failedIds.length === 0) return;
+        for (const [key, snapshotData] of snapshots) {
+          const current = queryClient.getQueryData<Email[]>(key);
+          if (!current) continue;
+          const snapshotById = new Map(snapshotData.map((email) => [email.id, email]));
+          const next = [...current];
+          let changed = false;
+          for (const id of failedIds) {
+            const original = snapshotById.get(id);
+            const at = next.findIndex((email) => email.id === id);
+            if (original) {
+              if (at >= 0) {
+                if (next[at] !== original) {
+                  next[at] = original;
+                  changed = true;
+                }
+              } else {
+                const snapshotAt = snapshotData.findIndex((email) => email.id === id);
+                next.splice(Math.min(snapshotAt, next.length), 0, original);
+                changed = true;
+              }
+              void patchEmail(id, original);
+            } else if (at >= 0) {
+              next.splice(at, 1);
+              changed = true;
+            }
+          }
+          if (changed) queryClient.setQueryData(key, next);
+        }
       };
+
+      return rollback;
     },
     [queryClient],
   );
@@ -482,17 +540,69 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
       const results = await Promise.all(
         ids.map((id) => enqueue(kind, id, snoozeUntil ? { snoozeUntil } : {})),
       );
-      const rejection = results.find((result) => result.rejected)?.rejected;
+      // Per-ID receipts: Promise.all preserves order, so result[i] is ids[i]'s
+      // verdict. The old code kept only the first rejection and rolled back
+      // every id for it — a thread snooze where one message was refused (409:
+      // trashed/draft/spam member) and the rest were accepted was reported
+      // as a blanket failure, the accepted rows were resurrected until the
+      // reconcile refetch removed them again, and the Undo that could have
+      // reversed the accepted rows was dropped with the confirmation.
+      // A `sent: false` without a rejection is NOT a failure — the entry is
+      // still queued for replay (offline/transient) — so those ids keep
+      // their optimistic state and stay in the Undo scope, exactly like a
+      // single-id offline mutation. Only a rejection is a receipt of failure.
+      const rejectedIds: string[] = [];
+      const survivingIds: string[] = [];
+      let firstRejection: { lastError?: string } | undefined;
+      results.forEach((result, index) => {
+        if (result.rejected) {
+          rejectedIds.push(ids[index]);
+          firstRejection ??= result.rejected;
+        } else {
+          survivingIds.push(ids[index]);
+        }
+      });
 
-      if (rejection) {
-        rollback();
-        // The change did not happen, so neither the confirmation nor its Undo
-        // may stay on screen.
+      if (rejectedIds.length > 0) {
+        if (rejectedIds.length === ids.length) {
+          rollback();
+          // The change did not happen, so neither the confirmation nor its Undo
+          // may stay on screen.
+          if (confirmationId) dismissToast(confirmationId);
+          showToast({
+            text: firstRejection?.lastError || 'That change could not be saved',
+            type: 'error',
+          });
+          scheduleReconcile();
+          return;
+        }
+
+        // Partial failure: put back exactly the refused ids, withdraw the
+        // blanket confirmation, and replace it with a receipt that names
+        // the split — never a success toast for a half-landed mutation, and
+        // never a blanket error denying the ids that did land. The Undo
+        // reverses only the surviving ids (accepted, or still queued to
+        // land — the outbox replays snooze before its unsnooze, so undoing
+        // a pending id still ends unsnoozed); the refused ids are already
+        // back in their lists and must not be "undone".
+        rollback.only(rejectedIds);
         if (confirmationId) dismissToast(confirmationId);
-        showToast({
-          text: rejection.lastError || 'That change could not be saved',
-          type: 'error',
-        });
+        if (toast) {
+          showToast({
+            text: `${toast} — ${rejectedIds.length} of ${ids.length} could not be saved`,
+            type: 'error',
+            undoAction: undo
+              ? () => {
+                  void run({ kind: undo.kind, ids: survivingIds, patch: undo.patch });
+                }
+              : undefined,
+          });
+        } else {
+          showToast({
+            text: `${rejectedIds.length} of ${ids.length} could not be saved`,
+            type: 'error',
+          });
+        }
         scheduleReconcile();
         return;
       }
