@@ -50,6 +50,29 @@ interface EnhancedMessage {
   type: 'text' | 'image' | 'voice' | 'snap_photo' | 'snap_video';
   voiceDurationMs?: number;
   snapDurationSec?: number;
+  // QC-F-529: the backend's real edit state and the raw send time. Both
+  // used to be dropped by the mappers below, which made a truthful
+  // 'edited' label and the 15-minute edit-window check impossible.
+  isEdited?: boolean;
+  createdAtMs?: number;
+  // Session-local tombstone (QC-F-529): set only after THIS client got a
+  // real successful DELETE from the backend for a message it had actually
+  // rendered. The backend list filters deleted rows out, so after a
+  // refetch/reload the message is simply gone — the tombstone never
+  // claims anything the backend did not confirm.
+  isDeleted?: boolean;
+}
+
+// QC-F-529: the backend edit window (message.service editMessage rejects
+// with 400 EDIT_WINDOW_EXPIRED past 15 minutes). The UI check is only a
+// hint — the backend verdict is final and is surfaced verbatim on save.
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+function toEpochMs(value: string | Date | undefined): number {
+  if (!value) return 0;
+  if (value instanceof Date) return value.getTime();
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 // QC-F-309: a link card may only show what is actually known — the URL
@@ -241,6 +264,22 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     null,
   );
 
+  // QC-F-529: single-message edit/delete state. Edit/delete go through the
+  // real backend (apiClient -> Next proxy -> PUT/DELETE
+  // /conversations/messages/:id); nothing here invents a success — the
+  // local override/tombstone is applied ONLY after the backend confirms.
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editedOverrides, setEditedOverrides] = useState<Record<string, string>>({});
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [messageActionError, setMessageActionError] = useState<string | null>(null);
+  const [deletedTombstones, setDeletedTombstones] = useState<
+    Array<{ id: string; sender: string; timestamp: string; createdAtMs: number }>
+  >([]);
+
   // QM-UIUX-056: failed sends must never vanish silently. REST failures are
   // tracked here so the user's text stays visible with an error state + retry.
   interface FailedSend {
@@ -347,7 +386,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     const realtimeIds = new Set(incomingMessages.map((m) => m.id));
     const deduped = restMessages.filter((m: { id: string }) => !realtimeIds.has(m.id));
 
-    const allMsgs = [
+    const allMsgs: EnhancedMessage[] = [
       ...deduped.map(
         (msg: {
           id: string;
@@ -368,6 +407,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           voiceDurationMs?: number;
           metadata?: Record<string, unknown>;
           snapDurationSec?: number;
+          isEdited?: boolean;
         }) => {
           const content = msg.message ?? msg.content ?? '';
           const linkPreview = extractFirstLink(content);
@@ -398,6 +438,8 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             type,
             voiceDurationMs: msg.voiceDurationMs,
             snapDurationSec,
+            isEdited: msg.isEdited === true,
+            createdAtMs: toEpochMs(msg.createdAt ?? msg.timestamp),
           };
         },
       ),
@@ -424,13 +466,62 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           snapDurationSec:
             msg.snapDurationSec ??
             (type === 'snap_photo' || type === 'snap_video' ? 10 : undefined),
+          isEdited: msg.isEdited === true,
+          createdAtMs: toEpochMs(msg.createdAt ?? msg.timestamp),
         };
       }),
     ];
 
+    // QC-F-529 post-processing: apply this session's backend-confirmed
+    // edits, then mark/keep this session's backend-confirmed deletes as
+    // tombstones. A refetch drops deleted rows from the list entirely;
+    // the stored snapshot keeps the tombstone in its chronological slot
+    // for this session only (never persisted, never fabricated — a
+    // snapshot exists only for a message this client rendered AND the
+    // backend confirmed deleted).
+    const deletedIds = new Set(deletedTombstones.map((t) => t.id));
+    const withLocalState = allMsgs.map((m) => {
+      let next = m;
+      const override = editedOverrides[m.id];
+      if (override !== undefined) next = { ...next, content: override, isEdited: true };
+      if (deletedIds.has(m.id)) next = { ...next, isDeleted: true };
+      return next;
+    });
+    const presentIds = new Set(withLocalState.map((m) => m.id));
+    for (const tombstone of deletedTombstones) {
+      if (presentIds.has(tombstone.id)) continue;
+      const entry: EnhancedMessage = {
+        id: tombstone.id,
+        content: '',
+        sender: tombstone.sender,
+        timestamp: tombstone.timestamp,
+        status: 'sent',
+        reactions: [],
+        replyTo: null,
+        type: 'text',
+        isEdited: false,
+        createdAtMs: tombstone.createdAtMs,
+        isDeleted: true,
+      };
+      const insertAt = withLocalState.findIndex(
+        (m) => (m.createdAtMs ?? 0) > tombstone.createdAtMs,
+      );
+      if (insertAt === -1) withLocalState.push(entry);
+      else withLocalState.splice(insertAt, 0, entry);
+    }
+
     // Expired disappearing messages are removed from the local view.
-    return allMsgs.filter((m) => !expiredMessageIds[m.id]);
-  }, [data, incomingMessages, reactions, statusByMessageId, expiredMessageIds, resolveSender]);
+    return withLocalState.filter((m) => !expiredMessageIds[m.id]);
+  }, [
+    data,
+    incomingMessages,
+    reactions,
+    statusByMessageId,
+    expiredMessageIds,
+    resolveSender,
+    editedOverrides,
+    deletedTombstones,
+  ]);
 
   const handleReaction = useCallback((msgId: string, emoji: string) => {
     setReactions((prev) => ({
@@ -438,6 +529,107 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       [msgId]: [...(prev[msgId] || []), emoji],
     }));
   }, []);
+
+  // QC-F-529: edit/delete eligibility mirrors the backend's real rules —
+  // sender-only; edit only for own text inside the 15-minute window;
+  // delete for any own message EXCEPT view-once snaps (their lifecycle is
+  // the QC-F-019 consume flow, not a plain delete). Hiding an action here
+  // is presentation only; the backend's 403 remains the real gate.
+  const isEditWindowExpired = useCallback(
+    (msg: EnhancedMessage) =>
+      (msg.createdAtMs ?? 0) > 0 && Date.now() - (msg.createdAtMs ?? 0) > EDIT_WINDOW_MS,
+    [],
+  );
+  const canEditMessage = useCallback(
+    (msg: EnhancedMessage) => msg.sender === 'self' && msg.type === 'text' && !msg.isDeleted,
+    [],
+  );
+  const canDeleteMessage = useCallback(
+    (msg: EnhancedMessage) =>
+      msg.sender === 'self' &&
+      !msg.isDeleted &&
+      msg.type !== 'snap_photo' &&
+      msg.type !== 'snap_video',
+    [],
+  );
+
+  const handleStartEdit = useCallback((msg: EnhancedMessage) => {
+    setEditingMessageId(msg.id);
+    setEditDraft(msg.content);
+    setEditError(null);
+    setConfirmDeleteId(null);
+    setMessageActionError(null);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessageId(null);
+    setEditDraft('');
+    setEditError(null);
+  }, []);
+
+  const handleSaveEdit = useCallback(
+    async (msg: EnhancedMessage) => {
+      const content = editDraft.trim();
+      if (!content || isSavingEdit) return;
+      setIsSavingEdit(true);
+      setEditError(null);
+      try {
+        const res = await apiClient.editMessage(msg.id, content);
+        if (!res.success) {
+          // The backend's own words (e.g. EDIT_WINDOW_EXPIRED when the
+          // client clock disagreed with the server's) — never a fake save.
+          setEditError(res.error?.message || 'Could not edit this message.');
+          return;
+        }
+        setEditedOverrides((prev) => ({ ...prev, [msg.id]: content }));
+        setEditingMessageId(null);
+        setEditDraft('');
+        void refetch();
+      } catch {
+        setEditError('Could not edit this message. Check your connection and try again.');
+      } finally {
+        setIsSavingEdit(false);
+      }
+    },
+    [editDraft, isSavingEdit, refetch],
+  );
+
+  const handleConfirmDelete = useCallback(
+    async (msg: EnhancedMessage) => {
+      if (isDeleting) return;
+      setIsDeleting(true);
+      setMessageActionError(null);
+      try {
+        const res = await apiClient.deleteMessage(msg.id);
+        if (!res.success) {
+          setMessageActionError(res.error?.message || 'Could not delete this message.');
+          return;
+        }
+        // Only NOW (backend-confirmed) does the tombstone exist.
+        setDeletedTombstones((prev) =>
+          prev.some((t) => t.id === msg.id)
+            ? prev
+            : [
+                ...prev,
+                {
+                  id: msg.id,
+                  sender: msg.sender,
+                  timestamp: msg.timestamp,
+                  createdAtMs: msg.createdAtMs ?? 0,
+                },
+              ],
+        );
+        setConfirmDeleteId(null);
+        if (editingMessageId === msg.id) handleCancelEdit();
+        void refetch();
+      } catch {
+        setMessageActionError('Could not delete this message. Check your connection and try again.');
+      } finally {
+        setIsDeleting(false);
+      }
+    },
+    [isDeleting, editingMessageId, handleCancelEdit, refetch],
+  );
 
   // Countdown timer for active fullscreen snap viewer
   useEffect(() => {
@@ -853,6 +1045,21 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             </button>
           </div>
         )}
+        {messageActionError && (
+          <div
+            role="alert"
+            className="mx-1 rounded-xl bg-red-500/10 border border-red-500/30 px-3 py-2 text-sm text-red-600"
+          >
+            {messageActionError}{' '}
+            <button
+              type="button"
+              onClick={() => setMessageActionError(null)}
+              className="underline font-medium"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         {messages.length === 0 ? (
           <EmptyState
             title="No messages yet"
@@ -875,8 +1082,21 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                   setReactionPickerMsgId(msg.id);
                 }}
               >
+                {/* QC-F-529: session-local tombstone for a message this
+                    client deleted with backend confirmation. No content,
+                    no actions — just the honest fact of deletion. */}
+                {msg.isDeleted && (
+                  <div
+                    className={`flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className="px-4 py-2 rounded-2xl bg-[var(--quant-surface)] border border-[var(--quant-border)] text-sm italic text-[var(--quant-muted-foreground)] select-none">
+                      This message was deleted
+                    </div>
+                  </div>
+                )}
+
                 {/* Reply-to preview */}
-                {msg.replyTo && (
+                {msg.replyTo && !msg.isDeleted && (
                   <div className="ml-10 mb-1 px-3 py-1 rounded-lg bg-[var(--quant-muted)] border-l-2 border-emerald-500 text-xs text-[var(--quant-muted-foreground)]">
                     <span className="font-medium">{msg.replyTo.sender}</span>:{' '}
                     {msg.replyTo.content.slice(0, 60)}
@@ -884,7 +1104,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                 )}
 
                 {/* Image message */}
-                {msg.type === 'image' && msg.imageUrl && (
+                {msg.type === 'image' && msg.imageUrl && !msg.isDeleted && (
                   <div
                     className={`flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'} mb-1`}
                   >
@@ -899,7 +1119,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                 )}
 
                 {/* Voice note */}
-                {msg.type === 'voice' && (
+                {msg.type === 'voice' && !msg.isDeleted && (
                   <div
                     className={`flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'} mb-1`}
                   >
@@ -933,7 +1153,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                 )}
 
                 {/* Snapchat-style Ephemeral View-Once Snap messages */}
-                {(msg.type === 'snap_photo' || msg.type === 'snap_video') && (
+                {(msg.type === 'snap_photo' || msg.type === 'snap_video') && !msg.isDeleted && (
                   <div
                     className={`flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'} mb-1`}
                   >
@@ -1004,7 +1224,55 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
 
                 {/* Regular message bubble — wrapped in a disappearing-message
                     countdown overlay when the per-conversation timer is on */}
+                {/* QC-F-529: inline editor replaces the bubble while this
+                    message is being edited. Save goes to the real backend;
+                    its error (e.g. the window expiring server-side) shows
+                    here verbatim and the original message stays untouched. */}
+                {msg.type === 'text' && !msg.isDeleted && editingMessageId === msg.id && (
+                  <div
+                    className={`flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className="w-full max-w-[75%] rounded-2xl border border-emerald-500/40 bg-[var(--quant-surface)] px-3 py-2">
+                      <textarea
+                        aria-label="Edit message text"
+                        value={editDraft}
+                        onChange={(e) => setEditDraft(e.target.value)}
+                        rows={3}
+                        maxLength={10000}
+                        className="w-full bg-transparent text-base text-[var(--quant-foreground)] outline-none resize-none"
+                      />
+                      {editError && (
+                        <p role="alert" className="mt-1 text-xs text-red-500">
+                          {editError}
+                        </p>
+                      )}
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-label="Save edit"
+                          onClick={() => void handleSaveEdit(msg)}
+                          disabled={isSavingEdit || !editDraft.trim()}
+                          className="text-xs font-semibold text-emerald-500 disabled:opacity-50"
+                        >
+                          {isSavingEdit ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Cancel edit"
+                          onClick={handleCancelEdit}
+                          disabled={isSavingEdit}
+                          className="text-xs text-[var(--quant-muted-foreground)] disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {msg.type === 'text' &&
+                  !msg.isDeleted &&
+                  editingMessageId !== msg.id &&
                   (disappearSeconds > 0 ? (
                     <div
                       className={`flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'}`}
@@ -1034,8 +1302,20 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                     />
                   ))}
 
+                {/* QC-F-529: the backend's real isEdited flag, rendered.
+                    Peers see the same label after the realtime refetch. */}
+                {msg.type === 'text' && !msg.isDeleted && msg.isEdited && (
+                  <div
+                    className={`mt-0.5 flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <span className="text-[10px] italic text-[var(--quant-muted-foreground)]">
+                      edited
+                    </span>
+                  </div>
+                )}
+
                 {/* Link preview */}
-                {msg.linkPreview && (
+                {msg.linkPreview && !msg.isDeleted && (
                   <div
                     className={`mt-1 ${msg.sender === 'self' ? 'flex justify-end' : 'flex justify-start'}`}
                   >
@@ -1044,7 +1324,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                 )}
 
                 {/* Reactions display */}
-                {msg.reactions.length > 0 && (
+                {msg.reactions.length > 0 && !msg.isDeleted && (
                   <div
                     className={`flex gap-0.5 mt-1 ${msg.sender === 'self' ? 'justify-end' : 'justify-start'}`}
                   >
@@ -1067,9 +1347,48 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                 )}
 
                 {/* Reply button (visible on hover/tap) */}
+                {!msg.isDeleted && (
                 <div
-                  className={`absolute top-1 ${msg.sender === 'self' ? 'left-0' : 'right-0'} opacity-0 group-hover:opacity-100 transition-opacity`}
+                  className={`absolute top-1 ${msg.sender === 'self' ? 'left-0' : 'right-0'} opacity-0 group-hover:opacity-100 transition-opacity flex items-center`}
                 >
+                  {/* QC-F-529: Edit/Delete for OWN messages only. Edit is
+                      disabled with its reason once the backend's 15-minute
+                      window has passed; Delete has no window but is never
+                      offered for view-once snaps. */}
+                  {canEditMessage(msg) &&
+                    (isEditWindowExpired(msg) ? (
+                      <button
+                        type="button"
+                        aria-label="Edit message"
+                        disabled
+                        title="You can only edit a message within 15 minutes of sending it"
+                        className="min-w-touch min-h-touch flex items-center justify-center px-1 text-xs text-[var(--quant-muted-foreground)] opacity-50 cursor-not-allowed"
+                      >
+                        Edit
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-label="Edit message"
+                        onClick={() => handleStartEdit(msg)}
+                        className="min-w-touch min-h-touch flex items-center justify-center px-1 text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+                      >
+                        Edit
+                      </button>
+                    ))}
+                  {canDeleteMessage(msg) && (
+                    <button
+                      type="button"
+                      aria-label="Delete message"
+                      onClick={() => {
+                        setMessageActionError(null);
+                        setConfirmDeleteId(msg.id);
+                      }}
+                      className="min-w-touch min-h-touch flex items-center justify-center px-1 text-xs text-red-500 hover:text-red-400"
+                    >
+                      Delete
+                    </button>
+                  )}
                   <button
                     className="min-w-touch min-h-touch flex items-center justify-center text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
                     onClick={() =>
@@ -1092,9 +1411,45 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                     </svg>
                   </button>
                 </div>
+                )}
+
+                {/* QC-F-529: delete is destructive and for everyone — a
+                    click alone never deletes; this confirm step must be
+                    confirmed, and only a backend success tombstones. */}
+                {confirmDeleteId === msg.id && !msg.isDeleted && (
+                  <div
+                    role="alertdialog"
+                    aria-label="Confirm delete message"
+                    className={`mt-1 flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs">
+                      <span className="text-[var(--quant-foreground)]">
+                        Delete this message for everyone?
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Confirm delete"
+                        onClick={() => void handleConfirmDelete(msg)}
+                        disabled={isDeleting}
+                        className="font-semibold text-red-500 disabled:opacity-50"
+                      >
+                        {isDeleting ? 'Deleting…' : 'Delete'}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Cancel delete"
+                        onClick={() => setConfirmDeleteId(null)}
+                        disabled={isDeleting}
+                        className="text-[var(--quant-muted-foreground)] disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Reaction picker */}
-                {reactionPickerMsgId === msg.id && (
+                {reactionPickerMsgId === msg.id && !msg.isDeleted && (
                   <div className="relative">
                     <ReactionPicker
                       isOpen={true}

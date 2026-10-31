@@ -16,6 +16,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   return proxyToBackend(request, `/conversations/${id}/messages`);
 }
 
+// QC-F-529 — PUT/DELETE did not exist here at all, so every edit/delete
+// from the web client died at the Next layer with 405 even though the
+// backend routes are real (PUT/DELETE /conversations/messages/:id,
+// sender-only; edit additionally inside a 15-minute window). Both now go
+// through the shared proxy to the REAL backend path (QC-F-286/QC-F-410
+// pattern), so the backend's own verdicts (200, 400 EDIT_WINDOW_EXPIRED,
+// 403 NOT_MESSAGE_OWNER) reach the client verbatim.
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return proxyToBackend(request, `/conversations/messages/${encodeURIComponent(id)}`);
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return proxyToBackend(request, `/conversations/messages/${encodeURIComponent(id)}`);
+}
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // NOTE (QC-F-286): this POST has NO shipped caller — apiClient.sendMessage
   // posts to `/conversations/:id/messages` via its own proxy. Its backend

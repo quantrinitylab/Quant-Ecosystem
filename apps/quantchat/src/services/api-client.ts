@@ -364,7 +364,10 @@ export class QuantChatApiClient {
   }
 
   async editMessage(messageId: string, newContent: string): Promise<ApiResponse<Message>> {
-    return this.put(`/messages/${messageId}`, { newContent });
+    // QC-F-529: the backend editMessageSchema accepts ONLY { content } —
+    // the previous { newContent } body failed zod on every edit (400),
+    // even once the proxy existed.
+    return this.put(`/messages/${messageId}`, { content: newContent });
   }
 
   async deleteMessage(messageId: string): Promise<ApiResponse<void>> {
