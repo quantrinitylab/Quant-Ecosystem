@@ -1838,6 +1838,14 @@ export class EmailService {  constructor(
         { fromName: { contains: query, mode: 'insensitive' as const } },
         { toAddresses: { array_contains: query } },
         { ccAddresses: { array_contains: query } },
+        // Attachment names: Prisma cannot substring-match a JSON-array
+        // element's field, but `attachments.string_contains` matches the
+        // attachments JSON text (filenames included, plus mime/URL text),
+        // so a bare `invoice.pdf` finds the mail carrying that file. The
+        // operator-aware route (SearchQueryService raw-SQL path) matches
+        // filename/name fields exactly; this literal path keeps the closest
+        // Prisma-expressible predicate rather than matching nothing.
+        { attachments: { string_contains: query, mode: 'insensitive' as const } },
       ],
     };
 

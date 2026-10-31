@@ -9,6 +9,7 @@ import type { PrismaClient } from '@prisma/client';
  *   label:work            in:inbox|sent|...    folder:<folderId>
  *   in:anywhere           has:attachment        is:unread|read|starred|important|spam
  *   before:YYYY-MM-DD     after:YYYY-MM-DD     newer_than:7d  older_than:2w
+ *   filename:invoice.pdf  larger:10M           smaller:1M     size:5M
  *   "exact phrase"        free text terms
  *
  * `in:anywhere` is a scope modifier (Gmail parity): it searches ALL mail
@@ -17,7 +18,41 @@ import type { PrismaClient } from '@prisma/client';
  * (deletedAt IS NULL) are always preserved.
  *
  * Anything not recognised as an operator becomes a free-text term, matched
- * (case-insensitive) against subject, snippet, and plain body.
+ * (case-insensitive) against subject, snippet, plain body, and the
+ * attachments JSON text (so a bare `invoice.pdf` also finds mail whose
+ * attachment is named that — the raw-SQL path folds the attachments text
+ * into the full-text vector, the Prisma path matches it with
+ * `attachments.string_contains`).
+ *
+ * Attachment operators — size basis, stated honestly: an Email row carries
+ * no total-message-size column, and the `attachments` JSONB array is the
+ * only stored size data (each entry's `size`, falling back to `sizeBytes`;
+ * entries without a numeric size count as 0). So all three size operators
+ * compare ATTACHMENT bytes only, not body text:
+ *   filename:  substring (case-insensitive) of an attachment's `filename`
+ *              or `name` field (string entries match on the entry itself).
+ *   larger:    TOTAL attachment bytes of the mail are greater than the value.
+ *   smaller:   TOTAL attachment bytes of the mail are smaller than the value
+ *              (mail with no attachments counts as 0, so it matches).
+ *   size:      at least ONE attachment is larger than the value — the
+ *              "find the mail carrying the big file" filter, as opposed to
+ *              larger:, which totals every attachment on the mail.
+ * Size values are bytes by default; K/KB, M/MB, G/GB suffixes multiply by
+ * 1024, 1024^2, 1024^3 (so `larger:10M` means more than 10 MiB of
+ * attachments). An unparseable size value is ignored, like an unparseable
+ * date — it never fails the search.
+ *
+ * Implementation split for filename/size: the raw-SQL path in search()
+ * expresses them exactly against the JSONB array (filename/name fields,
+ * summed sizes). The Prisma `where` built by buildEmailWhere() cannot
+ * express a JSON-array substring or sum, so there `filename:` degrades to
+ * `attachments.string_contains` (matches the whole attachments JSON text,
+ * which includes filenames but also mime types/URLs) and the size
+ * operators have no Prisma representation at all — search() therefore
+ * always takes the raw-SQL path when any filename/size operator is
+ * present and a raw query is available, and only falls back to the Prisma
+ * path when raw SQL is unavailable or throws (the same graceful
+ * degradation the full-text path already uses).
  */
 
 export interface ParsedSearchQuery {
@@ -42,6 +77,17 @@ export interface ParsedSearchQuery {
   isSpam?: boolean;
   before?: Date;
   after?: Date;
+  /** Attachment filename/name substrings (filename: operator, ANDed). */
+  filename: string[];
+  /**
+   * Attachment-byte thresholds (larger:/smaller:/size: operators).
+   * largerBytes/smallerBytes compare the mail's TOTAL attachment bytes;
+   * sizeBytes requires at least one single attachment larger than it.
+   * Raw-SQL path only — see the module header for the Prisma fallback.
+   */
+  largerBytes?: number;
+  smallerBytes?: number;
+  sizeBytes?: number;
   /** Free-text terms (incl. de-quoted phrases). */
   terms: string[];
 }
@@ -124,6 +170,27 @@ function parseDate(value: string): Date | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
+/** Parse a byte size like `10M`, `512K`, `2G`, or a bare byte count (`2048`)
+ * into bytes (1024-based suffixes). Returns undefined when unparseable. */
+function parseByteSize(value: string): number | undefined {
+  const m = /^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|k|m|g)?$/i.exec(value.trim());
+  if (!m) {
+    return undefined;
+  }
+  const amount = Number.parseFloat(m[1] as string);
+  const unit = (m[2] ?? '').toLowerCase();
+  const multiplier =
+    unit === 'k' || unit === 'kb'
+      ? 1024
+      : unit === 'm' || unit === 'mb'
+        ? 1024 ** 2
+        : unit === 'g' || unit === 'gb'
+          ? 1024 ** 3
+          : 1;
+  const bytes = Math.floor(amount * multiplier);
+  return Number.isSafeInteger(bytes) ? bytes : undefined;
+}
+
 /** Parse a relative duration like `7d`, `2w`, `3m`, `1y` into milliseconds. */
 function parseRelativeMs(value: string): number | undefined {
   const m = /^(\d+)\s*([dwmy])$/.exec(value.toLowerCase());
@@ -147,6 +214,7 @@ export class SearchQueryService {
       labels: [],
       inFolderTypes: [],
       folderIds: [],
+      filename: [],
       terms: [],
     };
 
@@ -232,6 +300,24 @@ export class SearchQueryService {
           if (ms !== undefined) parsed.before = new Date(now.getTime() - ms);
           break;
         }
+        case 'filename':
+          parsed.filename.push(value);
+          break;
+        case 'larger': {
+          const bytes = parseByteSize(value);
+          if (bytes !== undefined) parsed.largerBytes = bytes;
+          break;
+        }
+        case 'smaller': {
+          const bytes = parseByteSize(value);
+          if (bytes !== undefined) parsed.smallerBytes = bytes;
+          break;
+        }
+        case 'size': {
+          const bytes = parseByteSize(value);
+          if (bytes !== undefined) parsed.sizeBytes = bytes;
+          break;
+        }
         default:
           // Unknown operator -> treat the whole token as a free-text term.
           parsed.terms.push(token);
@@ -302,12 +388,27 @@ export class SearchQueryService {
       if (parsed.before) receivedAt.lte = parsed.before;
       and.push({ receivedAt });
     }
+    // Prisma cannot express a JSON-array field substring or a summed size,
+    // so `filename:` degrades here to `attachments.string_contains` (the
+    // whole attachments JSON text — filenames included, plus mime/URL text;
+    // the raw-SQL path in search() matches filename/name fields exactly).
+    // larger:/smaller:/size: have no Prisma representation at all and are
+    // intentionally NOT approximated here: a wrong-but-plausible placeholder
+    // (e.g. hasAttachments:true) would silently return unfiltered mail.
+    // search() always takes the raw-SQL path when any of these operators
+    // is present and a raw query is available.
+    for (const filename of parsed.filename) {
+      and.push({ attachments: { string_contains: filename, mode: 'insensitive' } });
+    }
     for (const term of parsed.terms) {
       and.push({
         OR: [
           { subject: { contains: term, mode: 'insensitive' } },
           { snippet: { contains: term, mode: 'insensitive' } },
           { bodyPlain: { contains: term, mode: 'insensitive' } },
+          // Attachment names: a bare `invoice.pdf` must find the mail whose
+          // attachment is named that, not just mail mentioning it in text.
+          { attachments: { string_contains: term, mode: 'insensitive' } },
         ],
       });
     }
@@ -361,9 +462,18 @@ export class SearchQueryService {
     // G3-10: When terms are present and $queryRawUnsafe is available, execute a single
     // bounded SQL query with LIMIT and OFFSET directly against emails_fts_idx,
     // eliminating unbounded in-memory ID arrays and parameter overflow.
-    if (parsed.terms.length > 0 && typeof (this.prisma as any).$queryRawUnsafe === 'function') {
+    // Filename/size operators take this path too: only raw SQL can express
+    // a JSONB-array field match or a summed attachment size (see header).
+    const hasAttachmentOperator =
+      parsed.filename.length > 0 ||
+      parsed.largerBytes !== undefined ||
+      parsed.smallerBytes !== undefined ||
+      parsed.sizeBytes !== undefined;
+    if (
+      (parsed.terms.length > 0 || hasAttachmentOperator) &&
+      typeof (this.prisma as any).$queryRawUnsafe === 'function'
+    ) {
       try {
-        const fullTerms = parsed.terms.join(' ');
         // Same trash/spam rule as buildEmailWhere(): excluded by default,
         // with explicit `in:trash` / `in:spam` / `is:spam` / `in:anywhere`
         // as the escape hatch (an in:trash isTrash clause would contradict
@@ -373,13 +483,18 @@ export class SearchQueryService {
           parsed.inFolderTypes.includes('spam') ||
           parsed.isSpam === true ||
           parsed.inAnywhere === true;
-        const whereClauses: string[] = [
-          `"userId" = $1`,
-          `"deletedAt" IS NULL`,
-          `to_tsvector('english', coalesce(subject, '') || ' ' || coalesce("bodyPlain", '') || ' ' || coalesce("fromAddress", '')) @@ plainto_tsquery('english', $2)`,
-        ];
-        const params: any[] = [userId, fullTerms];
-        let paramIdx = 3;
+        const whereClauses: string[] = [`"userId" = $1`, `"deletedAt" IS NULL`];
+        const params: any[] = [userId];
+        let paramIdx = 2;
+        if (parsed.terms.length > 0) {
+          // The attachments JSON text rides in the full-text vector so a
+          // bare `invoice.pdf` finds the mail whose attachment is named
+          // that — previously only subject/body/from were indexed here.
+          whereClauses.push(
+            `to_tsvector('english', coalesce(subject, '') || ' ' || coalesce("bodyPlain", '') || ' ' || coalesce("fromAddress", '') || ' ' || coalesce("attachments"::text, '')) @@ plainto_tsquery('english', $${paramIdx++})`,
+          );
+          params.push(parsed.terms.join(' '));
+        }
         if (!wantTrash) {
           whereClauses.push(`"isTrash" = $${paramIdx++}`);
           params.push(false);
@@ -473,6 +588,44 @@ export class SearchQueryService {
         if (parsed.before) {
           whereClauses.push(`"receivedAt" <= $${paramIdx++}`);
           params.push(parsed.before);
+        }
+        // filename: — substring of an attachment's `filename` or `name`
+        // field; string entries (a bare path/URL) match on the entry itself.
+        // The same $n bind is reused for the three disjuncts: Postgres
+        // allows a numbered parameter to appear more than once.
+        // Guarded array expansion: jsonb_array_elements errors on a
+        // non-array value, so a legacy row whose attachments column is not
+        // an array must read as empty instead of failing the whole search.
+        const attachmentElements =
+          `jsonb_array_elements(CASE WHEN jsonb_typeof("attachments") = 'array' THEN "attachments" ELSE '[]'::jsonb END) AS elem`;
+        for (const name of parsed.filename) {
+          whereClauses.push(
+            `EXISTS (SELECT 1 FROM ${attachmentElements} WHERE (elem ->> 'filename') ILIKE $${paramIdx} OR (elem ->> 'name') ILIKE $${paramIdx} OR (jsonb_typeof(elem) = 'string' AND elem #>> '{}' ILIKE $${paramIdx}))`,
+          );
+          params.push(`%${name}%`);
+          paramIdx++;
+        }
+        // Attachment-byte expressions. `attachments` is JSONB; each entry
+        // carries `size` (or, defensively, `sizeBytes`). Non-numeric or
+        // missing sizes count as 0 rather than erroring the whole query.
+        // larger:/smaller: compare the mail's TOTAL attachment bytes;
+        // size: requires at least one single attachment over the value.
+        const attachmentSizeExpr = (alias: string): string =>
+          `CASE WHEN (${alias}->>'size') ~ '^[0-9]+$' THEN (${alias}->>'size')::bigint WHEN (${alias}->>'sizeBytes') ~ '^[0-9]+$' THEN (${alias}->>'sizeBytes')::bigint ELSE 0 END`;
+        const totalAttachmentBytes = `(SELECT COALESCE(SUM(${attachmentSizeExpr('elem')}), 0) FROM ${attachmentElements})`;
+        if (parsed.largerBytes !== undefined) {
+          whereClauses.push(`${totalAttachmentBytes} > $${paramIdx++}`);
+          params.push(parsed.largerBytes);
+        }
+        if (parsed.smallerBytes !== undefined) {
+          whereClauses.push(`${totalAttachmentBytes} < $${paramIdx++}`);
+          params.push(parsed.smallerBytes);
+        }
+        if (parsed.sizeBytes !== undefined) {
+          whereClauses.push(
+            `EXISTS (SELECT 1 FROM ${attachmentElements} WHERE ${attachmentSizeExpr('elem')} > $${paramIdx++})`,
+          );
+          params.push(parsed.sizeBytes);
         }
 
         const whereSql = whereClauses.join(' AND ');

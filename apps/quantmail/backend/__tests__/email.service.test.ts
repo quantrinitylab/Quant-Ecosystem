@@ -671,6 +671,25 @@ describe('EmailService', () => {
       );
     });
 
+    it('matches the query against attachment names too (invoice.pdf finds its file)', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+
+      await service.search('user-1', 'invoice.pdf');
+
+      expect(prisma.email.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([
+              expect.objectContaining({
+                attachments: { string_contains: 'invoice.pdf', mode: 'insensitive' },
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+
     it('applies the from filter as a case-insensitive sender match', async () => {
       prisma.email.findMany.mockResolvedValue([]);
       prisma.email.count.mockResolvedValue(0);
