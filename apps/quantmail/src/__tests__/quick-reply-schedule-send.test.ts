@@ -157,7 +157,12 @@ describe('quick-reply schedule-send — wiring pins on the real component', () =
   });
 
   it('the send passes sendAt to replyToEmail (the one schedule contract, not a second mechanism)', () => {
-    expect(body).toMatch(/apiClient\.replyToEmail\(\s*replyTarget,\s*replyContent,\s*undefined,\s*'chat',\s*clientMessageId,\s*scheduledAt,/);
+    expect(body).toMatch(/apiClient\.replyToEmail\(\s*replyTarget,\s*replyContent,\s*isReplyAllDefault\(defaultReplyBehavior\),\s*'chat',\s*clientMessageId,\s*scheduledAt,/);
+  });
+
+  it('the send carries the default reply behavior flag — the quick-reply bar honours Settings → Default reply behavior (fix/qm-default-reply-behavior; the pre-fix call passed undefined, i.e. always sender-only)', () => {
+    expect(componentSource).toContain("import {\n  isReplyAllDefault,\n  readReplyBehavior,\n} from '../lib/reply-behavior-preference';");
+    expect(componentSource).toContain('const [defaultReplyBehavior] = useState(() => readReplyBehavior());');
   });
 
   it('a past scheduledAt is rejected before anything is queued (PR #908 convention)', () => {

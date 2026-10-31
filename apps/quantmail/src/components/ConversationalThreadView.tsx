@@ -71,6 +71,10 @@ import { invalidateMailLists } from '../lib/offline/folders';
 import { plainTextToHtml } from '../lib/email-body';
 import { ThreadSummaryCard, messagesToSummaryPayload, type ThreadSummaryResult } from './ThreadSummaryCard';
 import { useAuth } from '../providers/auth-provider';
+import {
+  isReplyAllDefault,
+  readReplyBehavior,
+} from '../lib/reply-behavior-preference';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInbox } from '../hooks/useInbox';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -644,6 +648,16 @@ export function ConversationalThreadView({
   /** Single message awaiting delete confirmation from the bubble menu. */
   const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<Email | null>(null);
 
+  /**
+   * Default reply behavior (Settings → General → "Default reply behavior",
+   * Gmail's Reply vs Reply all). Read once on mount: the setting lives on
+   * another route, so this view remounts whenever the user comes back from
+   * changing it — a stale value here would mean the button says one thing
+   * and does another. The quick-reply bar reads the same state, so the two
+   * one-tap reply paths on this screen can never disagree.
+   */
+  const [defaultReplyBehavior] = useState(() => readReplyBehavior());
+
   const openReplyComposer = useCallback(() => {
     const recipient = primaryMessage?.from?.email || '';
     const subj = threadSubject.startsWith('Re:') ? threadSubject : `Re: ${threadSubject}`;
@@ -690,6 +704,23 @@ export function ConversationalThreadView({
       `/compose?to=${encodeURIComponent(recipients)}&subject=${encodeURIComponent(subj)}&replyTo=${messages.at(-1)?.id || threadId}`,
     );
   }, [messages, router, threadId, threadSubject]);
+
+  /**
+   * The one-tap reply: what the header Reply button and the QuickActionBar
+   * do. With the default at Reply this is exactly the old button; with
+   * Reply all pinned in Settings it opens the reply-all composer instead —
+   * that is the whole point of the setting, and the button's own label
+   * changes with it so it never claims to be a sender-only reply while
+   * addressing the whole thread. The "…" menu keeps both explicit entries,
+   * so a sender-only reply stays one tap away when the default is reply-all.
+   */
+  const handleDefaultReply = useCallback(() => {
+    if (isReplyAllDefault(defaultReplyBehavior)) {
+      openReplyAllComposer();
+    } else {
+      openReplyComposer();
+    }
+  }, [defaultReplyBehavior, openReplyAllComposer, openReplyComposer]);
 
   const openForwardComposer = useCallback(() => {
     const latest = messages.at(-1) || primaryMessage;
@@ -1720,10 +1751,15 @@ export function ConversationalThreadView({
         // an immediate send (the immediate-send call stays byte-identical).
         // Past times never reach here (guarded above) and the backend 400s
         // them as backstop — never a silent immediate send.
+        // Default reply behavior: the in-place bar honours the same
+        // setting as the header Reply button — with Reply all pinned, the
+        // backend CCs every other thread participant (its replyAll flag,
+        // which already excludes the sender). On a one-to-one thread the
+        // flag changes nothing server-side, so the default is safe there.
         const res = await apiClient.replyToEmail(
           replyTarget,
           replyContent,
-          undefined,
+          isReplyAllDefault(defaultReplyBehavior),
           'chat',
           clientMessageId,
           scheduledAt,
@@ -1896,6 +1932,7 @@ export function ConversationalThreadView({
     queryClient,
     queueSend,
     stopOwnTyping,
+    defaultReplyBehavior,
   ]);
 
   /**
@@ -2065,10 +2102,14 @@ export function ConversationalThreadView({
           {/* 1. Reply Button */}
           <button
             type="button"
-            onClick={openReplyComposer}
+            onClick={handleDefaultReply}
             className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-surface-elevated)] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] sm:min-h-0 sm:min-w-0"
-            title="Reply (R)"
-            aria-label="Reply to conversation"
+            title={isReplyAllDefault(defaultReplyBehavior) ? 'Reply all' : 'Reply (R)'}
+            aria-label={
+              isReplyAllDefault(defaultReplyBehavior)
+                ? 'Reply all to conversation'
+                : 'Reply to conversation'
+            }
           >
             <svg
               className="size-[18px]"
@@ -2077,8 +2118,18 @@ export function ConversationalThreadView({
               stroke="currentColor"
               strokeWidth="2"
             >
-              <polyline points="9 17 4 12 9 7" />
-              <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+              {isReplyAllDefault(defaultReplyBehavior) ? (
+                <>
+                  <polyline points="7 17 2 12 7 7" />
+                  <polyline points="12 17 7 12 12 7" />
+                  <path d="M22 18v-2a4 4 0 0 0-4-4H7" />
+                </>
+              ) : (
+                <>
+                  <polyline points="9 17 4 12 9 7" />
+                  <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+                </>
+              )}
             </svg>
           </button>
 
@@ -2314,6 +2365,39 @@ export function ConversationalThreadView({
                 </>
               ) : (
               <>
+                {/*
+                  When the default reply behavior is Reply all, the header
+                  Reply button no longer offers a sender-only reply — so the
+                  menu carries an explicit one. Without it, a user who pinned
+                  Reply all would have no one-tap sender-only reply left on
+                  this screen at all. Hidden under the Reply default, where
+                  the header button already is that entry.
+                */}
+                {isReplyAllDefault(defaultReplyBehavior) && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    tabIndex={-1}
+                    onClick={() => {
+                      close();
+                      openReplyComposer();
+                    }}
+                    className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                  >
+                    <svg
+                      className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden="true"
+                    >
+                      <polyline points="9 17 4 12 9 7" />
+                      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+                    </svg>
+                    Reply
+                  </button>
+                )}
                 <button
                   type="button"
                   role="menuitem"
@@ -2703,7 +2787,7 @@ export function ConversationalThreadView({
           <div className="px-4 sm:px-5">
             <QuickActionBar
               email={messages[messages.length - 1]}
-              onReply={openReplyComposer}
+              onReply={handleDefaultReply}
               onForward={openForwardComposer}
               onArchive={() => onArchive?.(conversationMessageIds)}
               onCreateTask={() => handleCreateEventFromEmail('task')}
