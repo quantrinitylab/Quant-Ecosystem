@@ -1551,6 +1551,78 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     }
   });
 
+  it('POST /repos/:id/pulls/:number/comments/:id/apply-suggestion commits the suggested lines onto the PR head branch for real', async () => {
+    const gitRoot = await ensureMergeFixture();
+    const bare = join(gitRoot, 'user-1', 'Quant-Ecosystem.git');
+    try {
+      const app = await buildApp();
+      // The fixture's feat/test branch adds file2.txt ("clean addition").
+      // Reviewer suggests a replacement for its line 1, author applies it.
+      const posted = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/comments',
+        payload: {
+          filePath: 'file2.txt',
+          line: 1,
+          side: 'RIGHT',
+          body: 'nit\n```suggestion\napplied suggestion\n```',
+        },
+      });
+      expect(posted.statusCode).toBe(201);
+      const commentId: string = posted.json().data.id;
+      const res = await app.inject({
+        method: 'POST',
+        url: `/repos/repo-1/pulls/1/comments/${commentId}/apply-suggestion`,
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      const sha: string = body.data.commitSha;
+      expect(sha).toMatch(/^[0-9a-f]{40}$/i);
+      // The head branch ref genuinely moved to the new commit…
+      const { stdout: refOut } = await execFileAsync('git', ['rev-parse', 'refs/heads/feat/test'], {
+        cwd: bare,
+      });
+      expect(refOut.trim()).toBe(sha);
+      // …whose file content is the suggested replacement, not the old line.
+      const { stdout: showOut } = await execFileAsync('git', ['show', `${sha}:file2.txt`], {
+        cwd: bare,
+      });
+      expect(showOut).toBe('applied suggestion\n');
+      // …and the branch row was updated with the same real SHA.
+      expect(prisma.branch.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ commitSha: sha }),
+        }),
+      );
+      // Re-applying the same suggestion is an honest 409, not a duplicate commit.
+      const again = await app.inject({
+        method: 'POST',
+        url: `/repos/repo-1/pulls/1/comments/${commentId}/apply-suggestion`,
+      });
+      expect(again.statusCode).toBe(409);
+    } finally {
+      await destroyMergeFixture();
+    }
+  });
+
+  it('POST /repos/:id/pulls/:number/comments/:id/apply-suggestion fails honestly (400) for a comment without a suggestion block', async () => {
+    const app = await buildApp();
+    const posted = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/pulls/1/comments',
+      payload: { filePath: 'file2.txt', line: 1, side: 'RIGHT', body: 'plain note' },
+    });
+    expect(posted.statusCode).toBe(201);
+    const commentId: string = posted.json().data.id;
+    const res = await app.inject({
+      method: 'POST',
+      url: `/repos/repo-1/pulls/1/comments/${commentId}/apply-suggestion`,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('NO_SUGGESTION');
+  });
+
   describe('PR merge methods — the merge-method picker is honored (squash/rebase must be real)', () => {
     it("POST /repos/:id/pulls/:number/merge with { method: 'squash' } creates ONE single-parent commit carrying the merged tree", async () => {
       const gitRoot = await ensureMergeFixture();

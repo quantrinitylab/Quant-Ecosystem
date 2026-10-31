@@ -3,13 +3,18 @@
 // ============================================================================
 import { createHmac, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { access } from 'node:fs/promises';
+import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError, RepositoryHeadConflictError } from '@quant/server-core';
 import { RepoMigrationService, repoMigrationService } from '../services/repo-migration.service';
+import {
+  parseSuggestionBlock,
+  applySuggestionToContent,
+} from '../lib/review-suggestions';
 
 const execFileAsync = promisify(execFile);
 
@@ -2510,6 +2515,223 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       }
 
       return reply.send({ success: true, data: { deleted: true } });
+    },
+  );
+
+  // POST /:id/pulls/:number/comments/:commentId/apply-suggestion — one-click
+  // apply for a GitHub-style suggestion block (```suggestion ... ```) in a
+  // review comment. This performs a REAL commit onto the PR head branch:
+  // read the file at the head SHA, replace the anchored line with the
+  // suggested lines, and commit via a throwaway index (read-tree /
+  // update-index / write-tree / commit-tree / update-ref). Nothing is faked:
+  // no repo on disk, a merged PR, a comment without a suggestion block, a
+  // suggestion on a removed line, or an anchor the head has moved past all
+  // fail honestly with a specific error instead of a silent no-op.
+  // The stored comment line is treated as a HEAD-version line number: only
+  // RIGHT-side comments are applicable (the Prisma review_comment row has
+  // no side column; the UI only offers Apply for non-LEFT comments).
+  fastify.post<{ Params: { id: string; number: string; commentId: string } }>(
+    '/:id/pulls/:number/comments/:commentId/apply-suggestion',
+    async (request, reply) => {
+      const userId = requireUserId(request);
+      const repo = await loadReadableRepo(request, request.params.id);
+      const num = parseInt(request.params.number, 10);
+      if (isNaN(num)) throw createAppError('Invalid PR number', 400, 'INVALID_NUMBER');
+      const prisma = getPrisma(fastify);
+
+      const pr = await prisma.pullRequest.findFirst({
+        where: { repoId: repo.id, number: num },
+      });
+      if (!pr) throw createAppError('Pull request not found', 404, 'PR_NOT_FOUND');
+      if (pr.status === 'MERGED') {
+        throw createAppError('Cannot apply suggestions on a merged pull request', 409, 'PR_MERGED');
+      }
+      // Only the PR author or the repo owner may apply (mirrors GitHub,
+      // where applying needs write access to the head branch).
+      if (pr.authorId !== userId && repo.ownerId !== userId) {
+        throw createAppError(
+          'Only the pull request author or repository owner can apply suggestions',
+          403,
+          'FORBIDDEN',
+        );
+      }
+
+      let comment: any = null;
+      if (prisma.reviewComment?.findUnique) {
+        comment = await prisma.reviewComment.findUnique({
+          where: { id: request.params.commentId },
+        });
+      } else {
+        const list = memoryReviewCommentsStore.get(pr.id) ?? [];
+        comment = list.find((c) => c.id === request.params.commentId) ?? null;
+      }
+      if (!comment || comment.prId !== pr.id) {
+        throw createAppError('Review comment not found', 404, 'COMMENT_NOT_FOUND');
+      }
+      if ((comment as any).side === 'LEFT') {
+        throw createAppError(
+          'Suggestions anchored on removed lines cannot be applied automatically — the author must apply them by hand',
+          400,
+          'SUGGESTION_LEFT_SIDE',
+        );
+      }
+      const suggestedLines = parseSuggestionBlock(comment.body ?? '');
+      if (suggestedLines === null) {
+        throw createAppError('This comment contains no suggestion block', 400, 'NO_SUGGESTION');
+      }
+      const filePath: string = comment.filePath;
+      const line: number = comment.line;
+      if (
+        typeof filePath !== 'string' ||
+        filePath.length === 0 ||
+        filePath.startsWith('/') ||
+        filePath.split('/').includes('..')
+      ) {
+        throw createAppError('Review comment carries an invalid file path', 400, 'INVALID_PATH');
+      }
+      const sourceBranch: string = pr.sourceBranch;
+      if (
+        typeof sourceBranch !== 'string' ||
+        !/^[A-Za-z0-9/_.-]+$/.test(sourceBranch) ||
+        sourceBranch.includes('..')
+      ) {
+        throw createAppError('Pull request carries an invalid source branch', 400, 'INVALID_BRANCH');
+      }
+
+      const repoPath = await resolveRepoPath(repo);
+      if (!repoPath || !(await pathExists(repoPath))) {
+        throw createAppError(
+          'Repository storage is unavailable — the suggestion was not applied',
+          503,
+          'REPO_STORAGE_UNAVAILABLE',
+        );
+      }
+      const headSha =
+        (await resolveGitRefSha(repoPath, sourceBranch)) ||
+        (
+          await prisma.branch?.findUnique({
+            where: { repoId_name: { repoId: repo.id, name: sourceBranch } },
+          })
+        )?.commitSha;
+      if (!headSha || !SHA40_RE.test(headSha)) {
+        throw createAppError(
+          'Could not resolve the pull request head commit — the suggestion was not applied',
+          409,
+          'HEAD_UNRESOLVED',
+        );
+      }
+
+      const run = (args: string[], extraEnv: NodeJS.ProcessEnv = {}) =>
+        execFileAsync('git', args, { cwd: repoPath, env: { ...GIT_CHILD_ENV, ...extraEnv } });
+
+      let headContent: string;
+      try {
+        const { stdout } = await run(['show', `${headSha}:${filePath}`]);
+        headContent = stdout;
+      } catch {
+        throw createAppError(
+          'The suggested file is not present at the pull request head',
+          404,
+          'FILE_NOT_IN_HEAD',
+        );
+      }
+      let newContent: string;
+      try {
+        newContent = applySuggestionToContent(headContent, line, suggestedLines);
+      } catch (err: any) {
+        throw createAppError(
+          err?.message ?? 'The suggested line no longer exists at the pull request head',
+          409,
+          err?.code ?? 'SUGGESTION_LINE_OUT_OF_RANGE',
+        );
+      }
+      if (newContent === headContent) {
+        throw createAppError(
+          'This suggestion is already applied — the line already matches',
+          409,
+          'SUGGESTION_ALREADY_APPLIED',
+        );
+      }
+
+      // Commit onto the head branch via a throwaway index: the bare repo's
+      // own index is never touched, and a concurrent ref move fails the
+      // guarded update-ref instead of silently overwriting another commit.
+      const workDir = await mkdtemp(join(tmpdir(), 'qm-apply-suggestion-'));
+      try {
+        const indexPath = join(workDir, 'index');
+        const indexEnv = { GIT_INDEX_FILE: indexPath };
+        const { stdout: lsOut } = await run(['ls-tree', headSha, '--', filePath]);
+        const mode = lsOut.split(/\s+/)[0];
+        if (!/^(100644|100755|120000)$/.test(mode ?? '')) {
+          throw createAppError(
+            'The suggested file has an unsupported mode at the pull request head',
+            409,
+            'FILE_MODE_UNSUPPORTED',
+          );
+        }
+        await writeFile(join(workDir, 'content'), newContent);
+        const { stdout: blobOut } = await run(
+          ['hash-object', '-w', join(workDir, 'content')],
+        );
+        const blobSha = blobOut.trim();
+        if (!SHA40_RE.test(blobSha)) {
+          throw createAppError('Could not store the suggested content', 500, 'BLOB_FAILED');
+        }
+        await run(['read-tree', headSha], indexEnv);
+        await run(['update-index', '--add', '--cacheinfo', `${mode},${blobSha},${filePath}`], indexEnv);
+        const { stdout: treeOut } = await run(['write-tree'], indexEnv);
+        const treeSha = treeOut.trim();
+        if (!SHA40_RE.test(treeSha)) {
+          throw createAppError('Could not build the suggested tree', 500, 'TREE_FAILED');
+        }
+        const { stdout: commitOut } = await run([
+          'commit-tree',
+          treeSha,
+          '-p',
+          headSha,
+          '-m',
+          `Apply suggested change to ${filePath}`,
+        ]);
+        const newSha = commitOut.trim();
+        if (!SHA40_RE.test(newSha)) {
+          throw createAppError('Could not create the suggestion commit', 500, 'COMMIT_FAILED');
+        }
+        // DB row first: if this throws, no ref has moved yet and the client
+        // can retry cleanly. The guarded update-ref below then fails loudly
+        // on a concurrent head move instead of overwriting it.
+        if (prisma.branch?.update) {
+          await prisma.branch.update({
+            where: { repoId_name: { repoId: repo.id, name: sourceBranch } },
+            data: { commitSha: newSha },
+          });
+        }
+        try {
+          await run([
+            'update-ref',
+            `refs/heads/${sourceBranch}`,
+            newSha,
+            headSha,
+          ]);
+        } catch {
+          throw createAppError(
+            'The pull request head moved while applying — please retry',
+            409,
+            'HEAD_MOVED',
+          );
+        }
+        return reply.send({
+          success: true,
+          data: {
+            commentId: comment.id,
+            filePath,
+            line,
+            commitSha: newSha,
+            branch: sourceBranch,
+          },
+        });
+      } finally {
+        await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+      }
     },
   );
 

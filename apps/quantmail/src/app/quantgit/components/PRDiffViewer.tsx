@@ -3,6 +3,11 @@
 import React from 'react';
 import type { PRDiffFile, PRDiffComment } from '../types';
 import { QuantGitCommentIcon } from './QuantGitIcons';
+import {
+  splitCommentBody,
+  hasSuggestionBlock,
+  toggleSuggestionBlock,
+} from './suggestionBlocks';
 
 export interface PRDiffViewerProps {
   files: PRDiffFile[];
@@ -18,6 +23,12 @@ export interface PRDiffViewerProps {
   onCancelLine: () => void;
   onChangeCommentText: (text: string) => void;
   onSubmitComment: (lineId: string, side: 'LEFT' | 'RIGHT') => void;
+  /** One-click apply for a comment's suggestion block (PR author only). */
+  onApplySuggestion?: (comment: PRDiffComment) => void;
+  /** Comment ids whose suggestion has already been applied this session. */
+  appliedCommentIds?: ReadonlySet<string>;
+  /** True when the viewer may offer "Apply suggestion" (the PR author). */
+  canApplySuggestions?: boolean;
 }
 
 const STATUS_CHIP: Record<string, string> = {
@@ -62,6 +73,9 @@ export function PRDiffViewer({
   onCancelLine,
   onChangeCommentText,
   onSubmitComment,
+  onApplySuggestion,
+  appliedCommentIds,
+  canApplySuggestions = false,
 }: PRDiffViewerProps) {
   return (
     <div className="space-y-3" data-testid="diff-files">
@@ -167,9 +181,66 @@ export function PRDiffViewer({
                                   <span className="font-semibold text-[#E6EDF3]">{c.author}</span>
                                   <span className="text-[#6E7681] ml-2">{c.createdAt}</span>
                                 </div>
-                                <p className="text-xs text-[#E6EDF3] whitespace-pre-wrap break-words">
-                                  {c.body}
-                                </p>
+                                {splitCommentBody(c.body).map((segment, segIdx) =>
+                                  segment.type === 'text' ? (
+                                    <p
+                                      key={segIdx}
+                                      className="text-xs text-[#E6EDF3] whitespace-pre-wrap break-words"
+                                    >
+                                      {segment.text}
+                                    </p>
+                                  ) : (
+                                    <div
+                                      key={segIdx}
+                                      data-testid={`diff-line-suggestion-${c.id}`}
+                                      className="rounded-lg bg-[#238636]/15 border border-[#238636]/40 px-2 py-1.5"
+                                    >
+                                      <div className="text-[10px] font-bold text-[#3FB950] mb-1">
+                                        Suggested change
+                                      </div>
+                                      {segment.lines.length === 0 ? (
+                                        <div className="font-mono text-[11px] text-[#F85149]">
+                                          − Delete this line
+                                        </div>
+                                      ) : (
+                                        segment.lines.map((suggestedLine, lineIdx) => (
+                                          <div
+                                            key={lineIdx}
+                                            className="font-mono text-[11px] text-[#E6EDF3] whitespace-pre-wrap break-all"
+                                          >
+                                            <span className="text-[#3FB950] select-none">+ </span>
+                                            {suggestedLine === '' ? ' ' : suggestedLine}
+                                          </div>
+                                        ))
+                                      )}
+                                      {appliedCommentIds?.has(c.id) ? (
+                                        <span
+                                          data-testid={`diff-line-suggestion-applied-${c.id}`}
+                                          className="inline-block mt-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-[#238636]/20 text-[#3FB950] border border-[#238636]/40"
+                                        >
+                                          Applied
+                                        </span>
+                                      ) : c.side === 'LEFT' ? (
+                                        <span className="block mt-1.5 text-[10px] text-[#8D96A0]">
+                                          Suggestions on removed lines can&apos;t be applied
+                                          automatically.
+                                        </span>
+                                      ) : (
+                                        canApplySuggestions &&
+                                        onApplySuggestion && (
+                                          <button
+                                            type="button"
+                                            data-testid={`diff-line-suggestion-apply-${c.id}`}
+                                            onClick={() => onApplySuggestion(c)}
+                                            className="mt-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-[#238636] hover:bg-[#2EA043] text-white cursor-pointer"
+                                          >
+                                            Apply suggestion
+                                          </button>
+                                        )
+                                      )}
+                                    </div>
+                                  ),
+                                )}
                               </div>
                             ))}
                           </div>
@@ -184,11 +255,36 @@ export function PRDiffViewer({
                               data-testid="diff-line-comment-input"
                               value={lineCommentText}
                               onChange={(e) => onChangeCommentText(e.target.value)}
+                              onKeyDown={(e) => {
+                                // Cmd+G / Ctrl+G inserts a suggestion block,
+                                // mirroring GitHub's review-comment shortcut.
+                                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g') {
+                                  e.preventDefault();
+                                  onChangeCommentText(
+                                    toggleSuggestionBlock(lineCommentText, [line.content]),
+                                  );
+                                }
+                              }}
                               placeholder="Add a review comment on this line…"
                               rows={2}
                               className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] outline-none resize-y"
                             />
                             <div className="flex justify-end gap-2 mt-2">
+                              <button
+                                type="button"
+                                data-testid="diff-line-comment-suggestion-btn"
+                                title="Insert a suggested change (Cmd+G / Ctrl+G)"
+                                onClick={() =>
+                                  onChangeCommentText(
+                                    toggleSuggestionBlock(lineCommentText, [line.content]),
+                                  )
+                                }
+                                className="px-3 py-1 rounded-lg text-[11px] font-semibold text-[#8B5CF6] hover:text-[#A371F7] cursor-pointer"
+                              >
+                                {hasSuggestionBlock(lineCommentText)
+                                  ? 'Remove suggestion'
+                                  : 'Add suggestion'}
+                              </button>
                               <button
                                 type="button"
                                 onClick={onCancelLine}
