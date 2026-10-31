@@ -55,11 +55,49 @@ export function escapeHtml(text: string): string {
 }
 
 /**
+ * Schemes a converted link may carry. Anything else (javascript:, data:, a
+ * bare relative path) is left as literal text — an inserted or pasted Markdown
+ * link must never become an executable href.
+ */
+const SAFE_LINK_SCHEME = /^(https?:|mailto:)/i;
+
+/**
+ * Turn Markdown link syntax in already-escaped text into real anchors.
+ *
+ * This is the fix for the compose "Insert Link" divergence: the composer
+ * keeps the body as plain text, so `handleInsertLink` can only append
+ * `[text](url)` — a textarea cannot hold an anchor. The reader renders
+ * Markdown, so the link looked clickable in-app, but the send pipeline
+ * emitted that literal syntax into `bodyHtml` and every external recipient
+ * (Gmail etc.) received unclickable text. Converting here, at the single
+ * point where plain text becomes `bodyHtml`, makes every inserted, pasted
+ * or typed Markdown link arrive as a real `<a>` for all recipients, on every
+ * send path (full composer, docked composer, draft save, quick replies —
+ * all of them funnel through `plainTextToHtml` / `composeMessageBodies`).
+ *
+ * Runs AFTER `escapeHtml` on purpose: link text and URL are already encoded,
+ * so neither can break out of the anchor or its href attribute, and the
+ * scheme allowlist above rejects anything executable. The plain-text half is
+ * deliberately untouched — `[text](url)` in `bodyText` still shows the URL,
+ * which is honest plain text, and a draft reopened from `bodyText` keeps a
+ * form the converter understands on the next send.
+ */
+export function linkifyMarkdownLinks(escaped: string): string {
+  return escaped.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (whole, text: string, url: string) => {
+    if (!SAFE_LINK_SCHEME.test(url)) return whole;
+    return `<a href="${url}">${text}</a>`;
+  });
+}
+
+/**
  * Render typed plain text as the HTML half of a message.
  *
  * A blank line starts a new paragraph and a single newline is a line break —
  * the same reading of the text that the plain-text branch's `whitespace-pre-wrap`
- * gives, so the two halves of a message say the same thing.
+ * gives, so the two halves of a message say the same thing. Markdown link
+ * syntax `[text](url)` becomes a real `<a>` here (see `linkifyMarkdownLinks`):
+ * the composer stores links as plain text, and without this conversion an
+ * external recipient would receive literal, unclickable Markdown.
  *
  * Returns '' for empty input rather than `<p></p>`, because the reader treats a
  * non-empty `bodyHtml` as "use the HTML branch" and an empty paragraph there
@@ -70,7 +108,7 @@ export function plainTextToHtml(text: string): string {
   if (!trimmed) return '';
   return trimmed
     .split(/\n{2,}/)
-    .map((block) => `<p>${escapeHtml(block).replace(/\n/g, '<br />')}</p>`)
+    .map((block) => `<p>${linkifyMarkdownLinks(escapeHtml(block)).replace(/\n/g, '<br />')}</p>`)
     .join('\n');
 }
 
@@ -549,7 +587,10 @@ function renderFormattedSlice(
       if (r.kind === 'list') continue;
       if (r.start - sliceStart <= s && r.end - sliceStart >= e) kinds.add(r.kind);
     }
-    out += wrapFormattedSegment(escapeHtml(slice.slice(s, e)).replace(/\n/g, '<br />'), kinds);
+    out += wrapFormattedSegment(
+      linkifyMarkdownLinks(escapeHtml(slice.slice(s, e))).replace(/\n/g, '<br />'),
+      kinds,
+    );
   }
   return out;
 }
@@ -696,7 +737,7 @@ export function composeMessageBodies(
       .filter(Boolean);
     if (items.length > 0) {
       const tag = listMode === 'numbered' ? 'ol' : 'ul';
-      htmlBody = `<${tag}>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</${tag}>`;
+      htmlBody = `<${tag}>${items.map((item) => `<li>${linkifyMarkdownLinks(escapeHtml(item))}</li>`).join('')}</${tag}>`;
       plainBody = items
         .map((item, idx) => (listMode === 'numbered' ? `${idx + 1}. ${item}` : `• ${item}`))
         .join('\n');
