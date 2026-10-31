@@ -64,6 +64,35 @@ describe('Drive AI extraction routes', () => {
     await app.close();
   });
 
+  it('API preserves a null currency end to end (receipt without a currency key)', async () => {
+    const { currency: _dropped, ...receiptWithoutCurrency } = RECEIPT;
+    inferMock.mockResolvedValue({ content: JSON.stringify(receiptWithoutCurrency) });
+    const app = await buildApp();
+    const response = await app.inject({ method: 'POST', url: '/drive/ai/extract-receipt', payload: { fileId: 'file-1' } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().currency).toBeNull();
+    expect(response.body).not.toContain('$');
+    await app.close();
+  });
+
+  it('API preserves a null currency end to end (invoice with explicit null)', async () => {
+    inferMock.mockResolvedValue({ content: JSON.stringify({ ...INVOICE, currency: null }) });
+    const app = await buildApp();
+    const response = await app.inject({ method: 'POST', url: '/drive/ai/extract-invoice', payload: { fileId: 'file-1' } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().currency).toBeNull();
+    await app.close();
+  });
+
+  it('API preserves a reported currency end to end (invoice in ₹)', async () => {
+    inferMock.mockResolvedValue({ content: JSON.stringify({ ...INVOICE, currency: '₹' }) });
+    const app = await buildApp();
+    const response = await app.inject({ method: 'POST', url: '/drive/ai/extract-invoice', payload: { fileId: 'file-1' } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().currency).toBe('₹');
+    await app.close();
+  });
+
   it('rejects a non-owner with 403 before inference', async () => {
     const app = await buildApp(fakePrisma(file({ userId: 'user-2' })));
     const response = await app.inject({ method: 'POST', url: '/drive/ai/extract-receipt', payload: { fileId: 'file-1' } });
