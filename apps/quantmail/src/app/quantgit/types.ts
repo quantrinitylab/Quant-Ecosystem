@@ -113,7 +113,8 @@ export type IssueItem = {
   id: number;
   title: string;
   state: 'open' | 'closed';
-  author: string;
+  // null = author relation missing — render 'Unknown', never invent a name.
+  author: string | null;
   labels: { name: string; color: string }[];
   commentsCount: number;
   createdAt: string;
@@ -138,7 +139,8 @@ export type PRItem = {
   id: number;
   title: string;
   state: 'open' | 'merged' | 'closed';
-  author: string;
+  // null = author relation missing — render 'Unknown', never invent a name.
+  author: string | null;
   branchSource: string;
   branchTarget: string;
   checksStatus: 'passing' | 'pending' | 'failing' | 'unknown';

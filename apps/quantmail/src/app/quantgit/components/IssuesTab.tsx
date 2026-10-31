@@ -207,7 +207,8 @@ export function IssuesTab({
   // filters are active. Falls back to filteredIssues when the parent passes none.
   const filterSource = allIssues ?? filteredIssues;
   const authorOptions = useMemo(
-    () => Array.from(new Set(filterSource.map((i) => i.author))).sort(),
+    () =>
+      Array.from(new Set(filterSource.map((i) => i.author).filter((a): a is string => !!a))).sort(),
     [filterSource],
   );
   const labelOptions = useMemo(() => {
@@ -374,7 +375,7 @@ export function IssuesTab({
                 )}
               </span>
               <span>
-                <strong className="text-[#E6EDF3]">{selectedIssue.author}</strong> opened this issue{' '}
+                <strong className="text-[#E6EDF3]">{selectedIssue.author || 'Unknown'}</strong> opened this issue{' '}
                 {selectedIssue.createdAt} · {selectedIssue.commentsCount} comments
               </span>
             </div>
@@ -388,7 +389,7 @@ export function IssuesTab({
               <div className="rounded-xl bg-[var(--quant-surface-elevated)] border border-[#30363D] overflow-hidden">
  <div className="px-4 py-2.5 bg-[#0D1117] flex items-center justify-between">
                   <span className="font-semibold text-xs text-[#E6EDF3]">
-                    {selectedIssue.author} commented {selectedIssue.createdAt}
+                    {selectedIssue.author || 'Unknown'} commented {selectedIssue.createdAt}
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#30363D] text-[#8D96A0]">
                     Author
@@ -929,7 +930,7 @@ export function IssuesTab({
                         ))}
                       </div>
                       <p className="text-xs text-[#8D96A0]">
-                        #{issue.id} opened {issue.createdAt} by {issue.author} · Assignee:{' '}
+                        #{issue.id} opened {issue.createdAt} by {issue.author || 'Unknown'} · Assignee:{' '}
                         {issue.assignee}
                       </p>
                     </div>
