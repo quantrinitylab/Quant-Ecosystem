@@ -342,6 +342,14 @@ model PasswordResetToken {
  * only the SHA-256 digest of a single-use 6-digit code, never the code itself,
  * so a leaked table is not a set of live verification codes.
  */
+// One live (usedAt IS NULL) code per user is enforced by the PARTIAL unique
+// index email_verification_codes_user_live_unique (migration 0107), which
+// Prisma schema syntax cannot express: it closes the empty-empty
+// concurrent-issuance race on POST /auth/resend-verification (same class as
+// CODEX-REVIEW 6167000384, corrected for password-reset in migration 0097)
+// that the resend transaction's compare-and-set alone cannot — two
+// concurrent resends with empty snapshots both pass 0===0, and the loser's
+// create then fails P2002, which the route maps to RESEND_SUPERSEDED.
 model EmailVerificationCode {
   id         String    @id @default(cuid())
   userId     String
