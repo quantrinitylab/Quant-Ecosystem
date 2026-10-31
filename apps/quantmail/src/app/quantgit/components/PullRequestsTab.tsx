@@ -778,7 +778,7 @@ export function PullRequestsTab({
                 </span>
               ) : (
                 <span>
-                  <strong className="text-[#E6EDF3]">{selectedPR.author}</strong> wants to merge
+                  <strong className="text-[#E6EDF3]">{selectedPR.author || 'Unknown'}</strong> wants to merge
                   into{' '}
                   <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchTarget || 'main'}
