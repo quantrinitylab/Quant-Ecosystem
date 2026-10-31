@@ -140,7 +140,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
    * QC-F-037 — conversations whose membership has been verified for a given
    * socket on THIS connection. Populated only by a successful membership
    * check; used as a cache for high-frequency typing frames. Write frames
-   * with durable side effects (chat_message, receipts) always re-verify
+   * with durable side effects (receipts) always re-verify
    * against the DB. Cleared when the socket closes.
    */
   const verifiedRooms = new Map<WebSocket, Set<string>>();
@@ -284,7 +284,17 @@ export async function websocketRoutes(fastify: FastifyInstance) {
    * compatibility.
    */
   backplane.onMessage((conversationId: string, event: RoomEvent) => {
-    if (event.originInstanceId === backplane.instanceId) return;
+    // QC-F-117 — skip only when THIS instance already delivered locally at
+    // publish time (publishRoomEvent / presence broadcast set
+    // localDeliveryDone). The REST path (publishConversationEvent) never
+    // delivers inline, so its origin instance must NOT skip: it buffers for
+    // §20 resume and fans out to local sockets below. Previously the
+    // blanket origin-discard (plus InProcessBackplane.publish's no-op) meant
+    // REST fan-out reached no local sockets at all in single-node
+    // deployments — the deleted WS `chat_message` relay was papering over
+    // that hole.
+    if (event.originInstanceId === backplane.instanceId && event.localDeliveryDone !== false)
+      return;
     const frame = event.envelope ?? event.payload;
     // Buffer remote envelopes for §20 resume as well (with their delivery
     // exclusions, so a replay honours them too).
@@ -429,6 +439,8 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       originInstanceId: backplane.instanceId,
       payload: envelope,
       envelope,
+      // QC-F-117 — broadcast inline above, so the origin handler skips (de-dup).
+      localDeliveryDone: true,
     };
     try {
       await backplane.publish(BACKPLANE_PRESENCE_CHANNEL, event);
@@ -458,8 +470,10 @@ export async function websocketRoutes(fastify: FastifyInstance) {
    * QC-F-037 — membership gate. The WS layer previously joined ANY
    * authenticated socket to ANY conversation room without ever checking
    * that the user belongs to the conversation (BOLA): a logged-in user
-   * could read live events + resume replays, inject chat_message/typing
-   * frames, and record forged delivery/read receipts for conversations
+   * could read live events + resume replays, inject typing frames (the
+   * `chat_message` relay that previously allowed live message injection
+   * was removed by QC-F-117 — only the persisted REST send path fans out
+   * now), and record forged delivery/read receipts for conversations
    * they are not a member of. Identity comes only from the verified JWT
    * (the `userId` bound to the socket at upgrade time); the check mirrors
    * MessageService.sendMessage's membership query exactly
@@ -552,7 +566,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   /**
    * QC-F-037 — gate for a write/side-effect frame. Frames can arrive without
    * any prior join, so room membership in the local Map is not proof.
-   * `fresh: true` (chat_message, receipts — durable/visible effects) always
+   * `fresh: true` (receipts — durable/visible effects) always
    * re-checks the DB, like REST sendMessage does per request. `fresh: false`
    * (typing — high-frequency, ephemeral) may reuse this connection's
    * verified set, falling back to a fresh DB check on a miss.
@@ -574,131 +588,11 @@ export async function websocketRoutes(fastify: FastifyInstance) {
     return false;
   }
 
-  /**
-   * QC-F-359 — error frame for the blocked-pair gate below. Same shape
-   * as sendNotMember (socket stays open; only this conversation's frame
-   * is denied): `{ type: 'error', code, conversationId, message }`.
-   */
-  function sendGateErrorFrame(
-    socket: WebSocket,
-    conversationId: string,
-    code: 'USER_BLOCKED' | 'UPSTREAM_UNAVAILABLE',
-    message: string,
-  ): void {
-    if (socket.readyState === socket.OPEN) {
-      socket.send(JSON.stringify({ type: 'error', code, conversationId, message }));
-    }
-  }
-
-  /**
-   * QC-F-359 — blocked-pair gate for `chat_message` frames.
-   *
-   * The WS chat path never calls MessageService.sendMessage — it is a
-   * persistence-free live publish — so the durable gate there cannot
-   * cover it: without this check, a blocked user could keep injecting
-   * live messages (and resume-buffer entries) into an existing DIRECT
-   * conversation forever. The gate runs AFTER fresh membership
-   * (ensureFrameMember) and BEFORE publishRoomEvent, so a blocked
-   * frame never reaches the room or the resume buffer (a buffered
-   * frame would replay on reconnect — the block would leak).
-   *
-   * Semantics mirror MessageService.assertDirectSendNotBlocked
-   * exactly: DIRECT only (type from the conversation row), both block
-   * directions, 'blocked' beats 'unavailable', every unproven verdict
-   * (missing delegate, failed lookup, missing row, null privacy)
-   * fails closed with an UPSTREAM_UNAVAILABLE frame, and the socket
-   * is never closed. Typing/receipt frames are NOT gated (ephemeral
-   * soft signals / ticks for already-sent messages).
-   */
-  async function ensureNotBlockedForFrame(
-    conversationId: string,
-    socket: WebSocket,
-    userId: string,
-  ): Promise<boolean> {
-    const denyUnavailable = (): boolean => {
-      sendGateErrorFrame(
-        socket,
-        conversationId,
-        'UPSTREAM_UNAVAILABLE',
-        'Privacy preferences are temporarily unavailable',
-      );
-      return false;
-    };
-
-    if (!prismaClient || !privacy) return denyUnavailable();
-    const prisma = prismaClient as {
-      conversation?: {
-        findUnique(args: unknown): Promise<{ type?: unknown } | null>;
-      };
-      conversationMember?: {
-        findMany(args: unknown): Promise<Array<{ userId: string }>>;
-      };
-    };
-    if (!prisma.conversation?.findUnique || !prisma.conversationMember?.findMany) {
-      return denyUnavailable();
-    }
-
-    let conversation: { type?: unknown } | null;
-    try {
-      conversation = await prisma.conversation.findUnique({
-        where: { id: conversationId },
-        select: { type: true },
-      });
-    } catch (err: unknown) {
-      fastify.log.error(
-        { err, conversationId, userId },
-        'blocked-send gate conversation lookup failed; denying (fail-closed)',
-      );
-      return denyUnavailable();
-    }
-    if (!conversation) return denyUnavailable();
-    if (conversation.type !== 'DIRECT') return true;
-
-    let members: Array<{ userId: string }>;
-    try {
-      members = await prisma.conversationMember.findMany({
-        where: { conversationId, leftAt: null },
-        select: { userId: true },
-      });
-    } catch (err: unknown) {
-      fastify.log.error(
-        { err, conversationId, userId },
-        'blocked-send gate member lookup failed; denying (fail-closed)',
-      );
-      return denyUnavailable();
-    }
-
-    const peerIds = members.map((m) => m.userId).filter((id) => id !== userId);
-    let sawUnavailable = false;
-    for (const peerId of peerIds) {
-      const peerBlockedSender = await privacy.checkBlockedBy(peerId, userId);
-      if (peerBlockedSender === 'blocked') {
-        sendGateErrorFrame(
-          socket,
-          conversationId,
-          'USER_BLOCKED',
-          'You cannot send messages in this conversation',
-        );
-        return false;
-      }
-      if (peerBlockedSender === 'unavailable') sawUnavailable = true;
-
-      const senderBlockedPeer = await privacy.checkBlockedBy(userId, peerId);
-      if (senderBlockedPeer === 'blocked') {
-        sendGateErrorFrame(
-          socket,
-          conversationId,
-          'USER_BLOCKED',
-          'You cannot send messages in this conversation',
-        );
-        return false;
-      }
-      if (senderBlockedPeer === 'unavailable') sawUnavailable = true;
-    }
-
-    if (sawUnavailable) return denyUnavailable();
-    return true;
-  }
+  // QC-F-117 — the QC-F-359 WS `chat_message` frame gate (sendGateErrorFrame +
+  // ensureNotBlockedForFrame) is REMOVED together with the relay it guarded:
+  // with no `chat_message` handler there is no frame left to gate. The
+  // durable blocked-pair gate lives on in MessageService (REST send path),
+  // which is now the only way a message enters a conversation.
 
   /**
    * Subscribe this instance to a conversation channel the first time a local
@@ -811,6 +705,9 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       originInstanceId: backplane.instanceId,
       payload: envelope,
       envelope,
+      // QC-F-117 — local delivery already happened inline above (§1), so the
+      // origin instance's backplane handler must skip this event (de-dup).
+      localDeliveryDone: true,
       ...(opts?.excludeUserIds && opts.excludeUserIds.length > 0
         ? { excludeUserIds: [...opts.excludeUserIds] }
         : {}),
@@ -1075,32 +972,14 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             );
           }
 
-          if (message.type === 'chat_message' && typeof message.conversationId === 'string') {
-            // QC-F-037 — a non-member must not inject a live message into a
-            // conversation (nor into its resume buffer). Fresh DB check on
-            // every frame, mirroring REST sendMessage.
-            // QC-F-359 — and a member of a blocked DIRECT pair must not
-            // inject one either: the blocked-pair gate runs after fresh
-            // membership and before the publish, so the frame reaches
-            // neither the room nor the resume buffer.
-            if (
-              (await ensureFrameMember(message.conversationId, socket, userId, {
-                fresh: true,
-              })) &&
-              (await ensureNotBlockedForFrame(message.conversationId, socket, userId))
-            ) {
-              // Sender identity is stamped server-side from the authenticated
-              // session — never trusted from the client frame.
-              void publishRoomEvent(message.conversationId, 'chat.message.created.v1', {
-                resourceRef:
-                  typeof message.client_message_id === 'string' && message.client_message_id
-                    ? message.client_message_id
-                    : `ws-${Date.now()}`,
-                aggregateVersion: 1,
-                data: { ...message, senderId: userId },
-              });
-            }
-          }
+          // QC-F-117 — the `chat_message` relay is DELETED. It fanned a
+          // member's raw client frame out as `chat.message.created.v1`
+          // with no persistence, no schema validation and no rate-limit —
+          // a phantom-message / id-overwrite / self-bubble injection path.
+          // The frame is now silently ignored (like any unknown frame
+          // type): live delivery comes only from the persisted REST send
+          // path (`POST /conversations/:id/messages` → MessageService →
+          // publishConversationEvent). The socket stays open.
 
           if (message.type === 'typing' && typeof message.conversationId === 'string') {
             // QC-F-037 — typing ghosts from non-members are dropped. Typing

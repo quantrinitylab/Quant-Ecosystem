@@ -5,8 +5,9 @@
 // checked conversation membership. Any logged-in user could:
 //   * join ANY conversation room via ?conversationId= or a join_conversation
 //     frame and receive its live events + §20 resume replays,
-//   * inject chat_message / typing frames into conversations they are not a
-//     member of,
+//   * inject typing frames into conversations they are not a member of
+//     (the `chat_message` frame relay that also allowed live message
+//     injection was deleted by QC-F-117 — frames are now silently ignored),
 //   * persist + fan out forged delivery/read receipts for any message.
 // Plus: packages/realtime accepted the JWT via ?token= in the URL (leaks
 // into logs/history/Referer) and preferred it over the Authorization header.
@@ -28,6 +29,7 @@ import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { websocketRoutes } from '../routes/websocket';
 import { InProcessBackplane } from '../services/realtime-backplane';
+import { publishConversationEvent } from '../services/realtime-publisher';
 import { PresenceManager } from '@quant/realtime/presence';
 
 const JWT_SECRET = 'qc-f-037-test-secret-key-for-jwt-signing-0123456789';
@@ -407,7 +409,7 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 describe('QC-F-037 — WebSocket conversation membership gate', () => {
-  it('case 1+2 control: member connect-time join gets resumed; member chat_message reaches room', async () => {
+  it('case 1+2 control: member connect-time join gets resumed; member chat_message is now SILENT (QC-F-117)', async () => {
     const alice = await connect(await makeToken('alice'), '/ws/chat?conversationId=conv-t1');
     await alice.frames.waitFor(isResumed, 'member connect-time resumed');
     await alice.frames.expectNone(isNotMember('conv-t1'), 'NOT_A_MEMBER for a member', 200);
@@ -416,17 +418,20 @@ describe('QC-F-037 — WebSocket conversation membership gate', () => {
     send(bob.socket, { type: 'join_conversation', conversationId: 'conv-t1' });
     await bob.frames.waitFor(isResumed, 'member frame-join resumed');
 
+    // QC-F-117: the WS `chat_message` relay is deleted. A member's frame is
+    // silently ignored — no live fan-out (not even to the room), no
+    // NOT_A_MEMBER-style error, and the socket stays open. Live delivery
+    // comes only from the persisted REST send path.
     send(bob.socket, {
       type: 'chat_message',
       conversationId: 'conv-t1',
       content: 'hello-t1',
       client_message_id: 't1-1',
     });
-    const delivered = await alice.frames.waitFor(
-      isCreatedWith('hello-t1'),
-      'member chat_message delivered to room',
-    );
-    expect(delivered.payload?.senderId).toBe('bob');
+    await alice.frames.expectNone(isCreatedWith('hello-t1'), 'member chat_message fanned out', 400);
+    await bob.frames.expectNone(isCreatedWith('hello-t1'), 'member chat_message echoed', 400);
+    await bob.frames.expectNone(isNotMember('conv-t1'), 'error frame for removed relay');
+    expect(bob.socket.readyState).toBe(1); // still OPEN
   });
 
   it('case 2: member frame join with cursor replays only the missed buffered events', async () => {
@@ -434,20 +439,21 @@ describe('QC-F-037 — WebSocket conversation membership gate', () => {
     send(alice.socket, { type: 'join_conversation', conversationId: 'conv-t2' });
     await alice.frames.waitFor(isResumed, 'alice resumed');
 
-    send(alice.socket, {
-      type: 'chat_message',
-      conversationId: 'conv-t2',
-      content: 't2-first',
-      client_message_id: 't2-1',
+    // QC-F-117: the WS `chat_message` relay is deleted, so buffered
+    // `chat.message.created.v1` events now come from the persisted REST
+    // fan-out (publishConversationEvent) — the anchor for this replay test.
+    await publishConversationEvent(app, 'conv-t2', {
+      eventType: 'chat.message.created.v1',
+      resourceRef: 'msg-t2-1',
+      data: { id: 'msg-t2-1', content: 't2-first', senderId: 'alice' },
     });
-    const first = await alice.frames.waitFor(isCreatedWith('t2-first'), 'first message echo');
-    send(alice.socket, {
-      type: 'chat_message',
-      conversationId: 'conv-t2',
-      content: 't2-second',
-      client_message_id: 't2-2',
+    const first = await alice.frames.waitFor(isCreatedWith('t2-first'), 'first message live');
+    await publishConversationEvent(app, 'conv-t2', {
+      eventType: 'chat.message.created.v1',
+      resourceRef: 'msg-t2-2',
+      data: { id: 'msg-t2-2', content: 't2-second', senderId: 'alice' },
     });
-    await alice.frames.waitFor(isCreatedWith('t2-second'), 'second message echo');
+    await alice.frames.waitFor(isCreatedWith('t2-second'), 'second message live');
 
     const bob = await connect(await makeToken('bob'), '/ws/chat');
     send(bob.socket, {
@@ -475,15 +481,16 @@ describe('QC-F-037 — WebSocket conversation membership gate', () => {
     expect(mallory.socket.readyState).toBe(1); // still OPEN
 
     // A member's message in that room must never reach the non-member.
+    // QC-F-117: the message now travels the persisted REST fan-out path
+    // (the WS relay is deleted), which must still respect room membership.
     const alice = await connect(await makeToken('alice'), '/ws/chat?conversationId=conv-t3');
     await alice.frames.waitFor(isResumed, 'alice resumed');
-    send(alice.socket, {
-      type: 'chat_message',
-      conversationId: 'conv-t3',
-      content: 'secret-t3',
-      client_message_id: 't3-1',
+    await publishConversationEvent(app, 'conv-t3', {
+      eventType: 'chat.message.created.v1',
+      resourceRef: 'msg-t3-1',
+      data: { id: 'msg-t3-1', content: 'secret-t3', senderId: 'alice' },
     });
-    await alice.frames.waitFor(isCreatedWith('secret-t3'), 'member echo');
+    await alice.frames.waitFor(isCreatedWith('secret-t3'), 'member live fan-out');
     await mallory.frames.expectNone(isCreatedWith('secret-t3'), 'live event leaked to non-member');
 
     // The SAME socket can still join a conversation mallory belongs to.
@@ -495,13 +502,13 @@ describe('QC-F-037 — WebSocket conversation membership gate', () => {
     const alice = await connect(await makeToken('alice'), '/ws/chat');
     send(alice.socket, { type: 'join_conversation', conversationId: 'conv-t4' });
     await alice.frames.waitFor(isResumed, 'alice resumed');
-    send(alice.socket, {
-      type: 'chat_message',
-      conversationId: 'conv-t4',
-      content: 'replay-secret-t4',
-      client_message_id: 't4-1',
+    // QC-F-117: buffered anchor now comes from the persisted REST fan-out.
+    await publishConversationEvent(app, 'conv-t4', {
+      eventType: 'chat.message.created.v1',
+      resourceRef: 'msg-t4-1',
+      data: { id: 'msg-t4-1', content: 'replay-secret-t4', senderId: 'alice' },
     });
-    await alice.frames.waitFor(isCreatedWith('replay-secret-t4'), 'buffered message echo');
+    await alice.frames.waitFor(isCreatedWith('replay-secret-t4'), 'buffered message live');
 
     const mallory = await connect(await makeToken('mallory'), '/ws/chat');
     send(mallory.socket, {
@@ -526,13 +533,13 @@ describe('QC-F-037 — WebSocket conversation membership gate', () => {
     const alice = await connect(await makeToken('alice'), '/ws/chat');
     send(alice.socket, { type: 'join_conversation', conversationId: 'conv-t5' });
     await alice.frames.waitFor(isResumed, 'alice resumed');
-    send(alice.socket, {
-      type: 'chat_message',
-      conversationId: 'conv-t5',
-      content: 'legit-t5',
-      client_message_id: 't5-legit',
+    // QC-F-117: legit anchor via the persisted REST fan-out (relay deleted).
+    await publishConversationEvent(app, 'conv-t5', {
+      eventType: 'chat.message.created.v1',
+      resourceRef: 'msg-t5-legit',
+      data: { id: 'msg-t5-legit', content: 'legit-t5', senderId: 'alice' },
     });
-    const legit = await alice.frames.waitFor(isCreatedWith('legit-t5'), 'legit message echo');
+    const legit = await alice.frames.waitFor(isCreatedWith('legit-t5'), 'legit message live');
 
     const mallory = await connect(await makeToken('mallory'), '/ws/chat');
     send(mallory.socket, {
@@ -541,8 +548,12 @@ describe('QC-F-037 — WebSocket conversation membership gate', () => {
       content: 'injected-t5',
       client_message_id: 't5-evil',
     });
-    await mallory.frames.waitFor(isNotMember('conv-t5'), 'NOT_A_MEMBER on chat_message');
+    // QC-F-117: the relay (and its frame-level NOT_A_MEMBER gate) is gone —
+    // the frame is silently ignored. The join/resume gates still protect the
+    // room; the injection reaches nobody and buffers nothing.
+    await mallory.frames.expectNone(isNotMember('conv-t5'), 'error frame for removed relay', 300);
     await alice.frames.expectNone(isCreatedWith('injected-t5'), 'injected message fanned out');
+    expect(mallory.socket.readyState).toBe(1); // still OPEN
 
     // If the injected frame had entered the resume buffer, a member joining
     // with the legit cursor would replay it. It must replay nothing.
@@ -622,19 +633,17 @@ describe('QC-F-037 — WebSocket conversation membership gate', () => {
       content: 'ghost-t7',
       client_message_id: 't7-1',
     });
-    // A SECOND NOT_A_MEMBER must arrive for the chat_message frame itself
-    // (the first one was for the connect-time join).
-    const deadline = Date.now() + 4000;
-    for (;;) {
-      const denials = dave.frames.frames.filter(isNotMember('conv-t7'));
-      if (denials.length >= 2) break;
-      if (Date.now() > deadline) {
-        throw new Error(
-          `expected 2 NOT_A_MEMBER frames for removed member, saw ${denials.length}`,
-        );
-      }
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
+    // QC-F-117: the relay (and its frame-level NOT_A_MEMBER gate) is deleted —
+    // no second NOT_A_MEMBER arrives for the frame itself; it is silently
+    // ignored. The join-denial above is the membership protection now.
+    // (The collector keeps full history, so pin the COUNT: it must stay 1.)
+    const denialsBefore = dave.frames.frames.filter(isNotMember('conv-t7')).length;
+    expect(denialsBefore).toBe(1); // only the connect-time join denial
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const denialsAfter = dave.frames.frames.filter(isNotMember('conv-t7')).length;
+    expect(denialsAfter).toBe(denialsBefore);
+    await dave.frames.expectNone(isCreatedWith('ghost-t7'), 'ghost message fanned out', 200);
+    expect(dave.socket.readyState).toBe(1); // still OPEN
   });
 
   it('case 8: a valid JWT presented only via ?token= is rejected (close 4001)', async () => {
