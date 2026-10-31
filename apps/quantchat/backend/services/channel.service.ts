@@ -31,6 +31,8 @@ interface ConversationRow {
   name: string | null;
   description: string | null;
   createdBy: string;
+  /** QC-F-518: 'HIDDEN' bounds a member's feed at their joinedAt. */
+  historyVisibility?: string;
 }
 
 interface MemberRow {
@@ -39,6 +41,8 @@ interface MemberRow {
   userId: string;
   role: string;
   leftAt: Date | string | null;
+  /** QC-F-518: the member's history bound in a HIDDEN channel. */
+  joinedAt?: Date | string;
 }
 
 interface MessageRow {
@@ -81,6 +85,8 @@ export interface ChannelView {
   description: string | null;
   ownerId: string;
   subscriberCount: number;
+  /** QC-F-518: public (lowercase) history-visibility setting. */
+  historyVisibility: 'visible' | 'hidden';
 }
 
 /** A channel plus the caller's membership role + posting capability. */
@@ -107,6 +113,13 @@ export interface ChannelFeedPage {
   messages: ChannelMessageView[];
   hasMore: boolean;
   nextCursor: string | null;
+  /**
+   * QC-F-518: true exactly when the history cutoff applied to THIS
+   * caller (a HIDDEN channel bounding the feed at their joinedAt), so
+   * clients can say earlier posts are hidden instead of implying the
+   * channel is empty. Never carries a count of hidden posts.
+   */
+  historyHidden: boolean;
 }
 
 export class ChannelService {
@@ -314,7 +327,7 @@ export class ChannelService {
     userId: string,
     options: { limit?: number; before?: string } = {},
   ): Promise<ChannelFeedPage> {
-    await this.requireChannel(channelId);
+    const channel = await this.requireChannel(channelId);
     const member = await this.activeMember(channelId, userId);
     if (!member) {
       throw createAppError('Subscribe to view this channel', 403, 'NOT_A_MEMBER');
@@ -324,7 +337,22 @@ export class ChannelService {
       typeof rawLimit === 'number' && Number.isFinite(rawLimit) ? rawLimit : 50;
     const capped = Math.min(Math.max(1, Math.floor(limit)), 100);
 
-    let where: Record<string, unknown> = { conversationId: channelId };
+    // QC-F-518: a HIDDEN channel bounds this subscriber's feed at their
+    // own joinedAt — posts from before they subscribed are not theirs to
+    // read. The bound is ANDed OUTSIDE the cursor OR below, so paging
+    // with a `before` cursor can never walk under the cutoff; a cursor
+    // that names a pre-join post simply yields an empty page with
+    // historyHidden set (honest), not the hidden posts. No role
+    // exemption: a late-joined ADMIN is bounded like anyone else.
+    const historyBound =
+      channel.historyVisibility === 'HIDDEN' && member.joinedAt
+        ? member.joinedAt
+        : null;
+
+    let where: Record<string, unknown> = {
+      conversationId: channelId,
+      ...(historyBound ? { createdAt: { gte: historyBound } } : {}),
+    };
     if (options.before) {
       const cursor = await this.prisma.message.findFirst({
         where: { id: options.before, conversationId: channelId },
@@ -333,7 +361,7 @@ export class ChannelService {
         throw createAppError('Invalid cursor', 400, 'INVALID_CURSOR');
       }
       where = {
-        conversationId: channelId,
+        ...where,
         OR: [
           { createdAt: { lt: cursor.createdAt } },
           { createdAt: cursor.createdAt, id: { lt: cursor.id } },
@@ -361,6 +389,7 @@ export class ChannelService {
       messages,
       hasMore,
       nextCursor: hasMore ? messages[0]!.id : null,
+      historyHidden: historyBound !== null,
     };
   }
 
@@ -371,6 +400,7 @@ export class ChannelService {
       description: channel.description,
       ownerId: channel.createdBy,
       subscriberCount,
+      historyVisibility: channel.historyVisibility === 'HIDDEN' ? 'hidden' : 'visible',
     };
   }
 }
