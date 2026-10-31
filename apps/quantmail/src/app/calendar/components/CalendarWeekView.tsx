@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { CalendarEventLike, EntryType } from '../types';
 import { MONTHS_SHORT, FULL_WEEKDAYS } from '../types';
-import { dayKey, startOf, endOf, hhmm, toTimeInput } from '../lib/calendar-geometry';
+import { dayKey, startOf, endOf, hhmm, toTimeInput, lastDayOf } from '../lib/calendar-geometry';
 import type { Holiday } from '../../../lib/holidays';
 
 export interface WeekViewSheetOpts {
@@ -293,7 +293,13 @@ export function CalendarWeekView({
         const e = endOf(ev);
         if (Number.isNaN(s.getTime())) continue;
         if (ev.allDay) {
-          if (dayKey(s) === dayKey(day)) allDay[di].push(ev);
+          // fix/qm-calendar-multiday-span: an all-day event occupies every
+          // day from its start through its last day (midnight-exact ends
+          // are exclusive — see lastDayOf), not just its start day.
+          const last = lastDayOf(ev);
+          if (last && dayKey(day) >= dayKey(s) && dayKey(day) <= dayKey(last)) {
+            allDay[di].push(ev);
+          }
           continue;
         }
         if (Number.isNaN(e.getTime())) continue;
