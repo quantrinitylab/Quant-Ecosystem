@@ -735,7 +735,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                 >
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-[#9CA3AF]">
-                      SHA-256: {group.hash.slice(0, 12)}...
+                      Content hash: {group.hash.slice(0, 12)}...
                     </span>
                     <span className="text-[#6B7280]">•</span>
                     <span className="text-[#9CA3AF]">{group.files.length} identical copies</span>

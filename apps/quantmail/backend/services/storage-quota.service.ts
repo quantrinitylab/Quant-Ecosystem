@@ -151,16 +151,58 @@ export class StorageQuotaService {
 
   /**
    * Releases a pending quota reservation (e.g., when an upload is aborted, fails, or expires).
+   *
+   * CODEX PR #1558 corrective: when the caller supplies the expected owner,
+   * a reservation owned by another user is NEVER released — releasing or
+   * committing someone else's reservation used to let any authenticated
+   * user free (or silently consume) another user's quota hold. A mismatch
+   * throws 403 and leaves the reservation intact. Callers that predate
+   * ownership tracking (chunked uploads) omit the owner and keep the old
+   * behaviour.
    */
-  releaseReservation(reservationId: string): boolean {
+  releaseReservation(reservationId: string, ownerUserId?: string): boolean {
+    const existing = StorageQuotaService.reservations.get(reservationId);
+    if (existing && ownerUserId !== undefined && existing.userId !== ownerUserId) {
+      throw createAppError(
+        'Quota reservation belongs to another user',
+        403,
+        'FORBIDDEN',
+      );
+    }
     return StorageQuotaService.reservations.delete(reservationId);
   }
 
   /**
    * Commits a reservation once file metadata is permanently persisted in the database.
+   * Owner-checked like releaseReservation (see above).
    */
-  commitReservation(reservationId: string): boolean {
+  commitReservation(reservationId: string, ownerUserId?: string): boolean {
+    const existing = StorageQuotaService.reservations.get(reservationId);
+    if (existing && ownerUserId !== undefined && existing.userId !== ownerUserId) {
+      throw createAppError(
+        'Quota reservation belongs to another user',
+        403,
+        'FORBIDDEN',
+      );
+    }
     return StorageQuotaService.reservations.delete(reservationId);
+  }
+
+  /**
+   * CODEX PR #1558 corrective: verify a reservation (when one is still held
+   * in this process) belongs to the caller. Absent reservations are NOT an
+   * error — after a restart the durable session row is the authority and
+   * the process-local hold is legitimately gone (restart-safe completion).
+   */
+  assertReservationOwner(reservationId: string, ownerUserId: string): void {
+    const existing = StorageQuotaService.reservations.get(reservationId);
+    if (existing && existing.userId !== ownerUserId) {
+      throw createAppError(
+        'Quota reservation belongs to another user',
+        403,
+        'FORBIDDEN',
+      );
+    }
   }
 
   /**

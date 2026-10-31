@@ -639,7 +639,7 @@ describe('QuantDrive Duplicate Cleaner Test Suite', () => {
       expect(html).toContain('3 duplicates');
     });
 
-    it('renders duplicate groups, SHA-256 header, original locks, badges, and checkboxes', () => {
+    it('renders duplicate groups, content-hash header, original locks, badges, and checkboxes', () => {
       const manager = new DuplicateCleanerManager({ initialGroups: sampleGroups });
       const html = renderToStaticMarkup(
         <AIDuplicateCleanerModal isOpen={true} onClose={vi.fn()} manager={manager} />,
@@ -648,7 +648,7 @@ describe('QuantDrive Duplicate Cleaner Test Suite', () => {
       // Groups
       expect(html).toContain('data-testid="duplicate-group-hash-abc123456789"');
       expect(html).toContain('data-testid="duplicate-group-hash-xyz987654321"');
-      expect(html).toContain('SHA-256: hash-abc1234...');
+      expect(html).toContain('Content hash: hash-abc1234...');
       expect(html).toContain('3 identical copies');
 
       // Original badges & locks
