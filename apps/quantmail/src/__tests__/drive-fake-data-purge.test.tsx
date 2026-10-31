@@ -56,10 +56,11 @@ describe('QM-UIUX-020: Drive fake-data purge (vault / shared / starred / cleaner
             {
               id: 'vault-1',
               name: 'tax-2025.pdf',
-              cipherSize: 1048576,
+              size: 1048576,
+              isEncrypted: true,
               cipherAlgorithm: 'AES-256-GCM',
               sha256Checksum: 'abc123def456',
-              encryptedAt: '2026-10-01T00:00:00Z',
+              lockedAt: '2026-10-01T00:00:00Z',
             },
           ]}
         />,
@@ -67,6 +68,28 @@ describe('QM-UIUX-020: Drive fake-data purge (vault / shared / starred / cleaner
       expect(html).toContain('Vault Items (1)');
       expect(html).toContain('tax-2025.pdf');
       expect(html).toContain('AES-256-GCM');
+      assertNoFabrications(html);
+    });
+
+    it('never shows a cipher badge for an unencrypted vault item', () => {
+      const html = renderToStaticMarkup(
+        <DriveVaultSubView
+          items={[
+            {
+              id: 'vault-2',
+              name: 'plain-2025.pdf',
+              size: 1048576,
+              isEncrypted: false,
+              cipherAlgorithm: 'AES-256-GCM',
+              sha256Checksum: 'abc123def456',
+              lockedAt: '2026-10-01T00:00:00Z',
+            },
+          ]}
+        />,
+      );
+      expect(html).toContain('Vault Items (1)');
+      expect(html).toContain('plain-2025.pdf');
+      expect(html).not.toContain('AES-256-GCM');
       assertNoFabrications(html);
     });
   });

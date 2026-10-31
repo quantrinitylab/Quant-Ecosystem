@@ -9,17 +9,29 @@ import {
   CheckIcon,
 } from './DriveIcons';
 
-export interface EncryptedVaultItem {
+/**
+ * A file locked into the Drive vault. NOTE: the vault is a separation
+ * feature, not an encryption feature — client-side encryption has not
+ * shipped yet (see the status card below). `cipherAlgorithm` therefore
+ * exists only for genuinely encrypted items and is NEVER rendered for
+ * anything else: a cipher badge over a plaintext file would be a false
+ * security claim. Callers must pass `isEncrypted: false` until real
+ * client-side encryption produces the item.
+ */
+export interface VaultItem {
   id: string;
   name: string;
-  cipherSize: number;
-  cipherAlgorithm: string;
+  size: number;
+  lockedAt: string;
   sha256Checksum: string;
-  encryptedAt: string;
+  /** True only when the file bytes were actually client-side encrypted. */
+  isEncrypted: boolean;
+  /** Meaningful only when `isEncrypted` is true; ignored otherwise. */
+  cipherAlgorithm?: string;
 }
 
 export interface DriveVaultSubViewProps {
-  items?: EncryptedVaultItem[];
+  items?: VaultItem[];
 }
 
 export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
@@ -94,17 +106,19 @@ export function DriveVaultSubView({ items = [] }: DriveVaultSubViewProps) {
                         <PadlockIcon className="size-4" />
                       </div>
 
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] uppercase tracking-wider">
-                        {item.cipherAlgorithm}
-                      </span>
+                      {item.isEncrypted && item.cipherAlgorithm ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] text-[var(--app-accent)] border border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] uppercase tracking-wider">
+                          {item.cipherAlgorithm}
+                        </span>
+                      ) : null}
                     </div>
 
                     <p className="text-xs font-bold text-[#F8FAFC] truncate group-hover:text-[var(--app-accent)] transition-colors">
                       {item.name}
                     </p>
                     <p className="text-[11px] text-[#94A3B8] mt-0.5">
-                      {formatBytes(item.cipherSize)} · Locked{' '}
-                      {new Date(item.encryptedAt).toLocaleDateString()}
+                      {formatBytes(item.size)} · Locked{' '}
+                      {new Date(item.lockedAt).toLocaleDateString()}
                     </p>
                   </div>
 
