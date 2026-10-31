@@ -1189,6 +1189,125 @@ describe('POST /webhook/inbound — the mail notification mode filters new-mail 
   });
 });
 
+describe('POST /webhook/inbound — per-label overrides and urgency shape new-mail notifications', () => {
+  function prefsUser(preferences: Record<string, unknown>): FakeUser {
+    return localUser({ preferences });
+  }
+
+  function ingestedEmail(overrides: Record<string, unknown> = {}) {
+    ingest.mockResolvedValue({
+      id: 'email-1',
+      threadId: 'thread-1',
+      subject: 'Numbers',
+      fromName: 'Ada Lovelace',
+      fromAddress: 'ada@example.com',
+      snippet: 'Hello Bob.',
+      ...overrides,
+    });
+  }
+
+  async function deliver() {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: notification(),
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ ok: true, delivered: 1 });
+  }
+
+  it("a label 'all' override notifies for bulk mail under important mode", async () => {
+    state.users.push(
+      prefsUser({
+        mailNotificationMode: 'important',
+        mailNotificationLabelOverrides: { 'lbl-1': 'all' },
+      }),
+    );
+    ingestedEmail({ aiCategory: 'promotions', labels: ['lbl-1'] });
+
+    await deliver();
+
+    expect(state.notifications).toHaveLength(1);
+  });
+
+  it("a label 'none' override silences personal mail under all mode", async () => {
+    state.users.push(
+      prefsUser({
+        mailNotificationMode: 'all',
+        mailNotificationLabelOverrides: { 'lbl-1': 'none' },
+      }),
+    );
+    ingestedEmail({ aiCategory: 'primary', labels: ['lbl-1'] });
+
+    await deliver();
+
+    expect(state.notifications).toHaveLength(0);
+  });
+
+  it('mute wins when a mail carries both an all and a none label', async () => {
+    state.users.push(
+      prefsUser({
+        mailNotificationMode: 'important',
+        mailNotificationLabelOverrides: { 'lbl-1': 'all', 'lbl-2': 'none' },
+      }),
+    );
+    ingestedEmail({ aiCategory: 'promotions', labels: ['lbl-1', 'lbl-2'] });
+
+    await deliver();
+
+    expect(state.notifications).toHaveLength(0);
+  });
+
+  it("master-off stays silent even with a label 'all' override", async () => {
+    state.users.push(
+      prefsUser({
+        mailNotificationMode: 'off',
+        mailNotificationLabelOverrides: { 'lbl-1': 'all' },
+      }),
+    );
+    ingestedEmail({ aiCategory: 'primary', labels: ['lbl-1'] });
+
+    await deliver();
+
+    expect(state.notifications).toHaveLength(0);
+  });
+
+  it('an override for a label the mail does not carry changes nothing', async () => {
+    state.users.push(
+      prefsUser({
+        mailNotificationMode: 'important',
+        mailNotificationLabelOverrides: { 'lbl-9': 'all' },
+      }),
+    );
+    ingestedEmail({ aiCategory: 'promotions', labels: ['lbl-1'] });
+
+    await deliver();
+
+    expect(state.notifications).toHaveLength(0);
+  });
+
+  it('an urgent subject notifies for bulk mail under important mode', async () => {
+    state.users.push(prefsUser({ mailNotificationMode: 'important' }));
+    ingestedEmail({ aiCategory: 'promotions', subject: 'Action required: sign by Friday' });
+
+    await deliver();
+
+    expect(state.notifications).toHaveLength(1);
+  });
+
+  it('a bulk-marked urgent subject stays silent under important mode', async () => {
+    state.users.push(prefsUser({ mailNotificationMode: 'important' }));
+    ingestedEmail({
+      aiCategory: 'promotions',
+      subject: 'URGENT deal ends tonight — unsubscribe any time',
+    });
+
+    await deliver();
+
+    expect(state.notifications).toHaveLength(0);
+  });
+});
+
 describe('POST /webhook/inbound — received attachments keep their bytes', () => {
   it('hands each delivered copy, with the raw message, to the attachment keeper', async () => {
     state.users.push(localUser());
