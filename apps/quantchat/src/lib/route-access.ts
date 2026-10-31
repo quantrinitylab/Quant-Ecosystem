@@ -70,11 +70,13 @@ export const APP_ROUTES: readonly string[] = [
   '/settings',
 ];
 
-/** Dynamic app routes: /chat/[id], /meet/[roomId] and /calls/[callId]. */
+/** Dynamic app routes: /chat/[id], /meet/[roomId], /calls/[callId] and
+ * /stories/[storyId] (QC-F-556 gated share-card / link target). */
 const APP_ROUTE_PATTERNS: readonly RegExp[] = [
   /^\/chat\/[^/]+$/,
   /^\/meet\/[^/]+$/,
   /^\/calls\/[^/]+$/,
+  /^\/stories\/[^/]+$/,
 ];
 
 const APP_ROUTE_SET: ReadonlySet<string> = new Set(APP_ROUTES);

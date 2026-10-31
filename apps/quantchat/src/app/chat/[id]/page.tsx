@@ -21,6 +21,8 @@ import { CustomEmojiText } from '../../../components/CustomEmojiText';
 import { EmojiStatusBadge } from '../../../components/EmojiStatusBadge';
 import { VoiceNoteRecorder } from '../../../components/VoiceNoteRecorder';
 import { LinkPreviewCard } from '../../../components/LinkPreviewCard';
+import { StoryShareCard } from '../../../components/StoryShareCard';
+import { parseStoryShare, type StoryShareSnapshot } from '../../../lib/story-share';
 import { AIAgentPanel } from '../../../components/chat/AIAgentPanel';
 import { ReplySuggestions } from '../../../components/chat/ReplySuggestions';
 import { GameLauncher } from '../../../components/games/GameLauncher';
@@ -50,6 +52,10 @@ interface EnhancedMessage {
   type: 'text' | 'image' | 'voice' | 'snap_photo' | 'snap_video';
   voiceDurationMs?: number;
   snapDurationSec?: number;
+  /** QC-F-556: parsed server storyShare snapshot when this message is a
+   * story reference card (the plain 'Shared a story' text bubble is then
+   * replaced by the card). */
+  storyShare?: StoryShareSnapshot | null;
 }
 
 // QC-F-309: a link card may only show what is actually known — the URL
@@ -398,6 +404,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             type,
             voiceDurationMs: msg.voiceDurationMs,
             snapDurationSec,
+            storyShare: parseStoryShare(msg.metadata),
           };
         },
       ),
@@ -424,6 +431,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           snapDurationSec:
             msg.snapDurationSec ??
             (type === 'snap_photo' || type === 'snap_video' ? 10 : undefined),
+          storyShare: parseStoryShare(msg.metadata),
         };
       }),
     ];
@@ -1002,9 +1010,22 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                   </div>
                 )}
 
+                {/* QC-F-556: story share reference card — replaces the
+                    plain 'Shared a story' text bubble. The card carries
+                    identity/type/expiry only; opening it re-runs the
+                    story's audience gate on the gated story page. */}
+                {msg.storyShare && (
+                  <div
+                    className={`flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'} mb-1`}
+                  >
+                    <StoryShareCard share={msg.storyShare} />
+                  </div>
+                )}
+
                 {/* Regular message bubble — wrapped in a disappearing-message
                     countdown overlay when the per-conversation timer is on */}
                 {msg.type === 'text' &&
+                  !msg.storyShare &&
                   (disappearSeconds > 0 ? (
                     <div
                       className={`flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'}`}
