@@ -32,6 +32,12 @@ import {
   buildSsoHandoffUrl,
   mintSsoTicket,
 } from './sso-ticket-handoff';
+import {
+  isPartialOidcAuthorizeRequest,
+  parseOidcAuthorizeRequest,
+  runOidcAuthorize,
+  type OidcAuthorizeRequest,
+} from './oidc-handoff';
 import { useAuth } from '../../providers/auth-provider';
 import { browserAuthSession } from '../../services/browser-auth-session';
 import { toQuantAddress } from '../../config/identity';
@@ -222,6 +228,78 @@ export function SsoChooserContent({
   const safeReturn = useMemo(() => safeReturnPath(rawReturnTo) || '/', [rawReturnTo]);
   const clientApp = useMemo(() => resolveClientApp(clientId, rawReturnTo), [clientId, rawReturnTo]);
 
+  // OIDC authorize request (fix/qm-oauth-authorize-302): when the query
+  // carries a real OIDC authorize request (response_type=code + client_id +
+  // redirect_uri), the chooser completes the OIDC flow after authentication
+  // instead of the ecosystem ticket-handoff — otherwise the OIDC parameters
+  // would be silently dropped and the RP would never get an authorization
+  // code. Null for plain ecosystem SSO visits (unchanged behavior).
+  const oidcRequest = useMemo(
+    () => (searchParams ? parseOidcAuthorizeRequest(searchParams) : null),
+    [searchParams],
+  );
+  // Broken sign-in link: carries response_type but failed strict OIDC
+  // detection (e.g. code without redirect_uri). Never an OIDC flow and
+  // never the ticket handoff (which would bounce and drop the parameters)
+  // — the chooser shows an honest error instead. Plain ecosystem visits
+  // never carry response_type, so this cannot misclassify them.
+  const partialOidcRequest = useMemo(
+    () => (searchParams ? isPartialOidcAuthorizeRequest(searchParams) : false),
+    [searchParams],
+  );
+  const oidcScopes = useMemo(
+    () =>
+      (oidcRequest?.scope || 'openid profile email')
+        .split(' ')
+        .filter(Boolean),
+    [oidcRequest],
+  );
+
+  // Complete a browser OIDC authorize flow (see sso/oidc-handoff.ts).
+  //
+  // SECURITY: the raw session access token goes in the Authorization header
+  // of the /api/oauth/authorize fetch ONLY — never in a URL. The backend
+  // validates redirect_uri against the client's registered URIs, so the
+  // final top-level navigation target is RP-controlled, never
+  // attacker-chosen.
+  const completeOidcHandoff = useCallback(
+    async (token: string | null, oidc: OidcAuthorizeRequest) => {
+      setAuthorizing(true);
+      if (!token) {
+        setError('No active session token available. Please sign in again.');
+        setAuthorizing(false);
+        return;
+      }
+      try {
+        const outcome = await runOidcAuthorize(token, oidc);
+        if (outcome.kind === 'redirect') {
+          // Consent already granted: backend answered 302 to
+          // redirect_uri?code=...&state=... — navigate top-level so the RP
+          // receives the authorization code.
+          window.location.href = outcome.location;
+          return;
+        }
+        if (outcome.kind === 'consent') {
+          // Consent needed: render the backend consent screen as this page.
+          // Its form posts to /api/oauth/consent with the single-use
+          // consent_token; the browser follows the resulting 302 top-level
+          // to the RP's redirect_uri.
+          document.open();
+          document.write(outcome.html);
+          document.close();
+          return;
+        }
+        setError(outcome.message);
+      } catch {
+        setError('Could not reach the sign-in service. Please try again.');
+      }
+      setAuthorizing(false);
+    },
+    [],
+  );
+
+  // Execute seamless ticket handoff to the returnTo destination.
+
   const [knownAccounts, setKnownAccounts] = useState<StoredAccount[]>([]);
   const [isAddingAnother, setIsAddingAnother] = useState(false);
   const [authorizing, setAuthorizing] = useState(false);
@@ -247,6 +325,22 @@ export function SsoChooserContent({
   // that puts the token in the URL.
   const handoffSession = useCallback(
     async (token: string | null) => {
+      // OIDC authorize request: complete the OIDC flow (consent screen or
+      // authorization code) instead of the ecosystem ticket-handoff, which
+      // would silently drop the OIDC parameters.
+      if (oidcRequest) {
+        await completeOidcHandoff(token, oidcRequest);
+        return;
+      }
+      // Partial OIDC request (broken sign-in link): honest error, no
+      // navigation and no ticket mint — the ticket handoff would bounce
+      // and drop the OIDC parameters it cannot carry.
+      if (partialOidcRequest) {
+        setError(
+          'This sign-in link is incomplete, so it cannot continue as a sign-in request. Nothing was sent anywhere — please go back to the app and start sign-in again.',
+        );
+        return;
+      }
       setAuthorizing(true);
       if (!token) {
         setError('No active session token available. Please sign in again.');
@@ -272,7 +366,7 @@ export function SsoChooserContent({
       }
       router.push(safeReturn);
     },
-    [safeReturn, router, clientId],
+    [safeReturn, router, clientId, oidcRequest, partialOidcRequest, completeOidcHandoff],
   );
 
   // Hydrate known accounts from localStorage
@@ -526,6 +620,24 @@ export function SsoChooserContent({
               <span>{clientApp.name}</span>
             </span>
           </p>
+          {/* OIDC authorize request: name the exact scopes the app asked
+              for, so the user sees what they are approving before the
+              consent screen. */}
+          {oidcRequest && (
+            <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
+              Requests access to:{' '}
+              <span className="text-zinc-300 font-medium">{oidcScopes.join(' · ')}</span>
+            </p>
+          )}
+          {/* Broken sign-in link: visible before any click, in every view,
+              so a partial OIDC visit is never mistaken for a normal SSO
+              visit and never proceeds to a bounce that drops parameters. */}
+          {partialOidcRequest && (
+            <p className="mt-2 text-[11px] leading-relaxed text-red-400">
+              This sign-in link is incomplete, so it cannot continue as a sign-in request.
+              Nothing was sent anywhere — please go back to the app and start sign-in again.
+            </p>
+          )}
         </div>
 
         {/* Authorizing Spinner Overlay */}
@@ -533,7 +645,7 @@ export function SsoChooserContent({
           <div className="w-full py-12 flex flex-col items-center justify-center space-y-3">
             <div className="w-8 h-8 rounded-full border-2 border-[var(--quant-primary)] border-t-transparent animate-spin" />
             <p className="text-sm font-medium text-zinc-300">
-              Connecting you to {clientApp.name}...
+              {oidcRequest ? 'Completing sign-in...' : `Connecting you to ${clientApp.name}...`}
             </p>
           </div>
         )}
@@ -541,6 +653,19 @@ export function SsoChooserContent({
         {/* STATE 1: Executive Keyboard-First Account Chooser */}
         {!authorizing && showChooser && (
           <div className="w-full space-y-3">
+            {(partialOidcRequest || error) && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-center gap-2">
+                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>
+                  {error ??
+                    'This sign-in link is incomplete, so it cannot continue as a sign-in request. Nothing was sent anywhere — please go back to the app and start sign-in again.'}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 px-1">
               <span>SELECT ACCOUNT</span>
               <span className="text-[10px] text-zinc-500 hidden sm:flex items-center gap-1">

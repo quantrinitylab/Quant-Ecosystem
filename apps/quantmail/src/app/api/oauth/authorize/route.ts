@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { OIDC_BROWSER_HEADER } from '../../../sso/oidc-handoff';
+
 export const dynamic = 'force-dynamic';
 
 // Next.js proxy for backend GET /oauth/authorize.
@@ -60,11 +62,27 @@ export async function GET(request: NextRequest) {
 
   // 3xx: pass status + Location (+ Set-Cookie) through to the browser
   if (res.status >= 300 && res.status < 400) {
+    const location = res.headers.get('location');
+    // Browser OIDC handoff (see sso/oidc-handoff.ts): a browser fetch cannot
+    // read a redirect's Location (it surfaces as an opaqueredirect) and must
+    // NOT follow the authorize 302 in the background — the authorization
+    // code has to reach the top-level navigation. Callers that opt in with
+    // the OIDC_BROWSER_HEADER get the 302 target as 200 JSON { redirect } so
+    // the browser can navigate itself. Everyone else keeps the exact
+    // 302-passthrough behavior below.
+    if (location && request.headers.get(OIDC_BROWSER_HEADER)) {
+      const jsonResponse = NextResponse.json(
+        { redirect: location },
+        { status: 200, headers: { 'cache-control': 'no-store' } },
+      );
+      const setCookie = res.headers.get('set-cookie');
+      if (setCookie) jsonResponse.headers.set('Set-Cookie', setCookie);
+      return jsonResponse;
+    }
     const redirectResponse = new NextResponse(null, {
       status: res.status,
       headers: { 'cache-control': 'no-store' },
     });
-    const location = res.headers.get('location');
     if (location) redirectResponse.headers.set('Location', location);
     const setCookie = res.headers.get('set-cookie');
     if (setCookie) redirectResponse.headers.set('Set-Cookie', setCookie);
