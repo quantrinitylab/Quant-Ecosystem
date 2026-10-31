@@ -12,7 +12,9 @@ const createConversationSchema = z.object({
 
 const updateConversationSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  description: z.string().max(500).optional(),
+  // QC-F-553: nullable — an explicit `description: null` is a CLEAR (the key
+  // absent still means "no change"); without this, clear was a 400.
+  description: z.string().max(500).nullable().optional(),
   isArchived: z.boolean().optional(),
 });
 
