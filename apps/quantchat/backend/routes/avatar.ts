@@ -5,6 +5,7 @@
 //                            (3 distinct variants seeded from the image hash),
 //                            face-detection validation (Task 5.2, 5.3, 5.4)
 //   POST /avatar/select    → persist the chosen variant to the Avatar model
+//                            AND project it onto User.avatarUrl (QC-F-564)
 //   GET  /avatar/:userId   → fetch a user's selected avatar (Task 5.5)
 // ============================================================================
 import type { FastifyInstance } from 'fastify';
@@ -38,11 +39,22 @@ interface AuthedRequest {
   user?: { id?: string };
 }
 
-interface PrismaAvatarClient {
+/** Transaction-scoped surface: the two writes a select must land together. */
+interface PrismaAvatarTxClient {
+  avatar: {
+    upsert: (args: unknown) => Promise<Record<string, unknown>>;
+  };
+  user: {
+    update: (args: unknown) => Promise<Record<string, unknown>>;
+  };
+}
+
+interface PrismaAvatarClient extends PrismaAvatarTxClient {
   avatar: {
     upsert: (args: unknown) => Promise<Record<string, unknown>>;
     findUnique: (args: unknown) => Promise<Record<string, unknown> | null>;
   };
+  $transaction: <T>(fn: (tx: PrismaAvatarTxClient) => Promise<T>) => Promise<T>;
 }
 
 function requireUserId(request: unknown): string {
@@ -56,7 +68,12 @@ function requireUserId(request: unknown): string {
 
 function getPrisma(fastify: FastifyInstance): PrismaAvatarClient {
   const prisma = (fastify as unknown as { prisma?: PrismaAvatarClient }).prisma;
-  if (!prisma) {
+  // QC-F-564: select writes Avatar + User.avatarUrl atomically, so the
+  // transaction surface is part of availability. There is no
+  // non-transactional fallback: the real PrismaClient always provides
+  // $transaction, and a silent downgrade would reintroduce exactly the
+  // half-landed state this fix removes (QC-F-371 precedent).
+  if (!prisma || typeof prisma.$transaction !== 'function' || !prisma.user?.update) {
     throw createAppError('Database unavailable', 503, 'DB_UNAVAILABLE');
   }
   return prisma;
@@ -111,6 +128,7 @@ export default async function avatarRoutes(fastify: FastifyInstance) {
   });
 
   // POST /avatar/select — persist chosen variant as the user's primary avatar
+  // and project it onto User.avatarUrl so every DTO surface serves it (QC-F-564)
   fastify.post('/select', async (request, reply) => {
     const parsed = selectSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -134,10 +152,25 @@ export default async function avatarRoutes(fastify: FastifyInstance) {
       reactions,
     };
 
-    const saved = await prisma.avatar.upsert({
-      where: { userId },
-      create: { userId, ...data },
-      update: data,
+    // QC-F-564: the Avatar row is read only by GET /avatar/:userId (the
+    // profile header). Every real surface — conversation DTOs, stories,
+    // search, map, discover, reels, message-requests, /auth/me and the
+    // Flutter DTOs — reads User.avatarUrl, which select never wrote, so
+    // the "primary avatar" appeared nowhere. Project the SAME value the
+    // QC-F-330 gate just validated onto the user row, inside the same
+    // interactive transaction: a select can never half-land, and if the
+    // projection fails the avatar write rolls back with it (no 201).
+    const saved = await prisma.$transaction(async (tx) => {
+      const avatar = await tx.avatar.upsert({
+        where: { userId },
+        create: { userId, ...data },
+        update: data,
+      });
+      await tx.user.update({
+        where: { id: userId },
+        data: { avatarUrl: parsed.data.imageUrl },
+      });
+      return avatar;
     });
 
     return reply.status(201).send({ success: true, data: serializeAvatar(saved) });
