@@ -96,30 +96,52 @@ describe('QuantDrive Contextual Sub-Views Test Suite', () => {
   //
   // NOTE (Wave 89): the header was redesigned from 5 tabs
   // (My Files/Shared/Vault/Starred/Cleaner) to 4 context tabs
-  // (Home/Feed/AI Memory/Vault). These assertions track the new contract.
+  // (Home/Feed/AI Memory/Vault). NOTE (2026-10-21, desktop-orphans fix):
+  // the contract is now parity with DriveMobileTabStrip — all 9 tabs
+  // reachable on desktop. These assertions track the new contract.
   // ==========================================================================
   describe('1. DriveContextTabsHeader Component', () => {
-    it('renders all 4 context tabs', () => {
+    it('renders all 9 tabs (desktop parity with the mobile strip)', () => {
       const html = renderToStaticMarkup(
         <DriveContextTabsHeader activeTab="home" onTabChange={() => {}} />,
       );
 
       expect(html).toContain('drive-tab-home');
+      expect(html).toContain('drive-tab-recent');
       expect(html).toContain('drive-tab-feed');
       expect(html).toContain('drive-tab-aimemory');
       expect(html).toContain('drive-tab-vault');
+      expect(html).toContain('drive-tab-files');
+      expect(html).toContain('drive-tab-shared');
+      expect(html).toContain('drive-tab-starred');
+      expect(html).toContain('drive-tab-cleaner');
 
       expect(html).toContain('Home');
+      expect(html).toContain('Recent');
       expect(html).toContain('Feed');
       expect(html).toContain('AI Memory');
       // R3-P2 copy honesty: the vault tab must carry a provable label —
       // no "Sovereign" marketing anywhere in the header.
       expect(html).toContain('>Vault<');
       expect(html).not.toMatch(/Sovereign/i);
+      expect(html).toContain('Files');
+      expect(html).toContain('Shared');
+      expect(html).toContain('Starred');
+      expect(html).toContain('Cleaner');
     });
 
     it('sets aria-selected="true" on active tab', () => {
-      const tabs: DriveSubTab[] = ['home', 'feed', 'aimemory', 'vault'];
+      const tabs: DriveSubTab[] = [
+        'home',
+        'recent',
+        'feed',
+        'aimemory',
+        'vault',
+        'files',
+        'shared',
+        'starred',
+        'cleaner',
+      ];
 
       tabs.forEach((activeTab) => {
         const html = renderToStaticMarkup(
@@ -147,6 +169,48 @@ describe('QuantDrive Contextual Sub-Views Test Suite', () => {
         <DriveContextTabsHeader activeTab="home" onTabChange={() => {}} />,
       );
       assertZeroRawEmojis(html);
+    });
+
+    it('files tab selects independently of home (no fold-in)', () => {
+      const html = renderToStaticMarkup(
+        <DriveContextTabsHeader activeTab="files" onTabChange={() => {}} />,
+      );
+      // Exactly one tab is selected, and it is the files tab — home must
+      // NOT be selected when the user is on the files view.
+      expect(html).toMatch(
+        /<button[^>]*id="drive-tab-files"[^>]*aria-selected="true"|<button[^>]*aria-selected="true"[^>]*id="drive-tab-files"/,
+      );
+      expect(html).toContain('id="drive-tab-home"');
+      const homeSelected =
+        /<button[^>]*id="drive-tab-home"[^>]*aria-selected="true"|<button[^>]*aria-selected="true"[^>]*id="drive-tab-home"/;
+      expect(homeSelected.test(html)).toBe(false);
+    });
+
+    it('renders shared/starred count badges only when > 0 (QM-M39-001 honesty)', () => {
+      const withCounts = renderToStaticMarkup(
+        <DriveContextTabsHeader
+          activeTab="shared"
+          onTabChange={() => {}}
+          sharedCount={3}
+          starredCount={2}
+        />,
+      );
+      // Counts appear as real badge text next to the tab labels.
+      expect(withCounts).toContain('>Shared<');
+      expect(withCounts).toContain('>Starred<');
+      expect(withCounts).toMatch(/>3</);
+      expect(withCounts).toMatch(/>2</);
+
+      const zeroCounts = renderToStaticMarkup(
+        <DriveContextTabsHeader
+          activeTab="home"
+          onTabChange={() => {}}
+          sharedCount={0}
+          starredCount={0}
+        />,
+      );
+      // A "0" pill is noise — no zero-count badges rendered.
+      expect(zeroCounts).not.toMatch(/>0</);
     });
   });
 
@@ -483,12 +547,23 @@ describe('QuantDrive Contextual Sub-Views Test Suite', () => {
       expect(html).not.toContain('4.8 GB');
     });
 
-    it('shows an honest empty state when no duplicates are found', () => {
+    it('shows an honest "No scan yet" state when no scan has run (never false-clean)', () => {
       const html = renderToStaticMarkup(<DriveCleanerSubView />);
 
-      expect(html).toContain('No duplicates found');
+      expect(html).toContain('No scan yet');
+      expect(html).not.toContain('No duplicates found');
+      expect(html).not.toContain('Your Drive looks clean');
       expect(html).not.toContain('Quarterly_Report_v1.pdf');
       expect(html).not.toContain('Reclaim 4.8 GB Storage');
+    });
+
+    it('shows "No duplicates found" only after a real completed scan', () => {
+      const html = renderToStaticMarkup(
+        <DriveCleanerSubView hasScanned clusters={[]} />,
+      );
+
+      expect(html).toContain('No duplicates found');
+      expect(html).not.toContain('No scan yet');
     });
 
     it('renders real duplicate clusters when provided', () => {
