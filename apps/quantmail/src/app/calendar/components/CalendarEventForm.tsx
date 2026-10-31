@@ -587,7 +587,7 @@ export function CalendarEventForm({
 
                   <div className="py-2 space-y-2">
                     <div className="flex items-center gap-2.5 text-[var(--quant-muted-foreground)]">
-                      <IconUsers className="size-4 text-indigo-400" />
+                      <IconUsers className="size-4 text-[var(--app-accent)]" />
                       <input
                         type="email"
                         placeholder="Add guests (type email & enter)"
