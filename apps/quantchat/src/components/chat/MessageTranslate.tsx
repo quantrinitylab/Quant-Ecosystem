@@ -10,7 +10,9 @@ import { apiFetchRaw } from '@quant/api-client';
 //
 // Drop-in affordance rendered alongside a message. Tapping "Translate" auto-
 // detects the source language on the backend and translates into the user's
-// preferred language, then shows the translated text (AI content → badged).
+// preferred language, then shows the translated text. The AI-generated badge
+// renders ONLY when the backend flags the result as real AI output
+// (isAIGenerated === true) (QC-F-519).
 // ============================================================================
 
 export interface TranslateResponse {
@@ -113,7 +115,7 @@ export function MessageTranslate({
                 >
                   {showOriginal ? 'Show translation' : 'Show original'}
                 </button>
-                <AIGeneratedBadge size="sm" />
+                {result.isAIGenerated === true && <AIGeneratedBadge size="sm" />}
               </div>
             </div>
           </motion.div>

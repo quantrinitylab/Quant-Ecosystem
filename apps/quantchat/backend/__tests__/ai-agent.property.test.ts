@@ -9,6 +9,15 @@
 //                                                     (Requirements 11.4)
 //   Property 33 — AI-generated content always labeled (Requirements 11.8)
 //
+// QC-F-519 update: the deterministic template fallback that Property 33
+// used to exercise was DELETED — it labelled hand-written canned output
+// as AI-generated, and auto-reply delivered it to third parties as a real
+// message in the user's name. Property 31 now runs against a stub engine
+// (real-inference shape); Property 33 is INVERTED: with no engine every
+// call rejects 503 AI_UNAVAILABLE (nothing unlabelled or falsely labelled
+// can be produced), and with a stub engine every produced result IS
+// flagged isAIGenerated=true. Property 32 is untouched.
+//
 // Convention: fast-check is NOT a quantchat dependency. These follow the repo's
 // realized property-test convention — a seeded deterministic mulberry32 RNG loop
 // with >=100 samples (see avatar.property.test.ts in this package).
@@ -18,13 +27,19 @@
 // ============================================================================
 
 import { describe, it, expect } from 'vitest';
+import type { AIEngine } from '@quant/ai';
 import {
   QuantAIAgent,
-  templateSuggestions,
   CONTENT_TYPES,
   type ChatMessage,
   type ContentType,
 } from '../lib/ai-agent';
+
+// Stable stub engine (module-level) — the real-inference shape (§8 band):
+// a fixed reply, good enough for the ≤3 cap and the labelling invariant.
+const stubEngine = {
+  infer: async () => ({ content: 'Alpha suggestion\nBeta suggestion\nGamma suggestion' }),
+} as unknown as AIEngine;
 import {
   ScheduledMessageWorker,
   SCHEDULED_POLL_INTERVAL_MS,
@@ -54,8 +69,8 @@ function pick<T>(rand: () => number, arr: readonly T[]): T {
   return arr[Math.floor(rand() * arr.length)]!;
 }
 
-// A bank of varied phrase fragments so generated text exercises every branch of
-// the template generators (questions, greetings, thanks, plans, plain text).
+// A bank of varied phrase fragments so generated conversations vary in
+// shape (questions, greetings, thanks, plans, plain text, empty strings).
 const WORD_BANK = [
   'hey',
   'hello',
@@ -101,27 +116,9 @@ function randomConversation(rand: () => number): ChatMessage[] {
 // **Validates: Requirements 11.3**
 // ----------------------------------------------------------------------------
 describe('Property 31: AI suggestion generator produces at most 3 suggestions', () => {
-  it('holds across >=100 randomized conversation contexts (template generator)', () => {
-    const rand = mulberry32(0x5031_0001); // "P31"
-
-    for (let s = 0; s < SAMPLES; s += 1) {
-      const messages = randomConversation(rand);
-      const draft = rand() < 0.5 ? pick(rand, WORD_BANK) : undefined;
-
-      const suggestions = templateSuggestions({
-        conversationId: `c_${s}`,
-        messages,
-        draft,
-      });
-
-      expect(Array.isArray(suggestions)).toBe(true);
-      expect(suggestions.length).toBeLessThanOrEqual(3);
-    }
-  });
-
-  it('holds across >=100 randomized contexts via the agent fallback path', async () => {
+  it('holds across >=100 randomized contexts via the agent (stub engine)', async () => {
     const rand = mulberry32(0x5031_0002);
-    const agent = new QuantAIAgent(); // no AIEngine → deterministic templates
+    const agent = new QuantAIAgent(stubEngine); // real-inference shape
 
     for (let s = 0; s < SAMPLES; s += 1) {
       const messages = randomConversation(rand);
@@ -129,7 +126,9 @@ describe('Property 31: AI suggestion generator produces at most 3 suggestions', 
 
       const res = await agent.suggestions({ conversationId: `c_${s}`, messages, draft }, 'user1');
 
+      expect(Array.isArray(res.suggestions)).toBe(true);
       expect(res.suggestions.length).toBeLessThanOrEqual(3);
+      expect(res.suggestions.length).toBeGreaterThan(0);
     }
   });
 });
@@ -139,9 +138,9 @@ describe('Property 31: AI suggestion generator produces at most 3 suggestions', 
 // **Validates: Requirements 11.8**
 // ----------------------------------------------------------------------------
 describe('Property 33: every AI-agent-produced message is flagged isAIGenerated=true', () => {
-  it('holds across >=100 randomized auto-reply + content-generation inputs', async () => {
+  it('holds across >=100 randomized auto-reply + content-generation inputs (stub engine)', async () => {
     const rand = mulberry32(0x5033_0001); // "P33"
-    const agent = new QuantAIAgent(); // no AIEngine → deterministic fallback
+    const agent = new QuantAIAgent(stubEngine); // real-inference shape
 
     for (let s = 0; s < SAMPLES; s += 1) {
       const context = randomConversation(rand);
@@ -167,6 +166,37 @@ describe('Property 33: every AI-agent-produced message is flagged isAIGenerated=
       expect(content.isAIGenerated).toBe(true);
       expect(content.suggestions.length).toBeGreaterThan(0);
       expect(content.suggestions.length).toBeLessThanOrEqual(count);
+    }
+  });
+
+  it('QC-F-519 inversion: with NO engine nothing is produced at all — every call rejects AI_UNAVAILABLE', async () => {
+    const rand = mulberry32(0x5033_0519);
+    const agent = new QuantAIAgent(); // no AIEngine → honest failure, never canned output
+
+    for (let s = 0; s < SAMPLES; s += 1) {
+      const context = randomConversation(rand);
+      const incomingMessage = pick(rand, WORD_BANK) || 'hello there';
+
+      await expect(
+        agent.autoReply({ conversationId: `c_${s}`, incomingMessage, context }, 'user1'),
+      ).rejects.toMatchObject({ statusCode: 503, code: 'AI_UNAVAILABLE' });
+
+      const type: ContentType = pick(rand, CONTENT_TYPES);
+      const contentContext = pick(rand, WORD_BANK) || 'a sunset over the mountains';
+      await expect(
+        agent.generateContent({ type, context: contentContext, count: randInt(rand, 1, 5) }, 'user1'),
+      ).rejects.toMatchObject({ statusCode: 503, code: 'AI_UNAVAILABLE' });
+
+      // Non-empty summarize also rejects; the 0-message factual empty
+      // result (isAIGenerated:false) is the single honest exception.
+      if (context.length > 0) {
+        await expect(
+          agent.summarize({ conversationId: `c_${s}`, messages: context }, 'user1'),
+        ).rejects.toMatchObject({ statusCode: 503, code: 'AI_UNAVAILABLE' });
+      } else {
+        const empty = await agent.summarize({ conversationId: `c_${s}`, messages: [] }, 'user1');
+        expect(empty.isAIGenerated).toBe(false);
+      }
     }
   });
 });
