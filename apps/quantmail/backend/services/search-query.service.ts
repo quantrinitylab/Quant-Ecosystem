@@ -11,6 +11,17 @@ import type { PrismaClient } from '@prisma/client';
  *   before:YYYY-MM-DD     after:YYYY-MM-DD     newer_than:7d  older_than:2w
  *   "exact phrase"        free text terms
  *
+ * Boolean operators (Gmail parity — `OR` must be UPPERCASE; lowercase `or`
+ * is an ordinary free-text term):
+ *   from:alice OR from:bob     either sender (OR binds tighter than the
+ *                              implicit AND, so `from:a OR from:b invoice`
+ *                              means "(from a or b) and invoice")
+ *   -from:spammy  -unsubscribe  -"exact phrase"
+ *                              exclusion: the `-` prefix negates one atom
+ *                              (operator or free-text term, quoted or not).
+ *                              A `-` on `in:anywhere` is a no-op: a scope
+ *                              modifier cannot be negated, so it is dropped.
+ *
  * `in:anywhere` is a scope modifier (Gmail parity): it searches ALL mail
  * including Spam and Trash. It adds no folder predicate and drops the default
  * trash/spam exclusions — the userId scope and the soft-delete exclusion
@@ -44,6 +55,46 @@ export interface ParsedSearchQuery {
   after?: Date;
   /** Free-text terms (incl. de-quoted phrases). */
   terms: string[];
+  /**
+   * OR-groups: each inner array holds the atoms joined by uppercase `OR`
+   * (2+ atoms; OR binds tighter than the implicit AND, so each group is
+   * ANDed with the flat fields and with the other groups). Atoms that are
+   * not adjacent to an `OR` live in the flat fields above, never here.
+   */
+  orGroups: SearchAtom[][];
+  /** Negated atoms (`-` prefix) that are not part of an OR-group. */
+  excluded: SearchAtom[];
+}
+
+/**
+ * One parsed query atom: a single operator (or free-text term) with its
+ * value. Relative dates are already resolved against `now` at parse time:
+ * `newer_than` becomes an `after` atom and `older_than` a `before` atom,
+ * both carrying the resolved `date`. Unknown operators never become atoms —
+ * they fall back to plain `term` atoms, mirroring the flat fields.
+ */
+export interface SearchAtom {
+  op:
+    | 'from'
+    | 'to'
+    | 'subject'
+    | 'label'
+    | 'in'
+    | 'folder'
+    | 'has'
+    | 'is'
+    | 'before'
+    | 'after'
+    | 'term';
+  value: string;
+  /** Resolved date for `before`/`after` atoms (incl. relative forms). */
+  date?: Date;
+  /**
+   * True when the atom carried a `-` prefix. Atoms in `excluded` are always
+   * negated; atoms in `orGroups` may or may not be (e.g. `-from:a OR from:b`
+   * negates only the first branch).
+   */
+  negated: boolean;
 }
 
 const KNOWN_FOLDER_TYPES = new Set(['inbox', 'sent', 'drafts', 'spam', 'trash', 'archive']);
@@ -98,17 +149,19 @@ const RELATIVE_UNIT_MS: Record<string, number> = {
 
 /** Split a query into tokens, keeping "quoted phrases" together. A quoted
  *  value may be attached to an operator (e.g. `subject:"year end review"`),
- *  in which case the operator prefix is preserved on the token. */
+ *  in which case the operator prefix is preserved on the token. A leading
+ *  `-` (negation) is preserved on the token too, including before a quoted
+ *  phrase (`-"exact phrase"`), so the parser can see what is negated. */
 function tokenize(query: string): string[] {
   const tokens: string[] = [];
-  const regex = /(\S+?:)?"([^"]*)"|(\S+)/g;
+  const regex = /(-?)(\S+?:)?"([^"]*)"|(-?)(\S+)/g;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(query)) !== null) {
-    if (match[2] !== undefined) {
-      // Quoted phrase, optionally prefixed by an `operator:`.
-      tokens.push(`${match[1] ?? ''}${match[2]}`);
-    } else if (match[3] !== undefined) {
-      tokens.push(match[3]);
+    if (match[3] !== undefined) {
+      // Quoted phrase, optionally negated and/or prefixed by an `operator:`.
+      tokens.push(`${match[1] ?? ''}${match[2] ?? ''}${match[3]}`);
+    } else if (match[5] !== undefined) {
+      tokens.push(`${match[4] ?? ''}${match[5]}`);
     }
   }
   return tokens;
@@ -135,10 +188,217 @@ function parseRelativeMs(value: string): number | undefined {
   return unit === undefined ? undefined : amount * unit;
 }
 
+/**
+ * Parse one token into an atom. Returns null when the token carries no
+ * usable condition (empty operator value, invalid date, or an unrecognised
+ * `has:`/`is:` value) — matching the old parser, which silently skipped
+ * those tokens. An unknown operator prefix falls back to a plain `term`
+ * atom holding the whole token, exactly as the old parser did.
+ * `newer_than`/`older_than` are normalised here to `after`/`before` atoms
+ * with the date already resolved against `now`.
+ */
+function parseAtomToken(token: string, now: Date): SearchAtom | null {
+  let negated = false;
+  let body = token;
+  if (body.startsWith('-') && body.length > 1) {
+    negated = true;
+    body = body.slice(1);
+  }
+
+  const colon = body.indexOf(':');
+  if (colon <= 0) {
+    return { op: 'term', value: body, negated };
+  }
+
+  const op = body.slice(0, colon).toLowerCase();
+  // Strip surrounding quotes from the operator value (e.g. subject:"a b").
+  const value = body.slice(colon + 1).replace(/^"|"$/g, '');
+  if (value.length === 0 && op !== 'has' && op !== 'is') {
+    return null;
+  }
+
+  switch (op) {
+    case 'from':
+    case 'to':
+    case 'subject':
+    case 'label':
+    case 'in':
+    case 'folder':
+      return { op, value, negated };
+    case 'has': {
+      const v = value.toLowerCase();
+      return v === 'attachment' || v === 'attachments'
+        ? { op: 'has', value: v, negated }
+        : null;
+    }
+    case 'is': {
+      const v = value.toLowerCase();
+      return v === 'unread' || v === 'read' || v === 'starred' || v === 'important' || v === 'spam'
+        ? { op: 'is', value: v, negated }
+        : null;
+    }
+    case 'before': {
+      const d = parseDate(value);
+      return d ? { op: 'before', value, date: d, negated } : null;
+    }
+    case 'after': {
+      const d = parseDate(value);
+      return d ? { op: 'after', value, date: d, negated } : null;
+    }
+    case 'newer_than': {
+      const ms = parseRelativeMs(value);
+      return ms !== undefined
+        ? { op: 'after', value, date: new Date(now.getTime() - ms), negated }
+        : null;
+    }
+    case 'older_than': {
+      const ms = parseRelativeMs(value);
+      return ms !== undefined
+        ? { op: 'before', value, date: new Date(now.getTime() - ms), negated }
+        : null;
+    }
+    default:
+      // Unknown operator -> treat the whole token as a free-text term.
+      return { op: 'term', value: body, negated };
+  }
+}
+
+/** Apply one non-negated, non-grouped atom to the flat parsed fields. */
+function applyFlatAtom(parsed: ParsedSearchQuery, atom: SearchAtom): void {
+  switch (atom.op) {
+    case 'from':
+      parsed.from.push(atom.value);
+      break;
+    case 'to':
+      parsed.to.push(atom.value);
+      break;
+    case 'subject':
+      parsed.subject.push(atom.value);
+      break;
+    case 'label':
+      parsed.labels.push(atom.value);
+      break;
+    case 'in': {
+      const v = atom.value.toLowerCase();
+      if (KNOWN_FOLDER_TYPES.has(v)) {
+        parsed.inFolderTypes.push(v);
+      } else {
+        parsed.folderIds.push(atom.value);
+      }
+      break;
+    }
+    case 'folder':
+      parsed.folderIds.push(atom.value);
+      break;
+    case 'has':
+      parsed.hasAttachment = true;
+      break;
+    case 'is': {
+      if (atom.value === 'unread') parsed.isUnread = true;
+      else if (atom.value === 'read') parsed.isUnread = false;
+      else if (atom.value === 'starred') parsed.isStarred = true;
+      else if (atom.value === 'important') parsed.isImportant = true;
+      else if (atom.value === 'spam') parsed.isSpam = true;
+      break;
+    }
+    case 'before':
+      if (atom.date) parsed.before = atom.date;
+      break;
+    case 'after':
+      if (atom.date) parsed.after = atom.date;
+      break;
+    case 'term':
+      parsed.terms.push(atom.value);
+      break;
+  }
+}
+
+/** Translate one parsed atom into its Prisma `Email` condition, or null
+ *  when the atom contributes no predicate (`in:anywhere`, already hoisted
+ *  to the scope flag). The caller wraps negated atoms in `NOT`. */
+function atomPrismaCondition(atom: SearchAtom): Record<string, unknown> | null {
+  switch (atom.op) {
+    case 'from':
+      return { fromAddress: { contains: atom.value, mode: 'insensitive' } };
+    case 'to':
+      return { toAddresses: { array_contains: atom.value } };
+    case 'subject':
+      return { subject: { contains: atom.value, mode: 'insensitive' } };
+    case 'label':
+      return { labels: { array_contains: atom.value } };
+    case 'in': {
+      const v = atom.value.toLowerCase();
+      if (v === 'anywhere') {
+        return null;
+      }
+      if (KNOWN_FOLDER_TYPES.has(v)) {
+        return folderTypeCondition(v);
+      }
+      return { folderId: { in: [atom.value] } };
+    }
+    case 'folder':
+      return { folderId: { in: [atom.value] } };
+    case 'has':
+      return { hasAttachments: true };
+    case 'is': {
+      if (atom.value === 'unread') return { isRead: false };
+      if (atom.value === 'read') return { isRead: true };
+      if (atom.value === 'starred') return { isStarred: true };
+      if (atom.value === 'important') return { isImportant: true };
+      if (atom.value === 'spam') return { isSpam: true };
+      return null;
+    }
+    case 'before':
+      return atom.date ? { receivedAt: { lte: atom.date } } : null;
+    case 'after':
+      return atom.date ? { receivedAt: { gte: atom.date } } : null;
+    case 'term':
+      return {
+        OR: [
+          { subject: { contains: atom.value, mode: 'insensitive' } },
+          { snippet: { contains: atom.value, mode: 'insensitive' } },
+          { bodyPlain: { contains: atom.value, mode: 'insensitive' } },
+        ],
+      };
+  }
+}
+
+/** True when a non-negated OR-group atom asks for a folder type: such a
+ *  branch must not be ANDed with the default trash/spam exclusion, for the
+ *  same reason an explicit flat `in:trash`/`in:spam` lifts it. Negated
+ *  branches (`-in:trash OR ...`) stay compatible with the exclusion. */
+function orGroupWantsFolder(groups: SearchAtom[][], type: string): boolean {
+  return groups.some((group) =>
+    group.some((atom) => !atom.negated && atom.op === 'in' && atom.value.toLowerCase() === type),
+  );
+}
+
+/** True when a non-negated OR-group atom asks for spam via `is:spam`. */
+function orGroupWantsSpam(groups: SearchAtom[][]): boolean {
+  return groups.some((group) =>
+    group.some((atom) => !atom.negated && atom.op === 'is' && atom.value === 'spam'),
+  );
+}
+
 export class SearchQueryService {
   constructor(private readonly prisma?: PrismaClient) {}
 
-  /** Parse a raw query string into a structured {@link ParsedSearchQuery}. */
+  /**
+   * Parse a raw query string into a structured {@link ParsedSearchQuery}.
+   *
+   * Boolean rules (Gmail parity):
+   * - A bare `OR` token (exact uppercase) between two atoms joins them
+   *   into one OR-group; OR binds tighter than the implicit AND, so
+   *   `from:a OR from:b invoice` is "(a or b) and invoice". Lowercase
+   *   `or` is an ordinary term. A stray `OR` (leading, trailing, or
+   *   doubled) is treated as an ordinary term, never as a separator.
+   * - A `-` prefix negates one atom (`-from:x`, `-term`, `-"phrase"`).
+   *   Negated atoms outside OR-groups land in `excluded`; negated atoms
+   *   inside a group negate only their own branch.
+   * - `in:anywhere` stays a scope modifier wherever it appears: it sets
+   *   the flag and contributes no atom. A negated `-in:anywhere` is
+   *   dropped entirely (a scope modifier cannot be negated).
+   */
   parse(query: string, now: Date = new Date()): ParsedSearchQuery {
     const parsed: ParsedSearchQuery = {
       from: [],
@@ -148,93 +408,77 @@ export class SearchQueryService {
       inFolderTypes: [],
       folderIds: [],
       terms: [],
+      orGroups: [],
+      excluded: [],
     };
 
-    for (const rawToken of tokenize(query)) {
-      const token = rawToken.trim();
-      if (token.length === 0) {
+    const tokens = tokenize(query)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+    type Item = { kind: 'atom'; token: string } | { kind: 'or' };
+    const items: Item[] = tokens.map((t) =>
+      t === 'OR' ? { kind: 'or' } : { kind: 'atom', token: t },
+    );
+
+    // Group consecutive atoms connected by separator `OR`s. An `OR` is a
+    // separator only when a group atom precedes it and an atom follows it;
+    // otherwise it is a stray term that starts its own single-atom group.
+    const tokenGroups: string[][] = [];
+    let current: string[] = [];
+    let joining = false;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]!;
+      if (item.kind === 'or') {
+        const isSeparator = current.length > 0 && items[i + 1]?.kind === 'atom';
+        if (isSeparator) {
+          joining = true;
+        } else {
+          if (current.length > 0) tokenGroups.push(current);
+          current = ['OR'];
+          joining = false;
+        }
         continue;
       }
-
-      const colon = token.indexOf(':');
-      if (colon <= 0) {
-        parsed.terms.push(token);
-        continue;
+      if (joining) {
+        current.push(item.token);
+        joining = false;
+      } else {
+        if (current.length > 0) tokenGroups.push(current);
+        current = [item.token];
       }
+    }
+    if (current.length > 0) tokenGroups.push(current);
 
-      const op = token.slice(0, colon).toLowerCase();
-      // Strip surrounding quotes from the operator value (e.g. subject:"a b").
-      const value = token.slice(colon + 1).replace(/^"|"$/g, '');
-      if (value.length === 0 && op !== 'has' && op !== 'is') {
-        continue;
-      }
-
-      switch (op) {
-        case 'from':
-          parsed.from.push(value);
-          break;
-        case 'to':
-          parsed.to.push(value);
-          break;
-        case 'subject':
-          parsed.subject.push(value);
-          break;
-        case 'label':
-          parsed.labels.push(value);
-          break;
-        case 'in':
-        case 'folder': {
-          const v = value.toLowerCase();
-          if (op === 'in' && v === 'anywhere') {
-            // Gmail's `in:anywhere` is a scope modifier, not a folder:
-            // search everything including Spam and Trash. No folder
-            // predicate is added; buildEmailWhere() drops the default
-            // trash/spam exclusions when this flag is set.
+    for (const tokenGroup of tokenGroups) {
+      const atoms: SearchAtom[] = [];
+      for (const token of tokenGroup) {
+        const atom = parseAtomToken(token, now);
+        if (!atom) {
+          continue;
+        }
+        // Gmail's `in:anywhere` is a scope modifier, not a folder: it sets
+        // the flag wherever it appears and contributes no atom. A negated
+        // one is dropped entirely.
+        if (atom.op === 'in' && atom.value.toLowerCase() === 'anywhere') {
+          if (!atom.negated) {
             parsed.inAnywhere = true;
-          } else if (op === 'in' && KNOWN_FOLDER_TYPES.has(v)) {
-            parsed.inFolderTypes.push(v);
-          } else {
-            parsed.folderIds.push(value);
           }
-          break;
+          continue;
         }
-        case 'has':
-          if (value.toLowerCase() === 'attachment' || value.toLowerCase() === 'attachments') {
-            parsed.hasAttachment = true;
-          }
-          break;
-        case 'is': {
-          const v = value.toLowerCase();
-          if (v === 'unread') parsed.isUnread = true;
-          else if (v === 'read') parsed.isUnread = false;
-          else if (v === 'starred') parsed.isStarred = true;
-          else if (v === 'important') parsed.isImportant = true;
-          else if (v === 'spam') parsed.isSpam = true;
-          break;
+        atoms.push(atom);
+      }
+      if (atoms.length === 0) {
+        continue;
+      }
+      if (atoms.length === 1) {
+        const atom = atoms[0]!;
+        if (atom.negated) {
+          parsed.excluded.push(atom);
+        } else {
+          applyFlatAtom(parsed, atom);
         }
-        case 'before': {
-          const d = parseDate(value);
-          if (d) parsed.before = d;
-          break;
-        }
-        case 'after': {
-          const d = parseDate(value);
-          if (d) parsed.after = d;
-          break;
-        }
-        case 'newer_than': {
-          const ms = parseRelativeMs(value);
-          if (ms !== undefined) parsed.after = new Date(now.getTime() - ms);
-          break;
-        }
-        case 'older_than': {
-          const ms = parseRelativeMs(value);
-          if (ms !== undefined) parsed.before = new Date(now.getTime() - ms);
-          break;
-        }
-        default:
-          // Unknown operator -> treat the whole token as a free-text term.
-          parsed.terms.push(token);
+      } else {
+        parsed.orGroups.push(atoms);
       }
     }
 
@@ -247,8 +491,11 @@ export class SearchQueryService {
    * are excluded by default (Gmail parity) — an operator search is a way of
    * finding mail you filed, not of exhuming mail you threw away — with
    * explicit `in:trash`, `in:spam`, `is:spam`, or the `in:anywhere` scope
-   * modifier as the escape hatch.
-   * Multiple operators of the same kind combine with AND.
+   * modifier as the escape hatch. The same escape applies to a non-negated
+   * `in:trash`/`in:spam`/`is:spam` branch inside an OR-group.
+   * Multiple operators of the same kind combine with AND; OR-groups are
+   * ANDed with the rest of the query, and each `excluded` atom is ANDed
+   * as a `NOT` of its condition.
    */
   buildEmailWhere(userId: string, query: string, now: Date = new Date()): Record<string, unknown> {
     const parsed = this.parse(query, now);
@@ -258,9 +505,16 @@ export class SearchQueryService {
     // `in:trash` wants trash, `in:spam`/`is:spam` wants spam, and
     // `in:anywhere` wants everything (inbox + spam + trash). ANDing the
     // default exclusion with the explicit request would match nothing.
-    const wantTrash = parsed.inFolderTypes.includes('trash') || parsed.inAnywhere === true;
+    const wantTrash =
+      parsed.inFolderTypes.includes('trash') ||
+      parsed.inAnywhere === true ||
+      orGroupWantsFolder(parsed.orGroups, 'trash');
     const wantSpam =
-      parsed.inFolderTypes.includes('spam') || parsed.isSpam === true || parsed.inAnywhere === true;
+      parsed.inFolderTypes.includes('spam') ||
+      parsed.isSpam === true ||
+      parsed.inAnywhere === true ||
+      orGroupWantsFolder(parsed.orGroups, 'spam') ||
+      orGroupWantsSpam(parsed.orGroups);
 
     for (const from of parsed.from) {
       and.push({ fromAddress: { contains: from, mode: 'insensitive' } });
@@ -310,6 +564,29 @@ export class SearchQueryService {
           { bodyPlain: { contains: term, mode: 'insensitive' } },
         ],
       });
+    }
+    // Excluded atoms: each is ANDed as the negation of its condition.
+    for (const atom of parsed.excluded) {
+      const cond = atomPrismaCondition(atom);
+      if (cond) {
+        and.push({ NOT: cond });
+      }
+    }
+    // OR-groups: each group is one OR of its branches (a negated branch
+    // contributes its own NOT), ANDed with everything else.
+    for (const group of parsed.orGroups) {
+      const branches: Record<string, unknown>[] = [];
+      for (const atom of group) {
+        const cond = atomPrismaCondition(atom);
+        if (cond) {
+          branches.push(atom.negated ? { NOT: cond } : cond);
+        }
+      }
+      if (branches.length === 1) {
+        and.push(branches[0]!);
+      } else if (branches.length > 1) {
+        and.push({ OR: branches });
+      }
     }
 
     const where: Record<string, unknown> = { userId, deletedAt: null };
@@ -368,11 +645,16 @@ export class SearchQueryService {
         // with explicit `in:trash` / `in:spam` / `is:spam` / `in:anywhere`
         // as the escape hatch (an in:trash isTrash clause would contradict
         // the default exclusion; in:anywhere drops both exclusions).
-        const wantTrash = parsed.inFolderTypes.includes('trash') || parsed.inAnywhere === true;
+        const wantTrash =
+          parsed.inFolderTypes.includes('trash') ||
+          parsed.inAnywhere === true ||
+          orGroupWantsFolder(parsed.orGroups, 'trash');
         const wantSpam =
           parsed.inFolderTypes.includes('spam') ||
           parsed.isSpam === true ||
-          parsed.inAnywhere === true;
+          parsed.inAnywhere === true ||
+          orGroupWantsFolder(parsed.orGroups, 'spam') ||
+          orGroupWantsSpam(parsed.orGroups);
         const whereClauses: string[] = [
           `"userId" = $1`,
           `"deletedAt" IS NULL`,
@@ -380,6 +662,76 @@ export class SearchQueryService {
         ];
         const params: any[] = [userId, fullTerms];
         let paramIdx = 3;
+        // Raw-SQL mirror of folderTypeCondition() for the GIN full-text path.
+        // $1 is always the userId bind (see params initialisation above);
+        // folder membership resolves through email_folders (EmailFolder.type).
+        const bind = (value: unknown): string => {
+          params.push(value);
+          return `$${paramIdx++}`;
+        };
+        const folderOfType = (folderType: string): string =>
+          `"folderId" IN (SELECT id FROM email_folders WHERE "userId" = $1 AND type = '${folderType}')`;
+        const clauseFor = (type: string): string => {
+          switch (type) {
+            case 'sent':
+              return `"isSent" = ${bind(true)} AND "isTrash" = ${bind(false)}`;
+            case 'drafts':
+              return `"isDraft" = ${bind(true)} AND "isTrash" = ${bind(false)}`;
+            case 'spam':
+              return `"isSpam" = ${bind(true)} AND "isTrash" = ${bind(false)}`;
+            case 'trash':
+              return `"isTrash" = ${bind(true)}`;
+            case 'archive':
+              return `"isTrash" = ${bind(false)} AND ${folderOfType('ARCHIVE')}`;
+            case 'inbox':
+              return (
+                `"isDraft" = ${bind(false)} AND "isSpam" = ${bind(false)} AND ` +
+                `"isTrash" = ${bind(false)} AND ("folderId" IS NULL OR ` +
+                `${folderOfType('INBOX')} OR "isSent" = ${bind(true)})`
+              );
+            default:
+              // Unreachable: inFolderTypes only holds KNOWN_FOLDER_TYPES.
+              // A no-op guard rather than silently filtering everything out.
+              return 'TRUE';
+          }
+        };
+        /** Raw-SQL mirror of atomPrismaCondition() for OR-group/excluded atoms. */
+        const atomSqlClause = (atom: SearchAtom): string | null => {
+          switch (atom.op) {
+            case 'from':
+              return `"fromAddress" ILIKE ${bind(`%${atom.value}%`)}`;
+            case 'subject':
+              return `subject ILIKE ${bind(`%${atom.value}%`)}`;
+            case 'to':
+              return `"toAddresses"::text ILIKE ${bind(`%${atom.value}%`)}`;
+            case 'label':
+              return `"labels"::text ILIKE ${bind(`%${atom.value}%`)}`;
+            case 'in': {
+              const v = atom.value.toLowerCase();
+              if (v === 'anywhere') return null;
+              if (KNOWN_FOLDER_TYPES.has(v)) return clauseFor(v);
+              return `"folderId" = ${bind(atom.value)}`;
+            }
+            case 'folder':
+              return `"folderId" = ${bind(atom.value)}`;
+            case 'has':
+              return `"hasAttachments" = ${bind(true)}`;
+            case 'is': {
+              if (atom.value === 'unread') return `"isRead" = ${bind(false)}`;
+              if (atom.value === 'read') return `"isRead" = ${bind(true)}`;
+              if (atom.value === 'starred') return `"isStarred" = ${bind(true)}`;
+              if (atom.value === 'important') return `"isImportant" = ${bind(true)}`;
+              if (atom.value === 'spam') return `"isSpam" = ${bind(true)}`;
+              return null;
+            }
+            case 'before':
+              return atom.date ? `"receivedAt" <= ${bind(atom.date)}` : null;
+            case 'after':
+              return atom.date ? `"receivedAt" >= ${bind(atom.date)}` : null;
+            case 'term':
+              return `to_tsvector('english', coalesce(subject, '') || ' ' || coalesce("bodyPlain", '') || ' ' || coalesce("fromAddress", '')) @@ plainto_tsquery('english', ${bind(atom.value)})`;
+          }
+        };
         if (!wantTrash) {
           whereClauses.push(`"isTrash" = $${paramIdx++}`);
           params.push(false);
@@ -410,39 +762,6 @@ export class SearchQueryService {
           params.push(parsed.folderIds);
         }
         if (parsed.inFolderTypes.length > 0) {
-          // Raw-SQL mirror of folderTypeCondition() for the GIN full-text path.
-          // $1 is always the userId bind (see params initialisation above);
-          // folder membership resolves through email_folders (EmailFolder.type).
-          const bind = (value: unknown): string => {
-            params.push(value);
-            return `$${paramIdx++}`;
-          };
-          const folderOfType = (folderType: string): string =>
-            `"folderId" IN (SELECT id FROM email_folders WHERE "userId" = $1 AND type = '${folderType}')`;
-          const clauseFor = (type: string): string => {
-            switch (type) {
-              case 'sent':
-                return `"isSent" = ${bind(true)} AND "isTrash" = ${bind(false)}`;
-              case 'drafts':
-                return `"isDraft" = ${bind(true)} AND "isTrash" = ${bind(false)}`;
-              case 'spam':
-                return `"isSpam" = ${bind(true)} AND "isTrash" = ${bind(false)}`;
-              case 'trash':
-                return `"isTrash" = ${bind(true)}`;
-              case 'archive':
-                return `"isTrash" = ${bind(false)} AND ${folderOfType('ARCHIVE')}`;
-              case 'inbox':
-                return (
-                  `"isDraft" = ${bind(false)} AND "isSpam" = ${bind(false)} AND ` +
-                  `"isTrash" = ${bind(false)} AND ("folderId" IS NULL OR ` +
-                  `${folderOfType('INBOX')} OR "isSent" = ${bind(true)})`
-                );
-              default:
-                // Unreachable: inFolderTypes only holds KNOWN_FOLDER_TYPES.
-                // A no-op guard rather than silently filtering everything out.
-                return 'TRUE';
-            }
-          };
           const clauses = parsed.inFolderTypes.map((type) => `(${clauseFor(type)})`);
           whereClauses.push(clauses.length === 1 ? clauses[0]! : `(${clauses.join(' OR ')})`);
         }
@@ -473,6 +792,29 @@ export class SearchQueryService {
         if (parsed.before) {
           whereClauses.push(`"receivedAt" <= $${paramIdx++}`);
           params.push(parsed.before);
+        }
+        // Excluded atoms and OR-groups ride the raw path too: without them
+        // a query like `invoice -from:spammy` would silently ignore the
+        // exclusion on the fast path while honouring it on the Prisma path.
+        for (const atom of parsed.excluded) {
+          const clause = atomSqlClause(atom);
+          if (clause) {
+            whereClauses.push(`NOT (${clause})`);
+          }
+        }
+        for (const group of parsed.orGroups) {
+          const clauses: string[] = [];
+          for (const atom of group) {
+            const clause = atomSqlClause(atom);
+            if (clause) {
+              clauses.push(atom.negated ? `NOT (${clause})` : clause);
+            }
+          }
+          if (clauses.length === 1) {
+            whereClauses.push(clauses[0]!);
+          } else if (clauses.length > 1) {
+            whereClauses.push(`(${clauses.join(' OR ')})`);
+          }
         }
 
         const whereSql = whereClauses.join(' AND ');
