@@ -400,8 +400,8 @@ export default async function contactsRoutes(fastify: FastifyInstance) {
     }
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new ContactService(prisma as never);
-    const duplicates = await service.findDuplicates(userId);
-    return reply.send({ success: true, data: duplicates });
+    const plan = await service.findDuplicatePlan(userId);
+    return reply.send({ success: true, data: plan.groups, planFingerprint: plan.planFingerprint });
   });
 
   // POST /contacts/duplicates/dismiss (QM-SCREEN-012): persist a "keep
@@ -468,11 +468,29 @@ export default async function contactsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
+    // Optional planFingerprint from the wizard preview: when present and the
+    // underlying data changed since the preview, the service 409s with
+    // STALE_MERGE_PLAN instead of silently merging an expanded set.
+    const deduplicateSchema = z
+      .object({
+        planFingerprint: z.string().min(1).optional(),
+      })
+      .strict();
+    const parseResult = deduplicateSchema.safeParse(request.body ?? {});
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new ContactService(prisma as never);
-    const result = await service.deduplicateContacts(userId);
+    const result = await service.deduplicateContacts(userId, {
+      expectedFingerprint: parseResult.data.planFingerprint,
+    });
 
-    return reply.send({ success: true, data: { mergedCount: result.mergedCount } });
+    return reply.send({
+      success: true,
+      data: { mergedCount: result.mergedCount, planFingerprint: result.planFingerprint },
+    });
   });
 
   // POST /contacts/import (Tasks X03, D20)
