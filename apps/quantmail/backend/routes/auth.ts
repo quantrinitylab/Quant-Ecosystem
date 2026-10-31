@@ -7,6 +7,7 @@ import {
   REFRESH_COOKIE_NAME,
   SessionUser,
   authenticatedUserId,
+  clearAccessCookie,
   clearRefreshCookie,
   createTokenService,
   fail,
@@ -14,6 +15,7 @@ import {
   requireTrustedOrigin,
   sessionMetadataFromRequest,
   sessionUserPayload,
+  setAccessCookie,
   setRefreshCookie,
 } from '../lib/auth-session';
 import { signTwoFactorChallenge } from '../lib/two-factor';
@@ -591,6 +593,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       const oldRefreshToken = request.cookies[REFRESH_COOKIE_NAME];
       if (!oldRefreshToken) {
         clearRefreshCookie(reply);
+        clearAccessCookie(reply);
         return fail(reply, 401, 'REFRESH_REQUIRED', 'No browser refresh session is available.');
       }
 
@@ -600,6 +603,10 @@ export async function authRoutes(fastify: FastifyInstance) {
           sessionMetadataFromRequest(request),
         );
         setRefreshCookie(reply, tokens.refreshToken);
+        // fix/qm-quantgit-repos-401-cookie-3: rotation mints a new access
+        // token, so re-issue its cookie too — otherwise the cookie goes
+        // stale at the first rotation and cookie-only requests 401 again.
+        setAccessCookie(reply, tokens.accessToken, tokens.expiresIn);
         // Collapse the browser's hydrate waterfall: the profile the frontend
         // used to fetch with a second /oauth/userinfo round trip rides along
         // on this response instead. The user is located the same
@@ -630,6 +637,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         });
       } catch {
         clearRefreshCookie(reply);
+        clearAccessCookie(reply);
         return fail(reply, 401, 'INVALID_REFRESH_SESSION', 'The browser session is invalid.');
       }
     },
@@ -654,6 +662,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
 
     clearRefreshCookie(reply);
+    clearAccessCookie(reply);
     return reply.send({ success: true, data: { message: 'Signed out.' } });
   });
 
