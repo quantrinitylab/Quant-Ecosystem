@@ -19,6 +19,33 @@ describe('MailboxViewToggle', () => {
     expect(html).toContain('>Inbox<');
   });
 
+  it('carries the spam lens on both pills when the spam lens is active', () => {
+    // 2026-10-25 fix/qm-spam-lens-toggle: the People | Inbox toggle used to
+    // hardcode People -> `/` and Inbox -> `/?view=inbox`, so tapping either
+    // pill from a spam-lens People home (`/?lens=spam`) silently abandoned
+    // the spam review. Both directions must keep `lens=spam` (the classic
+    // inbox supports `?view=inbox&lens=spam` via normalizeLensParam).
+    // renderToStaticMarkup escapes `&` as `&amp;` in the href attribute.
+    const peopleHtml = renderToStaticMarkup(<MailboxViewToggle isInbox={false} lens="spam" />);
+    expect(peopleHtml).toContain('href="/?lens=spam"');
+    expect(peopleHtml).toContain('href="/?view=inbox&amp;lens=spam"');
+    expect(peopleHtml).not.toContain('href="/"');
+    expect(peopleHtml).not.toContain('href="/?view=inbox"');
+
+    const inboxHtml = renderToStaticMarkup(<MailboxViewToggle isInbox lens="spam" />);
+    expect(inboxHtml).toContain('href="/?lens=spam"');
+    expect(inboxHtml).toContain('href="/?view=inbox&amp;lens=spam"');
+  });
+
+  it('does not leak a non-spam lens into the toggle hrefs', () => {
+    // PeopleHome honors only `lens=spam`; any other lens would be ignored
+    // there, so the toggle must not pretend to carry it.
+    const html = renderToStaticMarkup(<MailboxViewToggle isInbox={false} lens="promotions" />);
+    expect(html).toContain('href="/"');
+    expect(html).toContain('href="/?view=inbox"');
+    expect(html).not.toContain('lens=');
+  });
+
   it('marks the active view with aria-current', () => {
     const anchor = (html: string, href: string) => {
       const m = html.match(new RegExp(`<a[^>]*href="${href.replace(/[?/]/g, (c) => `\\${c}`)}"[^>]*>`));
