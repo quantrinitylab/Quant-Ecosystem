@@ -226,6 +226,31 @@ export interface EmailComposerProps {
   initialTo?: string | Array<{ email: string; name?: string }>;
   initialSubject?: string;
   initialBody?: string;
+  /**
+   * Attachments carried over from another message (forward) or restored
+   * from a persisted draft. Applied exactly once, appended to whatever the
+   * user already attached — never replacing it — so a carryover that lands
+   * after the user started attaching files cannot clobber their picks. See
+   * the effect below. The host remounts the composer per forward/draft id
+   * (key), so the apply-once ref resets on every A->B navigation and a new
+   * run can never inherit the previous run's files.
+   */
+  initialAttachments?: Attachment[];
+  /**
+   * Original attachments that could NOT be carried over (unreadable bytes,
+   * over the size budget, or never kept with the original). Rendered as a
+   * persistent notice at the top of the composer body — never a transient
+   * toast — so the sender sees what the message will go out without.
+   */
+  initialAttachmentWarnings?: Array<{ filename: string; reason: string }>;
+  /**
+   * External send gate: when non-null, Send is disabled and this reason is
+   * shown. The forward host passes it while the original's attachments are
+   * still resolving, so a send can never go out before the carryover
+   * lands (no send without attachments, no silent drop). Draft saves are
+   * NOT gated — only the send path checks this.
+   */
+  sendDisabledReason?: string | null;
   initialReplyToId?: string;
   /**
    * fix/qm-accounts-import-corrective-3: the send-as identity id a reopened
@@ -451,6 +476,9 @@ export function EmailComposer({
   initialTo = '',
   initialSubject = '',
   initialBody = '',
+  initialAttachments,
+  initialAttachmentWarnings,
+  sendDisabledReason = null,
   initialReplyToId,
   initialSendAsId = null,
   inReplyTo,
@@ -536,6 +564,26 @@ export function EmailComposer({
       setBody(initialBody);
     }
   }, [initialBody]);
+
+  // Forward carryover / draft restore: the host passes the original's (or
+  // draft's) attachments once they have been read, which can be AFTER the
+  // composer mounted — the page does not hold the composer behind the byte
+  // reads. So this applies exactly once, appending to the current list: a
+  // replace here would wipe files the user attached while the carryover
+  // was loading, and a re-apply on every prop change would resurrect files
+  // the user deliberately removed. The host remounts per forward/draft id,
+  // so this ref resets on every new run.
+  const appliedInitialAttachmentsRef = useRef(false);
+  useEffect(() => {
+    if (appliedInitialAttachmentsRef.current) return;
+    if (!initialAttachments || initialAttachments.length === 0) return;
+    appliedInitialAttachmentsRef.current = true;
+    setAttachments((prev) => {
+      const seen = new Set(prev.map((a) => a.id));
+      const fresh = initialAttachments.filter((a) => !seen.has(a.id));
+      return fresh.length > 0 ? [...prev, ...fresh] : prev;
+    });
+  }, [initialAttachments]);
 
   useEffect(() => {
     if (isOpen) {
@@ -1157,6 +1205,14 @@ export function EmailComposer({
   // `error`, because the user has not done anything wrong yet.
   // Send Handler with 10s Recall Window & Undo-Send Integration
   const handleSend = async (scheduledAt?: string) => {
+    // External send gate (forward attachment resolution): the button is
+    // disabled, but the Cmd/Ctrl+Enter shortcut and the schedule-send menu
+    // both reach this function, so the gate is enforced here too — never
+    // only in the button's disabled attribute.
+    if (sendDisabledReason) {
+      showToast({ text: sendDisabledReason, type: 'error' });
+      return;
+    }
     if (sendBlockReason) {
       // QM-UIUX-025: announce the field that is actually missing — subject
       // and recipient blocks must not fire each other's reaction.
@@ -2263,6 +2319,47 @@ export function EmailComposer({
               otherwise the editor stays 200px tall and the rest of the region
               renders as an empty black void above the pinned Send toolbar. */}
           <div className="print:hidden flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border flex flex-col">
+            {/* Forward carryover honesty: while the original's attachments
+                are still resolving, Send is disabled (see
+                sendDisabledReason) — say so persistently, inside the
+                scrollable body so it can never push the pinned Send
+                toolbar off screen. When resolution settles this notice
+                goes away on its own. */}
+            {sendDisabledReason && (
+              <div
+                role="status"
+                className="rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] p-3 text-xs text-[var(--quant-muted-foreground)]"
+              >
+                {sendDisabledReason}
+              </div>
+            )}
+            {/* Forward carryover honesty: files the original carried that
+                could not ride along, listed persistently (not a toast) so
+                the sender sees what the message will go out without. Lives
+                inside the scrollable body so it can never push the pinned
+                Send toolbar off screen. */}
+            {initialAttachmentWarnings && initialAttachmentWarnings.length > 0 && (
+              <div
+                role="alert"
+                className="rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] p-3 text-xs text-[var(--quant-muted-foreground)]"
+              >
+                <p className="font-semibold text-white">
+                  {initialAttachmentWarnings.length === 1
+                    ? '1 attachment from the original message could not be carried over:'
+                    : `${initialAttachmentWarnings.length} attachments from the original message could not be carried over:`}
+                </p>
+                <ul className="mt-1 space-y-1">
+                  {initialAttachmentWarnings.map((warning) => (
+                    <li key={`${warning.filename}-${warning.reason}`}>
+                      {warning.filename} — {warning.reason}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1">
+                  The message will send without these files unless you re-attach them from the original.
+                </p>
+              </div>
+            )}
             {/* Recipient Rows (To, Cc, Bcc) */}
             <div className="pb-2 space-y-2 w-full max-w-full">
               {/* fix/qm-accounts-import: From row. Renders nothing unless the
@@ -3258,9 +3355,9 @@ export function EmailComposer({
                 <button
                   type="button"
                   onClick={() => handleSend()}
-                  disabled={busy || sendBlockReason !== null}
-                  aria-disabled={busy || sendBlockReason !== null}
-                  title={sendBlockReason ?? undefined}
+                  disabled={busy || sendBlockReason !== null || sendDisabledReason !== null}
+                  aria-disabled={busy || sendBlockReason !== null || sendDisabledReason !== null}
+                  title={sendDisabledReason ?? sendBlockReason ?? undefined}
                   className="relative flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 min-h-[44px] min-w-[44px] text-[#111111] text-xs sm:text-sm font-semibold hover:brightness-105 active:scale-95 disabled:opacity-40 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#111111]"
                 >
                   {isSending ? (
