@@ -484,7 +484,7 @@ describe('QuantDrive Contextual Sub-Views Test Suite', () => {
     });
 
     it('shows an honest empty state when no duplicates are found', () => {
-      const html = renderToStaticMarkup(<DriveCleanerSubView />);
+      const html = renderToStaticMarkup(<DriveCleanerSubView hasScanned />);
 
       expect(html).toContain('No duplicates found');
       expect(html).not.toContain('Quarterly_Report_v1.pdf');

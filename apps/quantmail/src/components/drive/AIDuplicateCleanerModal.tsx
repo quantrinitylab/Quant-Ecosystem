@@ -34,11 +34,24 @@ export interface DuplicateCleanerState {
   isCleaning: boolean;
   error: string | null;
   lastCleanedResult: { removedCount: number; savedBytes: number } | null;
+  /**
+   * Number of scans that completed SUCCESSFULLY for the currently bound
+   * account. Drives the honest "has scanned" signal: a failed first scan
+   * must NOT count (error renders alone, never error + "No duplicates
+   * found"). Reset to 0 by bindAccount() on identity change.
+   */
+  completedScanCount: number;
 }
 
 export interface DuplicateCleanerManagerOptions {
   apiFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   initialGroups?: DuplicateGroup[];
+  /**
+   * Account identity this manager's state belongs to. When the surrounding
+   * page detects an identity change it calls bindAccount() with the new key;
+   * passing it here only sets the initial binding without a reset.
+   */
+  accountKey?: string | null;
 }
 
 /**
@@ -114,9 +127,20 @@ export class DuplicateCleanerManager {
   private apiFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   private state: DuplicateCleanerState;
   private listeners: Set<(state: DuplicateCleanerState) => void> = new Set();
+  /**
+   * Account-epoch scoping (CODEX-REVIEW 6308089740): every async scan/cleanup
+   * result is validated against the epoch captured at invocation. When the
+   * account identity changes, bindAccount() hard-clears ALL retained state
+   * (groups, selections, errors, completion) and bumps the epoch, so a late
+   * prior-epoch response can never repopulate the new account's view — and
+   * the new account's cleanup can never submit the old account's file IDs.
+   */
+  private accountKey: string | null;
+  private epoch = 0;
 
   constructor(options: DuplicateCleanerManagerOptions = {}) {
     this.apiFetch = options.apiFetch || browserApiRequest;
+    this.accountKey = options.accountKey ?? null;
     const initialGroups = (options.initialGroups || []).map((g) => {
       const files = designateOriginalAndDuplicates(g.files, g.hash);
       const potentialSavings =
@@ -136,7 +160,35 @@ export class DuplicateCleanerManager {
       isCleaning: false,
       error: null,
       lastCleanedResult: null,
+      completedScanCount: 0,
     };
+  }
+
+  /** The account identity this manager's state is currently bound to. */
+  public getAccountKey(): string | null {
+    return this.accountKey;
+  }
+
+  /**
+   * Binds the manager to an account identity. When the key CHANGES, every
+   * retained artifact of the previous account is hard-cleared — duplicate
+   * groups (filenames/paths), checkbox selections, errors, and the last
+   * cleanup result — and the epoch advances so in-flight async work from the
+   * previous account is dropped on completion. Same key = no-op.
+   */
+  public bindAccount(accountKey: string | null): void {
+    if (accountKey === this.accountKey) return;
+    this.accountKey = accountKey;
+    this.epoch += 1;
+    this.state = {
+      groups: [],
+      isScanning: false,
+      isCleaning: false,
+      error: null,
+      lastCleanedResult: null,
+      completedScanCount: 0,
+    };
+    this.notify();
   }
 
   public getState(): DuplicateCleanerState {
@@ -178,9 +230,13 @@ export class DuplicateCleanerManager {
   }
 
   /**
-   * Scans Drive files via `/api/drive/ai/duplicates` (POST `{}`)
+   * Scans Drive files via `/api/drive/ai/duplicates` (POST `{}`).
+   * The account epoch is captured at invocation: if bindAccount() ran while
+   * the request was in flight (identity change), the late response is
+   * DROPPED — it never touches the new account's state.
    */
   public async scanDuplicates(): Promise<DuplicateGroup[]> {
+    const epoch = this.epoch;
     this.updateState({ isScanning: true, error: null });
     try {
       const res = await this.apiFetch('/api/drive/ai/duplicates', {
@@ -227,14 +283,26 @@ export class DuplicateCleanerManager {
         };
       });
 
+      // Late prior-epoch response: the account changed mid-scan. Drop it —
+      // the new account must never see the previous account's filenames.
+      if (epoch !== this.epoch) {
+        return [];
+      }
+
       this.updateState({
         groups: processedGroups,
         isScanning: false,
         error: null,
+        completedScanCount: this.state.completedScanCount + 1,
       });
 
       return processedGroups;
     } catch (err) {
+      // Same epoch guard on the failure path: the previous account's error
+      // must not surface in the new account's UI.
+      if (epoch !== this.epoch) {
+        throw err;
+      }
       const message = (err as Error).message || 'Failed to scan duplicate files';
       this.updateState({ isScanning: false, error: message });
       throw err;
@@ -359,9 +427,14 @@ export class DuplicateCleanerManager {
   }
 
   /**
-   * Executes batch cleanup by calling `/api/drive/files/trash` with selected file IDs
+   * Executes batch cleanup by calling `/api/drive/files/trash` with selected file IDs.
+   * The account epoch is captured at invocation: if the identity changed while
+   * the request was in flight, the result is dropped and reported as a no-op
+   * for the new account — the previous account's IDs are never surfaced, and
+   * no "cleaned N files" signal fires for the wrong account.
    */
   public async executeCleanup(): Promise<{ removedCount: number; savedBytes: number }> {
+    const epoch = this.epoch;
     const selectedFiles = this.getSelectedFiles();
     if (selectedFiles.length === 0) {
       return { removedCount: 0, savedBytes: 0 };
@@ -404,6 +477,13 @@ export class DuplicateCleanerManager {
         }
       }
 
+      // Epoch guard: identity changed mid-cleanup. The new account's state
+      // keeps nothing from this call — report a no-op so no stale "cleaned"
+      // signal fires for the wrong account.
+      if (epoch !== this.epoch) {
+        return { removedCount: 0, savedBytes: 0 };
+      }
+
       const lastCleanedResult = { removedCount, savedBytes };
       this.updateState({
         groups: updatedGroups,
@@ -414,6 +494,10 @@ export class DuplicateCleanerManager {
 
       return lastCleanedResult;
     } catch (err) {
+      // Previous-epoch failure must not surface in the new account's UI.
+      if (epoch !== this.epoch) {
+        throw err;
+      }
       const message = (err as Error).message || 'Failed to clean duplicates';
       this.updateState({ isCleaning: false, error: message });
       throw err;

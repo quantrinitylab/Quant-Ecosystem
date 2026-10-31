@@ -11,6 +11,7 @@ import {
   DriveVaultSubView,
   DriveStarredSubView,
   DriveCleanerSubView,
+  duplicateGroupsToClusters,
   DriveHomeSubView,
   DriveFeedSubView,
   DriveAiMemorySubView,
@@ -47,13 +48,18 @@ import {
 import { FileVersionHistoryModal } from '../../components/drive/FileVersionHistoryModal';
 import { FileActivityModal } from '../../components/drive/FileActivityModal';
 import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer';
-import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
+import {
+  AIDuplicateCleanerModal,
+  DuplicateCleanerManager,
+  type DuplicateCleanerState,
+} from '../../components/drive/AIDuplicateCleanerModal';
 import { QuantyFileWorkspace } from '../../components/drive/QuantyFileWorkspace';
 import { apiFetchRaw } from '@quant/api-client';
 import { DocumentEnginePreview } from '../../components/drive/DocumentEnginePreview';
 import { docsEngineKindFor } from '../../lib/docs-engine/formats';
 import { browserApiRequest } from '../../services/browser-api-request';
 import { browserAuthSession } from '../../services/browser-auth-session';
+import { useAuth } from '../../providers/auth-provider';
 import { fetchDriveMemoryItems, forgetDriveMemory } from '../../services/drive-memory';
 
 type DriveItem = {
@@ -551,6 +557,47 @@ function DrivePageContent() {
   const [activityFile, setActivityFile] = useState<DriveItem | null>(null);
   const [aiSummaryFile, setAiSummaryFile] = useState<DriveItem | null>(null);
   const [isDuplicateCleanerOpen, setIsDuplicateCleanerOpen] = useState(false);
+  // CODEX-REVIEW 6308089740: the duplicate-cleaner manager must be
+  // account-scoped. user.id is the stable immutable identity (email is
+  // reassignable); when it changes, bindAccount() hard-clears the previous
+  // account's groups/selections/errors and advances the epoch so late
+  // in-flight responses are dropped. Defensive try/catch: same guard as
+  // AppShell — tests may render without AuthProvider.
+  let cleanerAccountId = '';
+  try {
+    const { user: cleanerUser } = useAuth();
+    cleanerAccountId = cleanerUser?.id || '';
+  } catch {
+    cleanerAccountId = '';
+  }
+  // Cleaner-tab fix: one shared DuplicateCleanerManager drives BOTH the
+  // cleaner tab and AIDuplicateCleanerModal, so the tab renders real scan
+  // results instead of a permanently-empty panel.
+  const duplicateCleanerManager = useMemo(
+    () => new DuplicateCleanerManager(),
+    [],
+  );
+  useEffect(() => {
+    duplicateCleanerManager.bindAccount(cleanerAccountId || null);
+  }, [duplicateCleanerManager, cleanerAccountId]);
+  const [cleanerScanState, setCleanerScanState] =
+    useState<DuplicateCleanerState>(() => duplicateCleanerManager.getState());
+  const [cleanerHasScanned, setCleanerHasScanned] = useState(false);
+  useEffect(() => {
+    const unsubscribe = duplicateCleanerManager.subscribe((state) => {
+      setCleanerScanState(state);
+      // Honest "has scanned" signal: only a SUCCESSFUL scan counts. A failed
+      // first scan leaves this false, so the tab renders the error alone —
+      // never error + "No duplicates found" together.
+      setCleanerHasScanned(state.completedScanCount > 0);
+    });
+    return unsubscribe;
+  }, [duplicateCleanerManager]);
+  const handleCleanerScan = useCallback(() => {
+    duplicateCleanerManager.scanDuplicates().catch(() => {
+      // Manager carries the error in state; surfaced honestly by the tab.
+    });
+  }, [duplicateCleanerManager]);
   // SIA-P1-6: single primary CTA — the New split-button menu open state.
   const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
   // QM-M39-011: Quanty file workspace (M39 screen 31).
@@ -1919,7 +1966,16 @@ function DrivePageContent() {
             />
           )}
 
-          {activeTab === 'cleaner' && <DriveCleanerSubView />}
+          {activeTab === 'cleaner' && (
+            <DriveCleanerSubView
+              clusters={duplicateGroupsToClusters(cleanerScanState.groups)}
+              isScanning={cleanerScanState.isScanning}
+              scanError={cleanerScanState.error}
+              hasScanned={cleanerHasScanned}
+              onScan={handleCleanerScan}
+              onOpenCleanup={() => setIsDuplicateCleanerOpen(true)}
+            />
+          )}
 
           {(activeTab === 'home' || activeTab === 'files') && activeFilter === 'trash' && (
             <div className="space-y-4">
@@ -2650,6 +2706,7 @@ function DrivePageContent() {
         <AIDuplicateCleanerModal
           isOpen={isDuplicateCleanerOpen}
           onClose={() => setIsDuplicateCleanerOpen(false)}
+          manager={duplicateCleanerManager}
           onCleanupComplete={() => fetchFiles(currentFolderId)}
         />
 
