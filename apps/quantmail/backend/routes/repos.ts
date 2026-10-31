@@ -4384,6 +4384,73 @@ export default async function reposRoutes(fastify: FastifyInstance) {
 
   fastify.post<{
     Params: { id: string; alertId: string };
+    Body: { reason?: string };
+  }>('/:id/security/dependabot/:alertId/dismiss', async (request, reply) => {
+    // fix/qm-securitytab-theater-wire: the Dependabot Dismiss button used to
+    // flip local state and toast success with no API call. Dismissal is now
+    // persisted server-side (same in-memory store the fix-pr handler reads),
+    // so a refresh no longer resurrects a dismissed alert. Unknown ids 404
+    // instead of silently "dismissing" nothing.
+    const repo = await loadWritableRepo(request, request.params.id);
+    const { alertId } = request.params;
+    const dependabot = memorySecurityAlertsStore.get(repo.id) ?? [];
+
+    const target = dependabot.find((a) => a.id === alertId);
+    if (!target) {
+      throw createAppError('Dependabot alert not found', 404, 'ALERT_NOT_FOUND');
+    }
+
+    const reason =
+      typeof request.body?.reason === 'string' && request.body.reason.trim()
+        ? request.body.reason
+        : 'Risk accepted';
+    target.state = 'dismissed';
+    target.dismissedReason = reason;
+    memorySecurityAlertsStore.set(repo.id, dependabot);
+
+    return reply.send({
+      success: true,
+      data: {
+        alertId,
+        state: 'dismissed',
+        dismissedReason: reason,
+        message: `Dependabot alert dismissed (${reason}).`,
+      },
+    });
+  });
+
+  fastify.post<{
+    Params: { id: string; alertId: string };
+  }>('/:id/security/codeql/:alertId/dismiss', async (request, reply) => {
+    // fix/qm-securitytab-theater-wire: the CodeQL Dismiss button used to flip
+    // local state and toast success with no API call. Dismissal is now
+    // persisted server-side (same in-memory store the fix handler reads), so
+    // a refresh no longer resurrects a dismissed alert. Unknown ids 404
+    // instead of silently "dismissing" nothing.
+    const repo = await loadWritableRepo(request, request.params.id);
+    const { alertId } = request.params;
+    const codeql = memoryCodeqlAlertsStore.get(repo.id) ?? [];
+
+    const target = codeql.find((a) => a.id === alertId);
+    if (!target) {
+      throw createAppError('CodeQL alert not found', 404, 'ALERT_NOT_FOUND');
+    }
+
+    target.state = 'dismissed';
+    memoryCodeqlAlertsStore.set(repo.id, codeql);
+
+    return reply.send({
+      success: true,
+      data: {
+        alertId,
+        state: 'dismissed',
+        message: `CodeQL alert dismissed for ${target.ruleName}.`,
+      },
+    });
+  });
+
+  fastify.post<{
+    Params: { id: string; alertId: string };
   }>('/:id/security/dependabot/:alertId/fix-pr', async (request) => {
     const repo = await loadWritableRepo(request, request.params.id);
     const { alertId } = request.params;
