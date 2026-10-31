@@ -7,11 +7,37 @@ import { navItems, routes } from '../../lib/navigation';
 import { Viewfinder } from './Viewfinder';
 import { CaptureButton } from './CaptureButton';
 import { CameraControls } from './CameraControls';
-import { PermissionDenied } from './PermissionDenied';
+import { PermissionDenied, type CameraFailureKind } from './PermissionDenied';
 import { ARLensCarousel, type ARLensConfig } from './ARLensCarousel';
 
 type PermissionStatus = 'prompt' | 'granted' | 'denied';
 type FlashMode = 'off' | 'torch' | 'screen';
+
+/**
+ * QC-F-427: classify EVERY getUserMedia failure into exactly one honest
+ * terminal kind. The catch in initializeCamera is exhaustive by
+ * construction — unknown names and non-DOMException throws land in
+ * 'error', never in a silent fallthrough that leaves the spinner up.
+ * ('unsupported' is set by the pre-flight mediaDevices check, not here.)
+ */
+function classifyCameraError(error: unknown): CameraFailureKind {
+  if (error instanceof DOMException) {
+    switch (error.name) {
+      case 'NotAllowedError':
+      case 'SecurityError':
+        return 'denied';
+      case 'NotFoundError':
+      case 'DevicesNotFoundError':
+        return 'no-camera';
+      case 'NotReadableError':
+      case 'TrackStartError':
+        return 'busy';
+      default:
+        return 'error';
+    }
+  }
+  return 'error';
+}
 
 /**
  * Camera page with:
@@ -27,6 +53,7 @@ export default function CameraPage() {
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [flashMode, setFlashMode] = useState<FlashMode>('off');
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('prompt');
+  const [cameraFailure, setCameraFailure] = useState<CameraFailureKind | null>(null);
   const [isFlipping, setIsFlipping] = useState(false);
   const [screenFlashActive, setScreenFlashActive] = useState(false);
   const [activeLens, setActiveLens] = useState<ARLensConfig | null>(null);
@@ -36,6 +63,17 @@ export default function CameraPage() {
   // Initialize camera stream
   const initializeCamera = useCallback(
     async (facing: 'user' | 'environment') => {
+      // A fresh attempt clears any previous terminal failure (spinner shows
+      // only while this attempt is genuinely in flight).
+      setCameraFailure(null);
+
+      // Pre-flight: no mediaDevices API at all (insecure context, old
+      // browser, embedded webview) — getUserMedia is never called.
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraFailure('unsupported');
+        return null;
+      }
+
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -48,6 +86,7 @@ export default function CameraPage() {
 
         setStream(mediaStream);
         setPermissionStatus('granted');
+        setCameraFailure(null);
 
         // Apply torch constraint if flash mode is torch and rear camera
         if (flashMode === 'torch' && facing === 'environment') {
@@ -66,12 +105,10 @@ export default function CameraPage() {
 
         return mediaStream;
       } catch (error) {
-        if (error instanceof DOMException && error.name === 'NotAllowedError') {
-          setPermissionStatus('denied');
-        } else if (error instanceof DOMException && error.name === 'NotFoundError') {
-          // No camera — still show denied state gracefully
-          setPermissionStatus('denied');
-        }
+        // Exhaustive: every failure reaches a named terminal state,
+        // including flip failures (permissionStatus may be 'granted'
+        // here — the cameraFailure branch below still takes over).
+        setCameraFailure(classifyCameraError(error));
         return null;
       }
     },
@@ -184,11 +221,20 @@ export default function CameraPage() {
     URL.revokeObjectURL(url);
   }, []);
 
-  // Permission denied state
-  if (permissionStatus === 'denied') {
+  // Retry from a failure screen: re-call initializeCamera with the
+  // CURRENT facing mode (never a page reload, never a hard-coded facing).
+  const handleRetry = useCallback(() => {
+    setPermissionStatus('prompt');
+    void initializeCamera(facingMode);
+  }, [initializeCamera, facingMode]);
+
+  // Camera failure state (QC-F-427) — render truth is cameraFailure:
+  // any terminal failure (denied / no-camera / busy / unsupported /
+  // error, from mount, retry or flip) lands on this one screen.
+  if (cameraFailure !== null) {
     return (
       <div className="relative h-dvh w-full overflow-hidden bg-gray-900">
-        <PermissionDenied />
+        <PermissionDenied failure={cameraFailure} onRetry={handleRetry} />
         <div className="absolute bottom-0 left-0 right-0 z-10">
           <BottomNav
             items={navItems}
