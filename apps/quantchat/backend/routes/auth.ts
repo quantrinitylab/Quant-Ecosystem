@@ -17,7 +17,7 @@ import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { PrismaClient } from '@prisma/client';
-import { passwordService } from '@quant/auth';
+import { passwordService, totpService } from '@quant/auth';
 import type { OtpService } from '../lib/otp-service';
 import type { SessionTokenIssuer } from '../lib/session-tokens';
 import { RefreshTokenStore, type RefreshSessionMeta } from '../lib/refresh-token-store';
@@ -28,11 +28,58 @@ import {
   serializeEmojiStatus,
 } from '../lib/emoji-status';
 import { fetchWithTimeout, getTimeoutMs } from '@quant/server-core';
+import {
+  CHALLENGE_TTL_SECONDS,
+  digestsMatch,
+  hashBackupCode,
+  isTotpStepReplayed,
+  looksLikeBackupCode,
+  looksLikeTotpCode,
+  signTwoFactorChallenge,
+  totpReplayFloorAfter,
+  totpStepFor,
+  verifyTwoFactorChallenge,
+} from '../lib/two-factor';
 
 const loginSchema = z.object({
   identifier: z.string().min(1).max(255),
   password: z.string().min(1).max(255),
 });
+
+/**
+ * QC-F-141: second-factor verification for the password login above.
+ * The challenge is the short-lived token `/auth/login` returns instead of
+ * a session when the shared User row has 2FA enabled; the code is either
+ * the current 6-digit TOTP or a recovery code.
+ */
+const twoFactorVerifySchema = z.object({
+  challenge: z.string().min(10).max(8192),
+  code: z.string().min(1).max(64),
+});
+
+/** QC-F-141: shared fail-closed body for the half-enabled 2FA state. */
+function twoFactorStateInvalidBody() {
+  return {
+    success: false,
+    error: {
+      code: 'TWO_FACTOR_STATE_INVALID',
+      message: 'This account security state needs recovery before sign-in.',
+      statusCode: 409,
+    },
+  };
+}
+
+/** QC-F-141: the challenge died, was forged, or the account behind it did. */
+function challengeExpiredBody() {
+  return {
+    success: false,
+    error: {
+      code: 'CHALLENGE_EXPIRED',
+      message: 'This sign-in attempt is no longer valid. Enter your password again.',
+      statusCode: 401,
+    },
+  };
+}
 
 const requestSchema = z.object({
   phoneNumber: z.string().min(4).max(20),
@@ -123,6 +170,10 @@ function decorations(fastify: FastifyInstance) {
     prisma: PrismaClient;
     otpService: OtpService;
     sessionTokens: SessionTokenIssuer;
+    // QC-F-141: app signing config (jwtSecret/jwtIssuer/jwtAudience) —
+    // the 2FA challenge key is derived from jwtSecret at request time (no
+    // new env var). Decorated in buildApp; tests decorate it directly.
+    appConfig: { jwtSecret: string; jwtIssuer: string; jwtAudience: string };
   };
 }
 
@@ -180,7 +231,7 @@ function emailCaseConflictBody() {
 }
 
 export default async function authRoutes(fastify: FastifyInstance) {
-  const { prisma, otpService, sessionTokens } = decorations(fastify);
+  const { prisma, otpService, sessionTokens, appConfig } = decorations(fastify);
   // QC-F-118: stateful refresh redemption (rotation spend + reuse
   // detection + family revocation) on the existing RefreshToken model.
   const refreshStore = new RefreshTokenStore(prisma, sessionTokens);
@@ -214,6 +265,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
         statusEmoji: true,
         statusEmojiExpiresAt: true,
         deletedAt: true,
+        // QC-F-141: informational only — lets clients truthfully show the
+        // account's 2FA state. This is NOT an auth gate (that lives on the
+        // login path); it fixes the §1d step-up blindness.
+        twoFactorEnabled: true,
       },
     });
     if (!user) {
@@ -243,6 +298,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
         level: user.level,
         // QC-F-466: live status only — an expired stored status reads null.
         emojiStatus: serializeEmojiStatus(user),
+        // QC-F-141: informational — true when the account requires the
+        // second-factor step on password login.
+        twoFactorEnabled: user.twoFactorEnabled === true,
       },
     });
   });
@@ -392,6 +450,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
         phoneNumber: true,
         passwordHash: true,
         role: true,
+        // QC-F-141: the shared User row's 2FA state. The secret never
+        // leaves the server — it only decides challenge vs session below
+        // and is never serialised into any response.
+        twoFactorEnabled: true,
+        twoFactorSecret: true,
       },
       take: 2,
     });
@@ -457,6 +520,33 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
     }
 
+    // QC-F-141: 2FA gate, at QuantMail parity. The password check above is
+    // byte-identical and 2FA-blind — a wrong password still answers
+    // INVALID_CREDENTIALS with no hint of 2FA (no enumeration oracle). With
+    // the password verified, the shared User row's 2FA state is honoured:
+    //   - enabled XOR secret set -> half-enabled corruption: fail closed
+    //     (409), never silently treated as one-factor.
+    //   - both set -> issue a short-lived 2FA challenge INSTEAD of a
+    //     session. No access/refresh tokens leave this branch.
+    const twoFactorSecret = (user.twoFactorSecret ?? '').trim();
+    if (user.twoFactorEnabled === true) {
+      if (!twoFactorSecret) {
+        return reply.status(409).send(twoFactorStateInvalidBody());
+      }
+      const { challenge, expiresIn } = signTwoFactorChallenge(
+        user.id,
+        { jwtSecret: appConfig.jwtSecret, jwtIssuer: appConfig.jwtIssuer },
+      );
+      return reply.send({
+        success: true,
+        data: { twoFactorRequired: true, challenge, expiresIn },
+      });
+    }
+    if (twoFactorSecret) {
+      // 2FA "disabled" but a secret survives — the same corrupted state.
+      return reply.status(409).send(twoFactorStateInvalidBody());
+    }
+
     const tokens = await refreshStore.issueNewSession(
       { userId: user.id, username: user.username },
       sessionMeta(request),
@@ -479,6 +569,204 @@ export default async function authRoutes(fastify: FastifyInstance) {
       },
     });
   });
+
+  // POST /auth/2fa/verify — complete a password login whose account has 2FA
+  // enabled (QC-F-141). The { challenge } is the short-lived token the login
+  // route returns instead of a session; { code } is the current 6-digit
+  // authenticator code or a recovery code. Nothing is persisted for the
+  // challenge itself — every verify reloads the user row, so a deleted,
+  // 2FA-disabled or otherwise changed account kills outstanding challenges.
+  // Ecosystem canonical path, matching QuantMail POST /auth/2fa/verify and
+  // the {challenge, code} body the Flutter client already sends.
+  //
+  // Rate limit (10/min, defence-in-depth): the caller reaching here already
+  // passed the password, and the real brute-force gates are the 300s
+  // challenge TTL + the TOTP replay floor + the 6-digit space; the limiter
+  // only raises the attempt cost.
+  fastify.post(
+    '/2fa/verify',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      const parsed = twoFactorVerifySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'Challenge and code are required',
+            statusCode: 400,
+          },
+        });
+      }
+      const { challenge, code } = parsed.data;
+
+      // 1. Challenge alive? Expired and forged are the same answer here —
+      // the client must not learn which.
+      const claims = verifyTwoFactorChallenge(challenge, {
+        jwtSecret: appConfig.jwtSecret,
+        jwtIssuer: appConfig.jwtIssuer,
+      });
+      if (!claims) {
+        return reply.status(401).send(challengeExpiredBody());
+      }
+
+      // 2. Fresh user row. Any state that would make the challenge stale
+      // answers the same way: deleted, 2FA disabled, secret gone.
+      let user;
+      try {
+        user = await prisma.user.findUnique({
+          where: { id: claims.userId },
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            displayName: true,
+            phoneNumber: true,
+            role: true,
+            deletedAt: true,
+            twoFactorEnabled: true,
+            twoFactorSecret: true,
+            twoFactorLastUsedStep: true,
+          },
+        });
+      } catch {
+        return reply.status(503).send({
+          success: false,
+          error: {
+            code: 'UPSTREAM_UNAVAILABLE',
+            message: 'Verification failed',
+            statusCode: 503,
+          },
+        });
+      }
+      const secret = (user?.twoFactorSecret ?? '').trim();
+      if (!user || user.deletedAt || user.twoFactorEnabled !== true || !secret) {
+        return reply.status(401).send(challengeExpiredBody());
+      }
+
+      const trimmed = code.trim();
+      if (looksLikeTotpCode(trimmed)) {
+        // 3a. TOTP. A wrong code never advances the replay floor — only an
+        // accepted code moves it, so guessing cannot lock out the real one.
+        if (!totpService.verify(trimmed, secret)) {
+          request.log.warn(
+            { userId: user.id, code: 'INVALID_CODE' },
+            'QC-F-141: 2FA verify failed — wrong authenticator code',
+          );
+          return reply.status(401).send({
+            success: false,
+            error: {
+              code: 'INVALID_CODE',
+              message: 'Invalid code. Enter the 6-digit code from your authenticator app.',
+              statusCode: 401,
+            },
+          });
+        }
+        const step = totpStepFor();
+        if (isTotpStepReplayed(step, user.twoFactorLastUsedStep)) {
+          return reply.status(401).send({
+            success: false,
+            error: {
+              code: 'CODE_ALREADY_USED',
+              message: 'That code has already been used. Wait for the next code in your authenticator app.',
+              statusCode: 401,
+            },
+          });
+        }
+        const floor = totpReplayFloorAfter(step);
+        const spent = await prisma.user.updateMany({
+          where: {
+            id: user.id,
+            OR: [{ twoFactorLastUsedStep: null }, { twoFactorLastUsedStep: { lt: floor } }],
+          },
+          data: { twoFactorLastUsedStep: floor },
+        });
+        if (spent.count !== 1) {
+          // A concurrent verify spent this floor first — the code is now
+          // burned for both.
+          return reply.status(401).send({
+            success: false,
+            error: {
+              code: 'CODE_ALREADY_USED',
+              message: 'That code has already been used. Wait for the next code in your authenticator app.',
+              statusCode: 401,
+            },
+          });
+        }
+      } else if (looksLikeBackupCode(trimmed)) {
+        // 3b. Recovery code — single-use, stored hashed. Unknown and
+        // already-used answer identically: distinguishable answers would
+        // make the endpoint a code-guessing oracle.
+        const digest = hashBackupCode(trimmed);
+        const rows = await prisma.twoFactorBackupCode.findMany({
+          where: { userId: user.id, usedAt: null },
+        });
+        const match = rows.find((row) => digestsMatch(row.codeHash, digest));
+        if (!match) {
+          request.log.warn(
+            { userId: user.id, code: 'INVALID_CODE' },
+            'QC-F-141: 2FA verify failed — unknown or spent recovery code',
+          );
+          return reply.status(401).send({
+            success: false,
+            error: {
+              code: 'INVALID_CODE',
+              message: 'Invalid code. Enter a recovery code you have not used before.',
+              statusCode: 401,
+            },
+          });
+        }
+        const burned = await prisma.twoFactorBackupCode.updateMany({
+          where: { id: match.id, usedAt: null },
+          data: { usedAt: new Date() },
+        });
+        if (burned.count !== 1) {
+          return reply.status(401).send({
+            success: false,
+            error: {
+              code: 'INVALID_CODE',
+              message: 'Invalid code. Enter a recovery code you have not used before.',
+              statusCode: 401,
+            },
+          });
+        }
+      } else {
+        // Neither a TOTP shape nor a recovery-code shape.
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: 'BAD_REQUEST',
+            message: 'Enter the 6-digit code from your authenticator, or one of your recovery codes.',
+            statusCode: 400,
+          },
+        });
+      }
+
+      // 4. Only now — session, in the exact /auth/login success shape, so
+      // clients persist it down the same path.
+      const tokens = await refreshStore.issueNewSession(
+        { userId: user.id, username: user.username },
+        sessionMeta(request),
+      );
+      return reply.send({
+        success: true,
+        data: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          expiresIn: tokens.expiresIn,
+          tokenType: tokens.tokenType,
+          user: {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            displayName: user.displayName,
+            phoneNumber: user.phoneNumber,
+            role: String(user.role).toLowerCase(),
+          },
+        },
+      });
+    },
+  );
 
   // POST /auth/sso/exchange — Exchange a QuantMail SSO token for QuantChat-native tokens.
   //
