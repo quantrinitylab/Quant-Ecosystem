@@ -256,6 +256,9 @@ export default function PublicBookingPage(props: PageProps) {
   // no host-calendar or conflict data — letting bookers pick slots that do
   // not exist. The only honest responses to a failure are the error panel
   // below or server-sourced slots. Nothing may replace this generator.
+  // (fix/qm-calendar-slot-fallback-no-invent): the sibling generator in
+  // booking-utils.ts (GuestDaySlotSpec + generateGuestDaySlots) was removed
+  // too — it carried the same invented-availability pattern.
 
   // Fetch slots whenever selectedDate, meetingDetails, or the guest's timezone change
   useEffect(() => {
