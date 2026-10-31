@@ -34,6 +34,7 @@ interface DocRow {
 interface UserRow {
   id: string;
   email: string;
+  deletedAt?: string | null;
 }
 
 function buildHarness() {
@@ -76,17 +77,21 @@ function buildHarness() {
       },
     },
     user: {
-      findFirst: async ({ where, select }: any) => {
+      // Mirrors the route's fail-closed resolution: findMany over the
+      // normalized address, soft-deleted rows excluded (deletedAt: null).
+      findMany: async ({ where, select }: any) => {
         const wanted = (where?.email?.equals as string | undefined)?.toLowerCase();
-        const match = Array.from(users.values()).find(
-          (u) => u.email.toLowerCase() === wanted,
-        );
-        if (!match) return null;
-        if (!select) return match;
-        return Object.fromEntries(
-          Object.entries(select)
-            .filter(([, v]) => v)
-            .map(([k]) => [k, (match as any)[k]]),
+        const matches = Array.from(users.values()).filter((u) => {
+          if (where?.deletedAt === null && (u as any).deletedAt != null) return false;
+          return u.email.toLowerCase() === wanted;
+        });
+        if (!select) return matches;
+        return matches.map((match) =>
+          Object.fromEntries(
+            Object.entries(select)
+              .filter(([, v]) => v)
+              .map(([k]) => [k, (match as any)[k]]),
+          ),
         );
       },
     },
@@ -271,6 +276,84 @@ describe('P0-4b — collaborator invite contract', () => {
       payload: { email: 'teammate@example.com', role: 'editor' },
     });
     expect(res.statusCode).toBe(404);
+    await app.close();
+  });
+});
+
+describe('case-collision fail-closed — doc collaborator invite', () => {
+  let harness: ReturnType<typeof buildHarness>;
+
+  beforeEach(() => {
+    harness = buildHarness();
+    // Legacy case-colliding twins: distinct users under the case-sensitive
+    // unique index, same address modulo case.
+    harness.users.set('twin-lower', { id: 'twin-lower', email: 'person@example.com' });
+    harness.users.set('twin-upper', { id: 'twin-upper', email: 'Person@example.com' });
+    // A soft-deleted twin next to a live account: the deleted row is not a
+    // subject, so this address must still resolve to exactly one user.
+    harness.users.set('ghost-deleted', {
+      id: 'ghost-deleted',
+      email: 'DELETED@example.com',
+      deletedAt: '2026-01-01T00:00:00.000Z',
+    });
+    harness.users.set('alive-1', { id: 'alive-1', email: 'deleted@example.com' });
+  });
+
+  it('returns 409 RECIPIENT_AMBIGUOUS for case-colliding twins and writes nothing', async () => {
+    const app = await buildApp(harness.prisma, 'owner-1');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/documents/doc-1/collaborators',
+      payload: { email: 'person@example.com', role: 'editor' },
+    });
+    expect(res.statusCode).toBe(409);
+    const json = res.json();
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('RECIPIENT_AMBIGUOUS');
+    // Zero writes: neither twin received access.
+    expect(harness.collabs).toHaveLength(0);
+    await app.close();
+  });
+
+  it('still 409 when the invite spells the address in the other twin\'s case', async () => {
+    const app = await buildApp(harness.prisma, 'owner-1');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/documents/doc-1/collaborators',
+      payload: { email: 'Person@example.com', role: 'viewer' },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe('RECIPIENT_AMBIGUOUS');
+    expect(harness.collabs).toHaveLength(0);
+    await app.close();
+  });
+
+  it('ignores a soft-deleted twin and invites the live account', async () => {
+    const app = await buildApp(harness.prisma, 'owner-1');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/documents/doc-1/collaborators',
+      payload: { email: 'deleted@example.com', role: 'editor' },
+    });
+    expect(res.statusCode).toBe(201);
+    const json = res.json();
+    expect(json.data.email).toBe('deleted@example.com');
+    expect(harness.collabs).toHaveLength(1);
+    expect(harness.collabs[0].userId).toBe('alive-1');
+    await app.close();
+  });
+
+  it('resolves a single account case-insensitively (mixed-case invite)', async () => {
+    const app = await buildApp(harness.prisma, 'owner-1');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/documents/doc-1/collaborators',
+      payload: { email: 'Teammate@Example.com', role: 'editor' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().data.email).toBe('teammate@example.com');
+    expect(harness.collabs).toHaveLength(1);
+    expect(harness.collabs[0].userId).toBe('mate-1');
     await app.close();
   });
 });
