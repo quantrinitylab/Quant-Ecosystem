@@ -668,7 +668,11 @@ function toPullRequestPayload(
     body: pr.body ?? '',
     state: pr.status.toLowerCase(),
     status: pr.status.toLowerCase(),
-    author: pr.author?.username ?? 'user',
+    // Author honesty (same invented-data defect family as the frontend
+    // branches tab's 'Update branch' fallback): when the author relation is
+    // missing, degrade to honest '' — the QuantGit UI renders its own
+    // 'Unknown' fallback. Never invent an author identity like 'user'.
+    author: pr.author?.username ?? '',
     branchSource: pr.sourceBranch,
     branchTarget: pr.targetBranch,
     checksStatus: 'none',
@@ -1992,7 +1996,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           body: pull.body ?? '',
           state: pull.status.toLowerCase(),
           status: pull.status.toLowerCase(),
-          author: pull.author?.username ?? 'user',
+          author: pull.author?.username ?? '',
           branchSource: pull.sourceBranch,
           branchTarget: pull.targetBranch,
           checksStatus: 'none',
@@ -2194,7 +2198,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           body: pr.body ?? '',
           state: pr.status.toLowerCase(),
           status: pr.status.toLowerCase(),
-          author: pr.author?.username ?? 'user',
+          author: pr.author?.username ?? '',
           branchSource: pr.sourceBranch,
           branchTarget: pr.targetBranch,
           checksStatus: 'none',
@@ -2880,7 +2884,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           body: merged.body ?? '',
           state: 'merged',
           status: 'MERGED',
-          author: merged.author?.username ?? 'user',
+          author: merged.author?.username ?? '',
           branchSource: merged.sourceBranch,
           branchTarget: merged.targetBranch,
           checksStatus: 'none',
@@ -3043,7 +3047,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
             body: issue.body ?? '',
             state: issue.status.toLowerCase(),
             status: issue.status.toLowerCase(),
-            author: issue.author?.username ?? 'user',
+            author: issue.author?.username ?? '',
             labels: rawLabels.map((lbl: any) =>
               typeof lbl === 'string'
                 ? { name: lbl, color: lbl === 'bug' ? '#D73A4A' : '#1D76DB' }
@@ -3103,7 +3107,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         body: issue.body,
         state: issue.status.toLowerCase(),
         status: issue.status.toLowerCase(),
-        author: issue.author?.username ?? 'user',
+        author: issue.author?.username ?? '',
         labels: labelsList,
         // Genuinely 0: this issue was just created, so no comments exist yet.
         commentsCount: 0,

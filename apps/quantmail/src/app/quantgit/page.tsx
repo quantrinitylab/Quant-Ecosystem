@@ -910,12 +910,19 @@ function QuantGitContent() {  const router = useRouter();
               id: item.number || item.id,
               title: item.title,
               state: item.status === 'closed' || item.state === 'closed' ? 'closed' : 'open',
-              author: item.author || 'user',
+              // Author honesty (same invented-data defect family as the
+              // branches tab's 'Update branch' fallback): never invent an
+              // author — honest '' lets IssuesTab render its 'Unknown'
+              // fallback instead of a fabricated identity.
+              author: item.author || '',
               labels: Array.isArray(item.labels)
                 ? item.labels
                 : [{ name: 'bug', color: '#D73A4A' }],
               commentsCount: item.commentsCount || 0,
-              createdAt: item.createdAt || 'recently',
+              // Recency honesty: never claim 'recently' the backend did not
+              // assert. Honest '' — the tab renders a date-unavailable note
+              // instead of a fabricated recency claim.
+              createdAt: item.createdAt || '',
               body: item.body || '',
               assignee: item.assignee || 'Unassigned',
             }));
@@ -964,7 +971,11 @@ function QuantGitContent() {  const router = useRouter();
               title: item.title,
               state:
                 item.status === 'merged' ? 'merged' : item.status === 'closed' ? 'closed' : 'open',
-              author: item.author || 'user',
+              // Author honesty (same invented-data defect family as the
+              // branches tab's 'Update branch' fallback): never invent an
+              // author — honest '' lets PullRequestsTab render its 'Unknown'
+              // fallback instead of a fabricated identity.
+              author: item.author || '',
               branchSource: item.branchSource || 'main',
               branchTarget: item.branchTarget || 'main',
               // checksStatus honesty (#1071): normalize unrecognized values to 'unknown'
@@ -976,7 +987,10 @@ function QuantGitContent() {  const router = useRouter();
                 : 'unknown',
               // Pass through honestly: null (unknown) stays null, never becomes an invented 0.
               commentsCount: item.commentsCount ?? null,
-              createdAt: item.createdAt || 'recently',
+              // Recency honesty: never claim 'recently' the backend did not
+              // assert. Honest '' — the tab hides the date slot instead of
+              // fabricating a recency claim.
+              createdAt: item.createdAt || '',
               body: item.body || '',
               // Diff stats: pass through honestly — the list endpoint reports
               // null (unknown) and must never become invented +12/-2 counts.
