@@ -30,6 +30,7 @@ import {
   getSendBlockReaction,
   needsEmptyBodyConfirm,
 } from './composeValidation';
+import { decideAttachmentFiles, dragCarriesFiles } from './composeAttachments';
 import { ContactAutocomplete, type ContactSuggestion } from './ContactAutocomplete';
 import { useContactSuggestions } from '../hooks/useContactSuggestions';
 import {
@@ -598,6 +599,100 @@ export function EmailComposer({
   // Attachments
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /*
+   * Drag-and-drop attachments (fix/qm-compose-drag-drop): the body
+   * placeholder promises "drag and drop files", so the composer root
+   * accepts dropped files through the SAME admission rules as the picker
+   * (20 MB per file, 25 MB total, via decideAttachmentFiles) and the
+   * SAME FileReader loop below. The overlay is pointer-events-none so it
+   * never swallows the drop itself.
+   *
+   * dragenter/dragleave fire once per child boundary crossed, not once
+   * per drag — the depth counter is what keeps the overlay from
+   * flickering (or sticking) while the pointer moves over toolbar
+   * buttons and fields inside the composer. Only file drags count:
+   * dragging selected body text must never show the dropzone (see
+   * dragCarriesFiles). preventDefault on dragover AND drop is what
+   * stops the browser from navigating away to the dropped file.
+   */
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const dragDepthRef = useRef(0);
+  const handleComposerDragEnter = (e: React.DragEvent) => {
+    if (!dragCarriesFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDraggingFiles(true);
+  };
+  const handleComposerDragOver = (e: React.DragEvent) => {
+    if (!dragCarriesFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+  const handleComposerDragLeave = (e: React.DragEvent) => {
+    if (!dragCarriesFiles(e.dataTransfer)) return;
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDraggingFiles(false);
+  };
+  const handleComposerDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDraggingFiles(false);
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+    addDroppedFiles(files);
+  };
+  // Shared by the drop handler: same caps, same toasts, same reader loop
+  // as the picker onChange below. Declared as a function so the drop
+  // handler above can reference it (hoisted past the const handlers).
+  function addDroppedFiles(files: FileList | File[]) {
+    const used = attachments.reduce((sum, item) => sum + item.size, 0);
+    const decision = decideAttachmentFiles(
+      files,
+      used,
+      MAX_ATTACHMENT_BYTES,
+      MAX_ATTACHMENTS_TOTAL_BYTES,
+      false,
+    );
+    const refused = decision.tooBig.length + decision.overBudget.length;
+    if (refused > 0) {
+      quantyReact('file:tooLarge');
+      showToast({
+        text: `${refused} file(s) too large — ${formatBytes(MAX_ATTACHMENT_BYTES)} each, ${formatBytes(MAX_ATTACHMENTS_TOTAL_BYTES)} total`,
+        type: 'error',
+      });
+    }
+    if (decision.accepted.length === 0) return;
+    quantyReact('file:uploading');
+    let pending = decision.accepted.length;
+    const settle = () => {
+      pending -= 1;
+      if (pending === 0) quantyReact('file:uploaded');
+    };
+    for (const file of decision.accepted) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAttachments((prev) => [
+          ...prev,
+          {
+            id: `att_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            name: file.name,
+            filename: file.name,
+            size: file.size,
+            type: file.type || 'application/octet-stream',
+            mimeType: file.type || 'application/octet-stream',
+            url: reader.result as string,
+          },
+        ]);
+        settle();
+      };
+      reader.onerror = () => {
+        showToast({ text: `Could not read ${file.name}`, type: 'error' });
+        settle();
+      };
+      reader.readAsDataURL(file);
+    }
+  }
 
   // Unsaved-changes guard for back/close/discard. The branded confirm dialog
   // replaces the old silent discard: closing /compose with typed To/Subject/
@@ -2030,6 +2125,10 @@ export function EmailComposer({
           exit={{ opacity: 0, scale: 0.98, y: 12 }}
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           onKeyDown={handleComposerKeyDown}
+          onDragEnter={handleComposerDragEnter}
+          onDragOver={handleComposerDragOver}
+          onDragLeave={handleComposerDragLeave}
+          onDrop={handleComposerDrop}
           className={
             modal
               ? // QM-UIUX-025: on mobile this was `right-4 w-full` — width 100%
@@ -2037,9 +2136,28 @@ export function EmailComposer({
                 // `inset-x-4 w-auto` pins both edges instead; sm+ restores the
                 // anchored 600px panel (`left-auto` undoes the mobile left pin).
                 `fixed bottom-0 inset-x-4 w-auto sm:left-auto sm:right-8 z-50 flex flex-col sm:w-[600px] h-[580px] max-h-[90vh] rounded-t-2xl shadow-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-subtle)] text-white select-text overflow-hidden box-border print:static print:h-auto print:max-h-none print:bg-white print:text-black ${className || ''}`
-              : `flex flex-col h-[100dvh] max-h-[100dvh] w-full max-w-full bg-[var(--quant-surface-subtle)] text-white select-text overflow-hidden box-border print:h-auto print:max-h-none print:bg-white print:text-black print:overflow-visible ${className || ''}`
+              : `relative flex flex-col h-[100dvh] max-h-[100dvh] w-full max-w-full bg-[var(--quant-surface-subtle)] text-white select-text overflow-hidden box-border print:h-auto print:max-h-none print:bg-white print:text-black print:overflow-visible ${className || ''}`
           }
         >
+          {/* Drag-and-drop overlay: shown only while files hover the
+              composer. Pure-black veil + Mail-orange dashed frame (an
+              affordance, not a layout divider). pointer-events-none so
+              the drop still lands on the root handler above. The modal
+              variant is `fixed` (positioned); the full-page variant
+              gained `relative` above, so this anchors to the composer
+              in both modes. */}
+          {isDraggingFiles && (
+            <div
+              aria-hidden="true"
+              data-testid="composer-drop-overlay"
+              className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-1 bg-black/70 border-2 border-dashed border-[var(--quant-primary)] rounded-[inherit] pointer-events-none"
+            >
+              <span className="text-sm font-semibold text-white">Drop files to attach</span>
+              <span className="text-xs text-[var(--quant-muted-foreground)]">
+                Up to {formatBytes(MAX_ATTACHMENT_BYTES)} per file · {formatBytes(MAX_ATTACHMENTS_TOTAL_BYTES)} total
+              </span>
+            </div>
+          )}
           {/* Top Header Bar (Hidden during Print) */}
           <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-3 bg-[var(--quant-surface-elevated)] shrink-0 w-full max-w-full box-border">
             <div className="flex items-center gap-2 sm:gap-3">
@@ -2722,22 +2840,19 @@ export function EmailComposer({
                  * draft, so the tenth 3 MB image is refused for the right reason instead of
                  * sailing past because it happens to be small on its own.
                  */
-                let used = attachments.reduce((sum, item) => sum + item.size, 0);
-                const accepted: File[] = [];
-                let refused = 0;
-
-                for (let i = 0; i < files.length; i++) {
-                  const file = files[i];
-                  if (!file) continue;
-                  const tooBig = file.size > MAX_ATTACHMENT_BYTES;
-                  const overBudget = used + file.size > MAX_ATTACHMENTS_TOTAL_BYTES;
-                  if (tooBig || overBudget) {
-                    refused += 1;
-                    continue;
-                  }
-                  used += file.size;
-                  accepted.push(file);
-                }
+                // Same admission rules as drag-and-drop (see addDroppedFiles):
+                // decideAttachmentFiles with stopAtBudget=false reproduces
+                // this picker's old loop exactly (refuse + keep scanning).
+                const used = attachments.reduce((sum, item) => sum + item.size, 0);
+                const decision = decideAttachmentFiles(
+                  files,
+                  used,
+                  MAX_ATTACHMENT_BYTES,
+                  MAX_ATTACHMENTS_TOTAL_BYTES,
+                  false,
+                );
+                const accepted = decision.accepted;
+                const refused = decision.tooBig.length + decision.overBudget.length;
                 // Cleared here rather than after the reads, so re-picking the same file works.
                 event.target.value = '';
 
