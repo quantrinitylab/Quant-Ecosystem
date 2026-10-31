@@ -4,7 +4,15 @@
 // QuantGit — Pull Requests Engine, 3-Way Merge & CI Review Gate (Screens 27, 73–74, 99–103)
 // ============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  resolveReviewShortcut,
+  filterDiffFiles,
+  computeRangeSelection,
+  REVIEW_SHORTCUTS_HELP,
+  REVIEW_SHORTCUTS_NOT_YET_AVAILABLE,
+  type RangeSelection,
+} from '../reviewShortcuts';
 import type {
   PRItem,
   PRReviewDecision,
@@ -397,6 +405,36 @@ export function PullRequestsTab({
   const [lineCommentText, setLineCommentText] = useState<string>('');
   const [diffComments, setDiffComments] = useState<Record<string, PRDiffComment[]>>({});
 
+  // Keyboard review flow (see ../reviewShortcuts.ts for the key map).
+  const [showDiffComments, setShowDiffComments] = useState<boolean>(true);
+  const [isFileFilterOpen, setIsFileFilterOpen] = useState<boolean>(false);
+  const [fileFilterQuery, setFileFilterQuery] = useState<string>('');
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState<boolean>(false);
+  const [pendingReviewComments, setPendingReviewComments] = useState<
+    { id: string; body: string }[]
+  >([]);
+  const [rangeSelection, setRangeSelection] = useState<RangeSelection>({
+    anchorId: null,
+    selectedIds: [],
+  });
+  const reviewTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileFilterRef = useRef<HTMLInputElement | null>(null);
+  const [reviewFocusRequested, setReviewFocusRequested] = useState<boolean>(false);
+  const [fileFilterFocusRequested, setFileFilterFocusRequested] = useState<boolean>(false);
+
+  // Ordered diff line ids, for Shift+Click range selection.
+  const orderedDiffLineIds = React.useMemo(() => {
+    if (!prDiff || prDiff.status !== 'loaded') return [];
+    const ids: string[] = [];
+    for (const f of prDiff.files) for (const h of f.hunks) for (const l of h.lines) ids.push(l.id);
+    return ids;
+  }, [prDiff]);
+  const visibleDiffFiles = React.useMemo(
+    () =>
+      prDiff && prDiff.status === 'loaded' ? filterDiffFiles(prDiff.files, fileFilterQuery) : [],
+    [prDiff, fileFilterQuery],
+  );
+
   const isAuthor = Boolean(
     selectedPR && selectedPR.author && currentUsername && selectedPR.author === currentUsername,
   );
@@ -454,8 +492,10 @@ export function PullRequestsTab({
     }
   };
 
-  const handleSubmitReview = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Shared submit path for the Submit button, Cmd/Ctrl+Enter, and the
+  // form submit: pending review comments (Cmd/Ctrl+Shift+Enter) are
+  // published as part of this review's body, so nothing queued is lost.
+  const submitReview = async () => {
     if (isAuthor && reviewDecision === 'approve') {
       showToast?.('Authors cannot approve their own pull requests.');
       return;
@@ -472,8 +512,10 @@ export function PullRequestsTab({
       comment: 'COMMENTED',
     };
     const status = stateMap[reviewDecision];
+    const queuedBodies = pendingReviewComments.map((c) => c.body);
+    const currentText = reviewCommentText.trim();
     const body =
-      reviewCommentText.trim() ||
+      [...queuedBodies, currentText].filter(Boolean).join('\n\n') ||
       (reviewDecision === 'approve'
         ? 'Approved changes.'
         : reviewDecision === 'request_changes'
@@ -489,9 +531,11 @@ export function PullRequestsTab({
       body,
       createdAt: 'Just now',
     };
+    const submittedPending = pendingReviewComments;
     setReviews((prev) => [...prev, newReview]);
     setIsReviewBoxOpen(false);
     setReviewCommentText('');
+    setPendingReviewComments([]);
 
     try {
       const res = await apiFetchRaw(
@@ -511,12 +555,121 @@ export function PullRequestsTab({
         showToast?.(`Review submitted: ${reviewDecision.replace('_', ' ')}`);
       } else {
         setReviews((prev) => prev.filter((r) => r.id !== tempId));
+        // Rollback restores the queued pending comments — a failed submit
+        // must not silently discard them.
+        setPendingReviewComments(submittedPending);
+        setReviewCommentText(currentText);
         showToast?.(json?.error?.message || 'Could not submit review');
       }
     } catch {
       setReviews((prev) => prev.filter((r) => r.id !== tempId));
+      setPendingReviewComments(submittedPending);
+      setReviewCommentText(currentText);
       showToast?.('Could not submit review — network error');
     }
+  };
+
+  const handleSubmitReview = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submitReview();
+  };
+
+  // Keyboard review flow: window listener active only in the PR detail
+  // view. Single-letter shortcuts are suppressed while typing (the resolver
+  // enforces that); Cmd/Ctrl+Enter combos fire inside textareas on purpose.
+  // Page-level 't' only fires on the code tab, so T here never conflicts.
+  useEffect(() => {
+    if (!selectedPR) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const targetIsEditable =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        Boolean(target?.isContentEditable);
+      const action = resolveReviewShortcut({
+        key: e.key,
+        metaKey: e.metaKey,
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
+        altKey: e.altKey,
+        targetIsEditable,
+      });
+      if (!action) return;
+      switch (action) {
+        case 'open-review':
+          e.preventDefault();
+          setIsReviewBoxOpen(true);
+          setReviewFocusRequested(true);
+          break;
+        case 'toggle-diff-comments':
+          e.preventDefault();
+          setShowDiffComments((prev) => !prev);
+          break;
+        case 'focus-file-filter':
+          e.preventDefault();
+          setIsFileFilterOpen(true);
+          setFileFilterFocusRequested(true);
+          break;
+        case 'toggle-help':
+          e.preventDefault();
+          setShowShortcutsHelp((prev) => !prev);
+          break;
+        case 'close-review':
+          setIsReviewBoxOpen(false);
+          setShowShortcutsHelp(false);
+          break;
+        case 'submit-review':
+          // Inside the review textarea only — the textarea's own onKeyDown
+          // handles this; the window listener must not double-submit.
+          break;
+        case 'add-pending-comment':
+          break;
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedPR]);
+
+  useEffect(() => {
+    if (reviewFocusRequested && isReviewBoxOpen) {
+      reviewTextareaRef.current?.focus();
+      setReviewFocusRequested(false);
+    }
+  }, [reviewFocusRequested, isReviewBoxOpen]);
+
+  useEffect(() => {
+    if (fileFilterFocusRequested && isFileFilterOpen) {
+      fileFilterRef.current?.focus();
+      setFileFilterFocusRequested(false);
+    }
+  }, [fileFilterFocusRequested, isFileFilterOpen]);
+
+  const handleReviewTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const action = resolveReviewShortcut({
+      key: e.key,
+      metaKey: e.metaKey,
+      ctrlKey: e.ctrlKey,
+      shiftKey: e.shiftKey,
+      altKey: e.altKey,
+      targetIsEditable: true,
+    });
+    if (action === 'submit-review') {
+      e.preventDefault();
+      void submitReview();
+    } else if (action === 'add-pending-comment') {
+      e.preventDefault();
+      const body = reviewCommentText.trim();
+      if (!body) return;
+      setPendingReviewComments((prev) => [...prev, { id: `pending-${Date.now()}`, body }]);
+      setReviewCommentText('');
+      showToast?.('Added to pending review');
+    } else if (action === 'close-review') {
+      setIsReviewBoxOpen(false);
+    }
+  };
+
+  const handleDiffLineClick = (lineId: string, shiftKey: boolean) => {
+    setRangeSelection((prev) => computeRangeSelection(orderedDiffLineIds, prev, lineId, shiftKey));
   };
 
   const handleExecuteMerge = async () => {
@@ -603,6 +756,8 @@ export function PullRequestsTab({
                     type="button"
                     onClick={() => setIsReviewBoxOpen((prev) => !prev)}
                     data-testid="review-changes-btn"
+                    aria-keyshortcuts="r"
+                    title="Review changes (R)"
                     className="px-3 py-1.5 rounded-lg bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] text-[#E6EDF3] font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <span>Review changes</span>
@@ -629,14 +784,38 @@ export function PullRequestsTab({
                       <form onSubmit={handleSubmitReview} className="space-y-3">
                         <div>
                           <textarea
+                            ref={reviewTextareaRef}
                             value={reviewCommentText}
                             onChange={(e) => setReviewCommentText(e.target.value)}
+                            onKeyDown={handleReviewTextareaKeyDown}
                             placeholder="Leave a comment on changes..."
                             data-testid="review-comment-textarea"
                             rows={3}
                             className="w-full bg-[#0D1117] border border-[#30363D] focus:border-[#58A6FF] rounded-lg p-2.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none resize-none"
                           />
                         </div>
+
+                        {/* Pending review comments (Cmd/Ctrl+Shift+Enter):
+                            published as part of this review's body on submit. */}
+                        {pendingReviewComments.length > 0 && (
+                          <div
+                            data-testid="pending-review-comments"
+                            className="space-y-1.5 rounded-lg bg-[#0D1117] border border-[#30363D] p-2.5"
+                          >
+                            <p className="text-[11px] font-semibold text-[#E6EDF3]">
+                              Pending review comments ({pendingReviewComments.length}) — published
+                              when you submit this review
+                            </p>
+                            {pendingReviewComments.map((c) => (
+                              <p
+                                key={c.id}
+                                className="text-[11px] text-[#8D96A0] whitespace-pre-wrap break-words"
+                              >
+                                {c.body}
+                              </p>
+                            ))}
+                          </div>
+                        )}
 
                         {/* Author approval restriction warning */}
                         {isAuthor && (
@@ -1117,17 +1296,135 @@ export function PullRequestsTab({
               No view-mode toggle is rendered here on purpose — PR #1090
               removed the dead mode toggles and they stay removed. */}
           <div className="space-y-4" data-testid="diff-viewer">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-semibold text-xs text-[#E6EDF3]">
                 Files changed ({selectedPR?.changedFiles ?? '—'})
               </span>
-              {prDiffTotals && (
-                <span className="text-[11px] font-mono">
-                  <span className="text-[#3FB950]">+{prDiffTotals.additions}</span>{' '}
-                  <span className="text-[#F85149]">-{prDiffTotals.deletions}</span>
-                </span>
-              )}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {prDiffTotals && (
+                  <span className="text-[11px] font-mono">
+                    <span className="text-[#3FB950]">+{prDiffTotals.additions}</span>{' '}
+                    <span className="text-[#F85149]">-{prDiffTotals.deletions}</span>
+                  </span>
+                )}
+                {prDiff?.status === 'loaded' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsFileFilterOpen((prev) => !prev);
+                        setFileFilterFocusRequested(true);
+                      }}
+                      data-testid="diff-file-filter-btn"
+                      aria-keyshortcuts="t"
+                      title="Filter changed files (T)"
+                      className="px-2 py-1 rounded-lg bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] text-[#E6EDF3] text-[11px] font-semibold cursor-pointer"
+                    >
+                      Filter files (T)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDiffComments((prev) => !prev)}
+                      data-testid="diff-comments-toggle"
+                      aria-pressed={showDiffComments}
+                      aria-keyshortcuts="i"
+                      title="Toggle diff comments (I)"
+                      className="px-2 py-1 rounded-lg bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] text-[#E6EDF3] text-[11px] font-semibold cursor-pointer"
+                    >
+                      {showDiffComments ? 'Hide comments (I)' : 'Show comments (I)'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowShortcutsHelp((prev) => !prev)}
+                      data-testid="review-shortcuts-help-btn"
+                      aria-keyshortcuts="?"
+                      title="Keyboard shortcuts (?)"
+                      className="px-2 py-1 rounded-lg bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] text-[#E6EDF3] text-[11px] font-semibold cursor-pointer"
+                    >
+                      Shortcuts (?)
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
+
+            {isFileFilterOpen && prDiff?.status === 'loaded' && (
+              <input
+                ref={fileFilterRef}
+                type="text"
+                value={fileFilterQuery}
+                onChange={(e) => setFileFilterQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setIsFileFilterOpen(false);
+                }}
+                placeholder="Filter changed files by name… (T to focus)"
+                data-testid="diff-file-filter-input"
+                className="w-full bg-[#0D1117] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
+              />
+            )}
+
+            {fileFilterQuery.trim() && prDiff?.status === 'loaded' && (
+              <p data-testid="diff-file-filter-count" className="text-[11px] text-[#8D96A0]">
+                Showing {visibleDiffFiles.length} of {prDiff.files.length} changed files matching
+                “{fileFilterQuery.trim()}”
+              </p>
+            )}
+
+            {rangeSelection.selectedIds.length > 1 && (
+              <div
+                data-testid="diff-range-selection"
+                className="flex items-center justify-between rounded-lg bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 px-3 py-1.5"
+              >
+                <span className="text-[11px] text-[#A371F7] font-semibold">
+                  {rangeSelection.selectedIds.length} lines selected (Shift+Click to extend) —
+                  range comments post to the clicked line; the backend comment endpoint takes a
+                  single line.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRangeSelection({ anchorId: null, selectedIds: [] })}
+                  className="text-[11px] text-[#8D96A0] hover:text-[#E6EDF3] font-semibold cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+
+            {!showDiffComments && prDiff?.status === 'loaded' && (
+              <p data-testid="diff-comments-hidden" className="text-[11px] text-[#8D96A0]">
+                Diff comments hidden — press I to show them.
+              </p>
+            )}
+
+            {showShortcutsHelp && (
+              <div
+                data-testid="review-shortcuts-help"
+                className="rounded-xl bg-[#0D1117] border border-[#30363D] p-3.5 space-y-2"
+              >
+                <p className="font-bold text-xs text-[#E6EDF3]">Keyboard review shortcuts</p>
+                <ul className="space-y-1">
+                  {REVIEW_SHORTCUTS_HELP.map((s) => (
+                    <li key={s.keys} className="flex gap-2 text-[11px] text-[#8D96A0]">
+                      <kbd className="shrink-0 px-1.5 py-px rounded bg-[#21262D] border border-[#30363D] font-mono text-[#E6EDF3]">
+                        {s.keys}
+                      </kbd>
+                      <span>{s.description}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="font-bold text-xs text-[#E6EDF3] pt-1">Not yet available</p>
+                <ul className="space-y-1">
+                  {REVIEW_SHORTCUTS_NOT_YET_AVAILABLE.map((s) => (
+                    <li key={s.keys} className="flex gap-2 text-[11px] text-[#8D96A0]">
+                      <kbd className="shrink-0 px-1.5 py-px rounded bg-[#21262D] border border-[#30363D] font-mono text-[#E6EDF3]">
+                        {s.keys}
+                      </kbd>
+                      <span>{s.description}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Only a real measured zero means "no files changed". Unknown
                 (null/undefined) or an empty/failed diff fetch shows the
@@ -1140,19 +1437,32 @@ export function PullRequestsTab({
                 <p className="text-xs text-[#8D96A0]">No files changed in this pull request.</p>
               </div>
             ) : prDiff?.status === 'loaded' ? (
-              <PRDiffViewer
-                files={prDiff.files}
-                activeLineKey={activeCommentLineKey}
-                lineCommentText={lineCommentText}
-                diffComments={diffComments}
-                onOpenLine={setActiveCommentLineKey}
-                onCancelLine={() => {
-                  setActiveCommentLineKey(null);
-                  setLineCommentText('');
-                }}
-                onChangeCommentText={setLineCommentText}
-                onSubmitComment={handleAddInlineComment}
-              />
+              visibleDiffFiles.length === 0 ? (
+                <div
+                  data-testid="diff-filter-empty"
+                  className="rounded-xl bg-[#0D1117] border border-dashed border-[#30363D] p-8 text-center"
+                >
+                  <p className="text-xs text-[#8D96A0]">
+                    No changed files match “{fileFilterQuery.trim()}”.
+                  </p>
+                </div>
+              ) : (
+                <PRDiffViewer
+                  files={visibleDiffFiles}
+                  activeLineKey={activeCommentLineKey}
+                  lineCommentText={lineCommentText}
+                  diffComments={showDiffComments ? diffComments : {}}
+                  selectedLineIds={rangeSelection.selectedIds}
+                  onLineClick={handleDiffLineClick}
+                  onOpenLine={setActiveCommentLineKey}
+                  onCancelLine={() => {
+                    setActiveCommentLineKey(null);
+                    setLineCommentText('');
+                  }}
+                  onChangeCommentText={setLineCommentText}
+                  onSubmitComment={handleAddInlineComment}
+                />
+              )
             ) : prDiff?.status === 'loading' ? (
               <div
                 data-testid="diff-loading"

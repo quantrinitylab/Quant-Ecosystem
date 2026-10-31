@@ -18,6 +18,9 @@ export interface PRDiffViewerProps {
   onCancelLine: () => void;
   onChangeCommentText: (text: string) => void;
   onSubmitComment: (lineId: string, side: 'LEFT' | 'RIGHT') => void;
+  /** Shift+Click range selection (keyboard review flow). */
+  selectedLineIds?: string[];
+  onLineClick?: (lineId: string, shiftKey: boolean) => void;
 }
 
 const STATUS_CHIP: Record<string, string> = {
@@ -62,6 +65,8 @@ export function PRDiffViewer({
   onCancelLine,
   onChangeCommentText,
   onSubmitComment,
+  selectedLineIds = [],
+  onLineClick,
 }: PRDiffViewerProps) {
   return (
     <div className="space-y-3" data-testid="diff-files">
@@ -121,11 +126,16 @@ export function PRDiffViewer({
                       commentLineId != null ? (diffComments[commentLineId] ?? []) : []
                     ).filter((c) => !c.side || c.side === side);
                     const isCommentOpen = activeLineKey === line.id;
+                    const isSelected = selectedLineIds.includes(line.id);
                     return (
                       <div key={line.id}>
                         <div
                           data-testid={`diff-line-${line.id}`}
-                          className={`group flex items-start ${lineRowClass(line.type)}`}
+                          data-selected={isSelected ? 'true' : undefined}
+                          onClick={(e) => onLineClick?.(line.id, e.shiftKey)}
+                          className={`group flex items-start cursor-pointer ${lineRowClass(line.type)} ${
+                            isSelected ? 'outline outline-1 outline-[#8B5CF6] bg-[#8B5CF6]/10' : ''
+                          }`}
                         >
                           <span className="w-10 shrink-0 text-right pr-2 text-[#484F58] select-none">
                             {line.oldLineNumber ?? ''}
@@ -184,6 +194,14 @@ export function PRDiffViewer({
                               data-testid="diff-line-comment-input"
                               value={lineCommentText}
                               onChange={(e) => onChangeCommentText(e.target.value)}
+                              onKeyDown={(e) => {
+                                // Cmd/Ctrl+Enter submits the standalone line
+                                // comment (GitHub review-flow shortcut).
+                                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  onSubmitComment(commentLineId, side);
+                                }
+                              }}
                               placeholder="Add a review comment on this line…"
                               rows={2}
                               className="w-full bg-[var(--quant-surface-elevated)] border border-[#30363D] focus:border-[#58A6FF] rounded-lg px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] outline-none resize-y"
