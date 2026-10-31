@@ -3,15 +3,74 @@
 // Strictly ZERO Skia clipPath calls (120Hz Impeller & Skia acceleration).
 
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/chat_models.dart';
+import '../services/quantchat_thread_api.dart';
 import '../widgets/call_sheet.dart';
 import '../widgets/chat_media_sheet.dart';
+import '../widgets/mini_apps_sheet.dart';
+import '../widgets/sticker_picker_sheet.dart';
 import 'call_screen.dart';
 import 'group/group_detail_screen.dart';
 import 'security/safety_number_screen.dart';
+
+/// Phase 1B — screenshot / screen-recording detection stub.
+///
+/// HONEST SCOPE: detection + in-thread notice ONLY. Captures can never
+/// be prevented (least of all on web) — this class must never claim
+/// prevention, and no UI copy may imply it.
+///
+/// The detection source is platform-native: Android FileObserver on the
+/// screenshots directory, iOS UIApplicationUserDidTakeScreenshotNotification,
+/// screen-recording callbacks via MediaProjection / ReplayKit state, all
+/// delivered over a MethodChannel ('quantchat/screenshot'). No plugin is
+/// wired in this build (no new dependencies per project rules); until the
+/// native side lands, this class is inert and the callbacks never fire.
+/// debugSimulateScreenshot / debugSimulateScreenRecording exist for manual
+/// testing only.
+class _ScreenshotWatch {
+  void Function()? _onScreenshot;
+  void Function()? _onScreenRecording;
+
+  void start({
+    required void Function() onScreenshot,
+    void Function()? onScreenRecording,
+  }) {
+    _onScreenshot = onScreenshot;
+    _onScreenRecording = onScreenRecording;
+  }
+
+  void dispose() {
+    _onScreenshot = null;
+    _onScreenRecording = null;
+  }
+
+  /// Manual-test hook only: pretend a screenshot fired right now.
+  void debugSimulateScreenshot() {
+    _onScreenshot?.call();
+  }
+
+  /// Manual-test hook only: pretend a screen recording started right now.
+  void debugSimulateScreenRecording() {
+    _onScreenRecording?.call();
+  }
+}
+
+/// One row of the long-press message menu (Phase 1B).
+class _MessageMenuAction {
+  final IconData icon;
+  final String label;
+  final void Function() onTap;
+
+  const _MessageMenuAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+}
 
 class ConversationScreen extends StatefulWidget {
   final ChatConversation conversation;
@@ -35,7 +94,40 @@ class _ConversationScreenState extends State<ConversationScreen> {
   Timer? _audioPlaybackTimer;
   Timer? _disappearingCountdownTimer;
   bool _isDisappearingMode = false;
-  final int _disappearingTtlSeconds = 30;
+  int _disappearingTtlSeconds = 30;
+
+  // Phase 1B — view-once snap viewing session. Only one snap is open at a
+  // time; the countdown is driven by _snapViewTimer.
+  String? _viewingSnapId;
+  int _snapViewRemainingSeconds = 0;
+  int _snapViewTotalSeconds = 1;
+  Timer? _snapViewTimer;
+
+  // Phase 1B — composer snap mode: 'off' | 'disappearing' | 'view-once'.
+  String _composerSnapMode = 'off';
+  // View-once view window (seconds) once a snap is opened.
+  static const int _viewOnceViewSeconds = 10;
+
+  // Phase 1B — screenshot notice wiring (detection + notice only).
+  final _ScreenshotWatch _screenshotWatch = _ScreenshotWatch();
+
+  // Phase 2B — thread transport. Built on quant_core's QuantApiClient
+  // (dio). Unconfigured (no QUANTCHAT_API_BASE dart-define) by default:
+  // the thread keeps the honest offline behavior and never fakes acks.
+  late final QuantChatThreadApi _api = QuantChatThreadApi();
+  bool get _transportReady => _api.isConfigured;
+
+  // Phase 2B — composer focus drives the keyboard action key: while the
+  // keyboard is open the return key is replaced by the send key.
+  final FocusNode _composerFocusNode = FocusNode();
+
+  // Phase 2B — friend-not-added inline card (Report or Block / Okay).
+  bool _contactNoticeDismissed = false;
+
+  // Mobbin Flow-4: screenshot/record system notices render as stacked
+  // DISMISSIBLE pills above the date divider, never as chat bubbles.
+  // The ids here are permanently dismissed for this thread view.
+  final Set<String> _dismissedNoticeIds = <String>{};
 
   // Voice memo recording state
   bool _isRecordingVoiceMemo = false;
@@ -51,17 +143,83 @@ class _ConversationScreenState extends State<ConversationScreen> {
     _messages = <ChatMessage>[];
     _isDisappearingMode = widget.conversation.isDisappearingModeEnabled;
     _startDisappearingCountdown();
+    _composerFocusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
+    // Phase 1B/2B: attribute any screenshot to the snap on screen right
+    // now; attribute a screen recording to the whole chat surface.
+    _screenshotWatch.start(
+      onScreenshot: () {
+        final viewingId = _viewingSnapId;
+        if (viewingId != null) {
+          _reportScreenshot(viewingId);
+        }
+      },
+      onScreenRecording: () => _reportScreenCapture('screen_recording'),
+    );
+    // Phase 2B: load the thread history when a transport is configured.
+    if (_transportReady) {
+      unawaited(_loadThreadHistory());
+    }
   }
 
   @override
   void dispose() {
     _composerController.dispose();
+    _composerFocusNode.dispose();
     _scrollController.dispose();
     _audioPlaybackTimer?.cancel();
     _disappearingCountdownTimer?.cancel();
+    _snapViewTimer?.cancel();
     _recordingTimer?.cancel();
     _liveWaveformTimer?.cancel();
+    _screenshotWatch.dispose();
     super.dispose();
+  }
+
+  /// Phase 2B — loads the thread history from the backend when a transport
+  /// is configured. Failure is silent here: the thread simply starts
+  /// empty, exactly like the offline build — never with invented rows.
+  Future<void> _loadThreadHistory() async {
+    try {
+      final data = await _api.fetchMessages(widget.conversation.id);
+      final items = data['messages'] ?? data['items'] ?? data['data'];
+      if (items is List && mounted) {
+        setState(() {
+          _messages = items
+              .whereType<Map<String, dynamic>>()
+              .map((w) => ChatMessage.fromWire(w, currentUserId: _api.currentUserId))
+              .toList();
+        });
+        _scrollToBottom();
+      }
+    } catch (_) {
+      // Offline-equivalent: start empty, stay honest.
+    }
+  }
+
+  /// Phase 2B — replaces a local optimistic row with the authoritative
+  /// server row after a successful POST.
+  void _reconcileSentMessage(String localId, Map<String, dynamic> serverRow) {
+    final idx = _messages.indexWhere((m) => m.id == localId);
+    if (idx == -1 || !mounted) return;
+    setState(() {
+      _messages[idx] = ChatMessage.fromWire(
+        serverRow,
+        currentUserId: _api.currentUserId,
+      );
+    });
+  }
+
+  /// Marks a local optimistic row as honestly not-sent after a transport
+  /// failure (never invents delivery).
+  void _markRowNotSent(String localId) {
+    final idx = _messages.indexWhere((m) => m.id == localId);
+    if (idx == -1 || !mounted) return;
+    setState(() {
+      _messages[idx] =
+          _messages[idx].copyWith(deliveryStatus: MessageDeliveryStatus.notSent);
+    });
   }
 
   void _startDisappearingCountdown() {
@@ -74,7 +232,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
       bool hasChanges = false;
       for (int i = 0; i < _messages.length; i++) {
         final m = _messages[i];
-        if (m.isDisappearing && !m.isServerDestroyed && m.secondsRemaining > 0) {
+        // Phase 1B: an unopened view-once snap has no ticking countdown —
+        // its view timer starts when it is opened (_openSnap). A snap that
+        // is open right now is driven by _snapViewTimer instead.
+        final isUnopenedSnap = m.isViewOnce && !m.hasBeenViewed;
+        final isBeingViewed = _viewingSnapId != null && m.id == _viewingSnapId;
+        if (m.isDisappearing &&
+            !m.isServerDestroyed &&
+            m.secondsRemaining > 0 &&
+            !isUnopenedSnap &&
+            !isBeingViewed) {
           final nextRemaining = m.secondsRemaining - 1;
           if (nextRemaining <= 0) {
             _messages[i] = m.copyWith(
@@ -106,42 +273,182 @@ class _ConversationScreenState extends State<ConversationScreen> {
     });
   }
 
+  /// Send entry point. A view-once snap always passes through the
+  /// confirmation dialog first (Phase 1B).
+  void _onSendPressed() {
+    if (_composerSnapMode == 'view-once') {
+      _confirmViewOnceSend();
+      return;
+    }
+    _sendMessage();
+  }
+
+  /// Confirmation step before sending a view-once snap (Phase 1B): the
+  /// recipient opens it once, it is removed after viewing, and a
+  /// screenshot notifies the sender.
+  void _confirmViewOnceSend() {
+    final text = _composerController.text.trim();
+    if (text.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: QuantColors.darkSlateCard,
+        title: const Text(
+          'Send as view-once snap?',
+          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'The recipient can open it once. It is removed after viewing, and a screenshot notifies you.',
+          style: TextStyle(color: QuantColors.textSecondary, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: QuantColors.textMuted)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _sendMessage();
+            },
+            child: const Text(
+              'Send snap',
+              style: TextStyle(color: QuantColors.moltenOrange, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _sendMessage() {
     final text = _composerController.text.trim();
     if (text.isEmpty) return;
+    _composerController.clear();
+    unawaited(_sendTextMessage(text));
+  }
+
+  /// Phase 2B — core text send path, shared by the composer, dice rolls,
+  /// and other text producers.
+  ///
+  /// Phase 1B: the outgoing snap kind comes from the composer selector.
+  /// A view-once snap carries its view window in
+  /// disappearingDurationSeconds; the window only starts on open.
+  ///
+  /// Transport (Phase 2B): when configured, the message is inserted
+  /// optimistically as `pending`, POSTed to
+  /// POST /conversations/:id/messages, and reconciled with the server row
+  /// on success. On failure it falls to the honest `notSent` terminal
+  /// state. When unconfigured, it goes straight to `notSent` — the 1B
+  /// honest-send rule: delivery states may only ever be set from real
+  /// server or socket acknowledgements, never from timers.
+  Future<void> _sendTextMessage(String text) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
 
     final newId = 'msg-${DateTime.now().millisecondsSinceEpoch}';
     final now = TimeOfDay.now();
-    final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final timeStr =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
-    // HONEST SEND: this build has no messaging transport wired up — there is
-    // no API client, socket, or auth session in this tree, so a composed
-    // message goes nowhere. It is therefore recorded immediately in the
-    // terminal `notSent` state with a visible "Not sent" caption. Delivery
-    // states (sent/delivered/read) may only ever be set from real server or
-    // socket acknowledgements once a transport exists — never from timers.
+    final isViewOnce = _composerSnapMode == 'view-once';
+    final isDisappearing = _isDisappearingMode || _composerSnapMode != 'off';
+    final ttl = isViewOnce ? _viewOnceViewSeconds : _disappearingTtlSeconds;
+
     final outgoingMessage = ChatMessage(
       id: newId,
       conversationId: widget.conversation.id,
-      senderId: 'usr-me',
+      senderId: _api.currentUserId,
       senderName: 'You',
-      text: text,
+      text: trimmed,
       timestamp: timeStr,
       isOutgoing: true,
-      deliveryStatus: MessageDeliveryStatus.notSent,
+      deliveryStatus:
+          _transportReady ? MessageDeliveryStatus.pending : MessageDeliveryStatus.notSent,
       type: MessageType.text,
-      isDisappearing: _isDisappearingMode,
-      disappearingDurationSeconds: _isDisappearingMode ? _disappearingTtlSeconds : 0,
-      secondsRemaining: _isDisappearingMode ? _disappearingTtlSeconds : 0,
+      isDisappearing: isDisappearing,
+      disappearingDurationSeconds: isDisappearing ? ttl : 0,
+      secondsRemaining: isDisappearing && !isViewOnce ? ttl : 0,
       isServerDestroyed: false,
       serverDestructionCode: 410,
+      isViewOnce: isViewOnce,
     );
 
     setState(() {
       _messages.add(outgoingMessage);
-      _composerController.clear();
     });
     _scrollToBottom();
+
+    if (!_transportReady) return;
+
+    try {
+      final row = await _api.sendMessage(
+        widget.conversation.id,
+        content: trimmed,
+        disappearMode: isViewOnce
+            ? 'after_view'
+            : (isDisappearing ? '24h' : 'off'),
+      );
+      _reconcileSentMessage(newId, row);
+    } catch (_) {
+      _markRowNotSent(newId);
+    }
+  }
+
+  /// Phase 2B — sends a sticker from the sticker picker. The wire format
+  /// reuses the image type with sticker metadata (no Prisma migration);
+  /// [ChatMessage.fromWire] maps it back to [MessageType.sticker] for the
+  /// thumbnail row (name + size).
+  Future<void> _sendSticker(QuantSticker sticker) async {
+    final newId = 'msg-${DateTime.now().millisecondsSinceEpoch}';
+    final now = TimeOfDay.now();
+    final timeStr =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+    final outgoing = ChatMessage(
+      id: newId,
+      conversationId: widget.conversation.id,
+      senderId: _api.currentUserId,
+      senderName: 'You',
+      text: sticker.name,
+      timestamp: timeStr,
+      isOutgoing: true,
+      deliveryStatus:
+          _transportReady ? MessageDeliveryStatus.pending : MessageDeliveryStatus.notSent,
+      type: MessageType.sticker,
+      stickerName: sticker.name,
+      stickerSizeLabel: sticker.sizeLabel,
+    );
+
+    setState(() {
+      _messages.add(outgoing);
+    });
+    _scrollToBottom();
+
+    if (!_transportReady) return;
+
+    try {
+      final row = await _api.sendMessage(
+        widget.conversation.id,
+        content: sticker.name,
+        type: 'image',
+        metadata: {
+          'sticker': true,
+          'stickerName': sticker.name,
+          'stickerSizeLabel': sticker.sizeLabel,
+        },
+      );
+      _reconcileSentMessage(newId, row);
+    } catch (_) {
+      _markRowNotSent(newId);
+    }
+  }
+
+  /// Phase 2B — Dice Roll mini-app: a real random roll sent through the
+  /// normal message path (honest `notSent` when offline, like any message).
+  void _rollDice() {
+    final roll = Random().nextInt(6) + 1;
+    unawaited(_sendTextMessage('Dice roll: $roll'));
   }
 
   void _startVoiceMemoRecording() {
@@ -256,6 +563,651 @@ class _ConversationScreenState extends State<ConversationScreen> {
     });
   }
 
+  /// Phase 1B — honest no-transport notice. This build has no messaging API
+  /// client (see the HONEST SEND notes): server-backed actions (revoke,
+  /// keep, screenshot notice, per-contact default sync) cannot run here.
+  /// Nothing in this file may fake a server acknowledgement.
+  void _transportNotWiredNotice(String action) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: QuantColors.darkSlateCard,
+        duration: const Duration(seconds: 2),
+        content: Text(
+          '$action is not available — no connection in this build.',
+          style: const TextStyle(color: QuantColors.textPrimary, fontSize: 12),
+        ),
+      ),
+    );
+  }
+
+  /// Reports a screenshot of the currently-viewed snap. The backend posts
+  /// the in-thread system notice ("<name> took a screenshot", Task 14.10),
+  /// which this client renders as a dismissible pill in _buildNoticeBanner.
+  /// Detection + notice ONLY — never prevention.
+  ///
+  /// Phase 2B: wired to POST /conversations/messages/:messageId/screenshot
+  /// when a transport is configured, and the pill is inserted optimistically
+  /// so the banner appears on detection even before any realtime frame
+  /// arrives. (Once the realtime spine delivers the server row, the client
+  /// should reconcile by id — no realtime subscription exists in this
+  /// build yet, so no dedup path is needed today.)
+  void _reportScreenshot(String messageId) {
+    _insertLocalCaptureNotice('screenshot');
+    if (!_transportReady) return;
+    unawaited(
+      _api.reportScreenshot(messageId).then((_) {}).catchError((_) => <String, dynamic>{}),
+    );
+  }
+
+  /// Phase 2B: reports a screenshot or screen recording of the whole chat
+  /// surface (POST /conversations/:id/screen-capture). Detection + notice
+  /// only — never prevention.
+  void _reportScreenCapture(String kind) {
+    _insertLocalCaptureNotice(kind);
+    if (!_transportReady) return;
+    unawaited(
+      _api
+          .reportScreenCapture(widget.conversation.id, kind)
+          .then((_) {})
+          .catchError((_) => <String, dynamic>{}),
+    );
+  }
+
+  /// Inserts the capture notice pill locally (optimistic). Copy is the
+  /// honest detection wording — never "prevented"/"blocked".
+  void _insertLocalCaptureNotice(String kind) {
+    final label = kind == 'screen_recording'
+        ? 'A screen recording of this chat was detected'
+        : 'A screenshot of this chat was detected';
+    final notice = ChatMessage(
+      id: 'notice-${DateTime.now().millisecondsSinceEpoch}',
+      conversationId: widget.conversation.id,
+      senderId: 'system',
+      senderName: 'System',
+      text: label,
+      timestamp: '',
+      isOutgoing: false,
+      type: MessageType.system,
+    );
+    if (!mounted) return;
+    setState(() {
+      _messages.add(notice);
+    });
+  }
+
+  /// System notices currently visible as banner pills (Mobbin Flow-4):
+  /// screenshot/record notices posted by the backend (Task 14.10), minus
+  /// any the user dismissed.
+  List<ChatMessage> _visibleNotices() {
+    return _messages
+        .where((m) => m.type == MessageType.system && !_dismissedNoticeIds.contains(m.id))
+        .toList();
+  }
+
+  void _dismissNotice(String messageId) {
+    setState(() {
+      _dismissedNoticeIds.add(messageId);
+    });
+  }
+
+  /// Stacked dismissible notice pills + the TODAY divider (Mobbin Flow-4).
+  /// Renders above the message stream: screenshot/record notices are
+  /// detection + notice only — never prevention.
+  Widget _buildNoticeBanner() {
+    final notices = _visibleNotices();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final n in notices)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: QuantColors.darkSlateCard,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: QuantColors.hairlineBorder),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.visibility_rounded, size: 14, color: QuantColors.moltenOrange),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      n.text,
+                      style: const TextStyle(
+                        color: QuantColors.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => _dismissNotice(n.id),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.close_rounded, size: 14, color: QuantColors.textMuted),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        // Date divider (Mobbin Flow-4): notice pills sit above it.
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              const Expanded(child: Divider(color: QuantColors.hairlineBorder, thickness: 1)),
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: QuantColors.darkSlateCard,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: QuantColors.hairlineBorder),
+                ),
+                child: const Text(
+                  'TODAY',
+                  style: TextStyle(
+                    color: QuantColors.textMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ),
+              const Expanded(child: Divider(color: QuantColors.hairlineBorder, thickness: 1)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Phase 2B — friend-not-added inline card (Flow-4): shown when the
+  /// thread peer is not in the user's contacts. "Report or Block" opens
+  /// the safety sheet; "Okay" dismisses the card for this view.
+  Widget _buildContactNoticeCard() {
+    final name = widget.conversation.name;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: QuantColors.darkSlateCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: QuantColors.moltenOrange.withOpacity(0.45)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.person_add_disabled_rounded,
+                  size: 16,
+                  color: QuantColors.moltenOrange,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$name is not in your contacts',
+                    style: const TextStyle(
+                      color: QuantColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Only accept messages from people you trust. You can report or block this chat at any time.',
+              style: TextStyle(
+                color: QuantColors.textMuted,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _showReportBlockSheet,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: QuantColors.statusError,
+                      side: const BorderSide(color: QuantColors.statusError),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Report or Block',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => setState(() => _contactNoticeDismissed = true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: QuantColors.moltenOrange,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Okay',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Phase 2B — safety sheet for the friend-not-added card. The 1B backend
+  /// exposes no report/block endpoints, so both actions are honest about
+  /// availability instead of pretending to act; "Add contact" explains
+  /// the message-request path. No dead buttons: every row responds.
+  void _showReportBlockSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: QuantColors.darkSlateCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: QuantColors.hairlineBorder,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.flag_outlined,
+                  color: QuantColors.statusError, size: 20),
+              title: const Text('Report chat',
+                  style: TextStyle(color: QuantColors.textPrimary, fontSize: 14)),
+              subtitle: const Text('Tell us about spam or abuse',
+                  style: TextStyle(color: QuantColors.textMuted, fontSize: 12)),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _transportNotWiredNotice('Report');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.block_outlined,
+                  color: QuantColors.statusError, size: 20),
+              title: const Text('Block contact',
+                  style: TextStyle(color: QuantColors.textPrimary, fontSize: 14)),
+              subtitle: const Text('They will not be able to message you',
+                  style: TextStyle(color: QuantColors.textMuted, fontSize: 12)),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _transportNotWiredNotice('Block');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_add_alt_rounded,
+                  color: QuantColors.sovereignCyan, size: 20),
+              title: const Text('Add to contacts',
+                  style: TextStyle(color: QuantColors.textPrimary, fontSize: 14)),
+              subtitle: const Text('Accept their message request first',
+                  style: TextStyle(color: QuantColors.textMuted, fontSize: 12)),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _transportNotWiredNotice('Add contact');
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// TODAY divider without any notice pills (keeps thread chrome
+  /// consistent when there is nothing to announce).
+  Widget _buildDateDividerOnly() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          const Expanded(child: Divider(color: QuantColors.hairlineBorder, thickness: 1)),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: QuantColors.darkSlateCard,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: QuantColors.hairlineBorder),
+            ),
+            child: const Text(
+              'TODAY',
+              style: TextStyle(
+                color: QuantColors.textMuted,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+          const Expanded(child: Divider(color: QuantColors.hairlineBorder, thickness: 1)),
+        ],
+      ),
+    );
+  }
+
+  /// True for a view-once snap the recipient has not opened yet.
+  bool _isUnopenedSnap(ChatMessage msg) {
+    return msg.isViewOnce && !msg.hasBeenViewed && !msg.isRevoked && !msg.isServerDestroyed;
+  }
+
+  /// Opens a view-once snap: marks it viewed locally and starts the
+  /// view-timer countdown. The backend's view timer is the authority; the
+  /// local countdown is display-only.
+  void _openSnap(ChatMessage msg) {
+    if (!_isUnopenedSnap(msg)) return;
+    final total = msg.disappearingDurationSeconds > 0
+        ? msg.disappearingDurationSeconds
+        : _viewOnceViewSeconds;
+    setState(() {
+      _viewingSnapId = msg.id;
+      _snapViewTotalSeconds = total;
+      _snapViewRemainingSeconds = total;
+      final idx = _messages.indexWhere((m) => m.id == msg.id);
+      if (idx != -1) {
+        _messages[idx] = msg.copyWith(hasBeenViewed: true);
+      }
+    });
+    _snapViewTimer?.cancel();
+    _snapViewTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _snapViewRemainingSeconds--;
+        if (_snapViewRemainingSeconds <= 0) {
+          timer.cancel();
+          _closeSnapView(msg.id);
+        }
+      });
+    });
+    // Phase 2B — Task 14.9: tell the backend the snap was viewed so it
+    // starts the authoritative destruction timer. The local countdown is
+    // display-only; the server row is the authority.
+    if (_transportReady) {
+      unawaited(
+        _api.markViewed(msg.id, total).catchError((_) => <String, dynamic>{}),
+      );
+    }
+  }
+
+  void _closeSnapView(String messageId) {
+    _snapViewTimer?.cancel();
+    setState(() {
+      if (_viewingSnapId == messageId) {
+        _viewingSnapId = null;
+        final idx = _messages.indexWhere((m) => m.id == messageId);
+        if (idx != -1) {
+          final m = _messages[idx];
+          // After a view-once viewing ends the content is gone locally;
+          // the server destroys it on its own timer (HTTP 410 semantics).
+          _messages[idx] = m.copyWith(
+            isServerDestroyed: true,
+            text: 'Snap viewed — removed from this device.',
+          );
+        }
+      }
+    });
+  }
+
+  /// Sender revokes an UNVIEWED disappearing message (Phase 1B).
+  /// Phase 2B: wired to POST /conversations/messages/:id/revoke. The
+  /// server is the authority — 409 MESSAGE_ALREADY_VIEWED when the
+  /// recipient already viewed it; the client only marks revoked on 2xx.
+  Future<void> _revokeMessage(ChatMessage msg) async {
+    if (!_transportReady) {
+      _transportNotWiredNotice('Revoke');
+      return;
+    }
+    try {
+      await _api.revokeMessage(msg.id);
+      final idx = _messages.indexWhere((m) => m.id == msg.id);
+      if (idx != -1 && mounted) {
+        setState(() {
+          _messages[idx] = _messages[idx].copyWith(isRevoked: true);
+        });
+      }
+    } on QuantApiException catch (e) {
+      if (!mounted) return;
+      final reason = e.statusCode == 409
+          ? 'Revoke failed — the recipient already viewed it.'
+          : 'Revoke failed (${e.statusCode ?? 'network error'}).';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: QuantColors.darkSlateCard,
+          content: Text(reason,
+              style: const TextStyle(color: QuantColors.textPrimary, fontSize: 12)),
+        ),
+      );
+    }
+  }
+
+  /// Recipient asks the sender to keep a disappearing message (Phase 1B).
+  /// The request alone keeps nothing — the sender must consent.
+  /// Phase 2B: wired to POST /conversations/messages/:id/keep-request.
+  Future<void> _requestKeep(ChatMessage msg) async {
+    if (!_transportReady) {
+      _transportNotWiredNotice('Ask to keep');
+      return;
+    }
+    try {
+      await _api.requestKeep(msg.id);
+      final idx = _messages.indexWhere((m) => m.id == msg.id);
+      if (idx != -1 && mounted) {
+        setState(() {
+          _messages[idx] = _messages[idx].copyWith(keepRequestPending: true);
+        });
+      }
+    } on QuantApiException {
+      if (mounted) _transportNotWiredNotice('Ask to keep');
+    }
+  }
+
+  /// Sender allows or declines a recipient's keep request (Phase 1B).
+  /// Phase 2B: wired to POST /conversations/messages/:id/keep-consent.
+  Future<void> _resolveKeep(ChatMessage msg, bool allow) async {
+    if (!_transportReady) {
+      _transportNotWiredNotice(allow ? 'Allow keep' : 'Decline keep');
+      return;
+    }
+    try {
+      await _api.resolveKeep(msg.id, allow);
+      final idx = _messages.indexWhere((m) => m.id == msg.id);
+      if (idx != -1 && mounted) {
+        setState(() {
+          _messages[idx] = _messages[idx].copyWith(
+            keepRequestPending: false,
+            isKeptByRecipient: allow ? true : _messages[idx].isKeptByRecipient,
+          );
+        });
+      }
+    } on QuantApiException {
+      if (mounted) _transportNotWiredNotice(allow ? 'Allow keep' : 'Decline keep');
+    }
+  }
+
+  /// Phase 2B — double-tap / heart like. Toggles the caller's 'heart'
+  /// reaction via POST /conversations/messages/:id/reactions (QC-F-410
+  /// toggle semantics) with an optimistic local update. Offline, the like
+  /// applies locally only — honest, like everything else in this build.
+  Future<void> _toggleLike(ChatMessage msg) async {
+    final idx = _messages.indexWhere((m) => m.id == msg.id);
+    if (idx == -1 || !mounted) return;
+    final nowLiked = !msg.likedByMe;
+    final nextCount = (msg.likeCount + (nowLiked ? 1 : -1)).clamp(0, 1 << 30);
+    setState(() {
+      _messages[idx] = _messages[idx].copyWith(
+        likedByMe: nowLiked,
+        likeCount: nextCount,
+      );
+    });
+    if (!_transportReady) return;
+    try {
+      await _api.toggleLike(msg.id);
+    } catch (_) {
+      // Keep the optimistic state; a history refresh reconciles it.
+    }
+  }
+  /// Long-press message menu (Phase 1B).
+  void _showMessageMenu(ChatMessage msg) {
+    final actions = <_MessageMenuAction>[];
+    // Phase 2B — double-tap/heart equivalent for accessibility: like/unlike.
+    if (msg.type != MessageType.system) {
+      actions.add(_MessageMenuAction(
+        icon: msg.likedByMe ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+        label: msg.likedByMe ? 'Unlike' : 'Like',
+        onTap: () => _toggleLike(msg),
+      ));
+    }
+    // Sender can revoke an UNVIEWED disappearing message.
+    if (msg.isOutgoing &&
+        msg.isDisappearing &&
+        !msg.hasBeenViewed &&
+        !msg.isServerDestroyed &&
+        !msg.isRevoked) {
+      actions.add(_MessageMenuAction(
+        icon: Icons.undo_rounded,
+        label: 'Revoke',
+        onTap: () => _revokeMessage(msg),
+      ));
+    }
+    // Recipient may ask the sender to keep a disappearing message.
+    if (!msg.isOutgoing &&
+        msg.isDisappearing &&
+        !msg.isServerDestroyed &&
+        !msg.isKeptByRecipient) {
+      actions.add(_MessageMenuAction(
+        icon: Icons.bookmark_add_outlined,
+        label: 'Ask sender to keep',
+        onTap: () => _requestKeep(msg),
+      ));
+    }
+    // Sender resolves a pending keep request.
+    if (msg.isOutgoing && msg.keepRequestPending && !msg.isServerDestroyed) {
+      actions.add(_MessageMenuAction(
+        icon: Icons.bookmark_added_rounded,
+        label: 'Allow keep',
+        onTap: () => _resolveKeep(msg, true),
+      ));
+      actions.add(_MessageMenuAction(
+        icon: Icons.bookmark_remove_outlined,
+        label: 'Decline keep',
+        onTap: () => _resolveKeep(msg, false),
+      ));
+    }
+    if (actions.isEmpty) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: QuantColors.darkSlateCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final a in actions)
+              ListTile(
+                leading: Icon(a.icon, color: QuantColors.textPrimary, size: 20),
+                title: Text(
+                  a.label,
+                  style: const TextStyle(color: QuantColors.textPrimary, fontSize: 14),
+                ),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  a.onTap();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Per-contact disappearing default (Phase 1B): '24h' arms the 24-hour
+  /// default, 'off' clears it. Phase 2B: persisted via
+  /// POST /conversations/:id/disappearing-default when a transport is
+  /// configured; otherwise it applies on this device only (honest copy).
+  Future<void> _setDisappearingDefault(String value) async {
+    final seconds = value == '24h' ? 24 * 60 * 60 : 0;
+    setState(() {
+      if (value == '24h') {
+        _isDisappearingMode = true;
+        _disappearingTtlSeconds = seconds;
+      } else {
+        _isDisappearingMode = false;
+      }
+    });
+    var synced = false;
+    if (_transportReady) {
+      try {
+        await _api.setDisappearingDefault(widget.conversation.id, seconds: seconds);
+        synced = true;
+      } on QuantApiException {
+        synced = false;
+      }
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: QuantColors.darkSlateCard,
+        duration: const Duration(seconds: 2),
+        content: Text(
+          value == '24h'
+              ? (synced
+                  ? 'Disappearing default: 24h'
+                  : 'Disappearing default: 24h (this device only — server sync pending)')
+              : 'Disappearing default: Off',
+          style: const TextStyle(color: QuantColors.textPrimary, fontSize: 12),
+        ),
+      ),
+    );
+  }
+
+  /// Compact duration label: 10s / 5m / 24h / 7d.
+  String _formatDuration(int seconds) {
+    if (seconds <= 0) return 'expired';
+    if (seconds < 60) return '${seconds}s';
+    if (seconds < 3600) return '${seconds ~/ 60}m';
+    if (seconds < 86400) return '${seconds ~/ 3600}h';
+    return '${seconds ~/ 86400}d';
+  }
+
+  /// Expiry label for a disappearing message: the view window for view-once
+  /// snaps, the remaining countdown otherwise.
+  String _formatExpiryLabel(ChatMessage msg) {
+    if (msg.isViewOnce && !msg.hasBeenViewed) {
+      return _formatDuration(msg.disappearingDurationSeconds);
+    }
+    return _formatDuration(msg.secondsRemaining);
+  }
+
   void _toggleAudioPlayback(ChatMessage message) {
     setState(() {
       if (_playingAudioMsgIds.contains(message.id)) {
@@ -319,34 +1271,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
         });
       }
     });
-  }
-
-  void _toggleDisappearingMode() {
-    setState(() {
-      _isDisappearingMode = !_isDisappearingMode;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: QuantColors.darkSlateCard,
-        duration: const Duration(seconds: 2),
-        content: Row(
-          children: [
-            Icon(
-              _isDisappearingMode ? Icons.auto_delete_rounded : Icons.timer_off_rounded,
-              color: QuantColors.moltenOrange,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _isDisappearingMode
-                  ? 'Disappearing Mode ON: messages are removed from this device after ${_disappearingTtlSeconds}s'
-                  : 'Disappearing Mode OFF',
-              style: const TextStyle(color: QuantColors.textPrimary, fontSize: 13),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _launchCallSheet(QuantCallType callType) {
@@ -472,6 +1396,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
             // Disappearing Messages Status Bar (if active)
             if (_isDisappearingMode) _buildDisappearingModeNotice(),
 
+            // Mobbin Flow-4: stacked dismissible notice pills above the
+            // TODAY divider, ahead of the message stream.
+            if (_visibleNotices().isNotEmpty) _buildNoticeBanner() else _buildDateDividerOnly(),
+
+            // Phase 2B: friend-not-added inline card (Report or Block / Okay).
+            if (!widget.conversation.isContactAdded && !_contactNoticeDismissed)
+              _buildContactNoticeCard(),
+
             // Message Stream
             Expanded(
               child: ListView.builder(
@@ -593,14 +1525,29 @@ class _ConversationScreenState extends State<ConversationScreen> {
         ),
       ),
       actions: [
-        IconButton(
+        // Phase 1B — per-contact disappearing default: Off / 24h.
+        // Phase 2B: persisted via POST
+        // /conversations/:id/disappearing-default when a transport is
+        // configured; the default applies on this device meanwhile.
+        PopupMenuButton<String>(
           icon: Icon(
             _isDisappearingMode ? Icons.auto_delete_rounded : Icons.timer_outlined,
             color: _isDisappearingMode ? QuantColors.moltenOrange : QuantColors.textSecondary,
             size: 22,
           ),
-          tooltip: 'Toggle Disappearing Messages',
-          onPressed: _toggleDisappearingMode,
+          tooltip: 'Disappearing messages',
+          color: QuantColors.darkSlateCard,
+          onSelected: _setDisappearingDefault,
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              value: 'off',
+              child: Text('Off', style: TextStyle(color: QuantColors.textPrimary, fontSize: 14)),
+            ),
+            PopupMenuItem(
+              value: '24h',
+              child: Text('24 hours', style: TextStyle(color: QuantColors.textPrimary, fontSize: 14)),
+            ),
+          ],
         ),
         IconButton(
           icon: const Icon(Icons.call_outlined, color: Colors.white, size: 22),
@@ -670,7 +1617,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           const Icon(Icons.auto_delete_rounded, size: 14, color: QuantColors.moltenOrange),
           const SizedBox(width: 6),
           Text(
-            'Disappearing Messages Active (${_disappearingTtlSeconds}s) · Removed from this device only',
+            'Disappearing Messages Active (${_formatDuration(_disappearingTtlSeconds)}) · Removed from this device only',
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -684,6 +1631,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   Widget _buildMessageItem(ChatMessage msg) {
+    // Mobbin Flow-4: screenshot/record system notices live in the
+    // dismissible banner stack above the date divider (see
+    // _buildNoticeBanner), never as inline bubbles.
+    if (msg.type == MessageType.system) {
+      return const SizedBox.shrink();
+    }
     if (msg.isOutgoing) {
       return _buildOutgoingBubble(msg);
     } else {
@@ -698,7 +1651,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          Container(
+          GestureDetector(
+            onLongPress: () => _showMessageMenu(msg),
+            onDoubleTap: () => _toggleLike(msg),
+            child: Container(
             constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.78,
             ),
@@ -723,13 +1679,38 @@ class _ConversationScreenState extends State<ConversationScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Flow-4: bubbles grouped by sender carry a small sender
+                // label in group threads.
+                if (widget.conversation.isGroup)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      msg.senderName,
+                      style: const TextStyle(
+                        color: QuantColors.moltenOrange,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+
                 // Disappearing message timer header (if applicable)
                 if (msg.isDisappearing) _buildDisappearingHeader(msg),
 
                 if (msg.isServerDestroyed)
                   _buildServerDestroyedTombstone(msg)
+                else if (_viewingSnapId == msg.id && msg.isViewOnce)
+                  _buildSnapViewer(msg)
+                else if (_isUnopenedSnap(msg))
+                  // View-once snap, not yet opened: placeholder bubble with
+                  // the expiry badge VISIBLE — never the content.
+                  _buildUnopenedSnapPlaceholder(msg)
                 else if (msg.type == MessageType.audio)
                   _buildAudioPlayer(msg, isOutgoing: false)
+                else if (msg.type == MessageType.sticker)
+                  _buildStickerRow(msg)
+                else if (msg.type == MessageType.poll)
+                  _buildPollCard(msg)
                 else
                   Text(
                     msg.text,
@@ -747,7 +1728,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     fontSize: 10,
                   ),
                 ),
+                _buildLikeBadge(msg, isOutgoing: false),
               ],
+            ),
             ),
           ),
         ],
@@ -762,7 +1745,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Container(
+          GestureDetector(
+            onLongPress: () => _showMessageMenu(msg),
+            onDoubleTap: () => _toggleLike(msg),
+            child: Container(
             constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.78,
             ),
@@ -792,6 +1778,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                // Mobbin Flow-4: outgoing view-once snaps lead with the
+                // glyph + label status row (Delivered / Opened).
+                if (msg.isViewOnce && !msg.isServerDestroyed && !msg.isRevoked)
+                  _buildSentSnapStatusRow(msg),
+
                 // Disappearing message timer header (if applicable)
                 if (msg.isDisappearing) _buildDisappearingHeader(msg),
 
@@ -799,6 +1790,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   _buildServerDestroyedTombstone(msg)
                 else if (msg.type == MessageType.audio)
                   _buildAudioPlayer(msg, isOutgoing: true)
+                else if (msg.type == MessageType.sticker)
+                  _buildStickerRow(msg)
+                else if (msg.type == MessageType.poll)
+                  _buildPollCard(msg)
                 else
                   Text(
                     msg.text,
@@ -824,6 +1819,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     _buildDeliveryTick(msg.deliveryStatus, isOutgoing: true),
                   ],
                 ),
+                _buildLikeBadge(msg, isOutgoing: true),
                 // Honest failure caption: a notSent message was never handed
                 // to any transport, and the bubble must say so in words.
                 if (msg.deliveryStatus == MessageDeliveryStatus.notSent) ...[
@@ -845,6 +1841,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   ),
                 ],
               ],
+            ),
             ),
           ),
         ],
@@ -900,6 +1897,38 @@ class _ConversationScreenState extends State<ConversationScreen> {
       );
     }
 
+    // Phase 1B — viewed vs saved-by-recipient states render differently.
+    if (msg.isKeptByRecipient) {
+      return _buildSnapStateChip(
+        icon: Icons.bookmark_rounded,
+        label: 'Saved by ${msg.keptByName ?? 'recipient'}',
+        color: QuantColors.sovereignCyan,
+      );
+    }
+    if (msg.keepRequestPending && msg.isOutgoing) {
+      return _buildSnapStateChip(
+        icon: Icons.bookmark_add_outlined,
+        label: 'Keep requested — long-press to allow or decline',
+        color: QuantColors.statusWarning,
+      );
+    }
+    if (msg.isRevoked) {
+      return _buildSnapStateChip(
+        icon: Icons.undo_rounded,
+        label: 'Revoked',
+        color: QuantColors.statusError,
+      );
+    }
+    // View-once messages say "Opened" via the status row above — the
+    // generic "Viewed" chip is for timer-based disappearing messages.
+    if (msg.hasBeenViewed && !msg.isViewOnce) {
+      return _buildSnapStateChip(
+        icon: Icons.visibility_rounded,
+        label: 'Viewed',
+        color: QuantColors.textMuted,
+      );
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -917,12 +1946,46 @@ class _ConversationScreenState extends State<ConversationScreen> {
           const Icon(Icons.timer_outlined, size: 11, color: QuantColors.moltenOrange),
           const SizedBox(width: 4),
           Text(
-            'Expires in ${msg.secondsRemaining}s',
+            // Phase 1B: view-once snaps show their view window until opened;
+            // other disappearing messages show the live countdown.
+            'Expires in ${_formatExpiryLabel(msg)}',
             style: const TextStyle(
               color: QuantColors.moltenOrange,
               fontSize: 9,
               fontWeight: FontWeight.w700,
               fontFamily: 'monospace',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Small state chip for viewed / saved / revoked / keep-requested states.
+  Widget _buildSnapStateChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.5), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -946,6 +2009,559 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 fontSize: 12,
                 fontStyle: FontStyle.italic,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Expiry badge shown BEFORE a view-once snap is opened (and on other
+  /// disappearing messages). Icon + text only — never the content.
+  Widget _buildExpiryBadge(ChatMessage msg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: QuantColors.moltenOrange.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: QuantColors.moltenOrange.withOpacity(0.5), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.timer_outlined, size: 11, color: QuantColors.moltenOrange),
+          const SizedBox(width: 4),
+          Text(
+            msg.isViewOnce
+                ? 'View-once · ${_formatExpiryLabel(msg)}'
+                : 'Disappears in ${_formatExpiryLabel(msg)}',
+            style: const TextStyle(
+              color: QuantColors.moltenOrange,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Unopened view-once snap as a full-width media status row (Mobbin
+  /// Flow-4): leading square glyph + "Tap to view" label. The expiry badge
+  /// stays VISIBLE (Phase 1B differentiator — our spec wins here); the
+  /// content is NEVER shown. Tapping the row opens the snap full-screen
+  /// and starts the view timer.
+  Widget _buildUnopenedSnapPlaceholder(ChatMessage msg) {
+    return GestureDetector(
+      onTap: () => _openSnap(msg),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.crop_square_rounded,
+              color: QuantColors.moltenOrange,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Tap to view',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const Spacer(),
+            _buildExpiryBadge(msg),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Outgoing view-once snap status row (Mobbin Flow-4): leading arrow
+  /// glyph + "Delivered" (sent, unopened) or "Opened" (viewed). The expiry
+  /// badge stays visible until the snap is gone (Phase 1B spec wins).
+  Widget _buildSentSnapStatusRow(ChatMessage msg) {
+    final viewed = msg.hasBeenViewed;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.arrow_upward_rounded,
+            size: 13,
+            color: viewed ? QuantColors.sovereignCyan : QuantColors.textMuted,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            viewed ? 'Opened' : 'Delivered',
+            style: TextStyle(
+              color: viewed ? QuantColors.sovereignCyan : QuantColors.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 8),
+          _buildExpiryBadge(msg),
+        ],
+      ),
+    );
+  }
+
+  /// Phase 2B — heart badge under a liked bubble (double-tap / Like menu).
+  Widget _buildLikeBadge(ChatMessage msg, {required bool isOutgoing}) {
+    if (msg.likeCount <= 0) return const SizedBox.shrink();
+    final color = isOutgoing ? Colors.white : QuantColors.moltenOrange;
+    final label = msg.likeCount == 1 && msg.likedByMe
+        ? 'Liked'
+        : '${msg.likeCount} likes';
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            msg.likedByMe ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+            size: 11,
+            color: color,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              color: color.withOpacity(0.85),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Phase 2B — sticker message as a thumbnail row with sticker name and
+  /// size (Flow-4 media status pattern). The glyph is the built-in vector
+  /// mark; no remote art is fetched.
+  Widget _buildStickerRow(ChatMessage msg) {
+    final sticker = kQuantStickerCatalog.cast<QuantSticker?>().firstWhere(
+          (s) => s?.name == msg.stickerName,
+          orElse: () => null,
+        );
+    final tint = sticker?.tint ?? QuantColors.moltenOrange;
+    final icon = sticker?.icon ?? Icons.emoji_emotions_rounded;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: tint.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: tint.withOpacity(0.45), width: 1),
+            ),
+            child: Icon(icon, color: tint, size: 26),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  msg.stickerName ?? 'Sticker',
+                  style: TextStyle(
+                    color: msg.isOutgoing ? Colors.white : QuantColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  msg.stickerSizeLabel ?? '',
+                  style: TextStyle(
+                    color: (msg.isOutgoing ? Colors.white : QuantColors.textMuted)
+                        .withOpacity(0.75),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Phase 2B — inline poll card from the Quick Poll mini-app. Options are
+  /// tappable; votes go to POST /polls/:pollId/vote when a transport is
+  /// configured, and the card refreshes from GET
+  /// /polls/:pollId/results. Offline, voting shows the honest notice.
+  Widget _buildPollCard(ChatMessage msg) {
+    final meta = msg.metadata;
+    final question = meta['pollQuestion'] as String? ?? msg.text;
+    final options = (meta['pollOptions'] as List?)?.cast<String>() ?? const <String>[];
+    final votes = (meta['pollVotes'] as List?)?.map((e) => (e as num).toInt()).toList();
+    final totalVotes = votes == null ? 0 : votes.fold<int>(0, (a, b) => a + b);
+    final pollId = meta['pollId'] as String?;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.poll_rounded, size: 14, color: QuantColors.sovereignCyan),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  question,
+                  style: TextStyle(
+                    color: msg.isOutgoing ? Colors.white : QuantColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (int i = 0; i < options.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: pollId == null ? null : () => _votePoll(msg, pollId, i),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: (msg.isOutgoing ? Colors.white : Colors.black)
+                        .withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: (msg.isOutgoing ? Colors.white : QuantColors.hairlineBorder)
+                          .withOpacity(0.5),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          options[i],
+                          style: TextStyle(
+                            color: msg.isOutgoing ? Colors.white : QuantColors.textPrimary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (votes != null && i < votes.length)
+                        Text(
+                          totalVotes > 0
+                              ? '${((votes[i] / totalVotes) * 100).round()}%'
+                              : '0%',
+                          style: TextStyle(
+                            color: (msg.isOutgoing ? Colors.white : QuantColors.textMuted)
+                                .withOpacity(0.85),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          Text(
+            totalVotes == 0 ? 'No votes yet' : '$totalVotes vote${totalVotes == 1 ? '' : 's'}',
+            style: TextStyle(
+              color: (msg.isOutgoing ? Colors.white : QuantColors.textMuted).withOpacity(0.7),
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Phase 2B — votes on a poll option, then refreshes the card from the
+  /// server results. Offline: the honest not-available notice.
+  Future<void> _votePoll(ChatMessage msg, String pollId, int optionIndex) async {
+    if (!_transportReady) {
+      _transportNotWiredNotice('Vote');
+      return;
+    }
+    try {
+      await _api.votePoll(pollId, optionIndex);
+      final results = await _api.pollResults(pollId);
+      final idx = _messages.indexWhere((m) => m.id == msg.id);
+      if (idx == -1 || !mounted) return;
+      final meta = Map<String, dynamic>.from(_messages[idx].metadata);
+      // serializePoll returns options with vote counts; accept a few
+      // shapes defensively and fall back to the previous card on
+      // anything unrecognized.
+      final rawOptions = results['options'];
+      if (rawOptions is List) {
+        final votes = <int>[];
+        final names = <String>[];
+        for (final o in rawOptions) {
+          if (o is Map) {
+            names.add(o['text'] as String? ?? o['label'] as String? ?? '');
+            final v = o['votes'] ?? o['voteCount'] ?? o['count'] ?? 0;
+            votes.add((v as num).toInt());
+          }
+        }
+        if (names.isNotEmpty) {
+          meta['pollOptions'] = names;
+          meta['pollVotes'] = votes;
+          setState(() {
+            _messages[idx] = _messages[idx].copyWith(metadata: meta);
+          });
+        }
+      }
+    } on QuantApiException {
+      if (mounted) _transportNotWiredNotice('Vote');
+    }
+  }
+
+  /// Phase 2B — Quick Poll mini-app composer dialog. Question plus 2–10
+  /// options; creates the poll via POST /polls and inserts the inline
+  /// poll card into the thread.
+  void _showPollComposer() {
+    final questionController = TextEditingController();
+    final optionControllers = <TextEditingController>[
+      TextEditingController(),
+      TextEditingController(),
+    ];
+    var showError = false;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: QuantColors.darkSlateCard,
+          title: const Text(
+            'Quick Poll',
+            style: TextStyle(
+                color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: questionController,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: const InputDecoration(
+                    hintText: 'Ask a question',
+                    hintStyle: TextStyle(color: QuantColors.textMuted, fontSize: 13),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                for (int i = 0; i < optionControllers.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: TextField(
+                      controller: optionControllers[i],
+                      style:
+                          const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'Option ${i + 1}',
+                        hintStyle: const TextStyle(
+                            color: QuantColors.textMuted, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                if (optionControllers.length < 10)
+                  TextButton(
+                    onPressed: () => setDialogState(
+                      () => optionControllers.add(TextEditingController()),
+                    ),
+                    child: const Text('Add option',
+                        style: TextStyle(color: QuantColors.sovereignCyan)),
+                  ),
+                if (showError)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Add a question and at least two options.',
+                      style: TextStyle(
+                          color: QuantColors.statusError, fontSize: 12),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel',
+                  style: TextStyle(color: QuantColors.textMuted)),
+            ),
+            TextButton(
+              onPressed: () {
+                final q = questionController.text.trim();
+                final opts = optionControllers
+                    .map((c) => c.text.trim())
+                    .where((s) => s.isNotEmpty)
+                    .toList();
+                if (q.isEmpty || opts.length < 2) {
+                  setDialogState(() => showError = true);
+                  return;
+                }
+                Navigator.of(ctx).pop();
+                unawaited(_createPoll(q, opts));
+              },
+              child: const Text('Create poll',
+                  style: TextStyle(
+                      color: QuantColors.moltenOrange,
+                      fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Phase 2B — creates the poll on the backend and inserts the inline
+  /// poll card. Offline: the honest not-available notice, no fake poll.
+  Future<void> _createPoll(String question, List<String> options) async {
+    if (!_transportReady) {
+      _transportNotWiredNotice('Quick Poll');
+      return;
+    }
+    try {
+      final poll = await _api.createPoll(
+        widget.conversation.id,
+        question: question,
+        options: options,
+      );
+      final pollId = poll['id'] as String? ?? '';
+      final now = TimeOfDay.now();
+      final timeStr =
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+      final card = ChatMessage(
+        id: 'poll-${DateTime.now().millisecondsSinceEpoch}',
+        conversationId: widget.conversation.id,
+        senderId: _api.currentUserId,
+        senderName: 'You',
+        text: question,
+        timestamp: timeStr,
+        isOutgoing: true,
+        deliveryStatus: MessageDeliveryStatus.sent,
+        type: MessageType.poll,
+        metadata: {
+          'pollId': pollId,
+          'pollQuestion': question,
+          'pollOptions': options,
+          'pollVotes': List<int>.filled(options.length, 0),
+        },
+      );
+      if (!mounted) return;
+      setState(() {
+        _messages.add(card);
+      });
+      _scrollToBottom();
+    } on QuantApiException {
+      if (mounted) _transportNotWiredNotice('Quick Poll');
+    }
+  }
+
+  /// Opened view-once snap with a live countdown ring. While this is on
+  /// screen, the screenshot watcher attributes any screenshot to this
+  /// message. The real bytes arrive over the short-lived signed view URL
+  /// (Phase 1B backend); the countdown here is display-only.
+  Widget _buildSnapViewer(ChatMessage msg) {
+    final progress = _snapViewTotalSeconds > 0
+        ? (_snapViewRemainingSeconds / _snapViewTotalSeconds).clamp(0.0, 1.0)
+        : 0.0;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                height: 180,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.45),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: QuantColors.moltenOrange.withOpacity(0.4),
+                  ),
+                ),
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      msg.text,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: QuantColors.textPrimary,
+                        fontSize: 14,
+                        height: 1.45,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.65),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: CircularProgressIndicator(
+                          value: progress,
+                          strokeWidth: 3,
+                          backgroundColor: Colors.white24,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            QuantColors.moltenOrange,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '$_snapViewRemainingSeconds',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'View-once — a screenshot notifies the sender',
+            style: TextStyle(
+              color: QuantColors.textMuted,
+              fontSize: 10,
             ),
           ),
         ],
@@ -1121,10 +2737,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Attachment Button
+          // Mobbin Flow-4: the camera action is FIRST in the composer.
+          // This build has no dedicated capture surface yet (camera tab is
+          // Phase 1A); it opens the media sheet's camera path meanwhile.
           IconButton(
-            icon: const Icon(Icons.add_circle_outline_rounded, color: QuantColors.textSecondary, size: 24),
-            tooltip: 'Share Media & Data',
+            icon: const Icon(Icons.photo_camera_rounded, color: QuantColors.textSecondary, size: 24),
+            tooltip: 'Capture',
             onPressed: _openMediaSheet,
           ),
 
@@ -1143,35 +2761,119 @@ class _ConversationScreenState extends State<ConversationScreen> {
               ),
               child: TextField(
                 controller: _composerController,
+                focusNode: _composerFocusNode,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 minLines: 1,
                 maxLines: 4,
-                onSubmitted: (_) => _sendMessage(),
-                decoration: InputDecoration(
-                  hintText: _isDisappearingMode
-                      ? 'Type disappearing message (${_disappearingTtlSeconds}s)...'
-                      : 'Type a message...',
-                  hintStyle: const TextStyle(color: QuantColors.textMuted, fontSize: 13),
+                // Flow-4: with the keyboard open the return key is replaced
+                // by the send key (blue on Gboard); submitting dispatches.
+                textInputAction: _composerFocusNode.hasFocus
+                    ? TextInputAction.send
+                    : TextInputAction.done,
+                onSubmitted: (_) => _onSendPressed(),
+                decoration: const InputDecoration(
+                  hintText: 'Send a chat',
+                  hintStyle:
+                      TextStyle(color: QuantColors.textMuted, fontSize: 13),
                   border: InputBorder.none,
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  contentPadding: EdgeInsets.symmetric(vertical: 10),
                 ),
               ),
             ),
           ),
           const SizedBox(width: 6),
 
-          // Voice Note Record Button (triggers voice memo recording state)
+          // Phase 1B — snap mode selector: keep-in-chat vs view-once.
+          // The composer border and hint already reflect disappearing mode;
+          // this selector chooses the outgoing snap kind.
+          PopupMenuButton<String>(
+            icon: Icon(
+              _composerSnapMode == 'view-once'
+                  ? Icons.visibility_rounded
+                  : Icons.timer_outlined,
+              color: _composerSnapMode == 'off'
+                  ? QuantColors.textSecondary
+                  : QuantColors.moltenOrange,
+              size: 24,
+            ),
+            tooltip: 'Snap mode',
+            color: QuantColors.darkSlateCard,
+            onSelected: (mode) => setState(() => _composerSnapMode = mode),
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'off',
+                child: Text('Keep in chat', style: TextStyle(color: QuantColors.textPrimary, fontSize: 14)),
+              ),
+              PopupMenuItem(
+                value: 'disappearing',
+                child: Text('Disappearing (timer)', style: TextStyle(color: QuantColors.textPrimary, fontSize: 14)),
+              ),
+              PopupMenuItem(
+                value: 'view-once',
+                child: Text('View-once snap', style: TextStyle(color: QuantColors.textPrimary, fontSize: 14)),
+              ),
+            ],
+          ),
+
+          // Flow-4: hold-to-record voice note. A tap opens the recording
+          // dock (discard / send); press-and-hold records and sends on
+          // release. A sub-second hold records nothing and is discarded.
+          GestureDetector(
+            onLongPressStart: (_) => _startVoiceMemoRecording(),
+            onLongPressEnd: (_) {
+              if (!_isRecordingVoiceMemo) return;
+              if (_recordingDurationSeconds >= 1) {
+                _sendRecordedVoiceMemo();
+              } else {
+                _cancelVoiceMemoRecording();
+              }
+            },
+            child: IconButton(
+              icon: const Icon(Icons.mic_rounded,
+                  color: QuantColors.moltenOrange, size: 24),
+              tooltip: 'Hold to record voice note',
+              onPressed: _startVoiceMemoRecording,
+            ),
+          ),
+
+          // Flow-4: sticker picker (built-in Quant set). Labeled, opens
+          // the picker; a chosen sticker sends as a sticker message.
           IconButton(
-            icon: const Icon(Icons.mic_rounded, color: QuantColors.moltenOrange, size: 24),
-            tooltip: 'Record Voice Memo',
-            onPressed: _startVoiceMemoRecording,
+            icon: const Icon(Icons.emoji_emotions_outlined,
+                color: QuantColors.textSecondary, size: 24),
+            tooltip: 'Stickers',
+            onPressed: () => StickerPickerSheet.show(
+              context,
+              onStickerSelected: (sticker) => unawaited(_sendSticker(sticker)),
+            ),
+          ),
+
+          // Flow-4: mini-apps entry point. Quick Poll and Dice Roll both
+          // work against the backend; every row carries a text label.
+          IconButton(
+            icon: const Icon(Icons.videogame_asset_outlined,
+                color: QuantColors.textSecondary, size: 24),
+            tooltip: 'Mini apps',
+            onPressed: () => MiniAppsSheet.show(
+              context,
+              onQuickPoll: _showPollComposer,
+              onDiceRoll: _rollDice,
+            ),
+          ),
+
+          // Mobbin Flow-4: the attachment (+) action sits after mic,
+          // before send.
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline_rounded, color: QuantColors.textSecondary, size: 24),
+            tooltip: 'Share Media & Data',
+            onPressed: _openMediaSheet,
           ),
 
           // Send Button
           InkWell(
             borderRadius: BorderRadius.circular(20),
-            onTap: _sendMessage,
+            onTap: _onSendPressed,
             child: Container(
               width: 40,
               height: 40,
@@ -1301,3 +3003,4 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 }
+
