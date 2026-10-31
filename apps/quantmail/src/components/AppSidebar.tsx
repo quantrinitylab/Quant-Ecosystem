@@ -13,6 +13,7 @@ import { formatBytes } from '../lib/format-bytes';
 import { QuantMailLogoStatic } from './QuantMailLogoStatic';
 import { BrandWordmark } from './BrandWordmark';
 import { AccountBadge } from './AccountBadge';
+import { QuickSettingsButton } from './QuickSettingsPanel';
 
 type IconName =
   | 'archive'
@@ -593,6 +594,21 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
           >
             Settings
           </Link>
+        </div>
+        {/*
+          Quick settings (fix/qm-quick-settings-panel): a full 44px row in
+          the drawer footer — the panel opens over the inbox instead of
+          navigating away from it. The button renders its own panel, so
+          this footer never shows a dead gear. A 24px icon-only gear here
+          would be a sub-44px touch target, hence the labelled row.
+        */}
+        <div className="flex items-center pt-0.5">
+          <QuickSettingsButton
+            label="Quick settings"
+            className="flex min-h-[44px] items-center gap-2 rounded-lg px-1 text-[10px] text-[var(--quant-muted-foreground)] transition hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-ring)]"
+          >
+            <span>Quick settings</span>
+          </QuickSettingsButton>
         </div>
       </footer>
     </nav>

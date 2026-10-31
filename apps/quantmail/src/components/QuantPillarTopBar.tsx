@@ -13,6 +13,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { QuantGitUserIdModal } from './QuantGitUserIdModal';
 import { Quanty } from './Quanty';
 import { AccountBadge } from './AccountBadge';
+import { QuickSettingsButton } from './QuickSettingsPanel';
 import { LiquidTrack } from './workplace/LiquidTrack';
 import { PillarMascotMark } from './mascots/PillarMascotMark';
 import { useKeyboardSurfaces } from './KeyboardProvider';
@@ -1222,7 +1223,15 @@ export function QuantPillarTopBar({
           {/* User profile avatar: RIGHT side. Opens the real account menu
               (switch account, add account, settings, security, sign out) —
               never jumps straight to settings. */}
-          <div className="ml-2 shrink-0">
+          <div className="ml-2 flex shrink-0 items-center gap-1">
+            {/*
+              Quick settings (fix/qm-quick-settings-panel): the mobile
+              one-tap gear beside the avatar — theme, density and
+              notification mode over the inbox, without leaving it for
+              /settings. The switcher above stays flex-1 min-w-0, so this
+              44px button shrinks the switcher, never the tap target.
+            */}
+            <QuickSettingsButton />
             <AccountBadge compact={true} size="lg" />
           </div>
         </div>

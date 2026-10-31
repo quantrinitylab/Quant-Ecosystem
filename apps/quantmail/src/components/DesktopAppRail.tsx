@@ -22,6 +22,7 @@ import {
 } from './pillarTiles';
 import { triggerHapticTap } from './QuantPillarTopBar';
 import { MoreAppsMenu } from './MoreAppsMenu';
+import { QuickSettingsButton } from './QuickSettingsPanel';
 import { LiquidTrack } from './workplace/LiquidTrack';
 
 export interface DesktopAppRailProps {
@@ -231,6 +232,15 @@ export function DesktopAppRail({
           ariaLabel="More Quant apps — open QuantChat or QuantAI"
           title="More Quant apps"
         />
+      </div>
+
+      {/*
+        Quick settings (fix/qm-quick-settings-panel): the desktop one-click
+        gear, Gmail-rail style at the foot of the app rail — theme, density
+        and notification mode without leaving the inbox for /settings.
+      */}
+      <div className="mt-5 flex w-full items-center justify-center">
+        <QuickSettingsButton />
       </div>
     </aside>
   );
