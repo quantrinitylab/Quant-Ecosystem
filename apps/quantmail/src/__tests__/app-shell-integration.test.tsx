@@ -160,7 +160,12 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integr
       expect(html).not.toContain('sub-navigation');
     });
 
-    it('mounts the contextual bottom nav on Drive route (/drive)', () => {
+    it('does NOT mount the contextual bottom nav on Drive route (/drive) — QM-DRIVE-MOBILE-TAB-DEDUP', () => {
+      // The /drive page renders DriveMobileTabStrip on mobile (the full drive
+      // tab set, incl. Recent and Starred), so the shell bottom bar's
+      // My Drive / Recent / Starred slots would duplicate it. One tab set
+      // per viewport: the strip owns /drive, the bar stays for drive
+      // sub-routes (which render no strip) and every other pillar.
       mockCurrentPathname = '/drive';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -171,11 +176,25 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integr
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
       expect(html).toContain('#34A853');
 
+      expect(html).not.toContain('Drive contextual navigation');
+      expect(html).not.toContain('context-bottom-nav');
+
+      expect(html).not.toContain('App pillars');
+      expect(html).not.toContain('sub-navigation');
+    });
+
+    it('mounts the contextual bottom nav on drive sub-routes (/drive/doc/…) — no strip there', () => {
+      mockCurrentPathname = '/drive/doc/abc123';
+      const html = renderToStaticMarkup(
+        <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
+          <div>Drive Doc Content</div>
+        </AppShell>,
+      );
+
       expect(html).toContain('Drive contextual navigation');
       expect(html).toContain('>My Drive<');
       expect(html).toContain('>Recent<');
       expect(html).toContain('>Starred<');
-
       expect(html).not.toContain('App pillars');
       expect(html).not.toContain('sub-navigation');
     });
