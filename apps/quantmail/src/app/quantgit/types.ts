@@ -139,6 +139,16 @@ export type PRItem = {
   title: string;
   state: 'open' | 'merged' | 'closed';
   author: string;
+  // The user who merged this PR — NEVER derived from `author`: author ≠
+  // merger, and the backend records no merger on the PR row today (the
+  // PullRequest row carries mergedAt/mergeCommitSha only, and merge commits
+  // are written under the fixed QuantGit service identity), so for every
+  // PR loaded from the backend this is null and the render sites must show
+  // 'Unknown'. It is set only from a real backend `mergedBy` value when one
+  // arrives, or in-session when the viewer just performed the merge (the
+  // viewer is then the merger by construction, not by fallback). Null /
+  // undefined / '' all mean "merger unknown" — never substitute the author.
+  mergedBy?: string | null;
   branchSource: string;
   branchTarget: string;
   checksStatus: 'passing' | 'pending' | 'failing' | 'unknown';

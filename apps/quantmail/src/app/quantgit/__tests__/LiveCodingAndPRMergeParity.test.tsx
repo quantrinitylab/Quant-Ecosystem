@@ -55,6 +55,10 @@ const MOCK_MERGED_PR: PRItem = {
   title: 'fix(engine): resolve branch protection mutex race condition',
   state: 'merged',
   author: 'astra-agent-ceo',
+  // Deliberately distinct from the author: merger attribution must come
+  // from mergedBy, never from author (the author-as-merger fallback this
+  // PR previously shipped was the CODEX DO NOT MERGE defect on #1547).
+  mergedBy: 'release-manager',
   branchSource: 'fix/mutex-race',
   branchTarget: 'main',
   checksStatus: 'passing',
@@ -439,10 +443,12 @@ describe('QuantGit Live Coding In-Editor PR Creation & 3-Way Merge Security Gate
       expect(html).toContain('Merged');
       expect(html).toContain('bg-[#8957E5]');
 
-      // Shows "Merged by [author] into [targetBranch]" in header
+      // Shows "Merged by [merger] into [targetBranch]" in header — the
+      // merger comes from mergedBy, never from the PR author.
       expect(html).toContain('data-testid="pr-merged-info"');
       expect(html).toContain('Merged by');
-      expect(html).toContain('astra-agent-ceo');
+      expect(html).toContain('release-manager');
+      expect(html).not.toContain('astra-agent-ceo');
       expect(html).toContain('into');
       expect(html).toContain('main');
       expect(html).toContain('from');
@@ -451,7 +457,7 @@ describe('QuantGit Live Coding In-Editor PR Creation & 3-Way Merge Security Gate
       // Shows Merged status banner
       expect(html).toContain('data-testid="merged-status-banner"');
       expect(html).toContain('Pull request #202 was successfully merged and closed.');
-      expect(html).toContain('Merged by astra-agent-ceo into main.');
+      expect(html).toContain('Merged by release-manager into main.');
     });
   });
 });
