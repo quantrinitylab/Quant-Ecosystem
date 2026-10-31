@@ -1073,8 +1073,12 @@ export function ContactDetailSheet({
 
         <div className="space-y-3">
           {/* Email Address — omitted entirely for phone-only / legacy contacts
-              with no email, so no "mailto:undefined" anchor can render.
-              (Matches the Phone Number row's conditional pattern below.) */}
+              with no email, so no "/compose?to=undefined" link can render.
+              Tapping the address opens QuantMail compose in-app (the same
+              "/compose?to=" target the Email quick action uses) instead of a
+              mailto: link, which would hand off to the device's external mail
+              client. The Phone Number row below keeps its tel: link on
+              purpose — phone calls have no in-app target. */}
           {contact.email && (
           <div className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[var(--quant-surface-subtle)]">
             <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1086,7 +1090,7 @@ export function ContactDetailSheet({
               </div>
               <div className="min-w-0 flex-1">
                 <span className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider block">Email Address</span>
-                <a href={`mailto:${contact.email}`} className="text-xs font-mono font-semibold text-white hover:text-[var(--app-accent)] transition-colors truncate block">
+                <a href={`/compose?to=${encodeURIComponent(contact.email)}`} className="text-xs font-mono font-semibold text-white hover:text-[var(--app-accent)] transition-colors truncate block">
                   {contact.email}
                 </a>
               </div>
