@@ -34,6 +34,11 @@ import {
   resolveLensSync,
 } from '../lib/inbox-lens';
 import {
+  dateGroupLabelFor,
+  matchesFocusedRule,
+  splitMentionSegments,
+} from '../lib/inbox-focused';
+import {
   deriveCategoryPills,
   matchesCategories,
   removeCategory,
@@ -93,7 +98,7 @@ import {
   useDeleteContactGroup,
   useUpdateContactGroup,
 } from '../hooks/useContactGroups';
-import { IconCheck, IconFilter, IconSpam, IconX } from '../components/icons';
+import { IconCheck, IconFilter, IconPaperclip, IconSpam, IconX } from '../components/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateMailLists } from '../lib/offline/folders';
 import { reconcileStarredFilterParam } from '../lib/starredDeepLink';
@@ -370,6 +375,12 @@ type EmailRowProps = {
    * selection from the last click. Omitted when the toggle comes from a long-press
    * or a keyboard command.
    */
+  /**
+   * Slice 1: date-group header rendered above this row when it is the first
+   * row of its date group in the rendered list. Null renders no header, so
+   * every other caller (search results, people view) is unaffected.
+   */
+  dateHeader?: string | null;
   onToggleSelect: (event?: React.MouseEvent) => void;
   /**
    * `null` when the toggle came from a swipe rather than a click — there is no
@@ -408,6 +419,7 @@ function EmailRow({
   isFocused,
   isSpamMode = false,
   savedGroups,
+  dateHeader = null,
   onRescueSpam,
   onToggleSelect,
   onToggleStar,
@@ -570,7 +582,16 @@ function EmailRow({
   });
 
   return (
-    <div className={`mail-row-shell relative ${showSnoozeMenu ? 'z-50' : ''}`}>
+    <>
+      {dateHeader !== null && (
+        <div
+          aria-hidden="true"
+          className="px-3 sm:px-4 pt-3 pb-1 text-xs font-semibold text-[var(--quant-muted-foreground)]"
+        >
+          {dateHeader}
+        </div>
+      )}
+      <div className={`mail-row-shell relative ${showSnoozeMenu ? 'z-50' : ''}`}>
       {/*
         Declared before the row and given no `z-index`: two positioned siblings
         paint in source order, so the row's own opaque background covers this
@@ -689,6 +710,18 @@ function EmailRow({
           if (!isLongPressRef.current && !swipe.wasSwipe()) onOpen();
         }}
       >
+        {/*
+          Slice 1: unread dot at the row's left edge, absent when read. It
+          sits beside the existing unread-count pill (kept): the dot says
+          "unread" at a glance, the pill says how many. Theme accent, not
+          Outlook blue.
+        */}
+        {!thread.isRead && (
+          <span
+            aria-hidden="true"
+            className="size-2 shrink-0 rounded-full bg-[var(--quant-primary)]"
+          />
+        )}
         <input
           type="checkbox"
           checked={isChecked}
@@ -747,6 +780,28 @@ function EmailRow({
                   {thread.count}
                 </span>
               )}
+              {/*
+                Slice 1: pin badge. There is no flagged field anywhere in the
+                Email model or the thread type, so no red flag badge is faked
+                from the star — that would mislabel starred mail as flagged.
+                The flag badge is documented as not implemented (see summary).
+              */}
+              {thread.isPinned && (
+                <span
+                  aria-label="Pinned"
+                  title="Pinned"
+                  className="inline-flex shrink-0 text-[var(--quant-primary)]"
+                >
+                  <svg
+                    className="size-3.5"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M8 3h8v3l-3 11-1 4-1-4-3-11V3z" />
+                  </svg>
+                </span>
+              )}
               {isSpamMode && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-500/15 text-rose-300 border border-rose-500/30 shrink-0">
                   Spam
@@ -772,13 +827,44 @@ function EmailRow({
               {formatReceivedAt(thread.receivedAt)}
             </time>
           </div>
-          <h3 className="text-xs sm:text-sm font-medium text-[var(--quant-muted-foreground)] truncate">
-            {groupInfo && thread.subject.toLowerCase() === `[group] ${groupInfo.name.toLowerCase()}`
-              ? sanitizeSnippetText(email.snippet || email.bodyText) || '(no subject)'
-              : sanitizeSnippetText(thread.subject) || '(no subject)'}
+          <h3 className="flex items-center gap-1 text-xs sm:text-sm font-semibold text-[var(--quant-muted-foreground)]">
+            <span className="truncate">
+              {groupInfo && thread.subject.toLowerCase() === `[group] ${groupInfo.name.toLowerCase()}`
+                ? sanitizeSnippetText(email.snippet || email.bodyText) || '(no subject)'
+                : sanitizeSnippetText(thread.subject) || '(no subject)'}
+            </span>
+            {/*
+              Slice 1: paperclip after the subject when any message in the
+              conversation carries an attachment — the same predicate as the
+              page-level `threadHasAttachment`, inlined because the row does
+              not receive that helper.
+            */}
+            {thread.messages.some((m) => Array.isArray(m.attachments) && m.attachments.length > 0) && (
+              <span
+                aria-label="Has attachment"
+                title="Has attachment"
+                className="inline-flex shrink-0 text-[var(--quant-muted-foreground)]"
+              >
+                <IconPaperclip size={13} />
+              </span>
+            )}
           </h3>
-          <p className="text-xs text-[var(--quant-muted-foreground)] truncate">
-            {sanitizeSnippetText(email.snippet || email.bodyText)}
+          <p className="text-xs text-[var(--quant-muted-foreground)] line-clamp-2">
+            {/*
+              Slice 1: two-line preview (was single-line truncate) with
+              @handle tokens highlighted blue. Mentions are highlighted spans,
+              not links: no profile route exists to point one at.
+            */}
+            {splitMentionSegments(sanitizeSnippetText(email.snippet || email.bodyText)).map(
+              (segment, index) =>
+                segment.mention ? (
+                  <span key={index} className="text-sky-400">
+                    {segment.text}
+                  </span>
+                ) : (
+                  <span key={index}>{segment.text}</span>
+                ),
+            )}
           </p>
         </div>
         {/* Hover actions bar — quick actions on hover (pointer) or focus (keyboard).
@@ -1163,7 +1249,8 @@ function EmailRow({
         }}
         onCancel={() => setConfirmDeleteRow(false)}
       />
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -1190,7 +1277,8 @@ const MemoizedEmailRow = memo(
     prev.canToggleRead === next.canToggleRead &&
     prev.onRescueSpam === next.onRescueSpam &&
     prev.isArchiveView === next.isArchiveView &&
-    prev.selfName === next.selfName,
+    prev.selfName === next.selfName &&
+    prev.dateHeader === next.dateHeader,
 );
 
 
@@ -1397,6 +1485,20 @@ function InboxPageContent() {
     }
     return 'all';
   });
+
+  /**
+   * Slice 1: Focused/Other, the second axis beside the lens chips. It composes
+   * with lens + turn + filters + categories (ANDed, in `displayThreads`), and
+   * applies only to the inbox pool — never to the archived view, spam, or
+   * snoozed, where it would hide mail the reader went looking for.
+   *
+   * The rule is `matchesFocusedRule` in `lib/inbox-focused`: a conversation
+   * is Focused when its client-heuristic category is 'primary', when someone
+   * in it is in the address book, or when it is starred/high-priority.
+   * Everything else is Other. That is a documented heuristic partition, not
+   * Outlook's server-side Focused model, and the control's title says so.
+   */
+  const [focusMode, setFocusMode] = useState<'focused' | 'other'>('focused');
 
   const tabParam = searchParams?.get('tab');
   /**
@@ -2946,7 +3048,7 @@ function InboxPageContent() {
   const displayThreads = useMemo(() => {
     const sourceThreads = narrowThreads(activeThreadPool, activeLens, activeTurn, activeFilters, activeCategories);
 
-    return [...sourceThreads].sort((a, b) => {
+    const sorted = [...sourceThreads].sort((a, b) => {
       const aPinned = (a as { isPinned?: boolean }).isPinned === true;
       const bPinned = (b as { isPinned?: boolean }).isPinned === true;
       if (aPinned !== bPinned) {
@@ -2954,7 +3056,25 @@ function InboxPageContent() {
       }
       return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
     });
-  }, [activeThreadPool, activeLens, activeTurn, activeFilters, activeCategories, narrowThreads]);
+
+    // Slice 1: Focused/Other is the last narrowing, inbox pool only. It runs
+    // after the pin-first sort, so every index below (selection, j/k cursor,
+    // virtualizer) reads the focused list, never a mix of the two partitions.
+    if (!isInboxPool) return sorted;
+    return sorted.filter((t) =>
+      focusMode === 'focused'
+        ? matchesFocusedRule({
+            category: t.category,
+            isContact: isContactThread(t),
+            isImportant: isImportantThread(t),
+          })
+        : !matchesFocusedRule({
+            category: t.category,
+            isContact: isContactThread(t),
+            isImportant: isImportantThread(t),
+          }),
+    );
+  }, [activeThreadPool, activeLens, activeTurn, activeFilters, activeCategories, narrowThreads, isInboxPool, focusMode, isContactThread, isImportantThread]);
 
   /**
    * Whether to say out loud that starred conversations are held at the top.
@@ -3730,6 +3850,50 @@ function InboxPageContent() {
               )}
             </div>
           </header>
+
+          {/*
+            Slice 1: Focused/Other segmented control, under the Inbox title and
+            above the lens row, visible in every inbox-pool state (it is gated
+            on isInboxPool because displayThreads ignores it elsewhere, and a
+            control that does nothing in archived/spam/snoozed would lie).
+            The rule, stated in the title so it is never presented as ground
+            truth: Focused = direct mail, address-book contacts, starred or
+            high-priority; Other = updates, offers, social and forums mail
+            that is none of those. Both partitions keep the identical layout.
+          */}
+          {isInboxPool && (
+            <div
+              role="tablist"
+              aria-label="Focused or Other"
+              title="Focused: direct mail, address-book contacts, starred or high-priority. Other: updates, offers, social and forums mail that is none of those. This is a client-side heuristic partition, not a server priority model."
+              className="flex items-center gap-1 px-3 sm:px-4 pb-1"
+            >
+              {(
+                [
+                  { key: 'focused', label: 'Focused' },
+                  { key: 'other', label: 'Other' },
+                ] as const
+              ).map((mode) => {
+                const isActive = focusMode === mode.key;
+                return (
+                  <button
+                    key={mode.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setFocusMode(mode.key)}
+                    className={`px-4 min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] ${
+                      isActive
+                        ? 'bg-[var(--quant-primary)]/12 text-[var(--quant-primary)] border border-[var(--quant-primary)]/35 font-semibold'
+                        : 'border border-white/[0.07] bg-white/[0.02] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    {mode.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/*
             The mobile search row used to live here, hand-rolled: an
@@ -4914,6 +5078,21 @@ function InboxPageContent() {
                     const thread = displayThreads[item.index];
                     if (!thread) return null;
 
+                    /*
+                      Slice 1: the date-group header rides on the first row of
+                      its group in the rendered order, so virtualizer indices,
+                      selection, and the j/k cursor are untouched. Note the
+                      pin-first sort can split one date label into two runs
+                      (a pinned older thread sorts above newer ones) — the
+                      header then repeats, correctly, at each run's start.
+                    */
+                    const prevThread = displayThreads[item.index - 1];
+                    const groupLabel = dateGroupLabelFor(thread.receivedAt);
+                    const dateHeader =
+                      !prevThread || dateGroupLabelFor(prevThread.receivedAt) !== groupLabel
+                        ? groupLabel
+                        : null;
+
                     return (
                       <div
                         key={item.key}
@@ -4932,6 +5111,7 @@ function InboxPageContent() {
                       >
                         <MemoizedEmailRow
                           thread={thread}
+                          dateHeader={dateHeader}
                           selfName={selfAvatarName}
                           isChecked={selectedIds.has(thread.id)}
                           isActive={
