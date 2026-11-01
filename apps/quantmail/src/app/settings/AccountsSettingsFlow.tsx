@@ -8,11 +8,12 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { apiClient, type MailFilterRule, type SendAsIdentity } from '../../services/api-client';
+import { apiClient, type MailFilterItem, type SendAsIdentity } from '../../services/api-client';
 import { browserAuthSession } from '../../services/browser-auth-session';
 import { showToast } from '../../components/InboxToast';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
 import { MobileInboxFlowSuite } from '../../components/MobileInboxFlowSuite';
+import { MobileCalendarFlowSuite } from '../../components/MobileCalendarFlowSuite';
 
 export type AccountsFlowStep =
   | 'overview'
@@ -24,7 +25,8 @@ export type AccountsFlowStep =
   | 'sync_settings'
   | 'addins'
   | 'add_account'
-  | 'mobile_inbox';
+  | 'mobile_inbox'
+  | 'mobile_calendar';
 
 export interface WorkspaceAddInItem {
   id: string;
@@ -241,7 +243,7 @@ export function AccountsSettingsFlow({
 
   const [vacationEnabled, setVacationEnabled] = useState<boolean | null>(null);
   const [sendAsList, setSendAsList] = useState<SendAsIdentity[]>([]);
-  const [filters, setFilters] = useState<MailFilterRule[]>([]);
+  const [filters, setFilters] = useState<MailFilterItem[]>([]);
 
   const [description, setDescription] = useState<string>('');
   const [editingDescription, setEditingDescription] = useState(false);
@@ -556,8 +558,8 @@ export function AccountsSettingsFlow({
     try {
       const res = await apiClient.createMailFilter({
         name: `Screen ${sender}`,
-        conditions: { from: sender },
-        actions: { moveTo: 'trash', markRead: true },
+        conditions: [{ from: sender }],
+        actions: [{ delete: true, markRead: true }],
         enabled: true,
       });
       if (res.success && res.data) {
@@ -567,10 +569,15 @@ export function AccountsSettingsFlow({
           ...prev,
           {
             id: `local_${Date.now()}`,
+            userId: 'me',
             name: `Screen ${sender}`,
-            conditions: { from: sender },
-            actions: { moveTo: 'trash', markRead: true },
+            conditions: [{ from: sender }],
+            actions: [{ delete: true, markRead: true }],
             enabled: true,
+            priority: 0,
+            matchAll: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           },
         ]);
       }
@@ -957,7 +964,7 @@ export function AccountsSettingsFlow({
                       {rule.name}
                     </p>
                     <p className="text-xs text-[var(--quant-muted-foreground)]">
-                      From: {rule.conditions?.from || 'Any sender'}
+                      From: {(Array.isArray(rule.conditions) ? rule.conditions[0]?.from : (rule.conditions as any)?.from) || 'Any sender'}
                     </p>
                   </div>
                   <button
@@ -1385,6 +1392,15 @@ export function AccountsSettingsFlow({
     );
   }
 
+  // ─── SUB-SHEET: Mobile Calendar Flow Suite (Flows #15, #95, #18, #26, #77, #80, #43, #36, #16, #42, #91, #104)
+  if (step === 'mobile_calendar') {
+    return (
+      <div className="-mx-4 -my-3">
+        <MobileCalendarFlowSuite onBackToEmail={() => setStep('overview')} />
+      </div>
+    );
+  }
+
   // ─── SCREEN 0: Settings Sheet Overview ─────────────────────────────────────
   if (step === 'overview') {
     return (
@@ -1607,8 +1623,10 @@ export function AccountsSettingsFlow({
             )}
 
             {matchesSearch('Calendar', 'events schedule meetings') && (
-              <Link
-                href="/calendar"
+              <button
+                type="button"
+                data-testid="settings-open-mobile-calendar-btn"
+                onClick={() => setStep('mobile_calendar')}
                 className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-[var(--quant-border)] px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-[var(--quant-surface-hover)]"
               >
                 <span className="flex items-center gap-3.5">
@@ -1628,7 +1646,7 @@ export function AccountsSettingsFlow({
                   </span>
                 </span>
                 <ChevronRight />
-              </Link>
+              </button>
             )}
 
             {matchesSearch('Contacts', 'people address book vcard directory') && (

@@ -14,6 +14,7 @@ import {
   MobileEmailDetailView,
   MobileFolderEditSheet,
 } from './MobileFolderAndEmailActionsSuite';
+import { MobileCalendarFlowSuite } from './MobileCalendarFlowSuite';
 
 export type MobileInboxFilterKey =
   | 'all'
@@ -34,7 +35,8 @@ export type MobileInboxSubScreen =
   | 'photo_filter_studio'
   | 'folder_edit'
   | 'deleted_folder'
-  | 'email_detail';
+  | 'email_detail'
+  | 'calendar';
 
 export type PhotoFilterPreset = 'none' | 'process' | 'sepia' | 'chrome' | 'mono';
 
@@ -303,6 +305,11 @@ export function MobileInboxFlowSuite() {
         }}
       />
     );
+  }
+
+  // ─── BATCH 5 SUB-SCREEN: Mobile Calendar Suite (Flows #15, #95, #18, #26, #77, #80, #43, #36, #16, #42, #91, #104) ──
+  if (subScreen === 'calendar') {
+    return <MobileCalendarFlowSuite onBackToEmail={() => setSubScreen('inbox')} />;
   }
 
   // ─── FLOW #5, #8, #29: Photo Attachment Filter, Text & Crop Studio ─────────
@@ -1220,6 +1227,15 @@ export function MobileInboxFlowSuite() {
         </button>
         <button
           type="button"
+          data-testid="open-mobile-calendar-btn"
+          aria-label="Open mobile calendar"
+          onClick={() => setSubScreen('calendar')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+        >
+          📆
+        </button>
+        <button
+          type="button"
           data-testid="open-send-availability-btn"
           aria-label="Send availability"
           onClick={() => setSubScreen('send_availability')}
@@ -1263,16 +1279,18 @@ export function MobileInboxFlowSuite() {
           </svg>
           <span>Email</span>
         </button>
-        <Link
-          href="/calendar"
-          className="flex flex-col items-center gap-0.5 text-[var(--quant-muted-foreground)]"
+        <button
+          type="button"
+          data-testid="bottom-nav-calendar-btn"
+          onClick={() => setSubScreen('calendar')}
+          className="flex flex-col items-center gap-0.5 text-[var(--quant-muted-foreground)] hover:text-[#0078D4]"
         >
           <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <rect width="18" height="18" x="3" y="4" rx="2" />
             <path d="M16 2v4M8 2v4M3 10h18" />
           </svg>
           <span>Calendar</span>
-        </Link>
+        </button>
         <Link
           href="/contacts"
           className="flex flex-col items-center gap-0.5 text-[var(--quant-muted-foreground)]"

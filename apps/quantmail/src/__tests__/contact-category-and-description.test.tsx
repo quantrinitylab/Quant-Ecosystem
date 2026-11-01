@@ -35,6 +35,10 @@ import {
   MobileFolderEditSheet,
 } from '../components/MobileFolderAndEmailActionsSuite';
 import {
+  MobileCalendarFlowSuite,
+  INITIAL_MOBILE_CALENDAR_EVENTS,
+} from '../components/MobileCalendarFlowSuite';
+import {
   MobileInboxFlowSuite,
   FILTER_OPTIONS,
   PHOTO_FILTER_PRESETS,
@@ -219,5 +223,15 @@ describe('EventDescriptionEditor', () => {
     expect(detailHtml).toContain('Follow-Up on Work');
     expect(detailHtml).toContain('Not at this time. Thank you.');
     expect(detailHtml).toContain('Thank you, I will let you know.');
+  });
+
+  it('renders Batch 5 MobileCalendarFlowSuite (Flows #15, #16, #18, #26, #36, #42, #43, #77, #80, #91, #95, #104)', () => {
+    expect(INITIAL_MOBILE_CALENDAR_EVENTS.length).toBeGreaterThanOrEqual(6);
+    const calendarHtml = renderToStaticMarkup(<MobileCalendarFlowSuite onBackToEmail={() => {}} />);
+    expect(calendarHtml).toContain('February');
+    expect(calendarHtml).toContain('Daily standup');
+    expect(calendarHtml).toContain('Project Fortuna');
+    expect(calendarHtml).toContain('Lunch');
+    expect(calendarHtml).toContain('+1 more');
   });
 });
