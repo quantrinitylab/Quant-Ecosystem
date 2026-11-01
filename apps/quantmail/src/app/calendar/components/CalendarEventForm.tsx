@@ -28,7 +28,7 @@ import {
   IconX,
 } from '../../../components/icons';
 import type { EntryType, FormState } from '../types';
-import { EventDescriptionEditor } from './EventDescriptionEditor';
+import { EventDescriptionEditor, EventLocationPicker } from './EventDescriptionEditor';
 import {
   TIMEZONES,
   CLUE_COLLECTION_METHODS,
@@ -754,6 +754,7 @@ export function CalendarEventForm({
                     </div>
                   </div>
 
+                  <EventLocationPicker value={formState.location} onChange={(nextLoc) => setFormState({ ...formState, location: nextLoc })} />
                   <EventDescriptionEditor
                     value={formState.description}
                     onChange={(nextDescription) =>

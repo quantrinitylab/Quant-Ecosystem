@@ -24,8 +24,16 @@ import {
 } from '../app/contacts/components/ContactCategoryPicker';
 import {
   EventDescriptionEditor,
+  EventLocationPicker,
+  DEFAULT_LOCATION_SUGGESTIONS,
   applyDescriptionFormat,
 } from '../app/calendar/components/EventDescriptionEditor';
+import {
+  MobileInboxFlowSuite,
+  FILTER_OPTIONS,
+  PHOTO_FILTER_PRESETS,
+  AVAILABLE_TIME_SLOTS,
+} from '../components/MobileInboxFlowSuite';
 
 describe('ContactCategoryPicker & ContactModalSheet', () => {
   it('exposes the 25-colour circular swatch grid and Add Field sections', () => {
@@ -163,5 +171,26 @@ describe('EventDescriptionEditor', () => {
     expect(addLinkHtml).toContain('Add Link');
     expect(addLinkHtml).toContain('Text');
     expect(addLinkHtml).toContain('Link');
+  });
+
+  it('renders EventLocationPicker summary and 7 place suggestions (Flow #7)', () => {
+    expect(DEFAULT_LOCATION_SUGGESTIONS).toHaveLength(7);
+    const html = renderToStaticMarkup(
+      <EventLocationPicker value="1226 University Dr" onChange={() => {}} />,
+    );
+    expect(html).toContain('1226 University Dr');
+  });
+
+  it('renders MobileInboxFlowSuite with Focused/Other tabs, 7 filter options, 5 photo filters, and availability slots (Flows #5, #8, #11, #12, #40, #48)', () => {
+    expect(FILTER_OPTIONS).toHaveLength(7);
+    expect(PHOTO_FILTER_PRESETS).toHaveLength(5);
+    expect(AVAILABLE_TIME_SLOTS).toHaveLength(3);
+    const html = renderToStaticMarkup(<MobileInboxFlowSuite />);
+    expect(html).toContain('Inbox');
+    expect(html).toContain('Focused');
+    expect(html).toContain('Other');
+    expect(html).toContain('Filter');
+    expect(html).toContain('Faire');
+    expect(html).toContain('Rotten Tomatoes');
   });
 });

@@ -12,6 +12,7 @@ import { apiClient, type MailFilterRule, type SendAsIdentity } from '../../servi
 import { browserAuthSession } from '../../services/browser-auth-session';
 import { showToast } from '../../components/InboxToast';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
+import { MobileInboxFlowSuite } from '../../components/MobileInboxFlowSuite';
 
 export type AccountsFlowStep =
   | 'overview'
@@ -20,7 +21,33 @@ export type AccountsFlowStep =
   | 'appearance'
   | 'screening'
   | 'editor_language'
-  | 'sync_settings';
+  | 'sync_settings'
+  | 'addins'
+  | 'add_account'
+  | 'mobile_inbox';
+
+export interface WorkspaceAddInItem {
+  id: string;
+  name: string;
+  publisher: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeIcon: 'xq' | 'yablo' | 'yoxel' | 'zoho-crm' | 'zoho-mail' | 'zoho-proj' | 'zoho-sign' | 'zoho-drive' | 'zoom';
+}
+
+export const WORKSPACE_ADDINS: readonly WorkspaceAddInItem[] = [
+  { id: 'xq', name: 'XQ Secure Mail', publisher: 'XQ Message Inc', badgeBg: '#0078D4', badgeText: '#FFFFFF', badgeIcon: 'xq' },
+  { id: 'yablo', name: 'Yablo', publisher: 'Tasks in a Box', badgeBg: '#68B684', badgeText: '#FFFFFF', badgeIcon: 'yablo' },
+  { id: 'yoxel', name: 'Yoxel', publisher: 'Yoxel', badgeBg: '#E0F2FE', badgeText: '#0284C7', badgeIcon: 'yoxel' },
+  { id: 'zoho-crm-conn', name: 'Zoho CRM Connector', publisher: 'iEnterprises', badgeBg: '#0369A1', badgeText: '#FFFFFF', badgeIcon: 'zoho-crm' },
+  { id: 'zoho-crm-email', name: 'Zoho CRM for email', publisher: 'Zoho', badgeBg: '#EFF6FF', badgeText: '#0284C7', badgeIcon: 'zoho-mail' },
+  { id: 'zoho-projects', name: 'Zoho Projects for email', publisher: 'Zoho Corporation Private Limited', badgeBg: '#FEF2F2', badgeText: '#DC2626', badgeIcon: 'zoho-proj' },
+  { id: 'zoho-sign', name: 'Zoho Sign', publisher: 'Zoho', badgeBg: '#EFF6FF', badgeText: '#0284C7', badgeIcon: 'zoho-sign' },
+  { id: 'zoho-workdrive', name: 'Zoho WorkDrive for Email', publisher: 'Zoho', badgeBg: '#EFF6FF', badgeText: '#0284C7', badgeIcon: 'zoho-drive' },
+  { id: 'zoom', name: 'Zoom', publisher: 'Zoom Communications, Inc', badgeBg: '#2563EB', badgeText: '#FFFFFF', badgeIcon: 'zoom' },
+];
+
+export const INSTALLED_ADDINS_KEY = 'quant-installed-addins';
 
 export type SettingsSectionTarget =
   | 'overview'
@@ -250,6 +277,14 @@ export function AccountsSettingsFlow({
   const [syncDaysWindow, setSyncDaysWindow] = useState<string>('30 Days');
   const [syncAttachmentsMode, setSyncAttachmentsMode] = useState<string>('Wi-Fi Only');
   const [backgroundRefresh, setBackgroundRefresh] = useState<boolean>(true);
+
+  // Add-ins sub-sheet state (Flow #9)
+  const [installedAddins, setInstalledAddins] = useState<string[]>([]);
+  const [installingAddinId, setInstallingAddinId] = useState<string | null>(null);
+
+  // Add Account sub-sheet state (Flow #11)
+  const [addAccountEmail, setAddAccountEmail] = useState<string>('');
+  const [showQrModal, setShowQrModal] = useState<boolean>(false);
 
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [removingAccount, setRemovingAccount] = useState(false);
@@ -1117,6 +1152,239 @@ export function AccountsSettingsFlow({
     );
   }
 
+  // ─── SUB-SHEET: Add-ins (Flow #9 — Adding an add-in) ──────────────────────
+  if (step === 'addins') {
+    return (
+      <div className="space-y-4" data-testid="settings-addins-sheet">
+        <div className="relative flex flex-col items-center justify-center border-b border-[var(--quant-border)] pb-3 pt-1">
+          <button
+            type="button"
+            aria-label="Close Add-ins"
+            onClick={() => setStep('overview')}
+            className="absolute left-0 top-1 inline-flex size-8 items-center justify-center rounded-lg text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-hover)] hover:text-[var(--quant-foreground)]"
+          >
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+          <h1 className="text-base font-semibold text-[var(--quant-foreground)]">Add-ins</h1>
+          <span className="mt-0.5 flex items-center gap-1 text-xs text-[var(--quant-muted-foreground)]">
+            <span>{profile.email || 'alexsmith@quantrinity.in'}</span>
+            <span>⌄</span>
+          </span>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] divide-y divide-[var(--quant-border)]">
+          {WORKSPACE_ADDINS.map((addin) => {
+            const isInstalling = installingAddinId === addin.id;
+            const isInstalled = installedAddins.includes(addin.id);
+            return (
+              <div
+                key={addin.id}
+                data-testid={`addin-row-${addin.id}`}
+                className="flex min-h-16 items-center justify-between gap-3 px-4 py-3"
+              >
+                <div className="flex min-w-0 items-center gap-3.5">
+                  <span
+                    style={{ backgroundColor: addin.badgeBg, color: addin.badgeText }}
+                    className="grid size-9 flex-none place-items-center rounded-lg text-xs font-bold shadow-xs"
+                  >
+                    {addin.badgeIcon === 'zoom'
+                      ? '📹'
+                      : addin.badgeIcon === 'xq'
+                        ? '✕'
+                        : addin.badgeIcon === 'yablo'
+                          ? '💬'
+                          : addin.badgeIcon === 'yoxel'
+                            ? '✳'
+                            : addin.badgeIcon === 'zoho-proj'
+                              ? '✓'
+                              : addin.badgeIcon === 'zoho-sign'
+                                ? '✎'
+                                : addin.badgeIcon === 'zoho-drive'
+                                  ? '📁'
+                                  : '∞'}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-[var(--quant-foreground)]">
+                      {addin.name}
+                    </p>
+                    <p className="truncate text-xs text-[var(--quant-muted-foreground)]">
+                      {addin.publisher}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  data-testid={`addin-action-${addin.id}`}
+                  aria-label={`${isInstalled ? 'Remove' : 'Add'} ${addin.name}`}
+                  onClick={() => {
+                    if (isInstalling) {
+                      setInstallingAddinId(null);
+                      setInstalledAddins((prev) => {
+                        const next = prev.includes(addin.id) ? prev : [...prev, addin.id];
+                        try {
+                          localStorage.setItem(INSTALLED_ADDINS_KEY, JSON.stringify(next));
+                        } catch {
+                          /* ignore */
+                        }
+                        return next;
+                      });
+                      return;
+                    }
+                    if (isInstalled) {
+                      setInstalledAddins((prev) => {
+                        const next = prev.filter((id) => id !== addin.id);
+                        try {
+                          localStorage.setItem(INSTALLED_ADDINS_KEY, JSON.stringify(next));
+                        } catch {
+                          /* ignore */
+                        }
+                        return next;
+                      });
+                    } else {
+                      setInstallingAddinId(addin.id);
+                    }
+                  }}
+                  className={`inline-flex h-8 w-11 flex-none items-center justify-center rounded-lg border transition-colors ${
+                    isInstalling || isInstalled
+                      ? 'border-[#0078D4] bg-[#0078D4] text-white'
+                      : 'border-[#0078D4]/50 bg-transparent text-[#0078D4] hover:bg-[#0078D4]/10'
+                  }`}
+                >
+                  {isInstalling ? (
+                    <svg
+                      data-testid={`addin-spinner-${addin.id}`}
+                      className="size-4 animate-spin text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                    >
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                  ) : isInstalled ? (
+                    <svg className="size-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  ) : (
+                    <span className="text-lg font-light leading-none">+</span>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)]">
+          <Link
+            href="/terms"
+            className="flex min-h-12 w-full items-center justify-between px-4 py-3 text-sm font-normal text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          >
+            <span>Terms &amp; Support</span>
+            <ChevronRight />
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── SUB-SHEET: Add Account (Flow #11 — Adding another account) ───────────
+  if (step === 'add_account') {
+    const hasEmail = addAccountEmail.trim().length > 0;
+    return (
+      <div className="space-y-6" data-testid="settings-add-account-sheet">
+        <div className="relative flex items-center justify-center border-b border-[var(--quant-border)] pb-3 pt-1">
+          <button
+            type="button"
+            aria-label="Close Add Account"
+            onClick={() => setStep('accounts')}
+            className="absolute left-0 inline-flex size-8 items-center justify-center rounded-lg text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-hover)] hover:text-[var(--quant-foreground)]"
+          >
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+          <h1 className="text-base font-semibold text-[var(--quant-foreground)]">Add Account</h1>
+        </div>
+
+        <div className="mx-auto max-w-[320px] space-y-5 pt-4 text-center">
+          <p className="text-sm text-[var(--quant-muted-foreground)]">
+            Enter your work or personal email
+          </p>
+
+          <input
+            type="email"
+            data-testid="add-account-email-input"
+            aria-label="Email Address"
+            value={addAccountEmail}
+            onChange={(e) => setAddAccountEmail(e.target.value)}
+            placeholder="Email Address"
+            className="w-full border-b border-[var(--quant-border)] bg-transparent pb-2.5 text-base text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:border-[#0078D4] focus:outline-none"
+          />
+
+          <div className="space-y-3 pt-2">
+            <button
+              type="button"
+              data-testid="add-account-submit-btn"
+              disabled={!hasEmail}
+              onClick={() => {
+                showToast({ text: `Connecting ${addAccountEmail.trim()}…`, type: 'info' });
+                setAddAccountEmail('');
+                setStep('accounts');
+              }}
+              className={`w-full rounded-xl py-3.5 text-sm font-medium transition-colors ${
+                hasEmail
+                  ? 'bg-[#0078D4] text-white hover:bg-[#006CBE]'
+                  : 'bg-[var(--quant-muted-foreground)]/30 text-white/90'
+              }`}
+            >
+              Add Account
+            </button>
+
+            <Link
+              href="/register"
+              className="block w-full rounded-xl border border-[#0078D4] py-3.5 text-center text-sm font-medium text-[#0078D4] transition-colors hover:bg-[#0078D4]/10"
+            >
+              Create New Account
+            </Link>
+          </div>
+
+          <button
+            type="button"
+            data-testid="add-account-qr-btn"
+            onClick={() => setShowQrModal((prev) => !prev)}
+            className="inline-flex items-center justify-center gap-2 pt-2 text-xs font-medium text-[#0078D4] hover:underline"
+          >
+            <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect width="6" height="6" x="3" y="3" rx="1" />
+              <rect width="6" height="6" x="15" y="3" rx="1" />
+              <rect width="6" height="6" x="3" y="15" rx="1" />
+              <path d="M15 15h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2zM19 15h2v2h-2z" />
+            </svg>
+            <span>Sign in using the QR code on your computer</span>
+          </button>
+
+          {showQrModal && (
+            <div className="rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-4 text-xs text-[var(--quant-muted-foreground)]">
+              Scan QR code from QuantWorkplace desktop settings to sign in instantly.
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── SUB-SHEET: Mobile Inbox Flow Suite (Flows #5, #8, #11, #12, #40, #48, #49)
+  if (step === 'mobile_inbox') {
+    return (
+      <div className="-mx-4 -my-3">
+        <MobileInboxFlowSuite />
+      </div>
+    );
+  }
+
   // ─── SCREEN 0: Settings Sheet Overview ─────────────────────────────────────
   if (step === 'overview') {
     return (
@@ -1316,7 +1584,8 @@ export function AccountsSettingsFlow({
             {matchesSearch('Email', 'filters rules inbox screening categories') && (
               <button
                 type="button"
-                onClick={() => onNavigateTab?.('filters')}
+                data-testid="settings-open-email-inbox-btn"
+                onClick={() => setStep('mobile_inbox')}
                 className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-[var(--quant-border)] px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-[var(--quant-surface-hover)]"
               >
                 <span className="flex items-center gap-3.5">
@@ -1461,7 +1730,8 @@ export function AccountsSettingsFlow({
             {matchesSearch('Add-ins', 'assistant integrations ai shortcuts') && (
               <button
                 type="button"
-                onClick={() => onNavigateTab?.('ai')}
+                data-testid="settings-open-addins-btn"
+                onClick={() => setStep('addins')}
                 className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--quant-surface-hover)]"
               >
                 <span className="text-sm font-normal text-[var(--quant-foreground)]">Add-ins</span>
@@ -1554,13 +1824,15 @@ export function AccountsSettingsFlow({
 
         {/* Add Account / Create New Account Card */}
         <div className="overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)]">
-          <Link
-            href="/settings/account"
+          <button
+            type="button"
+            data-testid="accounts-add-account-btn"
+            onClick={() => setStep('add_account')}
             className="flex min-h-12 w-full items-center justify-between border-b border-[var(--quant-border)] px-4 py-3.5 text-left text-sm font-normal text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-hover)]"
           >
             <span>Add Account</span>
             <ChevronRight />
-          </Link>
+          </button>
           <Link
             href="/register"
             className="flex min-h-12 w-full items-center justify-between px-4 py-3.5 text-left text-sm font-normal text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-hover)]"

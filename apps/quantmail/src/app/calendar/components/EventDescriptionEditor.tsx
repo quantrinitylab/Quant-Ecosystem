@@ -332,3 +332,201 @@ export function EventDescriptionEditor({
     </div>
   );
 }
+
+// ─── FLOW #7: Adding a location (EventLocationPicker) ──────────────────────
+
+export interface LocationSuggestionItem {
+  id: string;
+  title: string;
+  subtitle?: string;
+}
+
+export const DEFAULT_LOCATION_SUGGESTIONS: readonly LocationSuggestionItem[] = [
+  { id: 'exact', title: '1226 University Dr' },
+  { id: 'menlo', title: '1226 University Dr', subtitle: '11,889 km · Menlo Park, United States' },
+  { id: 'dekalb', title: '1226 University Dr', subtitle: '11,889 km · DeKalb, United States' },
+  { id: 'lemont', title: '1226 University Dr', subtitle: '11,889 km · Lemont Furnace, United States' },
+  { id: 'pontiac', title: '1226 University Dr', subtitle: '11,889 km · Pontiac, United States' },
+  { id: 'connellsville', title: '1226 University Dr', subtitle: '11,889 km · Connellsville, United States' },
+  { id: 'bismarck', title: '1226 University Dr', subtitle: '11,889 km · Bismarck, United States' },
+];
+
+export interface EventLocationPickerProps {
+  value: string;
+  onChange: (nextLocation: string) => void;
+}
+
+export function EventLocationPicker({ value, onChange }: EventLocationPickerProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const [selectedChip, setSelectedChip] = useState<string | null>(value ? value : null);
+
+  const suggestions = DEFAULT_LOCATION_SUGGESTIONS.filter((s) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      s.title.toLowerCase().includes(q) ||
+      (s.subtitle ? s.subtitle.toLowerCase().includes(q) : false)
+    );
+  });
+
+  if (isOpen) {
+    return (
+      <div
+        data-testid="event-location-sheet"
+        className="fixed inset-x-0 top-0 z-50 flex h-[540px] flex-col bg-[var(--quant-card)] text-[var(--quant-foreground)] sm:absolute sm:inset-0 sm:h-auto sm:rounded-2xl"
+      >
+        {/* Top Header: < | Location | ✓ */}
+        <div className="flex items-center justify-between border-b border-[var(--quant-border)] px-4 py-3">
+          <button
+            type="button"
+            aria-label="Cancel location"
+            onClick={() => setIsOpen(false)}
+            className="inline-flex size-8 items-center justify-center rounded-lg text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-hover)]"
+          >
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <span className="text-base font-semibold text-[var(--quant-foreground)]">Location</span>
+          <button
+            type="button"
+            aria-label="Confirm location"
+            data-testid="event-location-confirm-btn"
+            onClick={() => {
+              const finalVal = (selectedChip || query).trim();
+              onChange(finalVal);
+              setIsOpen(false);
+            }}
+            className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          >
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Search Input / Selected Chip Bar */}
+        <div className="flex min-h-12 items-center justify-between border-b border-[var(--quant-border)] px-4 py-2">
+          {selectedChip ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                data-testid="event-location-chip"
+                onClick={() => {
+                  setQuery(selectedChip);
+                  setSelectedChip(null);
+                }}
+                className="inline-flex items-center rounded-md bg-[#0078D4]/15 px-2.5 py-1 text-sm font-medium text-[#0078D4]"
+              >
+                {selectedChip}
+              </button>
+              <span aria-hidden="true" className="h-5 w-0.5 bg-[#0078D4]" />
+            </div>
+          ) : (
+            <input
+              type="text"
+              data-testid="event-location-input"
+              aria-label="Search location"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search location"
+              autoFocus
+              className="flex-1 bg-transparent text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none"
+            />
+          )}
+
+          {!selectedChip && query.trim().length > 0 && (
+            <button
+              type="button"
+              data-testid="event-location-clear-btn"
+              aria-label="Clear location search"
+              onClick={() => setQuery('')}
+              className="grid size-5 place-items-center rounded-full bg-[var(--quant-muted-foreground)]/40 text-[10px] text-white"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Autocomplete Suggestions List (Shown while typing before chip selection) */}
+        {!selectedChip && query.trim().length > 0 && (
+          <div
+            data-testid="event-location-suggestions"
+            className="flex-1 overflow-y-auto divide-y divide-[var(--quant-border)]"
+          >
+            {suggestions.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                data-testid={`location-suggestion-${item.id}`}
+                onClick={() => setSelectedChip(item.title)}
+                className="flex min-h-13 w-full items-center gap-3.5 px-4 py-2.5 text-left transition-colors hover:bg-[var(--quant-surface-hover)]"
+              >
+                <svg
+                  className="size-5 flex-none text-[var(--quant-muted-foreground)]"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-normal text-[var(--quant-foreground)]">
+                    {item.title}
+                  </p>
+                  {item.subtitle && (
+                    <p className="truncate text-xs text-[var(--quant-muted-foreground)]">
+                      {item.subtitle}
+                    </p>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-2 text-[var(--quant-muted-foreground)]" data-testid="event-location-summary">
+      <button
+        type="button"
+        data-testid="event-open-location-btn"
+        aria-label="Location"
+        onClick={() => {
+          setQuery(value);
+          setSelectedChip(value ? value : null);
+          setIsOpen(true);
+        }}
+        className="flex min-h-11 w-full items-center justify-between gap-3 text-left transition-colors hover:text-[var(--quant-foreground)]"
+      >
+        <span className="flex items-center gap-2.5 text-sm font-normal text-[var(--quant-foreground)]">
+          <svg
+            className="size-4 text-[var(--quant-muted-foreground)]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          >
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
+          <span>{value || 'Location'}</span>
+        </span>
+        <svg
+          className="size-4 flex-none text-[var(--quant-muted-foreground)]"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+      </button>
+    </div>
+  );
+}
