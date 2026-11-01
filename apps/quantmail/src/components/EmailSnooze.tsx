@@ -72,6 +72,19 @@ const SNOOZE_OPTIONS = [
     getDate: snoozeUntilNextMorning,
   },
   {
+    // Slice 2 (spec parity): Outlook's "This Evening" — today 19:00, rolling
+    // to tomorrow 09:00 when 19:00 has passed, so the backend never receives
+    // a past time (same guarantee as the other presets).
+    label: 'This evening',
+    getDate: () => {
+      const now = new Date();
+      const evening = new Date(now);
+      evening.setHours(19, 0, 0, 0);
+      if (evening.getTime() <= now.getTime()) return snoozeUntilNextMorning();
+      return evening;
+    },
+  },
+  {
     label: 'This weekend',
     getDate: () => {
       const d = new Date();
