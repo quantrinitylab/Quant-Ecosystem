@@ -29,6 +29,12 @@ import {
   applyDescriptionFormat,
 } from '../app/calendar/components/EventDescriptionEditor';
 import {
+  INITIAL_MOBILE_FOLDERS,
+  MobileDeletedFolderView,
+  MobileEmailDetailView,
+  MobileFolderEditSheet,
+} from '../components/MobileFolderAndEmailActionsSuite';
+import {
   MobileInboxFlowSuite,
   FILTER_OPTIONS,
   PHOTO_FILTER_PRESETS,
@@ -192,5 +198,26 @@ describe('EventDescriptionEditor', () => {
     expect(html).toContain('Filter');
     expect(html).toContain('Faire');
     expect(html).toContain('Rotten Tomatoes');
+  });
+
+  it('renders Batch 4 MobileFolderEditSheet, MobileDeletedFolderView, and MobileEmailDetailView (Flows #28, #30, #31, #32, #33, #43, #58, #60, #61, #67, #92)', () => {
+    expect(INITIAL_MOBILE_FOLDERS).toHaveLength(7);
+
+    const folderEditHtml = renderToStaticMarkup(<MobileFolderEditSheet onClose={() => {}} />);
+    expect(folderEditHtml).toContain('Search Folders &amp; People');
+    expect(folderEditHtml).toContain('Favourites');
+    expect(folderEditHtml).toContain('Create Folder');
+
+    const deletedHtml = renderToStaticMarkup(<MobileDeletedFolderView onGoToInbox={() => {}} />);
+    expect(deletedHtml).toContain('Deleted');
+    expect(deletedHtml).toContain('Empty Folder');
+    expect(deletedHtml).toContain('Verify your new Amazon account');
+
+    const detailHtml = renderToStaticMarkup(
+      <MobileEmailDetailView onBack={() => {}} onDeleteEmail={() => {}} />,
+    );
+    expect(detailHtml).toContain('Follow-Up on Work');
+    expect(detailHtml).toContain('Not at this time. Thank you.');
+    expect(detailHtml).toContain('Thank you, I will let you know.');
   });
 });

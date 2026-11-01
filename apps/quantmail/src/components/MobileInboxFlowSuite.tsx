@@ -9,6 +9,11 @@
 
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
+import {
+  MobileDeletedFolderView,
+  MobileEmailDetailView,
+  MobileFolderEditSheet,
+} from './MobileFolderAndEmailActionsSuite';
 
 export type MobileInboxFilterKey =
   | 'all'
@@ -26,7 +31,10 @@ export type MobileInboxSubScreen =
   | 'drawer_add_account'
   | 'add_account_form'
   | 'send_availability'
-  | 'photo_filter_studio';
+  | 'photo_filter_studio'
+  | 'folder_edit'
+  | 'deleted_folder'
+  | 'email_detail';
 
 export type PhotoFilterPreset = 'none' | 'process' | 'sepia' | 'chrome' | 'mono';
 
@@ -237,11 +245,15 @@ export function MobileInboxFlowSuite() {
   const [selectedDayNum, setSelectedDayNum] = useState<number>(27);
   const [selectedSlotIds, setSelectedSlotIds] = useState<string[]>(['slot-1430', 'slot-1530']);
 
-  // Flows #5 & #8: Photo Filter & Text Studio state
+  // Flows #5, #8, #29: Photo Filter, Text & Crop Studio state
   const [photoFilter, setPhotoFilter] = useState<PhotoFilterPreset>('none');
   const [showFilterStrip, setShowFilterStrip] = useState<boolean>(true);
   const [photoOverlayText, setPhotoOverlayText] = useState<string>('');
   const [editingPhotoText, setEditingPhotoText] = useState<boolean>(false);
+  const [isCroppingPhoto, setIsCroppingPhoto] = useState<boolean>(false);
+
+  // Flow #32: Deleted email toast banner state in Inbox
+  const [inboxDeletedToast, setInboxDeletedToast] = useState<boolean>(false);
 
   const filteredEmails = useMemo(() => {
     return INITIAL_MOBILE_EMAILS.filter((item) => {
@@ -272,8 +284,102 @@ export function MobileInboxFlowSuite() {
     return FILTER_OPTIONS.find((f) => f.key === activeFilter)?.label ?? 'Filter';
   }, [activeFilter]);
 
-  // ─── FLOW #5 & #8: Photo Attachment Filter & Text Studio ──────────────────
+  // ─── BATCH 4 SUB-SCREENS: Folder Edit, Deleted Folder, Email Detail ────────
+  if (subScreen === 'folder_edit') {
+    return <MobileFolderEditSheet onClose={() => setSubScreen('inbox')} />;
+  }
+
+  if (subScreen === 'deleted_folder') {
+    return <MobileDeletedFolderView onGoToInbox={() => setSubScreen('inbox')} />;
+  }
+
+  if (subScreen === 'email_detail') {
+    return (
+      <MobileEmailDetailView
+        onBack={() => setSubScreen('inbox')}
+        onDeleteEmail={() => {
+          setInboxDeletedToast(true);
+          setSubScreen('inbox');
+        }}
+      />
+    );
+  }
+
+  // ─── FLOW #5, #8, #29: Photo Attachment Filter, Text & Crop Studio ─────────
   if (subScreen === 'photo_filter_studio') {
+    if (isCroppingPhoto) {
+      return (
+        <div
+          data-testid="mobile-photo-crop-studio"
+          className="fixed inset-0 z-50 flex flex-col justify-between bg-black px-5 py-8 text-white select-none"
+        >
+          <div className="h-4" />
+
+          {/* Crop Bounding Box with 4 corner dots + 4 mid-edge pills (Flow #29 Screen 2) */}
+          <div className="relative mx-auto flex h-[430px] w-full max-w-[335px] items-center justify-center border-[1.5px] border-white">
+            {/* 4 Corner Handles */}
+            <span className="absolute -left-1.5 -top-1.5 size-3 rounded-full bg-white" />
+            <span className="absolute -right-1.5 -top-1.5 size-3 rounded-full bg-white" />
+            <span className="absolute -bottom-1.5 -left-1.5 size-3 rounded-full bg-white" />
+            <span className="absolute -bottom-1.5 -right-1.5 size-3 rounded-full bg-white" />
+            {/* 4 Edge Pill Handles */}
+            <span className="absolute -top-1 left-1/2 h-1.5 w-6 -translate-x-1/2 rounded-full bg-white" />
+            <span className="absolute -bottom-1 left-1/2 h-1.5 w-6 -translate-x-1/2 rounded-full bg-white" />
+            <span className="absolute -left-1 top-1/2 h-6 w-1.5 -translate-y-1/2 rounded-full bg-white" />
+            <span className="absolute -right-1 top-1/2 h-6 w-1.5 -translate-y-1/2 rounded-full bg-white" />
+
+            {/* Right Floating Rotate & Aspect Ratio Pill */}
+            <div className="absolute -right-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-4 rounded-2xl bg-[#27272A]/95 px-3 py-3.5 text-white shadow-xl">
+              <button
+                type="button"
+                aria-label="Rotate photo"
+                className="grid size-8 place-items-center text-sm"
+              >
+                🔄
+              </button>
+              <button
+                type="button"
+                aria-label="Crop aspect ratio"
+                className="grid size-8 place-items-center text-sm"
+              >
+                ⊡
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom Thumbnail Strip + ✕ Cancel / ✓ Apply */}
+          <div className="space-y-5">
+            <div className="flex items-center justify-center gap-3">
+              <div className="h-16 w-12 rounded-lg border-2 border-[#0078D4] bg-zinc-950" />
+              <div className="grid h-16 w-12 place-items-center rounded-lg border border-dashed border-zinc-400 text-sm">
+                📷
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between px-2">
+              <button
+                type="button"
+                aria-label="Cancel crop"
+                onClick={() => setIsCroppingPhoto(false)}
+                className="inline-flex size-11 items-center justify-center text-xl text-white"
+              >
+                ✕
+              </button>
+              <button
+                type="button"
+                data-testid="photo-crop-apply-btn"
+                aria-label="Apply crop"
+                onClick={() => setIsCroppingPhoto(false)}
+                className="inline-flex size-11 items-center justify-center rounded-xl bg-[#0078D4] text-lg font-bold text-white shadow-lg"
+              >
+                ✓
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const activePreset =
       PHOTO_FILTER_PRESETS.find((p) => p.id === photoFilter) ?? PHOTO_FILTER_PRESETS[0]!;
     return (
@@ -344,7 +450,9 @@ export function MobileInboxFlowSuite() {
           <div className="absolute right-5 top-1/2 flex -translate-y-1/2 flex-col items-center gap-4 rounded-2xl bg-[#27272A]/90 px-2.5 py-3.5 text-white shadow-xl backdrop-blur-md">
             <button
               type="button"
+              data-testid="photo-tool-crop-btn"
               aria-label="Crop photo"
+              onClick={() => setIsCroppingPhoto(true)}
               className="grid size-8 place-items-center rounded-lg hover:bg-white/10"
             >
               <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -656,7 +764,15 @@ export function MobileInboxFlowSuite() {
 
           <div className="mt-3 flex items-center justify-between text-xs font-medium text-[var(--quant-muted-foreground)]">
             <span>Folders</span>
-            <span>✎</span>
+            <button
+              type="button"
+              data-testid="drawer-edit-folders-btn"
+              aria-label="Edit folders"
+              onClick={() => setSubScreen('folder_edit')}
+              className="text-sm text-[var(--quant-muted-foreground)] hover:text-[#0078D4]"
+            >
+              ✎
+            </button>
           </div>
 
           <div className="mt-2 space-y-1">
@@ -669,9 +785,18 @@ export function MobileInboxFlowSuite() {
               { name: 'Conversation History', count: null, active: false },
               { name: 'Junk', count: null, active: false },
             ].map((folder) => (
-              <div
+              <button
                 key={folder.name}
-                className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-sm ${
+                type="button"
+                data-testid={`drawer-folder-${folder.name.toLowerCase().replace(/\s+/g, '-')}-btn`}
+                onClick={() => {
+                  if (folder.name === 'Deleted') {
+                    setSubScreen('deleted_folder');
+                  } else {
+                    setSubScreen('inbox');
+                  }
+                }}
+                className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm ${
                   folder.active
                     ? 'font-medium text-[#0078D4]'
                     : 'text-[var(--quant-foreground)]'
@@ -689,7 +814,7 @@ export function MobileInboxFlowSuite() {
                     {folder.count}
                   </span>
                 )}
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -984,8 +1109,17 @@ export function MobileInboxFlowSuite() {
             {filteredEmails.map((mail) => (
               <div
                 key={mail.id}
+                role="button"
+                tabIndex={0}
                 data-testid={`mobile-email-row-${mail.id}`}
-                className={`relative flex items-start gap-3 px-4 py-3.5 transition-colors ${
+                onClick={() => setSubScreen('email_detail')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSubScreen('email_detail');
+                  }
+                }}
+                className={`relative flex cursor-pointer items-start gap-3 px-4 py-3.5 transition-colors ${
                   mail.flagged
                     ? 'bg-[#FDFBF2] dark:bg-[#11151F]'
                     : 'bg-[var(--quant-card)]'
@@ -1047,8 +1181,43 @@ export function MobileInboxFlowSuite() {
         </div>
       )}
 
-      {/* Floating Bottom-Right Quick Actions Pill: [ Availability / Photo Studio | Compose ] */}
-      <div className="fixed bottom-16 right-4 z-30 flex items-center gap-2 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] px-3 py-2 shadow-xl">
+      {/* Flow #32: Deleted Email Toast Banner ("Deleted | Undo") */}
+      {inboxDeletedToast && (
+        <div
+          data-testid="inbox-deleted-toast"
+          className="fixed inset-x-3 bottom-28 z-40 flex items-center justify-between rounded-xl bg-[#DCEAF7] dark:bg-[#1E293B] px-4 py-3.5 text-sm font-medium text-[#004578] dark:text-[#60A5FA] shadow-lg"
+        >
+          <span>Deleted</span>
+          <button
+            type="button"
+            onClick={() => setInboxDeletedToast(false)}
+            className="font-semibold text-[#004578] dark:text-[#60A5FA]"
+          >
+            Undo
+          </button>
+        </div>
+      )}
+
+      {/* Floating Bottom-Right Quick Actions Pill: [ Folders | Deleted | Availability | Photo Studio | Compose ] */}
+      <div className="fixed bottom-16 right-4 z-30 flex items-center gap-1.5 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] px-2.5 py-2 shadow-xl">
+        <button
+          type="button"
+          data-testid="open-folder-edit-btn"
+          aria-label="Edit folders"
+          onClick={() => setSubScreen('folder_edit')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+        >
+          📁
+        </button>
+        <button
+          type="button"
+          data-testid="open-deleted-folder-btn"
+          aria-label="Open deleted folder"
+          onClick={() => setSubScreen('deleted_folder')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+        >
+          🗑️
+        </button>
         <button
           type="button"
           data-testid="open-send-availability-btn"
