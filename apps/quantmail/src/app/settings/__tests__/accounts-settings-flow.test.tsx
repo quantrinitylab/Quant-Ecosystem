@@ -1,16 +1,16 @@
 /**
- * outlook-accounts-flow.test.tsx
+ * accounts-settings-flow.test.tsx
  *
- * Tests for Outlook iOS Flow #1 (Microsoft Outlook iOS Accounts.zip — Screens 0, 1, 2, 3):
+ * Tests for AccountsSettingsFlow (Screens 0, 1, 2, 3):
  *   - Screen 0 (`overview`): Settings Hub with search bar, Quick Settings
  *     (Display & Appearance, Signature, Automatic Replies, Notifications & Sounds),
- *     General (Accounts, Email, Calendar, Contacts, Security, Privacy),
+ *     General (Accounts, Email, Calendar, Contacts, Face ID / Passkey, Privacy),
  *     Set Default Email App, and Integrations & Add-Ins.
  *   - Screen 1 (`accounts`): Accounts list with primary account row, Edit button,
  *     Add Account, and Create New Account.
  *   - Screen 2 & 3 (`detail`): Account Detail view with centered hero initials
- *     avatar, Description, Show As, Plan & Storage, Email & Calendar controls
- *     (Sender Screening, Block External Images, Quanty Editor, Editor Language & Mode,
+ *     avatar, Description, Show As, Plan, Storage, Email & Calendar controls
+ *     (Sender Screening, Block External Images, Quanty Editor, Editor Language,
  *     Report Messages), Data Storage (Sync Settings), Reset Account, and Remove Account.
  */
 
@@ -25,10 +25,10 @@ vi.mock('next/link', () => ({
 }));
 
 import {
-  OutlookAccountsFlow,
+  AccountsSettingsFlow,
   deriveInitials,
   SHOW_AS_COLORS,
-} from '../OutlookAccountsFlow';
+} from '../AccountsSettingsFlow';
 import { stripExternalImages } from '../../../lib/safe-html';
 
 const baseProps = {
@@ -44,7 +44,7 @@ const baseProps = {
   notificationModeLabel: 'All new mail',
 };
 
-describe('OutlookAccountsFlow — Flow #1 (Microsoft Outlook iOS Accounts)', () => {
+describe('AccountsSettingsFlow', () => {
   it('derives two-letter initials accurately from display name or email', () => {
     expect(deriveInitials('Sanjeev Kumar', 'sanjeev@quantrinity.in')).toBe('SK');
     expect(deriveInitials('', 'alex.morgan@quantrinity.in')).toBe('AM');
@@ -53,7 +53,7 @@ describe('OutlookAccountsFlow — Flow #1 (Microsoft Outlook iOS Accounts)', () 
 
   it('renders Screen 0 (overview Settings Hub) with Quick Settings and General sections', () => {
     const html = renderToStaticMarkup(
-      <OutlookAccountsFlow {...baseProps} initialStep="overview" />,
+      <AccountsSettingsFlow {...baseProps} initialStep="overview" />,
     );
     expect(html).toContain('Quick Settings');
     expect(html).toContain('Display &amp; Appearance');
@@ -65,27 +65,28 @@ describe('OutlookAccountsFlow — Flow #1 (Microsoft Outlook iOS Accounts)', () 
     expect(html).toContain('Email');
     expect(html).toContain('Calendar');
     expect(html).toContain('Contacts');
-    expect(html).toContain('Security &amp; Passkey');
+    expect(html).toContain('Face ID / Passkey');
     expect(html).toContain('Privacy');
     expect(html).toContain('Set Default Email App');
     expect(html).toContain('Integrations &amp; Add-Ins');
   });
 
-  it('renders Screen 1 (Accounts list) with primary account, Add Account, and Create New Account', () => {
+  it('renders Screen 1 (Accounts list) with primary account, Manage pill, Add Account, and Create New Account', () => {
     const html = renderToStaticMarkup(
-      <OutlookAccountsFlow {...baseProps} initialStep="accounts" />,
+      <AccountsSettingsFlow {...baseProps} initialStep="accounts" />,
     );
     expect(html).toContain('Accounts');
     expect(html).toContain('Edit');
     expect(html).toContain('sanjeev@quantrinity.in');
     expect(html).toContain('SK');
+    expect(html).toContain('Manage');
     expect(html).toContain('Add Account');
     expect(html).toContain('Create New Account');
   });
 
   it('renders Screens 2 & 3 (Account Detail) with Hero Avatar, Description, Show As, Plan, Storage, Email & Calendar, Data Storage, Reset & Remove Account', () => {
     const html = renderToStaticMarkup(
-      <OutlookAccountsFlow {...baseProps} initialStep="detail" />,
+      <AccountsSettingsFlow {...baseProps} initialStep="detail" />,
     );
     expect(html).toContain('Sanjeev Kumar');
     expect(html).toContain('sanjeev@quantrinity.in');
@@ -97,7 +98,7 @@ describe('OutlookAccountsFlow — Flow #1 (Microsoft Outlook iOS Accounts)', () 
     expect(html).toContain('Sender Screening');
     expect(html).toContain('Block External Images');
     expect(html).toContain('Quanty Editor');
-    expect(html).toContain('Editor Language &amp; Mode');
+    expect(html).toContain('Editor Language');
     expect(html).toContain('Report Messages');
     expect(html).toContain('Data Storage');
     expect(html).toContain('Sync Settings');

@@ -103,7 +103,7 @@ import {
   type SettingsChoiceOption,
 } from './SettingsPrimitives';
 import { MailAuthCard } from './MailAuthCard';
-import { OutlookAccountsFlow } from './OutlookAccountsFlow';
+import { AccountsSettingsFlow } from './AccountsSettingsFlow';
 
 type SettingsTab =
   | 'overview'
@@ -636,7 +636,7 @@ export default function SettingsPage() {
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <div className="workspace-page settings-workspace flex h-full flex-col overflow-hidden bg-[var(--quant-background)]">
-        <header className="shrink-0 border-b border-[var(--quant-border)] bg-[var(--quant-card)] px-4 pb-3 pt-5 sm:px-6">
+        <header className={`${activeTab === 'overview' || activeTab === 'accounts' ? 'hidden' : 'shrink-0'} border-b border-[var(--quant-border)] bg-[var(--quant-card)] px-4 pb-3 pt-5 sm:px-6`}>
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl border border-[var(--brand-soft-border)] bg-[var(--brand-soft)] text-[var(--brand-primary)]">
               <svg
@@ -668,7 +668,7 @@ export default function SettingsPage() {
           aria-label="Settings sections"
           aria-orientation="horizontal"
           onKeyDown={onTabKeyDown}
-          className="no-scrollbar flex shrink-0 select-none items-center gap-2 overflow-x-auto border-b border-[var(--quant-border)] bg-[var(--quant-background)] px-4 py-3 sm:px-6"
+          className={`${activeTab === 'overview' || activeTab === 'accounts' ? 'hidden' : 'flex shrink-0'} no-scrollbar select-none items-center gap-2 overflow-x-auto border-b border-[var(--quant-border)] bg-[var(--quant-background)] px-4 py-3 sm:px-6`}
         >
           {TABS.map((tab) => {
             const isActive = activeTab === tab.key;
@@ -721,7 +721,7 @@ export default function SettingsPage() {
           className="mx-auto w-full max-w-3xl flex-1 space-y-6 overflow-y-auto px-4 py-6 sm:px-8"
         >
           {(activeTab === 'overview' || activeTab === 'accounts') && (
-            <OutlookAccountsFlow
+            <AccountsSettingsFlow
               key={activeTab}
               initialStep={activeTab === 'accounts' ? 'accounts' : 'overview'}
               profile={loadedProfile}

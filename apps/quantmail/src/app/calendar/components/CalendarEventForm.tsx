@@ -28,7 +28,7 @@ import {
   IconX,
 } from '../../../components/icons';
 import type { EntryType, FormState } from '../types';
-import { OutlookDescriptionEditor } from './OutlookDescriptionEditor';
+import { EventDescriptionEditor } from './EventDescriptionEditor';
 import {
   TIMEZONES,
   CLUE_COLLECTION_METHODS,
@@ -754,7 +754,7 @@ export function CalendarEventForm({
                     </div>
                   </div>
 
-                  <OutlookDescriptionEditor
+                  <EventDescriptionEditor
                     value={formState.description}
                     onChange={(nextDescription) =>
                       setFormState({ ...formState, description: nextDescription })

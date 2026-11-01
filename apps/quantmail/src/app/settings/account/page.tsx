@@ -6,7 +6,7 @@ import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
 import { apiClient } from '../../../services/api-client';
 import { SettingsSection } from '../SettingsPrimitives';
-import { OutlookAccountsFlow } from '../OutlookAccountsFlow';
+import { AccountsSettingsFlow } from '../AccountsSettingsFlow';
 import { DataExportSettings } from './DataExportSettings';
 import { RecoveryEmailSettings } from './RecoveryEmailSettings';
 import { AccountsImportSettings } from './AccountsImportSettings';
@@ -70,8 +70,7 @@ export default function AccountSettingsPage() {
         </header>
 
         <div className="mx-auto w-full max-w-3xl flex-1 space-y-6 overflow-y-auto px-4 py-6 sm:px-8">
-          {/* Outlook iOS Flow #1 — Account Detail (Screens 2 & 3) */}
-          <OutlookAccountsFlow
+          <AccountsSettingsFlow
             initialStep="detail"
             profile={profile}
             hasSignature={hasSignature}
