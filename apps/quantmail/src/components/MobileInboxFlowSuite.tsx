@@ -15,6 +15,16 @@ import {
   MobileFolderEditSheet,
 } from './MobileFolderAndEmailActionsSuite';
 import { MobileCalendarFlowSuite } from './MobileCalendarFlowSuite';
+import {
+  MobileComposerSheet,
+  MobileQuickDraftsStack,
+  MobileDraftsFolderView,
+  MobileSentFolderView,
+  MobilePrintEmailSheet,
+  MobileReportConcernSheet,
+  MobileReportPhishingDialog,
+  DraftEmailItem,
+} from './MobileComposerAndDraftsSuite';
 
 export type MobileInboxFilterKey =
   | 'all'
@@ -36,7 +46,14 @@ export type MobileInboxSubScreen =
   | 'folder_edit'
   | 'deleted_folder'
   | 'email_detail'
-  | 'calendar';
+  | 'calendar'
+  | 'composer'
+  | 'quick_drafts'
+  | 'drafts_folder'
+  | 'sent_folder'
+  | 'print_email'
+  | 'report_concern'
+  | 'report_phishing';
 
 export type PhotoFilterPreset = 'none' | 'process' | 'sepia' | 'chrome' | 'mono';
 
@@ -256,6 +273,10 @@ export function MobileInboxFlowSuite() {
 
   // Flow #32: Deleted email toast banner state in Inbox
   const [inboxDeletedToast, setInboxDeletedToast] = useState<boolean>(false);
+  const [inboxSentToast, setInboxSentToast] = useState<boolean>(false);
+  const [inboxReportedToast, setInboxReportedToast] = useState<boolean>(false);
+  const [selectedDraftForEdit, setSelectedDraftForEdit] = useState<DraftEmailItem | null>(null);
+  const [isReplyMode, setIsReplyMode] = useState<boolean>(false);
 
   const filteredEmails = useMemo(() => {
     return INITIAL_MOBILE_EMAILS.filter((item) => {
@@ -301,6 +322,113 @@ export function MobileInboxFlowSuite() {
         onBack={() => setSubScreen('inbox')}
         onDeleteEmail={() => {
           setInboxDeletedToast(true);
+          setSubScreen('inbox');
+        }}
+        onOpenReply={() => {
+          setIsReplyMode(true);
+          setSubScreen('composer');
+        }}
+        onOpenPrint={() => setSubScreen('print_email')}
+        onOpenReport={() => setSubScreen('report_concern')}
+        onOpenPhishing={() => setSubScreen('report_phishing')}
+      />
+    );
+  }
+
+  // ─── BATCH 6 SUB-SCREENS: Composer, Quick Drafts, Drafts, Sent, Print, Report ──
+  if (subScreen === 'composer') {
+    return (
+      <MobileComposerSheet
+        isOpen={true}
+        onClose={() => {
+          setIsReplyMode(false);
+          setSelectedDraftForEdit(null);
+          setSubScreen('inbox');
+        }}
+        isReply={isReplyMode}
+        initialTo={selectedDraftForEdit?.recipient || ''}
+        initialSubject={selectedDraftForEdit?.subject || ''}
+        initialBody={selectedDraftForEdit?.preview || ''}
+        onSendSuccess={() => {
+          setIsReplyMode(false);
+          setSelectedDraftForEdit(null);
+          setInboxSentToast(true);
+          setTimeout(() => setInboxSentToast(false), 3000);
+          setSubScreen('inbox');
+        }}
+      />
+    );
+  }
+
+  if (subScreen === 'quick_drafts') {
+    return (
+      <MobileQuickDraftsStack
+        isOpen={true}
+        onClose={() => setSubScreen('inbox')}
+        onSelectDraft={(draft) => {
+          setSelectedDraftForEdit(draft);
+          setIsReplyMode(false);
+          setSubScreen('composer');
+        }}
+        onTurnOff={() => setSubScreen('inbox')}
+      />
+    );
+  }
+
+  if (subScreen === 'drafts_folder') {
+    return (
+      <MobileDraftsFolderView
+        onBack={() => setSubScreen('inbox')}
+        onGoToInbox={() => setSubScreen('inbox')}
+        onOpenDraft={(draft) => {
+          setSelectedDraftForEdit(draft);
+          setIsReplyMode(false);
+          setSubScreen('composer');
+        }}
+      />
+    );
+  }
+
+  if (subScreen === 'sent_folder') {
+    return (
+      <MobileSentFolderView
+        onBack={() => setSubScreen('inbox')}
+        onGoToInbox={() => setSubScreen('inbox')}
+      />
+    );
+  }
+
+  if (subScreen === 'print_email') {
+    return (
+      <MobilePrintEmailSheet
+        isOpen={true}
+        onClose={() => setSubScreen('email_detail')}
+      />
+    );
+  }
+
+  if (subScreen === 'report_concern') {
+    return (
+      <MobileReportConcernSheet
+        isOpen={true}
+        onClose={() => setSubScreen('email_detail')}
+        onSubmitReport={() => {
+          setInboxReportedToast(true);
+          setTimeout(() => setInboxReportedToast(false), 3000);
+          setSubScreen('inbox');
+        }}
+      />
+    );
+  }
+
+  if (subScreen === 'report_phishing') {
+    return (
+      <MobileReportPhishingDialog
+        isOpen={true}
+        onClose={() => setSubScreen('email_detail')}
+        onConfirm={() => {
+          setInboxReportedToast(true);
+          setTimeout(() => setInboxReportedToast(false), 3000);
           setSubScreen('inbox');
         }}
       />
@@ -799,6 +927,10 @@ export function MobileInboxFlowSuite() {
                 onClick={() => {
                   if (folder.name === 'Deleted') {
                     setSubScreen('deleted_folder');
+                  } else if (folder.name === 'Drafts') {
+                    setSubScreen('drafts_folder');
+                  } else if (folder.name === 'Sent') {
+                    setSubScreen('sent_folder');
                   } else {
                     setSubScreen('inbox');
                   }
@@ -1205,6 +1337,34 @@ export function MobileInboxFlowSuite() {
         </div>
       )}
 
+      {/* Flow #86 & #74 & #85: Email Sent Toast Banner */}
+      {inboxSentToast && (
+        <div
+          data-testid="inbox-email-sent-toast"
+          className="fixed inset-x-3 bottom-28 z-40 flex items-center gap-2 rounded-xl bg-[#DCEAF7] dark:bg-[#1E293B] px-4 py-3.5 text-sm font-medium text-[#004578] dark:text-[#60A5FA] shadow-lg"
+        >
+          <span className="text-[#0078D4] font-bold">✓</span>
+          <span>Email Sent</span>
+        </div>
+      )}
+
+      {/* Flow #75: Reported Toast Banner ("Reported | Undo") */}
+      {inboxReportedToast && (
+        <div
+          data-testid="inbox-reported-toast"
+          className="fixed inset-x-3 bottom-28 z-40 flex items-center justify-between rounded-xl bg-[#DCEAF7] dark:bg-[#1E293B] px-4 py-3.5 text-sm font-medium text-[#004578] dark:text-[#60A5FA] shadow-lg"
+        >
+          <span>Reported</span>
+          <button
+            type="button"
+            onClick={() => setInboxReportedToast(false)}
+            className="font-semibold text-[#004578] dark:text-[#60A5FA]"
+          >
+            Undo
+          </button>
+        </div>
+      )}
+
       {/* Floating Bottom-Right Quick Actions Pill: [ Folders | Deleted | Availability | Photo Studio | Compose ] */}
       <div className="fixed bottom-16 right-4 z-30 flex items-center gap-1.5 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] px-2.5 py-2 shadow-xl">
         <button
@@ -1252,16 +1412,53 @@ export function MobileInboxFlowSuite() {
         >
           🖼️
         </button>
-        <Link
-          href="/compose"
-          aria-label="Compose new email"
+        <button
+          type="button"
+          data-testid="open-quick-drafts-btn"
+          aria-label="Open quick drafts"
+          onClick={() => setSubScreen('quick_drafts')}
           className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          title="Quick Drafts Access"
         >
-          <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          🗂️
+        </button>
+        <button
+          type="button"
+          data-testid="open-drafts-folder-btn"
+          aria-label="Open drafts folder"
+          onClick={() => setSubScreen('drafts_folder')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          title="Drafts Folder"
+        >
+          📝
+        </button>
+        <button
+          type="button"
+          data-testid="open-sent-folder-btn"
+          aria-label="Open sent folder"
+          onClick={() => setSubScreen('sent_folder')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          title="Sent Folder"
+        >
+          📤
+        </button>
+        <button
+          type="button"
+          data-testid="open-mobile-composer-btn"
+          aria-label="Compose new email"
+          onClick={() => {
+            setIsReplyMode(false);
+            setSelectedDraftForEdit(null);
+            setSubScreen('composer');
+          }}
+          className="inline-flex size-8 items-center justify-center rounded-lg bg-[#0078D4] text-white hover:bg-[#006abc] transition-colors"
+          title="Compose Email"
+        >
+          <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M12 20h9" />
             <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
           </svg>
-        </Link>
+        </button>
       </div>
 
       {/* Bottom 3-Tab Navigation Bar: Email | Calendar | Apps */}

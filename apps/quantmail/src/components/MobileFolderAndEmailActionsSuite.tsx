@@ -890,9 +890,17 @@ export function MobileDeletedFolderView({
 export function MobileEmailDetailView({
   onBack,
   onDeleteEmail,
+  onOpenReply,
+  onOpenPrint,
+  onOpenReport,
+  onOpenPhishing,
 }: {
   onBack: () => void;
   onDeleteEmail: () => void;
+  onOpenReply?: () => void;
+  onOpenPrint?: () => void;
+  onOpenReport?: () => void;
+  onOpenPhishing?: () => void;
 }) {
   const [flagged, setFlagged] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -932,6 +940,14 @@ export function MobileEmailDetailView({
       setShowMoveConversationSheet(true);
     } else if (id === 'snooze') {
       setShowSnoozeModal(true);
+    } else if (id === 'print' && onOpenPrint) {
+      onOpenPrint();
+    } else if (id === 'report_junk' && onOpenReport) {
+      onOpenReport();
+    } else if (id === 'report_phishing' && onOpenPhishing) {
+      onOpenPhishing();
+    } else if ((id === 'reply' || id === 'reply_all') && onOpenReply) {
+      onOpenReply();
     }
   };
 
@@ -1150,13 +1166,17 @@ export function MobileEmailDetailView({
         <div className="flex gap-2 overflow-x-auto px-4 pb-3">
           <button
             type="button"
-            className="flex-none rounded-full bg-[var(--quant-card)] px-4 py-2 text-xs font-medium text-[#0078D4] shadow-xs"
+            data-testid="smart-reply-chip-1"
+            onClick={onOpenReply}
+            className="flex-none rounded-full bg-[var(--quant-card)] px-4 py-2 text-xs font-medium text-[#0078D4] shadow-xs hover:bg-[var(--quant-card)]/80 transition-colors"
           >
             Not at this time. Thank you.
           </button>
           <button
             type="button"
-            className="flex-none rounded-full bg-[var(--quant-card)] px-4 py-2 text-xs font-medium text-[#0078D4] shadow-xs"
+            data-testid="smart-reply-chip-2"
+            onClick={onOpenReply}
+            className="flex-none rounded-full bg-[var(--quant-card)] px-4 py-2 text-xs font-medium text-[#0078D4] shadow-xs hover:bg-[var(--quant-card)]/80 transition-colors"
           >
             Thank you, I will let you know.
           </button>
@@ -1166,7 +1186,9 @@ export function MobileEmailDetailView({
         <div className="mx-3 mb-3 flex items-center justify-between rounded-full border border-[var(--quant-border)] bg-[var(--quant-card)] px-4 py-2.5 shadow-lg">
           <button
             type="button"
-            className="inline-flex items-center gap-2 text-sm text-[var(--quant-muted-foreground)]"
+            data-testid="email-detail-reply-btn"
+            onClick={onOpenReply}
+            className="inline-flex items-center gap-2 text-sm text-[var(--quant-muted-foreground)] hover:text-[#0078D4] transition-colors"
           >
             <MobileLineIcon name="reply" className="size-5" />
             <MobileLineIcon name="chevron_down" className="size-3.5" />

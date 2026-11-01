@@ -39,6 +39,19 @@ import {
   INITIAL_MOBILE_CALENDAR_EVENTS,
 } from '../components/MobileCalendarFlowSuite';
 import {
+  MobileComposerSheet,
+  MobileDraftsFolderView,
+  MobileSentFolderView,
+  MobileQuickDraftsStack,
+  MobilePrintEmailSheet,
+  MobileReportConcernSheet,
+  MobileReportPhishingDialog,
+  MobileScheduleSendModal,
+  MobileFontPickerSheet,
+  DraftsFolderEmptyIllustration,
+  SentFolderEmptyIllustration,
+} from '../components/MobileComposerAndDraftsSuite';
+import {
   MobileInboxFlowSuite,
   FILTER_OPTIONS,
   PHOTO_FILTER_PRESETS,
@@ -233,5 +246,89 @@ describe('EventDescriptionEditor', () => {
     expect(calendarHtml).toContain('Project Fortuna');
     expect(calendarHtml).toContain('Lunch');
     expect(calendarHtml).toContain('+1 more');
+  });
+
+  it('renders Batch 6 MobileComposerAndDraftsSuite (Flows #34, #37, #38, #69, #70, #74, #75, #85, #86, #87, #106, #107)', () => {
+    // Flow #86: Composer Sheet
+    const composerHtml = renderToStaticMarkup(
+      <MobileComposerSheet isOpen={true} onClose={() => {}} />,
+    );
+    expect(composerHtml).toContain('New Message');
+    expect(composerHtml).toContain('Ms Alex Smith');
+    expect(composerHtml).toContain('Project Update');
+    expect(composerHtml).toContain('Get QuantMail for iOS');
+
+    // Flow #74: Reply Sheet
+    const replyHtml = renderToStaticMarkup(
+      <MobileComposerSheet isOpen={true} onClose={() => {}} isReply={true} />,
+    );
+    expect(replyHtml).toContain('Reply');
+    expect(replyHtml).toContain('Re: Follow-Up on Work');
+
+    // Flow #34: Drafts Folder View (Empty State & Populated)
+    const draftsHtml = renderToStaticMarkup(
+      <MobileDraftsFolderView onBack={() => {}} onOpenDraft={() => {}} onGoToInbox={() => {}} />,
+    );
+    expect(draftsHtml).toContain('Drafts');
+    expect(draftsHtml).toContain('support@bestbuy.com');
+    expect(draftsHtml).toContain('Assistance Needed: Failed Purchase Attempt');
+
+    // Flow #70: Quick Drafts Stack
+    const quickDraftsHtml = renderToStaticMarkup(
+      <MobileQuickDraftsStack isOpen={true} onClose={() => {}} onSelectDraft={() => {}} onTurnOff={() => {}} />,
+    );
+    expect(quickDraftsHtml).toContain('Quick access to drafts');
+    expect(quickDraftsHtml).toContain('Turn Off');
+    expect(quickDraftsHtml).toContain('support@bestbuy.com');
+
+    // Flow #87: Sent Folder View
+    const sentHtml = renderToStaticMarkup(
+      <MobileSentFolderView onBack={() => {}} onGoToInbox={() => {}} />,
+    );
+    expect(sentHtml).toContain('Sent');
+    expect(sentHtml).toContain('Project Update');
+
+    // Flow #69: Print Email Sheet
+    const printHtml = renderToStaticMarkup(
+      <MobilePrintEmailSheet isOpen={true} onClose={() => {}} />,
+    );
+    expect(printHtml).toContain('Print Options');
+    expect(printHtml).toContain('Printer');
+    expect(printHtml).toContain('Copies');
+    expect(printHtml).toContain('Follow-Up on Work');
+
+    // Flow #75: Report a Concern Sheet & Phishing Dialog
+    const reportHtml = renderToStaticMarkup(
+      <MobileReportConcernSheet isOpen={true} onClose={() => {}} onSubmitReport={() => {}} />,
+    );
+    expect(reportHtml).toContain('Report a Concern');
+    expect(reportHtml).toContain('Spam');
+    expect(reportHtml).toContain('Copyright infringment');
+
+    const phishingHtml = renderToStaticMarkup(
+      <MobileReportPhishingDialog isOpen={true} onClose={() => {}} onConfirm={() => {}} />,
+    );
+    expect(phishingHtml).toContain('Report phishing');
+
+    // Flow #85: Schedule Send Modal
+    const scheduleHtml = renderToStaticMarkup(
+      <MobileScheduleSendModal onClose={() => {}} onScheduleSelect={() => {}} />,
+    );
+    expect(scheduleHtml).toContain('Schedule Send');
+    expect(scheduleHtml).toContain('Next Week');
+    expect(scheduleHtml).toContain('Choose a Time');
+
+    // Flow #37: Font Picker Sheet
+    const fontHtml = renderToStaticMarkup(
+      <MobileFontPickerSheet currentFont="Aptos" onSelect={() => {}} onClose={() => {}} />,
+    );
+    expect(fontHtml).toContain('Choose Font');
+    expect(fontHtml).toContain('Aptos Serif');
+
+    // Vector artwork components
+    const draftsSvg = renderToStaticMarkup(<DraftsFolderEmptyIllustration />);
+    expect(draftsSvg).toContain('<svg');
+    const sentSvg = renderToStaticMarkup(<SentFolderEmptyIllustration />);
+    expect(sentSvg).toContain('<svg');
   });
 });
