@@ -19,6 +19,7 @@
 
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { MobileAssignCategoryModal } from './MobileContactsAndTasksSuite';
 
 export interface MobileFolderItem {
   id: string;
@@ -909,6 +910,11 @@ export function MobileEmailDetailView({
   const [showMoveConversationSheet, setShowMoveConversationSheet] = useState(false);
   const [showSnoozeModal, setShowSnoozeModal] = useState(false);
   const [showCreateSnoozedFolderAlert, setShowCreateSnoozedFolderAlert] = useState(false);
+  const [showCategorySheet, setShowCategorySheet] = useState(false);
+  const [assignedCategory, setAssignedCategory] = useState<string | null>(null);
+  const [showCreateTaskPrompt, setShowCreateTaskPrompt] = useState(false);
+  const [taskTitle, setTaskTitle] = useState('Follow-Up on Work');
+  const [taskCreatedToast, setTaskCreatedToast] = useState(false);
 
   const actionRows = [
     { id: 'move' as MobileLineIconName, label: 'Move', icon: 'move' as MobileLineIconName },
@@ -940,6 +946,10 @@ export function MobileEmailDetailView({
       setShowMoveConversationSheet(true);
     } else if (id === 'snooze') {
       setShowSnoozeModal(true);
+    } else if (id === 'categorise') {
+      setShowCategorySheet(true);
+    } else if (id === 'create_task') {
+      setShowCreateTaskPrompt(true);
     } else if (id === 'print' && onOpenPrint) {
       onOpenPrint();
     } else if (id === 'report_junk' && onOpenReport) {
@@ -1080,6 +1090,26 @@ export function MobileEmailDetailView({
           <h1 className="text-base font-semibold text-[var(--quant-foreground)]">
             Follow-Up on Work
           </h1>
+          {assignedCategory && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <span
+                data-testid="email-detail-category-badge"
+                style={{
+                  backgroundColor:
+                    assignedCategory.includes('Orange') ? '#F97316' :
+                    assignedCategory.includes('Red') ? '#EF4444' :
+                    assignedCategory.includes('Green') ? '#10B981' :
+                    assignedCategory.includes('Blue') ? '#0078D4' :
+                    assignedCategory.includes('Purple') ? '#8B5CF6' :
+                    assignedCategory.includes('Yellow') ? '#EAB308' : '#6366F1'
+                }}
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold text-white shadow-sm"
+              >
+                <span className="size-1.5 rounded-full bg-white/80" />
+                {assignedCategory}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1387,6 +1417,83 @@ export function MobileEmailDetailView({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Flow #25: Task Creation Prompt Sheet */}
+      {showCreateTaskPrompt && (
+        <div
+          data-testid="create-task-sheet"
+          className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50"
+        >
+          <div className="rounded-t-2xl bg-[var(--quant-card)] dark:bg-[#1C1C1E] p-4 shadow-2xl border-t border-[var(--quant-border)]">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[var(--quant-muted-foreground)]">
+                Create a Task
+              </span>
+              <button
+                type="button"
+                data-testid="close-task-sheet-btn"
+                onClick={() => setShowCreateTaskPrompt(false)}
+                className="text-sm text-[var(--quant-muted-foreground)]"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)]/50 px-3 py-2">
+              <span className="text-[#0078D4]">✓</span>
+              <input
+                type="text"
+                data-testid="task-title-input"
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                placeholder="Task title"
+                className="flex-1 bg-transparent text-sm font-medium outline-none text-[var(--quant-foreground)]"
+                autoFocus
+              />
+              <button
+                type="button"
+                data-testid="submit-task-btn"
+                onClick={() => {
+                  setShowCreateTaskPrompt(false);
+                  setTaskCreatedToast(true);
+                  setTimeout(() => setTaskCreatedToast(false), 4000);
+                }}
+                className="rounded-lg bg-[#0078D4] px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-[#006abc]"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Flow #25 Screen 2: Task Created Toast with View in Quant Tasks */}
+      {taskCreatedToast && (
+        <div
+          data-testid="task-created-toast"
+          className="fixed bottom-20 left-4 right-4 z-50 flex items-center justify-between rounded-xl bg-[#252525] px-4 py-3 text-sm text-white shadow-xl animate-fade-in"
+        >
+          <span>Task created</span>
+          <button
+            type="button"
+            data-testid="view-in-tasks-btn"
+            onClick={() => setTaskCreatedToast(false)}
+            className="font-semibold text-[#0078D4] hover:underline"
+          >
+            View in Quant Tasks
+          </button>
+        </div>
+      )}
+
+      {/* Flow #14: Assign Category Modal */}
+      {showCategorySheet && (
+        <MobileAssignCategoryModal
+          onClose={() => setShowCategorySheet(false)}
+          onSaveCategories={(cats) => {
+            setAssignedCategory(cats[0] || null);
+            setShowCategorySheet(false);
+          }}
+        />
       )}
     </div>
   );

@@ -52,6 +52,16 @@ import {
   SentFolderEmptyIllustration,
 } from '../components/MobileComposerAndDraftsSuite';
 import {
+  MobileContactsHubView,
+  MobileContactDetailView,
+  MobileCreateContactSheet,
+  MobileAssignCategoryModal,
+  MobileProfileIconCustomizerSheet,
+  MobileAutomaticRepliesSheet,
+  MobileClearCalendarScheduleModal,
+  INITIAL_BATCH7_CONTACTS,
+} from '../components/MobileContactsAndTasksSuite';
+import {
   MobileInboxFlowSuite,
   FILTER_OPTIONS,
   PHOTO_FILTER_PRESETS,
@@ -330,5 +340,105 @@ describe('EventDescriptionEditor', () => {
     expect(draftsSvg).toContain('<svg');
     const sentSvg = renderToStaticMarkup(<SentFolderEmptyIllustration />);
     expect(sentSvg).toContain('<svg');
+  });
+
+  it('verifies Batch 7 reverse-engineered mobile components for Contacts, Tasks, Out-of-Office and Profile Icon', () => {
+    // Flow #22: Contacts Hub (List, Search & Categories)
+    const hubHtml = renderToStaticMarkup(
+      <MobileContactsHubView
+        onBack={() => {}}
+        onOpenContact={() => {}}
+        onNewContact={() => {}}
+      />
+    );
+    expect(hubHtml).toContain('All Contacts');
+    expect(hubHtml).toContain('Alex Smith');
+    expect(hubHtml).toContain('Search people');
+    expect(hubHtml).toContain('Red category');
+
+    // Flow #20 & #21: Contact Detail & Info
+    const detailHtml = renderToStaticMarkup(
+      <MobileContactDetailView
+        contact={INITIAL_BATCH7_CONTACTS[0]}
+        onBack={() => {}}
+        onEdit={() => {}}
+        onDelete={() => {}}
+        onToggleFavorite={() => {}}
+      />
+    );
+    expect(detailHtml).toContain('Ms Alex Smith');
+    expect(detailHtml).toContain('Mobbin');
+    expect(detailHtml).toContain('Show More');
+    expect(detailHtml).toContain('Follow-Up on Work');
+    expect(detailHtml).toContain('Daily standup');
+    expect(detailHtml).toContain('Standup report.pdf');
+    expect(detailHtml).toContain('Delete Contact');
+
+    // Flow #23: Creating a Contact Sheet
+    const createContactHtml = renderToStaticMarkup(
+      <MobileCreateContactSheet
+        isOpen={true}
+        onClose={() => {}}
+        onSave={() => {}}
+      />
+    );
+    expect(createContactHtml).toContain('New Contact');
+    expect(createContactHtml).toContain('Alex');
+    expect(createContactHtml).toContain('Mobbin');
+
+    // Flow #13 & #14: Assign Category Modal
+    const catModalHtml = renderToStaticMarkup(
+      <MobileAssignCategoryModal
+        contact={INITIAL_BATCH7_CONTACTS[0]}
+        onClose={() => {}}
+        onSaveCategories={() => {}}
+      />
+    );
+    expect(catModalHtml).toContain('Categorise');
+    expect(catModalHtml).toContain('Blue category');
+    expect(catModalHtml).toContain('Red category');
+
+    // Flow #17: Profile Icon Customizer
+    const profileIconHtml = renderToStaticMarkup(
+      <MobileProfileIconCustomizerSheet
+        isOpen={true}
+        onClose={() => {}}
+        onSelectIcon={() => {}}
+      />
+    );
+    expect(profileIconHtml).toContain('Show As');
+    expect(profileIconHtml).toContain('Account Initials');
+    expect(profileIconHtml).toContain('Customise');
+
+    // Flow #41: Automatic Replies Sheet
+    const autoRepliesHtml = renderToStaticMarkup(
+      <MobileAutomaticRepliesSheet
+        isOpen={true}
+        onClose={() => {}}
+        onSave={() => {}}
+      />
+    );
+    expect(autoRepliesHtml).toContain('Automatic Replies');
+    expect(autoRepliesHtml).toContain('Clear My Calendar');
+
+    // Flow #19: Clear Calendar Schedule Modal
+    const clearScheduleHtml = renderToStaticMarkup(
+      <MobileClearCalendarScheduleModal
+        onClose={() => {}}
+        onDeclineSelected={() => {}}
+      />
+    );
+    expect(clearScheduleHtml).toContain('Clear My Calendar');
+    expect(clearScheduleHtml).toContain('Lunch');
+    expect(clearScheduleHtml).toContain('Pack merchandise');
+
+    // Flow #25 & #14: Email Detail with Task and Category actions
+    const emailDetailHtml = renderToStaticMarkup(
+      <MobileEmailDetailView
+        onBack={() => {}}
+        onDeleteEmail={() => {}}
+      />
+    );
+    expect(emailDetailHtml).toContain('Follow-Up on Work');
   });
 });

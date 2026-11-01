@@ -14,6 +14,10 @@ import { showToast } from '../../components/InboxToast';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
 import { MobileInboxFlowSuite } from '../../components/MobileInboxFlowSuite';
 import { MobileCalendarFlowSuite } from '../../components/MobileCalendarFlowSuite';
+import {
+  MobileAutomaticRepliesSheet,
+  MobileProfileIconCustomizerSheet,
+} from '../../components/MobileContactsAndTasksSuite';
 
 export type AccountsFlowStep =
   | 'overview'
@@ -252,6 +256,8 @@ export function AccountsSettingsFlow({
 
   const [showAsColor, setShowAsColor] = useState<string>(SHOW_AS_COLORS[0]!.hex);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showMobileAutoReplies, setShowMobileAutoReplies] = useState(false);
+  const [showMobileProfileIconCustomizer, setShowMobileProfileIconCustomizer] = useState(false);
 
   const [blockExternalImages, setBlockExternalImages] = useState<boolean>(false);
   const [showBlockImagesHelp, setShowBlockImagesHelp] = useState<boolean>(false);
@@ -1511,7 +1517,8 @@ export function AccountsSettingsFlow({
             {matchesSearch('Automatic Replies', 'vacation out of office auto responder') && (
               <button
                 type="button"
-                onClick={() => onNavigateTab?.('general')}
+                data-testid="settings-auto-replies-row-btn"
+                onClick={() => setShowMobileAutoReplies(true)}
                 className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-[var(--quant-border)] px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-[var(--quant-surface-hover)]"
               >
                 <span className="flex items-center gap-3.5">
@@ -1758,6 +1765,18 @@ export function AccountsSettingsFlow({
             )}
           </div>
         </div>
+
+        {/* Batch 7: Flow #41 & #19 Automatic Replies Sheet */}
+        {showMobileAutoReplies && (
+          <MobileAutomaticRepliesSheet
+            isOpen={true}
+            onClose={() => setShowMobileAutoReplies(false)}
+            onSave={(enabled) => {
+              setVacationEnabled(enabled);
+              setShowMobileAutoReplies(false);
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -1958,7 +1977,8 @@ export function AccountsSettingsFlow({
         <div className="px-4 py-3">
           <button
             type="button"
-            onClick={() => setShowColorPicker((prev) => !prev)}
+            data-testid="settings-show-as-row-btn"
+            onClick={() => setShowMobileProfileIconCustomizer(true)}
             className="flex w-full items-center justify-between gap-3 text-left"
           >
             <span className="flex items-center gap-3">
@@ -2195,6 +2215,17 @@ export function AccountsSettingsFlow({
           Removing this account from the app will delete any local data stored in the app.
         </p>
       </div>
+
+      {/* Batch 7: Flow #17 Profile Icon Customizer */}
+      {showMobileProfileIconCustomizer && (
+        <MobileProfileIconCustomizerSheet
+          isOpen={true}
+          onClose={() => setShowMobileProfileIconCustomizer(false)}
+          onSelectIcon={() => {
+            setShowMobileProfileIconCustomizer(false);
+          }}
+        />
+      )}
     </div>
   );
 }

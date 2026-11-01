@@ -25,6 +25,15 @@ import {
   MobileReportPhishingDialog,
   DraftEmailItem,
 } from './MobileComposerAndDraftsSuite';
+import {
+  MobileContactsHubView,
+  MobileContactDetailView,
+  MobileCreateContactSheet,
+  MobileProfileIconCustomizerSheet,
+  MobileAutomaticRepliesSheet,
+  MobileContactRecord,
+  INITIAL_BATCH7_CONTACTS,
+} from './MobileContactsAndTasksSuite';
 
 export type MobileInboxFilterKey =
   | 'all'
@@ -53,7 +62,12 @@ export type MobileInboxSubScreen =
   | 'sent_folder'
   | 'print_email'
   | 'report_concern'
-  | 'report_phishing';
+  | 'report_phishing'
+  | 'contacts_hub'
+  | 'contact_detail'
+  | 'create_contact'
+  | 'auto_replies'
+  | 'profile_icon';
 
 export type PhotoFilterPreset = 'none' | 'process' | 'sepia' | 'chrome' | 'mono';
 
@@ -256,6 +270,12 @@ export function MobileInboxFlowSuite() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<MobileInboxFilterKey>('all');
 
+  // Flow #22, #20, #23, #29, #44: Contacts & Batch 7 State
+  const [contacts, setContacts] = useState<MobileContactRecord[]>(INITIAL_BATCH7_CONTACTS);
+  const [selectedContact, setSelectedContact] = useState<MobileContactRecord>(INITIAL_BATCH7_CONTACTS[0]);
+  const [contactDeletedToast, setContactDeletedToast] = useState(false);
+  const [userProfileIcon, setUserProfileIcon] = useState('SL');
+
   // Flow #11: Add another account state
   const [showAddAccountActionSheet, setShowAddAccountActionSheet] = useState(true);
   const [addAccountEmail, setAddAccountEmail] = useState('');
@@ -429,6 +449,90 @@ export function MobileInboxFlowSuite() {
         onConfirm={() => {
           setInboxReportedToast(true);
           setTimeout(() => setInboxReportedToast(false), 3000);
+          setSubScreen('inbox');
+        }}
+      />
+    );
+  }
+
+  // ─── BATCH 7 SUB-SCREENS: Contacts, Profile Icon, Automatic Replies ───
+  if (subScreen === 'contacts_hub') {
+    return (
+      <div className="relative h-full">
+        <MobileContactsHubView
+          onBack={() => setSubScreen('inbox')}
+          onOpenContact={(ct) => {
+            setSelectedContact(ct);
+            setSubScreen('contact_detail');
+          }}
+          onNewContact={() => setSubScreen('create_contact')}
+        />
+        {contactDeletedToast && (
+          <div
+            data-testid="contact-deleted-toast"
+            className="fixed bottom-6 left-4 right-4 z-50 rounded-xl bg-[#252525] px-4 py-3 text-center text-sm font-medium text-white shadow-xl animate-fade-in"
+          >
+            Contact Deleted
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (subScreen === 'contact_detail') {
+    return (
+      <MobileContactDetailView
+        contact={selectedContact}
+        onBack={() => setSubScreen('contacts_hub')}
+        onEdit={() => setSubScreen('create_contact')}
+        onDelete={() => {
+          setContacts(contacts.filter((c) => c.id !== selectedContact.id));
+          setContactDeletedToast(true);
+          setTimeout(() => setContactDeletedToast(false), 3000);
+          setSubScreen('contacts_hub');
+        }}
+        onToggleFavorite={() => {
+          const updated = { ...selectedContact, favorite: !selectedContact.favorite };
+          setSelectedContact(updated);
+          setContacts(contacts.map((c) => (c.id === updated.id ? updated : c)));
+        }}
+      />
+    );
+  }
+
+  if (subScreen === 'create_contact') {
+    return (
+      <MobileCreateContactSheet
+        isOpen={true}
+        onClose={() => setSubScreen('contacts_hub')}
+        onSave={(newCt) => {
+          setContacts([newCt, ...contacts]);
+          setSelectedContact(newCt);
+          setSubScreen('contact_detail');
+        }}
+      />
+    );
+  }
+
+  if (subScreen === 'auto_replies') {
+    return (
+      <MobileAutomaticRepliesSheet
+        isOpen={true}
+        onClose={() => setSubScreen('inbox')}
+        onSave={() => {
+          setSubScreen('inbox');
+        }}
+      />
+    );
+  }
+
+  if (subScreen === 'profile_icon') {
+    return (
+      <MobileProfileIconCustomizerSheet
+        isOpen={true}
+        onClose={() => setSubScreen('inbox')}
+        onSelectIcon={(icon) => {
+          setUserProfileIcon(icon);
           setSubScreen('inbox');
         }}
       />
@@ -1444,6 +1548,36 @@ export function MobileInboxFlowSuite() {
         </button>
         <button
           type="button"
+          data-testid="open-contacts-hub-btn"
+          aria-label="Open contacts hub"
+          onClick={() => setSubScreen('contacts_hub')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          title="Contacts Hub"
+        >
+          👥
+        </button>
+        <button
+          type="button"
+          data-testid="open-auto-replies-btn"
+          aria-label="Open automatic replies"
+          onClick={() => setSubScreen('auto_replies')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          title="Automatic Replies"
+        >
+          ✈️
+        </button>
+        <button
+          type="button"
+          data-testid="open-profile-icon-btn"
+          aria-label="Open profile icon customizer"
+          onClick={() => setSubScreen('profile_icon')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          title="Profile Icon"
+        >
+          🎨
+        </button>
+        <button
+          type="button"
           data-testid="open-mobile-composer-btn"
           aria-label="Compose new email"
           onClick={() => {
@@ -1488,9 +1622,11 @@ export function MobileInboxFlowSuite() {
           </svg>
           <span>Calendar</span>
         </button>
-        <Link
-          href="/contacts"
-          className="flex flex-col items-center gap-0.5 text-[var(--quant-muted-foreground)]"
+        <button
+          type="button"
+          data-testid="bottom-nav-contacts-btn"
+          onClick={() => setSubScreen('contacts_hub')}
+          className="flex flex-col items-center gap-0.5 text-[var(--quant-muted-foreground)] hover:text-[#0078D4]"
         >
           <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <rect width="7" height="7" x="3" y="3" rx="1" />
@@ -1499,7 +1635,7 @@ export function MobileInboxFlowSuite() {
             <rect width="7" height="7" x="3" y="14" rx="1" />
           </svg>
           <span>Apps</span>
-        </Link>
+        </button>
       </nav>
     </div>
   );
