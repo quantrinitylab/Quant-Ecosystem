@@ -21,6 +21,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { MobileInviteGuestsSheet } from './MobileBatch8Suite';
 
 // ============================================================================
 // Types & Models
@@ -437,6 +438,8 @@ export interface MobileCalendarFlowSuiteProps {
 export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSuiteProps) {
   // Navigation & Sub-Screen State
   const [subScreen, setSubScreen] = useState<MobileCalendarSubScreen>('main');
+  const [showInviteGuestsSheet, setShowInviteGuestsSheet] = useState(false);
+  const [showOpenWithSheet, setShowOpenWithSheet] = useState(false);
   const [viewMode, setViewMode] = useState<MobileCalendarViewMode>('month');
   const [showViewSwitcher, setShowViewSwitcher] = useState(false);
   const [isMonthPickerExpanded, setIsMonthPickerExpanded] = useState(false);
@@ -1152,7 +1155,7 @@ export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSui
             </div>
 
             {/* People Selection Card */}
-            <div className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-3 shadow-xs">
+            <div data-testid="event-attendees-row" role="button" tabIndex={0} onClick={() => setShowInviteGuestsSheet(true)} className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-3 shadow-xs cursor-pointer hover:bg-[var(--quant-border)]/20">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <svg className="size-4 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1712,7 +1715,7 @@ export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSui
                   <button
                     type="button"
                     data-testid="join-meeting-btn"
-                    onClick={() => triggerToast('Opening Quanty Meeting room...')}
+                    onClick={() => setShowOpenWithSheet(true)}
                     className="rounded-lg border border-[#0078D4] px-3.5 py-1 text-xs font-semibold text-[#0078D4] hover:bg-[#0078D4] hover:text-white transition-colors"
                   >
                     Join
@@ -2103,6 +2106,61 @@ export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSui
           </div>
         </div>
       )}
-    </div>
+    
+      {/* Flow #54: Invite Guests Sheet */}
+      {showInviteGuestsSheet && (
+        <MobileInviteGuestsSheet
+          isOpen={true}
+          onClose={() => setShowInviteGuestsSheet(false)}
+          onSaveAttendees={() => setShowInviteGuestsSheet(false)}
+        />
+      )}
+
+      {/* Flow #55: Open With Action Sheet */}
+      {showOpenWithSheet && (
+        <div
+          data-testid="open-meeting-with-sheet"
+          className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 px-4 pb-6"
+        >
+          <div className="overflow-hidden rounded-2xl bg-[var(--quant-card)] dark:bg-[#1C1C1E] p-4 text-[var(--quant-foreground)] shadow-2xl space-y-3">
+            <h3 className="text-center text-xs font-bold text-[var(--quant-muted-foreground)] uppercase">Open Meeting With</h3>
+            <div className="divide-y divide-[var(--quant-border)] text-sm font-semibold">
+              <button
+                type="button"
+                data-testid="open-app-quanty-meet"
+                onClick={() => {
+                  setShowOpenWithSheet(false);
+                  triggerToast('Joining meeting via Quanty Meet...');
+                }}
+                className="flex w-full items-center gap-3 py-3 hover:bg-[var(--quant-border)]/20"
+              >
+                <span>🎥</span>
+                <span>Quanty Meet App</span>
+              </button>
+              <button
+                type="button"
+                data-testid="open-app-safari"
+                onClick={() => {
+                  setShowOpenWithSheet(false);
+                  triggerToast('Joining meeting in browser...');
+                }}
+                className="flex w-full items-center gap-3 py-3 hover:bg-[var(--quant-border)]/20"
+              >
+                <span>🌐</span>
+                <span>Safari / Browser</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              data-testid="cancel-open-meeting-btn"
+              onClick={() => setShowOpenWithSheet(false)}
+              className="mt-2 w-full rounded-xl bg-[var(--quant-border)] py-2.5 text-center text-xs font-semibold"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+</div>
   );
 }

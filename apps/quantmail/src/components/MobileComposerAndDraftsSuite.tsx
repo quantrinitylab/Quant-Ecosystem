@@ -22,6 +22,7 @@
  */
 
 import React, { useState } from 'react';
+import { MobileAttachmentActionSheet } from './MobileBatch8Suite';
 import Link from 'next/link';
 
 // ─── TYPES ───────────────────────────────────────────────────────────────────
@@ -163,6 +164,7 @@ export function MobileComposerSheet({
         : "Hi Alex,\n\nI wanted to share a quick update on the project. The initial draft has been completed, and I'll be reviewing it tomorrow. Once that's done, I'll send it over for your feedback.\n\nI'm also attaching a file and a picture related to the real estate materials we discussed. Please take a look and let me know your thoughts.\n\nBest regards,\nSam")
   );
   const [attachments, setAttachments] = useState<EmailAttachmentItem[]>([]);
+  const [selectedAttachmentForAction, setSelectedAttachmentForAction] = useState<EmailAttachmentItem | null>(null);
   const [showQuotedMessage, setShowQuotedMessage] = useState(false);
   const [showInvalidAddressAlert, setShowInvalidAddressAlert] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
@@ -384,7 +386,10 @@ export function MobileComposerSheet({
                 <div
                   key={att.id}
                   data-testid={`attachment-chip-${att.id}`}
-                  className="flex items-center gap-2 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-card)] dark:bg-[#252528] px-3 py-1.5 shadow-sm"
+                  onClick={() => setSelectedAttachmentForAction(att)}
+                  role="button"
+                  tabIndex={0}
+                  className="flex items-center gap-2 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-card)] dark:bg-[#252528] px-3 py-1.5 shadow-sm cursor-pointer hover:border-[#0078D4]"
                 >
                   <span className="text-lg">
                     {att.type === 'pdf' ? '📄' : att.type === 'eml' ? '✉️' : '📎'}
@@ -712,6 +717,25 @@ export function MobileComposerSheet({
             setAttachments([...attachments, emailAtt]);
             setShowAttachEmailModal(false);
           }}
+        />
+      )}
+
+
+      {/* Flow #63: Moving photo to message body (Attachment Action Sheet) */}
+      {selectedAttachmentForAction && (
+        <MobileAttachmentActionSheet
+          isOpen={true}
+          fileName={selectedAttachmentForAction.name}
+          onMoveToBody={() => {
+            setBodyText((prev) => `${prev}\n\n[Attached: ${selectedAttachmentForAction.name}]`);
+            setAttachments(attachments.filter((a) => a.id !== selectedAttachmentForAction.id));
+            setSelectedAttachmentForAction(null);
+          }}
+          onRemove={() => {
+            setAttachments(attachments.filter((a) => a.id !== selectedAttachmentForAction.id));
+            setSelectedAttachmentForAction(null);
+          }}
+          onClose={() => setSelectedAttachmentForAction(null)}
         />
       )}
 

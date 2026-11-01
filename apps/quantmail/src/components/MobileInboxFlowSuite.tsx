@@ -34,6 +34,16 @@ import {
   MobileContactRecord,
   INITIAL_BATCH7_CONTACTS,
 } from './MobileContactsAndTasksSuite';
+import {
+  MobileFilesHubView,
+  MobileSearchAndFilterSuite,
+  MobileHelpAndFeedbackSheet,
+  MobileGivingFeedbackSheet,
+  MobileWelcomeLoginView,
+  MobileQrScannerSheet,
+  MobilePhotoDrawingStudio,
+  MobileNotificationsFeedSheet,
+} from './MobileBatch8Suite';
 
 export type MobileInboxFilterKey =
   | 'all'
@@ -67,7 +77,16 @@ export type MobileInboxSubScreen =
   | 'contact_detail'
   | 'create_contact'
   | 'auto_replies'
-  | 'profile_icon';
+    | 'auto_replies'
+  | 'profile_icon'
+  | 'files_hub'
+  | 'search_results'
+  | 'help_feedback'
+  | 'give_feedback'
+  | 'welcome_login'
+  | 'qr_scanner'
+  | 'photo_drawing'
+  | 'notifications_feed';
 
 export type PhotoFilterPreset = 'none' | 'process' | 'sepia' | 'chrome' | 'mono';
 
@@ -376,6 +395,71 @@ export function MobileInboxFlowSuite() {
           setTimeout(() => setInboxSentToast(false), 3000);
           setSubScreen('inbox');
         }}
+      />
+    );
+  }
+
+  // ─── BATCH 8 SUB-SCREENS: Files, Search, Help, Login, Drawing, Notifications ──
+  if (subScreen === 'files_hub') {
+    return <MobileFilesHubView onBack={() => setSubScreen('inbox')} />;
+  }
+
+  if (subScreen === 'search_results') {
+    return <MobileSearchAndFilterSuite onBack={() => setSubScreen('inbox')} />;
+  }
+
+  if (subScreen === 'help_feedback') {
+    return (
+      <MobileHelpAndFeedbackSheet
+        isOpen={true}
+        onClose={() => setSubScreen('inbox')}
+        onOpenGiveFeedback={() => setSubScreen('give_feedback')}
+      />
+    );
+  }
+
+  if (subScreen === 'give_feedback') {
+    return (
+      <MobileGivingFeedbackSheet
+        isOpen={true}
+        onClose={() => setSubScreen('inbox')}
+      />
+    );
+  }
+
+  if (subScreen === 'welcome_login') {
+    return (
+      <MobileWelcomeLoginView
+        onLoginSuccess={() => setSubScreen('inbox')}
+        onOpenQrScanner={() => setSubScreen('qr_scanner')}
+      />
+    );
+  }
+
+  if (subScreen === 'qr_scanner') {
+    return (
+      <MobileQrScannerSheet
+        isOpen={true}
+        onClose={() => setSubScreen('welcome_login')}
+        onScanSuccess={() => setSubScreen('inbox')}
+      />
+    );
+  }
+
+  if (subScreen === 'photo_drawing') {
+    return (
+      <MobilePhotoDrawingStudio
+        onDone={() => setSubScreen('inbox')}
+        onCancel={() => setSubScreen('inbox')}
+      />
+    );
+  }
+
+  if (subScreen === 'notifications_feed') {
+    return (
+      <MobileNotificationsFeedSheet
+        isOpen={true}
+        onClose={() => setSubScreen('inbox')}
       />
     );
   }
@@ -1575,6 +1659,66 @@ export function MobileInboxFlowSuite() {
           title="Profile Icon"
         >
           🎨
+        </button>
+                <button
+          type="button"
+          data-testid="open-files-hub-btn"
+          aria-label="Open files hub"
+          onClick={() => setSubScreen('files_hub')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          title="Files Hub"
+        >
+          📁
+        </button>
+        <button
+          type="button"
+          data-testid="open-search-suite-btn"
+          aria-label="Open search suite"
+          onClick={() => setSubScreen('search_results')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          title="Search & Filters"
+        >
+          🔍
+        </button>
+        <button
+          type="button"
+          data-testid="open-help-btn"
+          aria-label="Open help and feedback"
+          onClick={() => setSubScreen('help_feedback')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          title="Help & Feedback"
+        >
+          ❓
+        </button>
+        <button
+          type="button"
+          data-testid="open-drawing-studio-btn"
+          aria-label="Open photo drawing studio"
+          onClick={() => setSubScreen('photo_drawing')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          title="Photo Drawing"
+        >
+          ✏️
+        </button>
+                <button
+          type="button"
+          data-testid="open-notifications-btn"
+          aria-label="Open notifications feed"
+          onClick={() => setSubScreen('notifications_feed')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          title="Notifications"
+        >
+          🔔
+        </button>
+        <button
+          type="button"
+          data-testid="open-welcome-login-btn"
+          aria-label="Open welcome login"
+          onClick={() => setSubScreen('welcome_login')}
+          className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]"
+          title="Login / Auth"
+        >
+          🔐
         </button>
         <button
           type="button"
