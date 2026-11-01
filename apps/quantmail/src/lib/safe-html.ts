@@ -1,6 +1,12 @@
 import { useMemo, useState } from 'react';
 import { sanitizeEmailHtml } from '@quant/shared-ui';
 
+export const BLOCK_EXTERNAL_IMAGES_STORAGE_KEY = 'quant-block-external-images';
+
+export function stripExternalImages(html: string): string {
+  return html.replace(/<img\b[^>]*\bsrc\s*=\s*(['"]?)\s*(?:https?:)?\/\/[^>]*>/gi, '');
+}
+
 /**
  * Repairs UTF-8 bytes that a sending server decoded as Latin-1 — the reason an
  * emoji arrives as `ðŸŽ‰` and an apostrophe as `â€™`.
@@ -50,8 +56,19 @@ export function repairMojibake(text?: string): string {
  */
 export function useSafeEmailHtml(html?: string): string {
   const [hasDom] = useState(() => typeof document !== 'undefined');
-  return useMemo(
-    () => (hasDom && html ? sanitizeEmailHtml(repairMojibake(html)) : ''),
-    [hasDom, html],
-  );
+  return useMemo(() => {
+    if (!hasDom || !html) return '';
+    let sanitized = sanitizeEmailHtml(repairMojibake(html));
+    try {
+      if (
+        typeof localStorage !== 'undefined' &&
+        localStorage.getItem(BLOCK_EXTERNAL_IMAGES_STORAGE_KEY) === 'true'
+      ) {
+        sanitized = stripExternalImages(sanitized);
+      }
+    } catch {
+      /* ignore storage errors */
+    }
+    return sanitized;
+  }, [hasDom, html]);
 }

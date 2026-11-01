@@ -103,8 +103,11 @@ import {
   type SettingsChoiceOption,
 } from './SettingsPrimitives';
 import { MailAuthCard } from './MailAuthCard';
+import { OutlookAccountsFlow } from './OutlookAccountsFlow';
 
 type SettingsTab =
+  | 'overview'
+  | 'accounts'
   | 'general'
   | 'filters'
   | 'ai'
@@ -205,6 +208,8 @@ const AI_ENGINE_MODES: AIModelOption[] = [
  * the product does not honour.
  */
 const TABS: Array<{ key: SettingsTab; label: string }> = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'accounts', label: 'Accounts' },
   { key: 'general', label: 'General' },
   { key: 'filters', label: 'Mail Filters' },
   { key: 'ai', label: 'Assistant' },
@@ -294,7 +299,7 @@ function StatusPill({ children }: { children: ReactNode }) {
 }
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('overview');
   const [profile, setProfile] = useState({ displayName: '', email: '', username: '' });
   const [loadedProfile, setLoadedProfile] = useState({ displayName: '', email: '', username: '' });
   const [profileSaving, setProfileSaving] = useState(false);
@@ -715,6 +720,27 @@ export default function SettingsPage() {
            */
           className="mx-auto w-full max-w-3xl flex-1 space-y-6 overflow-y-auto px-4 py-6 sm:px-8"
         >
+          {(activeTab === 'overview' || activeTab === 'accounts') && (
+            <OutlookAccountsFlow
+              key={activeTab}
+              initialStep={activeTab === 'accounts' ? 'accounts' : 'overview'}
+              profile={loadedProfile}
+              hasSignature={Boolean(loadedSignature.trim())}
+              themeLabel={THEME_OPTIONS.find((o) => o.value === theme)?.label ?? theme}
+              densityLabel={DENSITY_OPTIONS.find((o) => o.value === density)?.label ?? density}
+              aiModeLabel={AI_ENGINE_MODES[aiTabbableIndex]?.name ?? 'Automatic'}
+              notificationModeLabel={
+                MAIL_NOTIFICATION_MODE_OPTIONS.find((o) => o.value === mailNotificationMode.mode)
+                  ?.label ?? mailNotificationMode.mode
+              }
+              onNavigateTab={(target) => setActiveTab(target)}
+              onProfileUpdated={(next) => {
+                setProfile(next);
+                setLoadedProfile(next);
+              }}
+            />
+          )}
+
           {activeTab === 'general' && (
             <>
               <SettingsSection
