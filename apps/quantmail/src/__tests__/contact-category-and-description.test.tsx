@@ -3,9 +3,11 @@
  *
  * Tests for:
  *   - ContactCategoryPicker & ContactModalSheet (inline pills, Categorise list
- *     with Search & Show all, and New category form with 25-colour swatch grid).
- *   - EventDescriptionEditor (Summary row with preview + Edit Description
- *     sheet with bottom formatting bar: Aa, B, I, U, Body, Bullet, Numbered).
+ *     with Search & Show all, New category form with 25-colour swatch grid,
+ *     Business address, Personal web page, Notes, and + Add Field / Birthday).
+ *   - EventDescriptionEditor (Summary row with preview, Edit Description
+ *     sheet with bottom formatting bar: Aa, B, I, U, Body, Bullet, Numbered,
+ *     and Add Link sheet).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -16,6 +18,7 @@ import {
   ContactModalSheet,
   CATEGORY_25_COLORS,
   DEFAULT_CONTACT_CATEGORIES,
+  ADD_FIELD_SECTIONS,
   parseTagsCsv,
   serializeTagsCsv,
 } from '../app/contacts/components/ContactCategoryPicker';
@@ -25,9 +28,17 @@ import {
 } from '../app/calendar/components/EventDescriptionEditor';
 
 describe('ContactCategoryPicker & ContactModalSheet', () => {
-  it('exposes the 25-colour circular swatch grid', () => {
+  it('exposes the 25-colour circular swatch grid and Add Field sections', () => {
     expect(CATEGORY_25_COLORS).toHaveLength(25);
     expect(DEFAULT_CONTACT_CATEGORIES.length).toBeGreaterThanOrEqual(5);
+    expect(ADD_FIELD_SECTIONS.map((s) => s.section)).toEqual([
+      'Name',
+      'Email',
+      'Phone',
+      'Work',
+      'Address',
+      'Other',
+    ]);
   });
 
   it('parses and serializes comma-separated category tags cleanly', () => {
@@ -41,7 +52,7 @@ describe('ContactCategoryPicker & ContactModalSheet', () => {
     );
   });
 
-  it('renders Screen 0 & 6 (New Contact sheet with Categorise row and removable pills)', () => {
+  it('renders Screen 0 & 6 (New Contact sheet with Categorise, Business address, Notes, and + Add Field)', () => {
     const html = renderToStaticMarkup(
       <ContactModalSheet
         formData={{
@@ -67,6 +78,10 @@ describe('ContactCategoryPicker & ContactModalSheet', () => {
     expect(html).toContain('Categorise');
     expect(html).toContain('VIP');
     expect(html).toContain('Blue category');
+    expect(html).toContain('Business address');
+    expect(html).toContain('Personal web page');
+    expect(html).toContain('Notes');
+    expect(html).toContain('Add Field');
   });
 
   it('renders Screen 1 & 5 (Categorise list with Search, coloured categories, Show all, and New category)', () => {
@@ -116,7 +131,7 @@ describe('EventDescriptionEditor', () => {
     expect(html).toContain('Daily team sync for updates and blockers.');
   });
 
-  it('renders Screen 1 & 2 (Edit Description sheet with Aa, B, I, U, Body, List toolbar)', () => {
+  it('renders Screen 1 & 2 (Edit Description sheet with Aa, B, I, U, Body, List, Link toolbar)', () => {
     const html = renderToStaticMarkup(
       <EventDescriptionEditor
         value="Daily team sync for updates and blockers."
@@ -130,11 +145,23 @@ describe('EventDescriptionEditor', () => {
     expect(html).toContain('Body');
     expect(html).toContain('• List');
     expect(html).toContain('1. List');
+    expect(html).toContain('Add link');
   });
 
-  it('applies formatting helpers accurately', () => {
+  it('applies formatting helpers accurately and renders Add Link sheet', () => {
     expect(applyDescriptionFormat('Sync', 'bold')).toBe('Sync**bold**');
     expect(applyDescriptionFormat('Sync', 'bullet')).toBe('Sync\n• ');
     expect(applyDescriptionFormat('## Heading', 'body')).toBe('Heading');
+
+    const addLinkHtml = renderToStaticMarkup(
+      <EventDescriptionEditor
+        value="Daily team sync"
+        onChange={() => {}}
+        initialStep="add_link"
+      />,
+    );
+    expect(addLinkHtml).toContain('Add Link');
+    expect(addLinkHtml).toContain('Text');
+    expect(addLinkHtml).toContain('Link');
   });
 });

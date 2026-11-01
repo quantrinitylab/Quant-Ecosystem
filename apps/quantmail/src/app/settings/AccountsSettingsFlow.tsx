@@ -1,33 +1,26 @@
 'use client';
 
 /**
- * AccountsSettingsFlow — Mobile-first Settings Hub, Accounts List, and Account Detail.
- *
- * Implements the 4-screen Settings & Accounts flow:
- *   - Screen 0 (`overview`): Sheet header (`✕` + centered `Settings`), rounded
- *     Search bar, Quick Settings (Display & Appearance, Signature, Automatic
- *     Replies with live On/Off status, Notifications & Sounds), General
- *     (Accounts, Email, Calendar, Contacts, Passkey & Biometrics switch,
- *     Privacy), Set Default Email App, and Integrations & Add-Ins.
- *   - Screen 1 (`accounts`): `<` back chevron, centered `Accounts` title,
- *     `Edit` action, primary QuantMail account row with `Manage` pill and `>`,
- *     plus `Add Account` and `Create New Account`.
- *   - Screen 2 & 3 (`detail`): `<` back chevron, centered `QuantMail` title,
- *     centered 72px circular initials avatar, display name & email,
- *     `Description` & `Show As` card, `Plan` / `Storage` / `Get Quant Pro` card,
- *     `Email & Calendar` section (Sender Screening, Block External Images switch,
- *     Quanty Editor switch, Editor Language, Report Messages), `Data Storage`
- *     (`Sync Settings`), `Reset Account`, and `Remove Account`.
+ * AccountsSettingsFlow — Mobile-first Settings Hub, Accounts List, Account Detail,
+ * and deep reverse-engineered sub-sheets (Appearance Theme/Density, Sender Screening,
+ * Editor Language & Proofing, Sync Settings) supporting both White (Light) and Black (Dark) themes.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { apiClient, type SendAsIdentity } from '../../services/api-client';
+import { apiClient, type MailFilterRule, type SendAsIdentity } from '../../services/api-client';
 import { browserAuthSession } from '../../services/browser-auth-session';
 import { showToast } from '../../components/InboxToast';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
 
-export type AccountsFlowStep = 'overview' | 'accounts' | 'detail';
+export type AccountsFlowStep =
+  | 'overview'
+  | 'accounts'
+  | 'detail'
+  | 'appearance'
+  | 'screening'
+  | 'editor_language'
+  | 'sync_settings';
 
 export type SettingsSectionTarget =
   | 'overview'
@@ -49,20 +42,52 @@ export interface ShowAsColorOption {
 export const SHOW_AS_COLORS: readonly ShowAsColorOption[] = [
   { id: 'rose', label: 'Rose Pink', hex: '#EC4899' },
   { id: 'orange', label: 'Quant Orange', hex: '#FF7A00' },
-  { id: 'blue', label: 'Quant Blue', hex: '#3B82F6' },
+  { id: 'blue', label: 'Quant Blue', hex: '#0078D4' },
   { id: 'emerald', label: 'Emerald', hex: '#10B981' },
   { id: 'violet', label: 'Violet', hex: '#8B5CF6' },
   { id: 'teal', label: 'Teal', hex: '#14B8A6' },
 ];
 
+export const APPEARANCE_ACCENT_COLORS: readonly ShowAsColorOption[] = [
+  { id: 'blue', label: 'Classic Blue', hex: '#0078D4' },
+  { id: 'violet', label: 'Royal Violet', hex: '#8B5CF6' },
+  { id: 'pink', label: 'Vibrant Pink', hex: '#EC4899' },
+  { id: 'orange', label: 'Quant Orange', hex: '#FF5722' },
+  { id: 'crimson', label: 'Crimson', hex: '#E11D48' },
+  { id: 'emerald', label: 'Emerald', hex: '#10B981' },
+];
+
+export const APPEARANCE_HEADER_IMAGES = [
+  { id: 'peaks', label: 'Alpine Peaks', gradient: 'linear-gradient(135deg, #60A5FA 0%, #1E3A8A 100%)', featured: true },
+  { id: 'dunes', label: 'Sahara Dunes', gradient: 'linear-gradient(135deg, #FBBF24 0%, #92400E 100%)', featured: false },
+  { id: 'mist', label: 'Nordic Mist', gradient: 'linear-gradient(135deg, #C7D2FE 0%, #4338CA 100%)', featured: false },
+  { id: 'canyon', label: 'Red Canyon', gradient: 'linear-gradient(135deg, #FB923C 0%, #9A3412 100%)', featured: false },
+  { id: 'botanical', label: 'Botanical', gradient: 'linear-gradient(135deg, #4ADE80 0%, #166534 100%)', featured: false },
+  { id: 'sunset', label: 'Horizon Sunset', gradient: 'linear-gradient(135deg, #F472B6 0%, #831843 100%)', featured: false },
+] as const;
+
+export const EDITOR_LANGUAGES = [
+  { id: 'default', label: 'Default' },
+  { id: 'en-US', label: 'English (United States)' },
+  { id: 'en-GB', label: 'English (United Kingdom)' },
+  { id: 'en-IN', label: 'English (India)' },
+  { id: 'hi-IN', label: 'Hindi (हिन्दी)' },
+] as const;
+
 export const ACCOUNT_DESCRIPTION_KEY = 'quant-account-description';
 export const ACCOUNT_SHOW_AS_COLOR_KEY = 'quant-account-show-as-color';
 export const BLOCK_EXTERNAL_IMAGES_KEY = 'quant-block-external-images';
 export const QUANTY_EDITOR_ENABLED_KEY = 'quant-editor-enabled';
+export const EDITOR_LANGUAGE_KEY = 'quant-editor-language';
 export const REPORT_MESSAGES_MODE_KEY = 'quant-report-messages-mode';
 export const BIOMETRIC_LOCK_ENABLED_KEY = 'quant-biometric-lock-enabled';
+export const SYNC_DAYS_WINDOW_KEY = 'quant-sync-days-window';
+export const SYNC_ATTACHMENTS_MODE_KEY = 'quant-sync-attachments-mode';
+export const APPEARANCE_ACCENT_KEY = 'quant-appearance-accent';
 
 export type ReportMessagesMode = 'always_ask' | 'always_report';
+export type ThemeChoice = 'light' | 'dark' | 'system';
+export type DensityChoice = 'comfortable' | 'cozy' | 'compact';
 
 export function deriveInitials(displayName: string, email: string): string {
   const source = (displayName || email || 'QM').trim();
@@ -71,6 +96,34 @@ export function deriveInitials(displayName: string, email: string): string {
     return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
   }
   return source.slice(0, 2).toUpperCase();
+}
+
+export function applyLiveTheme(next: ThemeChoice): void {
+  if (typeof document === 'undefined') return;
+  const prefersDark =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const resolved = next === 'system' ? (prefersDark ? 'dark' : 'light') : next;
+  const root = document.documentElement;
+  root.dataset.theme = resolved;
+  root.classList.toggle('dark', resolved === 'dark');
+  root.style.colorScheme = resolved;
+  try {
+    localStorage.setItem('quant-theme', next);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function applyLiveDensity(next: DensityChoice): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.dataset.density = next;
+  try {
+    localStorage.setItem('quant-density', next);
+  } catch {
+    /* ignore */
+  }
 }
 
 export interface AccountsSettingsFlowProps {
@@ -133,12 +186,14 @@ function PillSwitch({
       aria-label={label}
       onClick={() => onChange(!checked)}
       className={`relative inline-flex h-7 w-12 flex-none cursor-pointer items-center rounded-full p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-ring)] ${
-        checked ? 'bg-[#2563EB]' : 'bg-white/15'
+        checked
+          ? 'bg-[#0078D4]'
+          : 'border border-[var(--quant-border)] bg-[var(--quant-surface)]'
       }`}
     >
       <span
         aria-hidden="true"
-        className={`size-6 rounded-full bg-white shadow-sm transition-transform ${
+        className={`size-6 rounded-full bg-white shadow-md transition-transform ${
           checked ? 'translate-x-5' : 'translate-x-0'
         }`}
       />
@@ -159,7 +214,7 @@ export function AccountsSettingsFlow({
 
   const [vacationEnabled, setVacationEnabled] = useState<boolean | null>(null);
   const [sendAsList, setSendAsList] = useState<SendAsIdentity[]>([]);
-  const [filterCount, setFilterCount] = useState<number>(0);
+  const [filters, setFilters] = useState<MailFilterRule[]>([]);
 
   const [description, setDescription] = useState<string>('');
   const [editingDescription, setEditingDescription] = useState(false);
@@ -170,9 +225,31 @@ export function AccountsSettingsFlow({
   const [showColorPicker, setShowColorPicker] = useState(false);
 
   const [blockExternalImages, setBlockExternalImages] = useState<boolean>(false);
+  const [showBlockImagesHelp, setShowBlockImagesHelp] = useState<boolean>(false);
   const [quantyEditorEnabled, setQuantyEditorEnabled] = useState<boolean>(true);
+  const [editorLanguage, setEditorLanguage] = useState<string>('Default');
+  const [autoCapitalise, setAutoCapitalise] = useState<boolean>(true);
+  const [spellCheck, setSpellCheck] = useState<boolean>(true);
+  const [grammarSuggestions, setGrammarSuggestions] = useState<boolean>(true);
+
   const [reportMessagesMode, setReportMessagesMode] = useState<ReportMessagesMode>('always_ask');
   const [biometricLockEnabled, setBiometricLockEnabled] = useState<boolean>(false);
+
+  // Appearance sub-sheet state (Flow #33 & #98)
+  const [appearanceSubTab, setAppearanceSubTab] = useState<'theme' | 'density'>('theme');
+  const [themeChoice, setThemeChoice] = useState<ThemeChoice>('dark');
+  const [densityChoice, setDensityChoice] = useState<DensityChoice>('comfortable');
+  const [appearanceAccent, setAppearanceAccent] = useState<string>('#0078D4');
+  const [selectedHeaderImage, setSelectedHeaderImage] = useState<string>('peaks');
+
+  // Sender Screening sub-sheet state
+  const [screeningEnabled, setScreeningEnabled] = useState<boolean>(false);
+  const [newScreenedSender, setNewScreenedSender] = useState<string>('');
+
+  // Sync Settings sub-sheet state
+  const [syncDaysWindow, setSyncDaysWindow] = useState<string>('30 Days');
+  const [syncAttachmentsMode, setSyncAttachmentsMode] = useState<string>('Wi-Fi Only');
+  const [backgroundRefresh, setBackgroundRefresh] = useState<boolean>(true);
 
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [removingAccount, setRemovingAccount] = useState(false);
@@ -197,6 +274,9 @@ export function AccountsSettingsFlow({
       const editorEnabled = localStorage.getItem(QUANTY_EDITOR_ENABLED_KEY);
       setQuantyEditorEnabled(editorEnabled === null ? true : editorEnabled === 'true');
 
+      const storedLang = localStorage.getItem(EDITOR_LANGUAGE_KEY);
+      if (storedLang) setEditorLanguage(storedLang);
+
       const reportStored = localStorage.getItem(REPORT_MESSAGES_MODE_KEY);
       if (reportStored === 'always_ask' || reportStored === 'always_report') {
         setReportMessagesMode(reportStored);
@@ -204,6 +284,27 @@ export function AccountsSettingsFlow({
 
       const bioStored = localStorage.getItem(BIOMETRIC_LOCK_ENABLED_KEY);
       setBiometricLockEnabled(bioStored === 'true');
+
+      const storedTheme = localStorage.getItem('quant-theme');
+      if (storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system') {
+        setThemeChoice(storedTheme);
+      } else if (typeof document !== 'undefined' && document.documentElement.dataset.theme === 'light') {
+        setThemeChoice('light');
+      }
+
+      const storedDensity = localStorage.getItem('quant-density');
+      if (storedDensity === 'comfortable' || storedDensity === 'cozy' || storedDensity === 'compact') {
+        setDensityChoice(storedDensity);
+      }
+
+      const storedAccent = localStorage.getItem(APPEARANCE_ACCENT_KEY);
+      if (storedAccent) setAppearanceAccent(storedAccent);
+
+      const storedSyncDays = localStorage.getItem(SYNC_DAYS_WINDOW_KEY);
+      if (storedSyncDays) setSyncDaysWindow(storedSyncDays);
+
+      const storedSyncAtt = localStorage.getItem(SYNC_ATTACHMENTS_MODE_KEY);
+      if (storedSyncAtt) setSyncAttachmentsMode(storedSyncAtt);
     } catch {
       /* ignore storage errors */
     }
@@ -222,7 +323,8 @@ export function AccountsSettingsFlow({
 
     void apiClient.getMailFilters().then((res) => {
       if (res.success && Array.isArray(res.data)) {
-        setFilterCount(res.data.filter((f) => f.enabled !== false).length);
+        setFilters(res.data);
+        setScreeningEnabled(res.data.some((f) => f.enabled !== false));
       }
     });
   }, []);
@@ -233,6 +335,10 @@ export function AccountsSettingsFlow({
   );
 
   const effectiveDescription = description.trim() || profile.email || 'QuantMail Account';
+  const activeFilterCount = useMemo(
+    () => filters.filter((f) => f.enabled !== false).length,
+    [filters],
+  );
 
   const handleSaveDescription = useCallback(async () => {
     const trimmed = draftDescription.trim();
@@ -391,11 +497,625 @@ export function AccountsSettingsFlow({
     }
   }, [removingAccount]);
 
+  const handleSelectTheme = useCallback((next: ThemeChoice) => {
+    setThemeChoice(next);
+    applyLiveTheme(next);
+    showToast({
+      text: `Theme set to ${next === 'light' ? 'Light' : next === 'dark' ? 'Dark' : 'System'}`,
+      type: 'info',
+    });
+  }, []);
+
+  const handleSelectDensity = useCallback((next: DensityChoice) => {
+    setDensityChoice(next);
+    applyLiveDensity(next);
+    showToast({
+      text: `Density set to ${next === 'comfortable' ? 'Roomy' : next === 'cozy' ? 'Cozy' : 'Compact'}`,
+      type: 'info',
+    });
+  }, []);
+
+  const handleAddScreenedSender = useCallback(async () => {
+    const sender = newScreenedSender.trim();
+    if (!sender) return;
+    try {
+      const res = await apiClient.createMailFilter({
+        name: `Screen ${sender}`,
+        conditions: { from: sender },
+        actions: { moveTo: 'trash', markRead: true },
+        enabled: true,
+      });
+      if (res.success && res.data) {
+        setFilters((prev) => [...prev, res.data!]);
+      } else {
+        setFilters((prev) => [
+          ...prev,
+          {
+            id: `local_${Date.now()}`,
+            name: `Screen ${sender}`,
+            conditions: { from: sender },
+            actions: { moveTo: 'trash', markRead: true },
+            enabled: true,
+          },
+        ]);
+      }
+      setNewScreenedSender('');
+      setScreeningEnabled(true);
+      showToast({ text: `Screening enabled for ${sender}`, type: 'success' });
+    } catch {
+      /* ignore */
+    }
+  }, [newScreenedSender]);
+
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const matchesSearch = (label: string, keywords = '') => {
     if (!normalizedQuery) return true;
     return `${label} ${keywords}`.toLowerCase().includes(normalizedQuery);
   };
+
+  // ─── SUB-SHEET: Appearance (Theme Light/Dark/System + Density Roomy/Cozy/Compact) ─
+  if (step === 'appearance') {
+    return (
+      <div className="space-y-4" data-testid="settings-appearance-sheet">
+        <div className="relative flex items-center justify-center border-b border-[var(--quant-border)] pb-3 pt-1">
+          <button
+            type="button"
+            aria-label="Back to Settings"
+            onClick={() => setStep('overview')}
+            className="absolute left-0 inline-flex size-8 items-center justify-center rounded-lg text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-hover)]"
+          >
+            <ChevronLeft />
+          </button>
+          <h1 className="text-base font-semibold text-[var(--quant-foreground)]">Appearance</h1>
+        </div>
+
+        {/* 2-Segment Pill Toggle: Theme | Density */}
+        <div
+          role="tablist"
+          aria-label="Appearance sections"
+          className="grid grid-cols-2 rounded-full bg-[var(--quant-surface)] p-1 border border-[var(--quant-border)]"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={appearanceSubTab === 'theme'}
+            onClick={() => setAppearanceSubTab('theme')}
+            className={`rounded-full py-2 text-sm font-medium transition-colors ${
+              appearanceSubTab === 'theme'
+                ? 'bg-[#0078D4] text-white shadow-sm'
+                : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
+            }`}
+          >
+            Theme
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={appearanceSubTab === 'density'}
+            onClick={() => setAppearanceSubTab('density')}
+            className={`rounded-full py-2 text-sm font-medium transition-colors ${
+              appearanceSubTab === 'density'
+                ? 'bg-[#0078D4] text-white shadow-sm'
+                : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
+            }`}
+          >
+            Density
+          </button>
+        </div>
+
+        {appearanceSubTab === 'theme' ? (
+          <>
+            {/* Theme Card: Light, Dark, System miniature phone previews */}
+            <div
+              role="radiogroup"
+              aria-label="Theme mode"
+              className="grid grid-cols-3 gap-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-4"
+            >
+              {(
+                [
+                  { id: 'light', label: 'Light' },
+                  { id: 'dark', label: 'Dark' },
+                  { id: 'system', label: 'System' },
+                ] as const
+              ).map((item) => {
+                const selected = themeChoice === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    aria-label={item.label}
+                    onClick={() => handleSelectTheme(item.id)}
+                    className="flex flex-col items-center gap-2.5 text-center"
+                  >
+                    {/* Miniature Phone Preview */}
+                    <div className="relative h-32 w-20 overflow-hidden rounded-xl border border-[var(--quant-border)] shadow-sm">
+                      {item.id === 'light' && (
+                        <div className="flex h-full flex-col bg-white">
+                          <div className="h-5 bg-[#0078D4] px-1.5 pt-1">
+                            <div className="size-2 rounded-full bg-white/60" />
+                          </div>
+                          <div className="flex-1 space-y-2 p-2">
+                            <div className="h-1.5 w-full rounded bg-slate-200" />
+                            <div className="h-1.5 w-5/6 rounded bg-slate-200" />
+                            <div className="h-1.5 w-4/6 rounded bg-slate-200" />
+                          </div>
+                          <div className="absolute bottom-2 right-2 size-3 rounded-full bg-[#0078D4]" />
+                        </div>
+                      )}
+                      {item.id === 'dark' && (
+                        <div className="flex h-full flex-col bg-[#0B0C10]">
+                          <div className="h-5 bg-[#1F2430] px-1.5 pt-1">
+                            <div className="size-2 rounded-full bg-white/40" />
+                          </div>
+                          <div className="flex-1 space-y-2 p-2">
+                            <div className="h-1.5 w-full rounded bg-slate-700" />
+                            <div className="h-1.5 w-5/6 rounded bg-slate-700" />
+                            <div className="h-1.5 w-4/6 rounded bg-slate-700" />
+                          </div>
+                          <div className="absolute bottom-2 right-2 size-3 rounded-full bg-[#0078D4]" />
+                        </div>
+                      )}
+                      {item.id === 'system' && (
+                        <div className="grid h-full grid-cols-2">
+                          <div className="flex flex-col bg-white">
+                            <div className="h-5 bg-[#0078D4]" />
+                            <div className="space-y-2 p-1.5">
+                              <div className="h-1.5 w-full rounded bg-slate-200" />
+                              <div className="h-1.5 w-full rounded bg-slate-200" />
+                            </div>
+                          </div>
+                          <div className="flex flex-col bg-[#0B0C10]">
+                            <div className="h-5 bg-[#1F2430]" />
+                            <div className="space-y-2 p-1.5">
+                              <div className="h-1.5 w-full rounded bg-slate-700" />
+                              <div className="h-1.5 w-full rounded bg-slate-700" />
+                            </div>
+                          </div>
+                          <div className="absolute bottom-2 right-2 size-3 rounded-full bg-[#0078D4]" />
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-xs font-medium text-[var(--quant-foreground)]">
+                      {item.label}
+                    </span>
+                    <span
+                      className={`grid size-5 place-items-center rounded-full border ${
+                        selected
+                          ? 'border-[#0078D4] bg-[#0078D4] text-white'
+                          : 'border-[var(--quant-muted-foreground)] bg-transparent'
+                      }`}
+                    >
+                      {selected ? (
+                        <svg className="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      ) : null}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Colours Card */}
+            <div className="space-y-1.5">
+              <h2 className="px-1 text-xs font-medium text-[var(--quant-muted-foreground)]">
+                Colours
+              </h2>
+              <div className="flex items-center justify-between rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-4">
+                {APPEARANCE_ACCENT_COLORS.map((swatch) => {
+                  const selected = appearanceAccent === swatch.hex;
+                  return (
+                    <button
+                      key={swatch.id}
+                      type="button"
+                      aria-label={swatch.label}
+                      onClick={() => {
+                        setAppearanceAccent(swatch.hex);
+                        try {
+                          localStorage.setItem(APPEARANCE_ACCENT_KEY, swatch.hex);
+                        } catch {
+                          /* ignore */
+                        }
+                      }}
+                      style={{ backgroundColor: swatch.hex }}
+                      className="grid size-10 place-items-center rounded-full text-white transition-transform hover:scale-105"
+                    >
+                      {selected ? (
+                        <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Images Card */}
+            <div className="space-y-1.5">
+              <h2 className="px-1 text-xs font-medium text-[var(--quant-muted-foreground)]">
+                Images
+              </h2>
+              <div className="flex items-center justify-between rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-4">
+                {APPEARANCE_HEADER_IMAGES.map((img) => {
+                  const selected = selectedHeaderImage === img.id;
+                  return (
+                    <button
+                      key={img.id}
+                      type="button"
+                      aria-label={img.label}
+                      onClick={() => setSelectedHeaderImage(img.id)}
+                      style={{ backgroundImage: img.gradient }}
+                      className={`relative size-10 rounded-full transition-transform hover:scale-105 ${
+                        selected ? 'ring-2 ring-[#0078D4] ring-offset-2 ring-offset-[var(--quant-card)]' : ''
+                      }`}
+                    >
+                      {img.featured && (
+                        <span className="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-white text-[9px] text-[#0078D4] shadow">
+                          ★
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        ) : (
+          /* Density Card: Roomy, Cozy, Compact */
+          <div
+            role="radiogroup"
+            aria-label="List density"
+            className="grid grid-cols-3 gap-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-4"
+          >
+            {(
+              [
+                { id: 'comfortable', label: 'Roomy' },
+                { id: 'cozy', label: 'Cozy' },
+                { id: 'compact', label: 'Compact' },
+              ] as const
+            ).map((item) => {
+              const selected = densityChoice === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  aria-label={item.label}
+                  onClick={() => handleSelectDensity(item.id)}
+                  className="flex flex-col items-center gap-2.5 text-center"
+                >
+                  <div className="flex h-32 w-20 flex-col justify-between rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-2">
+                    {item.id === 'comfortable' && (
+                      <div className="space-y-2">
+                        <div className="h-2 w-full rounded bg-[var(--quant-muted-foreground)]/30" />
+                        <div className="flex gap-1">
+                          <span className="h-1.5 w-3 rounded-full bg-emerald-500" />
+                          <span className="h-1.5 w-3 rounded-full bg-[#0078D4]" />
+                          <span className="h-1.5 w-3 rounded-full bg-amber-500" />
+                        </div>
+                        <div className="h-2 w-full rounded bg-[var(--quant-muted-foreground)]/30" />
+                        <div className="h-2 w-4/5 rounded bg-[var(--quant-muted-foreground)]/30" />
+                      </div>
+                    )}
+                    {item.id === 'cozy' && (
+                      <div className="space-y-2">
+                        <div className="h-1.5 w-full rounded bg-[var(--quant-muted-foreground)]/30" />
+                        <div className="h-1.5 w-4/5 rounded bg-[var(--quant-muted-foreground)]/30" />
+                        <div className="h-1.5 w-full rounded bg-[#0078D4]/50" />
+                        <div className="h-1.5 w-full rounded bg-[var(--quant-muted-foreground)]/30" />
+                        <div className="h-1.5 w-3/4 rounded bg-[var(--quant-muted-foreground)]/30" />
+                      </div>
+                    )}
+                    {item.id === 'compact' && (
+                      <div className="space-y-1.5">
+                        <div className="h-1 w-full rounded bg-[var(--quant-muted-foreground)]/30" />
+                        <div className="h-1 w-full rounded bg-[var(--quant-muted-foreground)]/30" />
+                        <div className="h-1 w-full rounded bg-[var(--quant-muted-foreground)]/30" />
+                        <div className="h-1 w-full rounded bg-[var(--quant-muted-foreground)]/30" />
+                        <div className="h-1 w-full rounded bg-[var(--quant-muted-foreground)]/30" />
+                        <div className="h-1 w-full rounded bg-[var(--quant-muted-foreground)]/30" />
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-xs font-medium text-[var(--quant-foreground)]">
+                    {item.label}
+                  </span>
+                  <span
+                    className={`grid size-5 place-items-center rounded-full border ${
+                      selected
+                        ? 'border-[#0078D4] bg-[#0078D4] text-white'
+                        : 'border-[var(--quant-muted-foreground)] bg-transparent'
+                    }`}
+                  >
+                    {selected ? (
+                      <svg className="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    ) : null}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── SUB-SHEET: Sender Screening ───────────────────────────────────────────
+  if (step === 'screening') {
+    return (
+      <div className="space-y-4" data-testid="settings-screening-sheet">
+        <div className="relative flex items-center justify-center border-b border-[var(--quant-border)] pb-3 pt-1">
+          <button
+            type="button"
+            aria-label="Back to Account Detail"
+            onClick={() => setStep('detail')}
+            className="absolute left-0 inline-flex size-8 items-center justify-center rounded-lg text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-hover)]"
+          >
+            <ChevronLeft />
+          </button>
+          <h1 className="text-base font-semibold text-[var(--quant-foreground)]">
+            Sender Screening
+          </h1>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)]">
+          <div className="flex min-h-12 items-center justify-between px-4 py-3">
+            <div>
+              <span className="block text-sm font-normal text-[var(--quant-foreground)]">
+                Screen Unknown Senders
+              </span>
+              <span className="block text-xs text-[var(--quant-muted-foreground)]">
+                Hold messages from first-time senders until approved
+              </span>
+            </div>
+            <PillSwitch
+              checked={screeningEnabled}
+              onChange={(next) => {
+                setScreeningEnabled(next);
+                showToast({
+                  text: next ? 'Sender Screening enabled' : 'Sender Screening turned off',
+                  type: 'info',
+                });
+              }}
+              label="Screen Unknown Senders"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="px-1 text-xs font-medium text-[var(--quant-muted-foreground)]">
+            Blocked / Screened Senders ({filters.length})
+          </h2>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={newScreenedSender}
+              onChange={(e) => setNewScreenedSender(e.target.value)}
+              placeholder="sender@domain.com"
+              className="flex-1 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-card)] px-3.5 py-2 text-sm text-[var(--quant-foreground)] outline-none placeholder:text-[var(--quant-muted-foreground)]"
+            />
+            <button
+              type="button"
+              onClick={() => void handleAddScreenedSender()}
+              className="rounded-xl bg-[#0078D4] px-4 py-2 text-xs font-semibold text-white"
+            >
+              Add Rule
+            </button>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] divide-y divide-[var(--quant-border)]">
+            {filters.length === 0 ? (
+              <p className="px-4 py-3 text-xs text-[var(--quant-muted-foreground)]">
+                No sender screening rules configured yet.
+              </p>
+            ) : (
+              filters.map((rule) => (
+                <div key={rule.id} className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p className="text-sm font-normal text-[var(--quant-foreground)]">
+                      {rule.name}
+                    </p>
+                    <p className="text-xs text-[var(--quant-muted-foreground)]">
+                      From: {rule.conditions?.from || 'Any sender'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilters((prev) => prev.filter((f) => f.id !== rule.id));
+                      void apiClient.deleteMailFilter(rule.id);
+                    }}
+                    className="text-xs font-medium text-[#EF4444]"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── SUB-SHEET: Editor Language & Proofing ─────────────────────────────────
+  if (step === 'editor_language') {
+    return (
+      <div className="space-y-4" data-testid="settings-editor-language-sheet">
+        <div className="relative flex items-center justify-center border-b border-[var(--quant-border)] pb-3 pt-1">
+          <button
+            type="button"
+            aria-label="Back to Account Detail"
+            onClick={() => setStep('detail')}
+            className="absolute left-0 inline-flex size-8 items-center justify-center rounded-lg text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-hover)]"
+          >
+            <ChevronLeft />
+          </button>
+          <h1 className="text-base font-semibold text-[var(--quant-foreground)]">
+            Editor Language
+          </h1>
+        </div>
+
+        <div className="space-y-1.5">
+          <h2 className="px-1 text-xs font-medium text-[var(--quant-muted-foreground)]">
+            Proofing Language
+          </h2>
+          <div className="overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] divide-y divide-[var(--quant-border)]">
+            {EDITOR_LANGUAGES.map((lang) => {
+              const selected = editorLanguage === lang.label;
+              return (
+                <button
+                  key={lang.id}
+                  type="button"
+                  onClick={() => {
+                    setEditorLanguage(lang.label);
+                    try {
+                      localStorage.setItem(EDITOR_LANGUAGE_KEY, lang.label);
+                    } catch {
+                      /* ignore */
+                    }
+                    showToast({ text: `Editor language set to ${lang.label}`, type: 'info' });
+                  }}
+                  className="flex min-h-12 w-full items-center justify-between px-4 py-3 text-left text-sm text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-hover)]"
+                >
+                  <span>{lang.label}</span>
+                  {selected && (
+                    <svg className="size-5 text-[#0078D4]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <h2 className="px-1 text-xs font-medium text-[var(--quant-muted-foreground)]">
+            Proofing &amp; Writing Assistance
+          </h2>
+          <div className="overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] divide-y divide-[var(--quant-border)]">
+            <div className="flex min-h-12 items-center justify-between px-4 py-3">
+              <span className="text-sm text-[var(--quant-foreground)]">Auto-Capitalisation</span>
+              <PillSwitch
+                checked={autoCapitalise}
+                onChange={setAutoCapitalise}
+                label="Auto-Capitalisation"
+              />
+            </div>
+            <div className="flex min-h-12 items-center justify-between px-4 py-3">
+              <span className="text-sm text-[var(--quant-foreground)]">Spell Check</span>
+              <PillSwitch checked={spellCheck} onChange={setSpellCheck} label="Spell Check" />
+            </div>
+            <div className="flex min-h-12 items-center justify-between px-4 py-3">
+              <span className="text-sm text-[var(--quant-foreground)]">Grammar Suggestions</span>
+              <PillSwitch
+                checked={grammarSuggestions}
+                onChange={setGrammarSuggestions}
+                label="Grammar Suggestions"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── SUB-SHEET: Sync Settings ──────────────────────────────────────────────
+  if (step === 'sync_settings') {
+    return (
+      <div className="space-y-4" data-testid="settings-sync-sheet">
+        <div className="relative flex items-center justify-center border-b border-[var(--quant-border)] pb-3 pt-1">
+          <button
+            type="button"
+            aria-label="Back to Account Detail"
+            onClick={() => setStep('detail')}
+            className="absolute left-0 inline-flex size-8 items-center justify-center rounded-lg text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-hover)]"
+          >
+            <ChevronLeft />
+          </button>
+          <h1 className="text-base font-semibold text-[var(--quant-foreground)]">Sync Settings</h1>
+        </div>
+
+        <div className="space-y-1.5">
+          <h2 className="px-1 text-xs font-medium text-[var(--quant-muted-foreground)]">
+            Days of Email to Sync
+          </h2>
+          <div className="overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] divide-y divide-[var(--quant-border)]">
+            {['7 Days', '30 Days', '90 Days', 'All Mail'].map((windowOpt) => (
+              <button
+                key={windowOpt}
+                type="button"
+                onClick={() => {
+                  setSyncDaysWindow(windowOpt);
+                  try {
+                    localStorage.setItem(SYNC_DAYS_WINDOW_KEY, windowOpt);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                className="flex min-h-12 w-full items-center justify-between px-4 py-3 text-left text-sm text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-hover)]"
+              >
+                <span>{windowOpt}</span>
+                {syncDaysWindow === windowOpt && (
+                  <svg className="size-5 text-[#0078D4]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <h2 className="px-1 text-xs font-medium text-[var(--quant-muted-foreground)]">
+            Download Attachments Automatically
+          </h2>
+          <div className="overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] divide-y divide-[var(--quant-border)]">
+            {['Wi-Fi Only', 'Wi-Fi & Cellular', 'Never'].map((attOpt) => (
+              <button
+                key={attOpt}
+                type="button"
+                onClick={() => {
+                  setSyncAttachmentsMode(attOpt);
+                  try {
+                    localStorage.setItem(SYNC_ATTACHMENTS_MODE_KEY, attOpt);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                className="flex min-h-12 w-full items-center justify-between px-4 py-3 text-left text-sm text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-hover)]"
+              >
+                <span>{attOpt}</span>
+                {syncAttachmentsMode === attOpt && (
+                  <svg className="size-5 text-[#0078D4]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)]">
+          <div className="flex min-h-12 items-center justify-between px-4 py-3">
+            <span className="text-sm text-[var(--quant-foreground)]">Background App Refresh</span>
+            <PillSwitch
+              checked={backgroundRefresh}
+              onChange={setBackgroundRefresh}
+              label="Background App Refresh"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ─── SCREEN 0: Settings Sheet Overview ─────────────────────────────────────
   if (step === 'overview') {
@@ -442,7 +1162,7 @@ export function AccountsSettingsFlow({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search"
-            className="w-full rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] py-2.5 pl-10 pr-4 text-sm text-[var(--quant-foreground)] outline-none transition-colors placeholder:text-[var(--quant-muted-foreground)] focus:border-[var(--brand-primary)]"
+            className="w-full rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] py-2.5 pl-10 pr-4 text-sm text-[var(--quant-foreground)] outline-none transition-colors placeholder:text-[var(--quant-muted-foreground)] focus:border-[var(--brand-primary)]"
           />
         </div>
 
@@ -455,7 +1175,8 @@ export function AccountsSettingsFlow({
             {matchesSearch('Display & Appearance', 'theme dark light density') && (
               <button
                 type="button"
-                onClick={() => onNavigateTab?.('appearance')}
+                data-testid="settings-open-appearance-btn"
+                onClick={() => setStep('appearance')}
                 className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-[var(--quant-border)] px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-[var(--quant-surface-hover)]"
               >
                 <span className="flex items-center gap-3.5">
@@ -724,7 +1445,7 @@ export function AccountsSettingsFlow({
             <button
               type="button"
               onClick={handleSetDefaultEmailApp}
-              className="flex min-h-12 w-full items-center px-4 py-3 text-left text-sm font-normal text-[#3B82F6] transition-colors hover:bg-[var(--quant-surface-hover)]"
+              className="flex min-h-12 w-full items-center px-4 py-3 text-left text-sm font-normal text-[#0078D4] transition-colors hover:bg-[var(--quant-surface-hover)]"
             >
               <span>Set Default Email App</span>
             </button>
@@ -771,7 +1492,7 @@ export function AccountsSettingsFlow({
           <button
             type="button"
             onClick={() => setEditMode((prev) => !prev)}
-            className="text-sm font-normal text-[var(--quant-foreground)] hover:underline"
+            className="text-sm font-normal text-[#0078D4] hover:underline"
           >
             {editMode ? 'Done' : 'Edit'}
           </button>
@@ -804,7 +1525,7 @@ export function AccountsSettingsFlow({
             </span>
 
             <span className="flex flex-none items-center gap-2.5">
-              <span className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-[var(--quant-foreground)]">
+              <span className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] px-3 py-1 text-xs font-medium text-[var(--quant-foreground)]">
                 Manage
               </span>
               <ChevronRight />
@@ -824,7 +1545,7 @@ export function AccountsSettingsFlow({
                   Send-as alias · {identity.email}
                 </p>
               </div>
-              <span className="rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--quant-muted-foreground)]">
+              <span className="rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--quant-muted-foreground)]">
                 {identity.verified ? 'Verified' : 'Awaiting code'}
               </span>
             </div>
@@ -868,7 +1589,7 @@ export function AccountsSettingsFlow({
         <h1 className="text-base font-semibold text-[var(--quant-foreground)]">QuantMail</h1>
       </div>
 
-      {/* Hero Centered Avatar + Name + Email (Screen 2 top — clean unbordered layout) */}
+      {/* Hero Centered Avatar + Name + Email */}
       <div className="flex flex-col items-center py-3 text-center">
         <div
           aria-hidden="true"
@@ -928,7 +1649,7 @@ export function AccountsSettingsFlow({
                   type="button"
                   disabled={savingDescription}
                   onClick={() => void handleSaveDescription()}
-                  className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-black"
+                  className="rounded-lg bg-[#0078D4] px-3 py-1.5 text-xs font-semibold text-white"
                 >
                   {savingDescription ? 'Saving…' : 'Save'}
                 </button>
@@ -982,8 +1703,8 @@ export function AccountsSettingsFlow({
                     style={{ backgroundColor: c.hex }}
                     className={`grid size-8 place-items-center rounded-full text-xs font-bold text-white transition-transform ${
                       selected
-                        ? 'ring-2 ring-white ring-offset-2 ring-offset-[var(--quant-card)] scale-105'
-                        : 'opacity-80 hover:opacity-100'
+                        ? 'ring-2 ring-[#0078D4] ring-offset-2 ring-offset-[var(--quant-card)] scale-105'
+                        : 'opacity-85 hover:opacity-100'
                     }`}
                   >
                     {selected ? '✓' : ''}
@@ -1013,7 +1734,7 @@ export function AccountsSettingsFlow({
         </Link>
         <Link
           href="/drive"
-          className="flex min-h-12 items-center px-4 py-3.5 text-sm font-normal text-[#CA8A04] transition-colors hover:bg-[var(--quant-surface-hover)]"
+          className="flex min-h-12 items-center px-4 py-3.5 text-sm font-normal text-[#B45309] dark:text-[#CA8A04] transition-colors hover:bg-[var(--quant-surface-hover)]"
         >
           <span>Get Quant Workspace Pro</span>
         </Link>
@@ -1027,33 +1748,43 @@ export function AccountsSettingsFlow({
         <div className="overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)]">
           <button
             type="button"
-            onClick={() => onNavigateTab?.('filters')}
+            onClick={() => setStep('screening')}
             className="flex min-h-12 w-full items-center justify-between border-b border-[var(--quant-border)] px-4 py-3.5 text-left transition-colors hover:bg-[var(--quant-surface-hover)]"
           >
             <span className="text-sm font-normal text-[var(--quant-foreground)]">
               Sender Screening
             </span>
             <span className="flex items-center gap-2 text-sm text-[var(--quant-muted-foreground)]">
-              <span>{filterCount > 0 ? `${filterCount} Active` : 'Off'}</span>
+              <span>{activeFilterCount > 0 ? `${activeFilterCount} Active` : 'Off'}</span>
               <ChevronRight />
             </span>
           </button>
 
-          <div className="flex min-h-12 items-center justify-between border-b border-[var(--quant-border)] px-4 py-3">
-            <span className="flex items-center gap-2 text-sm font-normal text-[var(--quant-foreground)]">
-              <span>Block External Images</span>
-              <span
-                aria-hidden="true"
-                className="inline-flex size-4 items-center justify-center rounded-full border border-[var(--quant-muted-foreground)] text-[10px] text-[var(--quant-muted-foreground)]"
-              >
-                ?
+          <div className="border-b border-[var(--quant-border)] px-4 py-3">
+            <div className="flex min-h-6 items-center justify-between">
+              <span className="flex items-center gap-2 text-sm font-normal text-[var(--quant-foreground)]">
+                <span>Block External Images</span>
+                <button
+                  type="button"
+                  aria-label="About blocking external images"
+                  onClick={() => setShowBlockImagesHelp((prev) => !prev)}
+                  className="inline-flex size-4 items-center justify-center rounded-full border border-[var(--quant-muted-foreground)] text-[10px] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+                >
+                  ?
+                </button>
               </span>
-            </span>
-            <PillSwitch
-              checked={blockExternalImages}
-              onChange={handleToggleBlockImages}
-              label="Block External Images"
-            />
+              <PillSwitch
+                checked={blockExternalImages}
+                onChange={handleToggleBlockImages}
+                label="Block External Images"
+              />
+            </div>
+            {showBlockImagesHelp && (
+              <p className="mt-2 text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
+                Blocking external images protects your privacy by preventing tracking pixels from
+                notifying senders when or where you open an email.
+              </p>
+            )}
           </div>
 
           <div className="flex min-h-12 items-center justify-between border-b border-[var(--quant-border)] px-4 py-3">
@@ -1069,14 +1800,14 @@ export function AccountsSettingsFlow({
 
           <button
             type="button"
-            onClick={() => onNavigateTab?.('ai')}
+            onClick={() => setStep('editor_language')}
             className="flex min-h-12 w-full items-center justify-between border-b border-[var(--quant-border)] px-4 py-3.5 text-left transition-colors hover:bg-[var(--quant-surface-hover)]"
           >
             <span className="text-sm font-normal text-[var(--quant-foreground)]">
               Editor Language
             </span>
             <span className="flex items-center gap-2 text-sm text-[var(--quant-muted-foreground)]">
-              <span>Default</span>
+              <span>{editorLanguage}</span>
               <ChevronRight />
             </span>
           </button>
@@ -1103,13 +1834,14 @@ export function AccountsSettingsFlow({
           Data Storage
         </h3>
         <div className="overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)]">
-          <Link
-            href="/settings/account"
+          <button
+            type="button"
+            onClick={() => setStep('sync_settings')}
             className="flex min-h-12 w-full items-center justify-between px-4 py-3.5 text-sm font-normal text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-hover)]"
           >
             <span>Sync Settings</span>
             <ChevronRight />
-          </Link>
+          </button>
         </div>
         <p className="px-1 text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
           Automatically sync and download your emails and attachments.
@@ -1122,7 +1854,7 @@ export function AccountsSettingsFlow({
           <button
             type="button"
             onClick={handleResetAccount}
-            className="flex min-h-12 w-full items-center px-4 py-3.5 text-left text-sm font-normal text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-hover)]"
+            className="flex min-h-12 w-full items-center px-4 py-3.5 text-left text-sm font-normal text-[#0078D4] transition-colors hover:bg-[var(--quant-surface-hover)]"
           >
             Reset Account
           </button>

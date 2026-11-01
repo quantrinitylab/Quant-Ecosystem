@@ -1,17 +1,8 @@
 /**
  * accounts-settings-flow.test.tsx
  *
- * Tests for AccountsSettingsFlow (Screens 0, 1, 2, 3):
- *   - Screen 0 (`overview`): Settings Hub with search bar, Quick Settings
- *     (Display & Appearance, Signature, Automatic Replies, Notifications & Sounds),
- *     General (Accounts, Email, Calendar, Contacts, Face ID / Passkey, Privacy),
- *     Set Default Email App, and Integrations & Add-Ins.
- *   - Screen 1 (`accounts`): Accounts list with primary account row, Edit button,
- *     Add Account, and Create New Account.
- *   - Screen 2 & 3 (`detail`): Account Detail view with centered hero initials
- *     avatar, Description, Show As, Plan, Storage, Email & Calendar controls
- *     (Sender Screening, Block External Images, Quanty Editor, Editor Language,
- *     Report Messages), Data Storage (Sync Settings), Reset Account, and Remove Account.
+ * Tests for AccountsSettingsFlow (Screens 0, 1, 2, 3 + Appearance, Sender Screening,
+ * Editor Language, Sync Settings sub-sheets in both White Light and Black Dark themes).
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -113,5 +104,41 @@ describe('AccountsSettingsFlow', () => {
     const stripped = stripExternalImages(input);
     expect(stripped).not.toContain('https://tracker.example.com/pixel.gif');
     expect(stripped).toContain('data:image/png;base64,AAAA');
+  });
+
+  it('renders Appearance sub-sheet with Light, Dark, System theme previews, Colours, and Images', () => {
+    const html = renderToStaticMarkup(
+      <AccountsSettingsFlow {...baseProps} initialStep="appearance" />,
+    );
+    expect(html).toContain('Appearance');
+    expect(html).toContain('Theme');
+    expect(html).toContain('Density');
+    expect(html).toContain('Light');
+    expect(html).toContain('Dark');
+    expect(html).toContain('System');
+    expect(html).toContain('Colours');
+    expect(html).toContain('Images');
+  });
+
+  it('renders Sender Screening, Editor Language, and Sync Settings deep sub-sheets', () => {
+    const screeningHtml = renderToStaticMarkup(
+      <AccountsSettingsFlow {...baseProps} initialStep="screening" />,
+    );
+    expect(screeningHtml).toContain('Sender Screening');
+    expect(screeningHtml).toContain('Screen Unknown Senders');
+
+    const editorHtml = renderToStaticMarkup(
+      <AccountsSettingsFlow {...baseProps} initialStep="editor_language" />,
+    );
+    expect(editorHtml).toContain('Editor Language');
+    expect(editorHtml).toContain('Auto-Capitalisation');
+    expect(editorHtml).toContain('Spell Check');
+
+    const syncHtml = renderToStaticMarkup(
+      <AccountsSettingsFlow {...baseProps} initialStep="sync_settings" />,
+    );
+    expect(syncHtml).toContain('Sync Settings');
+    expect(syncHtml).toContain('Days of Email to Sync');
+    expect(syncHtml).toContain('Download Attachments Automatically');
   });
 });
