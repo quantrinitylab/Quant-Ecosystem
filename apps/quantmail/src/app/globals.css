@@ -1202,6 +1202,12 @@ body {
 .mail-row-swipe-pane.is-snooze { justify-content: flex-start; padding-left: 1rem; background: rgba(59, 130, 246, 0.14); }
 .mail-row-swipe-pane.is-snooze.is-armed { background: rgba(59, 130, 246, 0.30); box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.55); }
 .mail-row-swipe-pane.is-snooze .mail-row-swipe-label { color: #60a5fa; }
+.mail-row-swipe-pane.is-delete { justify-content: flex-end; padding-right: 1rem; background: rgba(239, 68, 68, 0.16); }
+.mail-row-swipe-pane.is-delete.is-armed { background: rgba(239, 68, 68, 0.32); box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.6); }
+.mail-row-swipe-pane.is-delete .mail-row-swipe-label { color: #f87171; }
+.mail-row-swipe-pane.is-read { justify-content: flex-start; padding-left: 1rem; background: rgba(59, 130, 246, 0.16); }
+.mail-row-swipe-pane.is-read.is-armed { background: rgba(59, 130, 246, 0.32); box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.6); }
+.mail-row-swipe-pane.is-read .mail-row-swipe-label { color: #60a5fa; }
 .mail-row-swipe-label { display: inline-flex; align-items: center; gap: 0.4rem; color: #A1A4AC; font-size: 0.688rem; font-weight: 600; white-space: nowrap; }
 .mail-row-swipe-pane.is-armed .mail-row-swipe-label { color: var(--quant-primary); }
 /* The release, and only the release. Absent while a finger is down, which is what

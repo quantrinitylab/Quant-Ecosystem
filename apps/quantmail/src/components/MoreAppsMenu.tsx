@@ -17,7 +17,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { EcosystemAppsPanel } from './EcosystemAppsPanel';
 
-export type MoreAppsAlign = 'left' | 'below';
+export type MoreAppsAlign = 'left' | 'below' | 'right';
 
 export interface MoreAppsMenuProps {
   /** Where the panel opens relative to the trigger button. */
@@ -91,6 +91,12 @@ export function MoreAppsMenu({
         setAnchor({
           top: rect.bottom + PANEL_GAP,
           right: Math.max(8, window.innerWidth - rect.right),
+        });
+      } else if (align === 'right') {
+        // To the right of the trigger, top-aligned with it (left desktop rail).
+        setAnchor({
+          top: Math.max(8, rect.top),
+          left: Math.min(window.innerWidth - PANEL_WIDTH - 8, rect.right + PANEL_GAP),
         });
       } else {
         // To the left of the trigger, top-aligned with it (desktop rail).

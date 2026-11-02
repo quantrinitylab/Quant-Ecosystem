@@ -51,9 +51,14 @@ function tick(ms: number): void {
 }
 
 export interface UseTouchSwipeOptions {
-  onArchive: () => void;
+  onArchive?: () => void;
   /** Right-swipe commit: opens the snooze time picker, never snoozes directly. */
-  onSnooze: () => void;
+  onSnooze?: () => void;
+  onDelete?: () => void;
+  onFlag?: () => void;
+  onToggleRead?: () => void;
+  leftAction?: SwipeCommitDirection;
+  rightAction?: SwipeCommitDirection;
   /** Turn the gesture off without changing the call shape. */
   disabled?: boolean;
   /** px of horizontal travel that commits. Default 80. */
@@ -88,10 +93,21 @@ const CLICK_SUPPRESSION_MS = 400;
 const COMMIT_HOLD_MS = 240;
 
 export function useTouchSwipe(options: UseTouchSwipeOptions): UseTouchSwipeReturn {
-  const { onArchive, onSnooze, disabled = false, thresholdPx = 80, reducedMotion = false } = options;
+  const {
+    onArchive,
+    onSnooze,
+    onDelete,
+    onFlag,
+    onToggleRead,
+    leftAction = 'archive',
+    rightAction = 'snooze',
+    disabled = false,
+    thresholdPx = 80,
+    reducedMotion = false,
+  } = options;
 
   const machineRef = useRef<TouchSwipeMachine | null>(null);
-  if (!machineRef.current) machineRef.current = new TouchSwipeMachine({ thresholdPx });
+  if (!machineRef.current) machineRef.current = new TouchSwipeMachine({ thresholdPx, leftAction, rightAction });
 
   const [offset, setOffset] = useState(0);
   const [phase, setPhase] = useState<SwipeMachinePhase>('idle');
@@ -104,9 +120,9 @@ export function useTouchSwipe(options: UseTouchSwipeOptions): UseTouchSwipeRetur
 
   // Latest callbacks, read at commit time rather than captured, so the handlers
   // stay referentially stable while a row's actions change underneath them.
-  const actionsRef = useRef({ onArchive, onSnooze });
+  const actionsRef = useRef({ onArchive, onSnooze, onDelete, onFlag, onToggleRead });
   useEffect(() => {
-    actionsRef.current = { onArchive, onSnooze };
+    actionsRef.current = { onArchive, onSnooze, onDelete, onFlag, onToggleRead };
   });
 
   useEffect(
@@ -198,10 +214,25 @@ export function useTouchSwipe(options: UseTouchSwipeOptions): UseTouchSwipeRetur
     // the gesture and the result. Archive removes the row; snooze opens the
     // time picker — the gesture never picks a time on the user's behalf.
     if (!reducedMotion) tick(18);
-    const reveal = commit === 'archive' ? -(thresholdPx + 56) : thresholdPx + 56;
+    const isNegative = commit === 'archive' || commit === 'delete' || commit === 'flag';
+    const reveal = isNegative ? -(thresholdPx + 56) : thresholdPx + 56;
     setCommitSnap(reveal);
-    const action = commit === 'archive' ? actionsRef.current.onArchive : actionsRef.current.onSnooze;
-    action();
+
+    if (commit === 'delete' && actionsRef.current.onDelete) {
+      actionsRef.current.onDelete();
+    } else if ((commit === 'read' || commit === 'unread') && actionsRef.current.onToggleRead) {
+      actionsRef.current.onToggleRead();
+    } else if (commit === 'archive' && actionsRef.current.onArchive) {
+      actionsRef.current.onArchive();
+    } else if (commit === 'snooze' && actionsRef.current.onSnooze) {
+      actionsRef.current.onSnooze();
+    } else if (commit === 'flag' && actionsRef.current.onFlag) {
+      actionsRef.current.onFlag();
+    } else if (actionsRef.current.onArchive && isNegative) {
+      actionsRef.current.onArchive();
+    } else if (actionsRef.current.onSnooze) {
+      actionsRef.current.onSnooze();
+    }
     later(() => {
       machine.reset();
       setCommitSnap(null);
