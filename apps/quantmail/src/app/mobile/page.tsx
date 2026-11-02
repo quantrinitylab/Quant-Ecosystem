@@ -55,13 +55,9 @@ export default function MobilePreviewPage() {
         </div>
       </header>
 
-      {/* Main Container: Mobile view is 390px on desktop with smooth shadow, and 100% full-width on actual mobile */}
-      <main className="flex w-full items-center justify-center p-0 md:py-6">
-        <div className="relative mx-auto flex h-[844px] w-full max-w-[390px] flex-col overflow-hidden bg-[var(--quant-background)] md:rounded-3xl md:border md:border-[var(--quant-border)] md:shadow-2xl">
-          <div className="relative h-full w-full overflow-hidden">
-            <MobileInboxFlowSuite />
-          </div>
-        </div>
+      {/* Main Container: Full-screen production mobile web application / PWA */}
+      <main className="w-full min-h-screen flex flex-col">
+        <MobileInboxFlowSuite />
       </main>
     </div>
   );

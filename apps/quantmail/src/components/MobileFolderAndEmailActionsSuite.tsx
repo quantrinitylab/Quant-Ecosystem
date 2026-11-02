@@ -188,6 +188,27 @@ export function MobileFolderEditSheet({
   const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
   const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
 
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const startYRef = React.useRef(0);
+
+  const handleDragStart = (e: React.TouchEvent) => {
+    startYRef.current = e.touches[0].clientY;
+    setIsDragging(true);
+  };
+  const handleDragMove = (e: React.TouchEvent) => {
+    const dy = e.touches[0].clientY - startYRef.current;
+    if (dy > 0) setDragY(dy);
+  };
+  const handleDragEnd = () => {
+    setIsDragging(false);
+    if (dragY > 70) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+      onClose();
+    }
+    setDragY(0);
+  };
+
   const favoriteFolders = useMemo(() => folders.filter((f) => f.favorite), [folders]);
   const topLevelFolders = useMemo(() => folders.filter((f) => f.parentId === null), [folders]);
 
@@ -334,9 +355,35 @@ export function MobileFolderEditSheet({
       data-testid="mobile-folder-edit-sheet"
       className="fixed inset-0 z-50 flex flex-col bg-[#005A9E] dark:bg-black pt-3 text-[var(--quant-foreground)]"
     >
-      <div className="flex flex-1 flex-col overflow-hidden rounded-t-2xl bg-[var(--quant-card)] dark:bg-[#1C1C1E]">
+      <div
+        style={{
+          transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
+          transition: isDragging ? 'none' : 'transform 200ms ease-out',
+        }}
+        className="flex flex-1 flex-col overflow-hidden rounded-t-2xl bg-[var(--quant-card)] dark:bg-[#1C1C1E]"
+      >
+        {/* iOS Grab Handle */}
+        <div
+          className="cursor-grab active:cursor-grabbing py-1 touch-none"
+          onTouchStart={handleDragStart}
+          onTouchMove={handleDragMove}
+          onTouchEnd={handleDragEnd}
+          onTouchCancel={handleDragEnd}
+        >
+          <div
+            data-testid="sheet-drag-handle"
+            className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto my-2 cursor-grab"
+          />
+        </div>
+
         {/* Top Edit Header */}
-        <div className="relative flex items-center justify-center px-4 pb-2 pt-3.5">
+        <div
+          onTouchStart={handleDragStart}
+          onTouchMove={handleDragMove}
+          onTouchEnd={handleDragEnd}
+          onTouchCancel={handleDragEnd}
+          className="relative flex items-center justify-center px-4 pb-2 pt-2 cursor-grab"
+        >
           <h1 className="text-base font-semibold text-[var(--quant-foreground)]">Edit</h1>
           <button
             type="button"

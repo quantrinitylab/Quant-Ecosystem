@@ -7,7 +7,7 @@
  * Supports both White (Light Mode) and Black (Dark Mode) 1:1.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   MobileDeletedFolderView,
@@ -376,8 +376,332 @@ export function MobileInboxFlowSuite() {
   const [selectedDraftForEdit, setSelectedDraftForEdit] = useState<DraftEmailItem | null>(null);
   const [isReplyMode, setIsReplyMode] = useState<boolean>(false);
 
+  // Email State
+  const [emails, setEmails] = useState<MobileInboxEmailItem[]>([...INITIAL_MOBILE_EMAILS]);
+  const [recentlyDeletedEmail, setRecentlyDeletedEmail] = useState<{ email: MobileInboxEmailItem; index: number } | null>(null);
+
+  // Touch Swipe Physics State & Handlers
+  const [swipedRow, setSwipedRow] = useState<{ id: string | null; offset: number; isDragging: boolean }>({
+    id: null,
+    offset: 0,
+    isDragging: false,
+  });
+  const rowTouchStartXRef = useRef<number>(0);
+  const rowTouchStartYRef = useRef<number>(0);
+  const isRowHorizontalRef = useRef<boolean | null>(null);
+  const hasRowMovedRef = useRef<boolean>(false);
+
+  const deleteEmail = (id: string) => {
+    const targetEmail = emails.find((m) => m.id === id);
+    const targetIndex = emails.findIndex((m) => m.id === id);
+    if (!targetEmail) return;
+    setRecentlyDeletedEmail({ email: targetEmail, index: targetIndex });
+    setEmails((prev) => prev.filter((m) => m.id !== id));
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(20);
+    }
+    setInboxDeletedToast(true);
+    setSwipedRow({ id: null, offset: 0, isDragging: false });
+  };
+
+  const toggleFlag = (id: string) => {
+    setEmails((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, flagged: !m.flagged } : m))
+    );
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(20);
+    }
+    setSwipedRow({ id: null, offset: 0, isDragging: false });
+  };
+
+  const toggleUnread = (id: string) => {
+    setEmails((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, unread: !m.unread } : m))
+    );
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(20);
+    }
+    setSwipedRow({ id: null, offset: 0, isDragging: false });
+  };
+
+  const archiveEmail = (id: string) => {
+    const targetEmail = emails.find((m) => m.id === id);
+    const targetIndex = emails.findIndex((m) => m.id === id);
+    if (!targetEmail) return;
+    setRecentlyDeletedEmail({ email: targetEmail, index: targetIndex });
+    setEmails((prev) => prev.filter((m) => m.id !== id));
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(20);
+    }
+    setInboxDeletedToast(true);
+    setSwipedRow({ id: null, offset: 0, isDragging: false });
+  };
+
+  const rowOffsetRef = useRef<number>(0);
+
+  const handleRowTouchStart = (e: React.TouchEvent, id: string) => {
+    rowTouchStartXRef.current = e.touches[0].clientX;
+    rowTouchStartYRef.current = e.touches[0].clientY;
+    rowOffsetRef.current = 0;
+    isRowHorizontalRef.current = null;
+    hasRowMovedRef.current = false;
+    if (swipedRow.id !== id) {
+      setSwipedRow({ id, offset: 0, isDragging: true });
+    } else {
+      setSwipedRow((prev) => ({ ...prev, isDragging: true }));
+    }
+  };
+
+  const handleRowTouchMove = (e: React.TouchEvent, id: string) => {
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const rawDx = currentX - rowTouchStartXRef.current;
+    const rawDy = currentY - rowTouchStartYRef.current;
+
+    if (isRowHorizontalRef.current === null) {
+      if (Math.abs(rawDx) > 8 || Math.abs(rawDy) > 8) {
+        if (Math.abs(rawDx) > Math.abs(rawDy)) {
+          isRowHorizontalRef.current = true;
+        } else {
+          isRowHorizontalRef.current = false;
+          return;
+        }
+      } else {
+        return;
+      }
+    }
+
+    if (!isRowHorizontalRef.current) return;
+    hasRowMovedRef.current = true;
+
+    // Elastic resistance
+    let dx = rawDx;
+    const threshold = 120;
+    if (dx < -threshold) {
+      const excess = -threshold - dx;
+      dx = -threshold - excess * 0.35;
+    } else if (dx > threshold) {
+      const excess = dx - threshold;
+      dx = threshold + excess * 0.35;
+    }
+
+    rowOffsetRef.current = dx;
+    setSwipedRow({ id, offset: dx, isDragging: true });
+  };
+
+  const handleRowTouchEnd = (e: React.TouchEvent, id: string) => {
+    if (!isRowHorizontalRef.current && !hasRowMovedRef.current) {
+      setSwipedRow((prev) => (prev.id === id ? { ...prev, isDragging: false } : prev));
+      return;
+    }
+
+    const currentOffset = rowOffsetRef.current;
+
+    // Swipe Left
+    if (currentOffset <= -120) {
+      deleteEmail(id);
+    } else if (currentOffset < -40) {
+      setSwipedRow({ id, offset: -140, isDragging: false });
+    }
+    // Swipe Right
+    else if (currentOffset >= 120) {
+      toggleUnread(id);
+    } else if (currentOffset > 40) {
+      setSwipedRow({ id, offset: 140, isDragging: false });
+    } else {
+      setSwipedRow({ id: null, offset: 0, isDragging: false });
+    }
+  };
+
+  const handleRowClick = (mail: MobileInboxEmailItem) => {
+    if (hasRowMovedRef.current || (swipedRow.id === mail.id && Math.abs(swipedRow.offset) > 10)) {
+      setSwipedRow({ id: null, offset: 0, isDragging: false });
+      return;
+    }
+    setSubScreen('email_detail');
+  };
+
+  // Pull-to-Refresh Physics State & Handlers
+  const [pullY, setPullY] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const pullStartYRef = useRef(0);
+  const canPullRef = useRef(false);
+
+  const handleListTouchStart = (e: React.TouchEvent) => {
+    pullStartYRef.current = e.touches[0].clientY;
+    canPullRef.current = (listScrollRef.current?.scrollTop ?? 0) <= 0;
+  };
+
+  const handleListTouchMove = (e: React.TouchEvent) => {
+    if (!canPullRef.current || isRefreshing) return;
+    const dy = e.touches[0].clientY - pullStartYRef.current;
+    if (dy > 0 && (listScrollRef.current?.scrollTop ?? 0) <= 0) {
+      const dampened = Math.min(90, dy * 0.45);
+      setPullY(dampened);
+    }
+  };
+
+  const handleListTouchEnd = () => {
+    if (!canPullRef.current || isRefreshing) return;
+    if (pullY >= 55) {
+      setIsRefreshing(true);
+      setPullY(55);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(20);
+      }
+      setTimeout(() => {
+        setIsRefreshing(false);
+        setPullY(0);
+      }, 500);
+    } else {
+      setPullY(0);
+    }
+  };
+
+  // Bottom Sheet Swipe-Down to Dismiss Handlers
+  // 1. Filter Sheet
+  const [filterSheetDy, setFilterSheetDy] = useState(0);
+  const [isDraggingFilterSheet, setIsDraggingFilterSheet] = useState(false);
+  const filterSheetStartYRef = useRef(0);
+  const filterSheetDyRef = useRef(0);
+
+  const handleFilterSheetTouchStart = (e: React.TouchEvent) => {
+    filterSheetStartYRef.current = e.touches[0].clientY;
+    filterSheetDyRef.current = 0;
+    setIsDraggingFilterSheet(true);
+  };
+  const handleFilterSheetTouchMove = (e: React.TouchEvent) => {
+    const dy = e.touches[0].clientY - filterSheetStartYRef.current;
+    if (dy > 0) {
+      filterSheetDyRef.current = dy;
+      setFilterSheetDy(dy);
+    }
+  };
+  const handleFilterSheetTouchEnd = () => {
+    setIsDraggingFilterSheet(false);
+    if (filterSheetDyRef.current > 70) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+      setFilterOpen(false);
+    }
+    filterSheetDyRef.current = 0;
+    setFilterSheetDy(0);
+  };
+
+  // 2. Drawer Add Account Action Sheet
+  const [drawerActionSheetDy, setDrawerActionSheetDy] = useState(0);
+  const [isDraggingDrawerActionSheet, setIsDraggingDrawerActionSheet] = useState(false);
+  const drawerActionSheetStartYRef = useRef(0);
+  const drawerActionSheetDyRef = useRef(0);
+
+  const handleDrawerActionTouchStart = (e: React.TouchEvent) => {
+    drawerActionSheetStartYRef.current = e.touches[0].clientY;
+    drawerActionSheetDyRef.current = 0;
+    setIsDraggingDrawerActionSheet(true);
+  };
+  const handleDrawerActionTouchMove = (e: React.TouchEvent) => {
+    const dy = e.touches[0].clientY - drawerActionSheetStartYRef.current;
+    if (dy > 0) {
+      drawerActionSheetDyRef.current = dy;
+      setDrawerActionSheetDy(dy);
+    }
+  };
+  const handleDrawerActionTouchEnd = () => {
+    setIsDraggingDrawerActionSheet(false);
+    if (drawerActionSheetDyRef.current > 70) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+      setShowAddAccountActionSheet(false);
+    }
+    drawerActionSheetDyRef.current = 0;
+    setDrawerActionSheetDy(0);
+  };
+
+  // 3. Drawer Screen
+  const [drawerDy, setDrawerDy] = useState(0);
+  const [isDraggingDrawer, setIsDraggingDrawer] = useState(false);
+  const drawerStartYRef = useRef(0);
+  const drawerDyRef = useRef(0);
+
+  const handleDrawerTouchStart = (e: React.TouchEvent) => {
+    drawerStartYRef.current = e.touches[0].clientY;
+    drawerDyRef.current = 0;
+    setIsDraggingDrawer(true);
+  };
+  const handleDrawerTouchMove = (e: React.TouchEvent) => {
+    const dy = e.touches[0].clientY - drawerStartYRef.current;
+    if (dy > 0) {
+      drawerDyRef.current = dy;
+      setDrawerDy(dy);
+    }
+  };
+  const handleDrawerTouchEnd = () => {
+    setIsDraggingDrawer(false);
+    if (drawerDyRef.current > 70) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+      setSubScreen('inbox');
+    }
+    drawerDyRef.current = 0;
+    setDrawerDy(0);
+  };
+
+  // 4. Send Availability Sheet
+  const [availDy, setAvailDy] = useState(0);
+  const [isDraggingAvail, setIsDraggingAvail] = useState(false);
+  const availStartYRef = useRef(0);
+  const availDyRef = useRef(0);
+
+  const handleAvailTouchStart = (e: React.TouchEvent) => {
+    availStartYRef.current = e.touches[0].clientY;
+    availDyRef.current = 0;
+    setIsDraggingAvail(true);
+  };
+  const handleAvailTouchMove = (e: React.TouchEvent) => {
+    const dy = e.touches[0].clientY - availStartYRef.current;
+    if (dy > 0) {
+      availDyRef.current = dy;
+      setAvailDy(dy);
+    }
+  };
+  const handleAvailTouchEnd = () => {
+    setIsDraggingAvail(false);
+    if (availDyRef.current > 70) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+      setSubScreen('inbox');
+    }
+    availDyRef.current = 0;
+    setAvailDy(0);
+  };
+
+  // 5. Add Account Form Sheet
+  const [addAccountDy, setAddAccountDy] = useState(0);
+  const [isDraggingAddAccount, setIsDraggingAddAccount] = useState(false);
+  const addAccountStartYRef = useRef(0);
+  const addAccountDyRef = useRef(0);
+
+  const handleAddAccountTouchStart = (e: React.TouchEvent) => {
+    addAccountStartYRef.current = e.touches[0].clientY;
+    addAccountDyRef.current = 0;
+    setIsDraggingAddAccount(true);
+  };
+  const handleAddAccountTouchMove = (e: React.TouchEvent) => {
+    const dy = e.touches[0].clientY - addAccountStartYRef.current;
+    if (dy > 0) {
+      addAccountDyRef.current = dy;
+      setAddAccountDy(dy);
+    }
+  };
+  const handleAddAccountTouchEnd = () => {
+    setIsDraggingAddAccount(false);
+    if (addAccountDyRef.current > 70) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+      setSubScreen('inbox');
+    }
+    addAccountDyRef.current = 0;
+    setAddAccountDy(0);
+  };
+
   const filteredEmails = useMemo(() => {
-    return INITIAL_MOBILE_EMAILS.filter((item) => {
+    return emails.filter((item) => {
       if (item.tab !== activeTab) return false;
       switch (activeFilter) {
         case 'unread':
@@ -398,7 +722,7 @@ export function MobileInboxFlowSuite() {
           return true;
       }
     });
-  }, [activeTab, activeFilter]);
+  }, [emails, activeTab, activeFilter]);
 
   const activeFilterLabel = useMemo(() => {
     if (activeFilter === 'all') return 'Filter';
@@ -1078,8 +1402,25 @@ export function MobileInboxFlowSuite() {
     return (
       <div
         data-testid="mobile-send-availability-sheet"
+        style={{
+          transform: availDy > 0 ? `translateY(${availDy}px)` : undefined,
+          transition: isDraggingAvail ? 'none' : 'transform 200ms ease-out',
+        }}
         className="fixed inset-0 z-50 flex flex-col bg-[var(--quant-card)] text-[var(--quant-foreground)]"
       >
+        {/* iOS Grab Handle */}
+        <div
+          className="cursor-grab active:cursor-grabbing py-1 touch-none"
+          onTouchStart={handleAvailTouchStart}
+          onTouchMove={handleAvailTouchMove}
+          onTouchEnd={handleAvailTouchEnd}
+          onTouchCancel={handleAvailTouchEnd}
+        >
+          <div
+            data-testid="sheet-drag-handle"
+            className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto my-2 cursor-grab"
+          />
+        </div>
         {/* Top helper prompt */}
         <p className="pt-3 text-center text-xs text-[var(--quant-muted-foreground)]">
           Tap the time slots you&apos;re available
@@ -1210,6 +1551,10 @@ export function MobileInboxFlowSuite() {
     return (
       <div
         data-testid="mobile-drawer-add-account"
+        style={{
+          transform: drawerDy > 0 ? `translateY(${drawerDy}px)` : undefined,
+          transition: isDraggingDrawer ? 'none' : 'transform 200ms ease-out',
+        }}
         className="fixed inset-0 z-50 flex bg-[var(--quant-background)] text-[var(--quant-foreground)]"
       >
         {/* Left Account Rail */}
@@ -1232,7 +1577,20 @@ export function MobileInboxFlowSuite() {
         </div>
 
         {/* Folder List Pane */}
-        <div className="flex-1 bg-[var(--quant-card)] p-4">
+        <div className="flex-1 bg-[var(--quant-card)] p-4 flex flex-col">
+          {/* iOS Grab Handle */}
+          <div
+            className="cursor-grab active:cursor-grabbing py-1 touch-none"
+            onTouchStart={handleDrawerTouchStart}
+            onTouchMove={handleDrawerTouchMove}
+            onTouchEnd={handleDrawerTouchEnd}
+            onTouchCancel={handleDrawerTouchEnd}
+          >
+            <div
+              data-testid="sheet-drag-handle"
+              className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto my-2 cursor-grab"
+            />
+          </div>
           <div className="flex items-center justify-between border-b border-[var(--quant-border)] pb-3">
             <div>
               <p className="text-base font-semibold text-[var(--quant-foreground)]">QuantMail</p>
@@ -1307,7 +1665,26 @@ export function MobileInboxFlowSuite() {
         {/* Bottom iOS Action Sheet Overlay (Add Email Account | Create New Account | Cancel) */}
         {showAddAccountActionSheet && (
           <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/45 p-3">
-            <div className="overflow-hidden rounded-2xl bg-[var(--quant-card)] divide-y divide-[var(--quant-border)] shadow-2xl">
+            <div
+              style={{
+                transform: drawerActionSheetDy > 0 ? `translateY(${drawerActionSheetDy}px)` : undefined,
+                transition: isDraggingDrawerActionSheet ? 'none' : 'transform 200ms ease-out',
+              }}
+              className="overflow-hidden rounded-2xl bg-[var(--quant-card)] divide-y divide-[var(--quant-border)] shadow-2xl"
+            >
+              {/* iOS Grab Handle */}
+              <div
+                className="cursor-grab active:cursor-grabbing py-1 touch-none"
+                onTouchStart={handleDrawerActionTouchStart}
+                onTouchMove={handleDrawerActionTouchMove}
+                onTouchEnd={handleDrawerActionTouchEnd}
+                onTouchCancel={handleDrawerActionTouchEnd}
+              >
+                <div
+                  data-testid="sheet-drag-handle"
+                  className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto my-2 cursor-grab"
+                />
+              </div>
               <button
                 type="button"
                 data-testid="action-sheet-add-email-account"
@@ -1359,8 +1736,25 @@ export function MobileInboxFlowSuite() {
     return (
       <div
         data-testid="mobile-add-account-form-sheet"
+        style={{
+          transform: addAccountDy > 0 ? `translateY(${addAccountDy}px)` : undefined,
+          transition: isDraggingAddAccount ? 'none' : 'transform 200ms ease-out',
+        }}
         className="fixed inset-0 z-50 flex flex-col bg-[var(--quant-card)] px-4 pt-3 text-[var(--quant-foreground)]"
       >
+        {/* iOS Grab Handle */}
+        <div
+          className="cursor-grab active:cursor-grabbing py-1 touch-none"
+          onTouchStart={handleAddAccountTouchStart}
+          onTouchMove={handleAddAccountTouchMove}
+          onTouchEnd={handleAddAccountTouchEnd}
+          onTouchCancel={handleAddAccountTouchEnd}
+        >
+          <div
+            data-testid="sheet-drag-handle"
+            className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto my-2 cursor-grab"
+          />
+        </div>
         <div className="relative flex items-center justify-center border-b border-[var(--quant-border)] pb-3">
           <button
             type="button"
@@ -1537,8 +1931,25 @@ export function MobileInboxFlowSuite() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: filterSheetDy > 0 ? `translateY(${filterSheetDy}px)` : undefined,
+              transition: isDraggingFilterSheet ? 'none' : 'transform 200ms ease-out',
+            }}
             className="bg-[var(--quant-card)] divide-y divide-[var(--quant-border)] shadow-2xl"
           >
+            {/* iOS Grab Handle */}
+            <div
+              className="cursor-grab active:cursor-grabbing py-1 touch-none"
+              onTouchStart={handleFilterSheetTouchStart}
+              onTouchMove={handleFilterSheetTouchMove}
+              onTouchEnd={handleFilterSheetTouchEnd}
+              onTouchCancel={handleFilterSheetTouchEnd}
+            >
+              <div
+                data-testid="sheet-drag-handle"
+                className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto my-2 cursor-grab"
+              />
+            </div>
             {FILTER_OPTIONS.map((opt) => (
               <button
                 key={opt.key}
@@ -1585,83 +1996,203 @@ export function MobileInboxFlowSuite() {
           </p>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto">
+        <div
+          ref={listScrollRef}
+          onTouchStart={handleListTouchStart}
+          onTouchMove={handleListTouchMove}
+          onTouchEnd={handleListTouchEnd}
+          onTouchCancel={handleListTouchEnd}
+          className="flex-1 overflow-y-auto"
+        >
+          {/* Mobile Pull-to-Refresh Indicator */}
+          <div
+            data-testid="mobile-pull-to-refresh"
+            style={{
+              height: `${pullY > 0 || isRefreshing ? Math.max(pullY, isRefreshing ? 48 : 0) : 0}px`,
+              opacity: pullY > 10 || isRefreshing ? 1 : 0,
+              transition: pullY > 0 && !isRefreshing ? 'none' : 'height 250ms ease, opacity 200ms ease',
+            }}
+            className="flex items-center justify-center overflow-hidden bg-[var(--quant-surface)]/50 text-[#0078D4]"
+          >
+            <div className="flex items-center gap-2 py-2 text-xs font-medium">
+              <svg
+                className={`size-5 text-[#0078D4] ${isRefreshing ? 'animate-spin' : ''}`}
+                style={{
+                  transform: isRefreshing ? undefined : `rotate(${Math.min(360, pullY * 4)}deg)`,
+                  transition: isRefreshing ? undefined : 'transform 100ms ease-out',
+                }}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+              <span>{isRefreshing ? 'Refreshing…' : pullY >= 55 ? 'Release to refresh' : 'Pull to refresh'}</span>
+            </div>
+          </div>
           <div className="border-b border-[var(--quant-border)] px-4 py-2 text-xs font-medium text-[var(--quant-muted-foreground)]">
             2025
           </div>
 
           <div className="divide-y divide-[var(--quant-border)]">
-            {filteredEmails.map((mail) => (
-              <div
-                key={mail.id}
-                role="button"
-                tabIndex={0}
-                data-testid={`mobile-email-row-${mail.id}`}
-                onClick={() => setSubScreen('email_detail')}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setSubScreen('email_detail');
-                  }
-                }}
-                className={`relative flex cursor-pointer items-start gap-3 px-4 py-3.5 transition-colors ${
-                  mail.flagged
-                    ? 'bg-[#FDFBF2] dark:bg-[#11151F]'
-                    : 'bg-[var(--quant-card)]'
-                }`}
-              >
-                {/* Unread blue dot */}
-                {mail.unread && (
-                  <span
-                    aria-label="Unread"
-                    className="absolute left-1.5 top-8 size-2 rounded-full bg-[#0078D4]"
-                  />
-                )}
+            {filteredEmails.map((mail) => {
+              const isCurrentRowSwiped = swipedRow.id === mail.id;
+              const currentRowOffset = isCurrentRowSwiped ? swipedRow.offset : 0;
+              const isCurrentRowDragging = isCurrentRowSwiped && swipedRow.isDragging;
 
-                {/* Sender Avatar */}
-                <span
-                  style={{ backgroundColor: mail.avatarBg }}
-                  className="grid size-10 flex-none place-items-center rounded-full text-xs font-semibold text-white"
-                >
-                  {mail.avatarText}
-                </span>
-
-                {/* Message Content */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p
-                      className={`truncate text-sm ${
-                        mail.unread ? 'font-bold' : 'font-medium'
-                      } text-[var(--quant-foreground)]`}
+              return (
+                <div key={mail.id} className="relative overflow-hidden bg-[var(--quant-card)]">
+                  {/* Revealed Action Buttons on Left (when swiping right, positive dx) */}
+                  <div className="absolute inset-y-0 left-0 flex items-stretch z-0">
+                    <button
+                      type="button"
+                      data-testid={`swipe-action-unread-${mail.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleUnread(mail.id);
+                      }}
+                      className="flex w-20 flex-col items-center justify-center gap-1 bg-blue-600 px-2 text-white active:bg-blue-700 transition-colors"
                     >
-                      {mail.sender}
-                    </p>
-                    <span className="flex-none text-xs text-[var(--quant-muted-foreground)]">
-                      {mail.dateLabel}
-                    </span>
+                      <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect width="20" height="16" x="2" y="4" rx="2" />
+                        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                      </svg>
+                      <span className="text-[11px] font-semibold">{mail.unread ? 'Read' : 'Unread'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={`swipe-action-archive-${mail.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        archiveEmail(mail.id);
+                      }}
+                      className="flex w-20 flex-col items-center justify-center gap-1 bg-emerald-600 px-2 text-white active:bg-emerald-700 transition-colors"
+                    >
+                      <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect width="20" height="5" x="2" y="3" rx="1" />
+                        <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+                        <path d="M10 12h4" />
+                      </svg>
+                      <span className="text-[11px] font-semibold">Archive</span>
+                    </button>
                   </div>
 
-                  <div className="mt-0.5 flex items-center justify-between gap-2">
-                    <p
-                      className={`truncate text-xs ${
-                        mail.unread ? 'font-semibold' : 'font-normal'
-                      } text-[var(--quant-foreground)]`}
+                  {/* Revealed Action Buttons on Right (when swiping left, negative dx) */}
+                  <div className="absolute inset-y-0 right-0 flex items-stretch z-0">
+                    <button
+                      type="button"
+                      data-testid={`swipe-action-flag-${mail.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFlag(mail.id);
+                      }}
+                      className="flex w-20 flex-col items-center justify-center gap-1 bg-amber-500 px-2 text-white active:bg-amber-600 transition-colors"
                     >
-                      {mail.subject}
-                    </p>
-                    {mail.flagged && (
-                      <span aria-label="Flagged" className="flex-none text-xs text-red-500">
-                        🚩
-                      </span>
+                      <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                        <line x1="4" y1="22" x2="4" y2="15" />
+                      </svg>
+                      <span className="text-[11px] font-semibold">Flag</span>
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={`swipe-action-delete-${mail.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteEmail(mail.id);
+                      }}
+                      className="flex w-20 flex-col items-center justify-center gap-1 bg-rose-600 px-2 text-white active:bg-rose-700 transition-colors"
+                    >
+                      <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <line x1="10" y1="11" x2="10" y2="17" />
+                        <line x1="14" y1="11" x2="14" y2="17" />
+                      </svg>
+                      <span className="text-[11px] font-semibold">Delete</span>
+                    </button>
+                  </div>
+
+                  {/* Foreground Email Item */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    data-testid={`mobile-email-row-${mail.id}`}
+                    onClick={() => handleRowClick(mail)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSubScreen('email_detail');
+                      }
+                    }}
+                    onTouchStart={(e) => handleRowTouchStart(e, mail.id)}
+                    onTouchMove={(e) => handleRowTouchMove(e, mail.id)}
+                    onTouchEnd={(e) => handleRowTouchEnd(e, mail.id)}
+                    onTouchCancel={(e) => handleRowTouchEnd(e, mail.id)}
+                    style={{
+                      transform: `translateX(${currentRowOffset}px)`,
+                      transition: isCurrentRowDragging ? 'none' : 'transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+                    }}
+                    className={`relative z-10 flex cursor-pointer select-none items-start gap-3 px-4 py-3.5 transition-colors ${
+                      mail.flagged
+                        ? 'bg-[#FDFBF2] dark:bg-[#11151F]'
+                        : 'bg-[var(--quant-card)]'
+                    }`}
+                  >
+                    {/* Unread blue dot */}
+                    {mail.unread && (
+                      <span
+                        aria-label="Unread"
+                        className="absolute left-1.5 top-8 size-2 rounded-full bg-[#0078D4]"
+                      />
                     )}
-                  </div>
 
-                  <p className="mt-0.5 line-clamp-2 text-xs text-[var(--quant-muted-foreground)]">
-                    {mail.preview}
-                  </p>
+                    {/* Sender Avatar */}
+                    <span
+                      style={{ backgroundColor: mail.avatarBg }}
+                      className="grid size-10 flex-none place-items-center rounded-full text-xs font-semibold text-white"
+                    >
+                      {mail.avatarText}
+                    </span>
+
+                    {/* Message Content */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p
+                          className={`truncate text-sm ${
+                            mail.unread ? 'font-bold' : 'font-medium'
+                          } text-[var(--quant-foreground)]`}
+                        >
+                          {mail.sender}
+                        </p>
+                        <span className="flex-none text-xs text-[var(--quant-muted-foreground)]">
+                          {mail.dateLabel}
+                        </span>
+                      </div>
+
+                      <div className="mt-0.5 flex items-center justify-between gap-2">
+                        <p
+                          className={`truncate text-xs ${
+                            mail.unread ? 'font-semibold' : 'font-normal'
+                          } text-[var(--quant-foreground)]`}
+                        >
+                          {mail.subject}
+                        </p>
+                        {mail.flagged && (
+                          <span aria-label="Flagged" className="flex-none text-xs text-red-500">
+                            🚩
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="mt-0.5 line-clamp-2 text-xs text-[var(--quant-muted-foreground)]">
+                        {mail.preview}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -1675,7 +2206,17 @@ export function MobileInboxFlowSuite() {
           <span>Deleted</span>
           <button
             type="button"
-            onClick={() => setInboxDeletedToast(false)}
+            onClick={() => {
+              if (recentlyDeletedEmail) {
+                setEmails((prev) => {
+                  const copy = [...prev];
+                  copy.splice(recentlyDeletedEmail.index, 0, recentlyDeletedEmail.email);
+                  return copy;
+                });
+                setRecentlyDeletedEmail(null);
+              }
+              setInboxDeletedToast(false);
+            }}
             className="font-semibold text-[#004578] dark:text-[#60A5FA]"
           >
             Undo

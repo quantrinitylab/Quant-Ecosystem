@@ -181,6 +181,33 @@ export function MobileComposerSheet({
   const [isUnderline, setIsUnderline] = useState(false);
   const [scheduledLabel, setScheduledLabel] = useState<string | null>(null);
 
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const startYRef = React.useRef(0);
+
+  const dragYRef = React.useRef(0);
+  const handleDragStart = (e: React.TouchEvent) => {
+    startYRef.current = e.touches[0].clientY;
+    dragYRef.current = 0;
+    setIsDragging(true);
+  };
+  const handleDragMove = (e: React.TouchEvent) => {
+    const dy = e.touches[0].clientY - startYRef.current;
+    if (dy > 0) {
+      dragYRef.current = dy;
+      setDragY(dy);
+    }
+  };
+  const handleDragEnd = () => {
+    setIsDragging(false);
+    if (dragYRef.current > 70) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+      onClose();
+    }
+    dragYRef.current = 0;
+    setDragY(0);
+  };
+
   if (!isOpen) return null;
 
   const handleSend = () => {
@@ -209,9 +236,35 @@ export function MobileComposerSheet({
       data-testid="mobile-composer-sheet"
       className="fixed inset-0 z-50 flex flex-col bg-black/60 pt-2 text-[var(--quant-foreground)]"
     >
-      <div className="flex flex-1 flex-col overflow-hidden rounded-t-3xl bg-[var(--quant-card)] dark:bg-[#1C1C1E] shadow-2xl">
+      <div
+        style={{
+          transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
+          transition: isDragging ? 'none' : 'transform 200ms ease-out',
+        }}
+        className="flex flex-1 flex-col overflow-hidden rounded-t-3xl bg-[var(--quant-card)] dark:bg-[#1C1C1E] shadow-2xl"
+      >
+        {/* iOS Grab Handle */}
+        <div
+          className="cursor-grab active:cursor-grabbing py-1 touch-none"
+          onTouchStart={handleDragStart}
+          onTouchMove={handleDragMove}
+          onTouchEnd={handleDragEnd}
+          onTouchCancel={handleDragEnd}
+        >
+          <div
+            data-testid="sheet-drag-handle"
+            className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto my-2 cursor-grab"
+          />
+        </div>
+
         {/* Top Header Bar */}
-        <div className="relative flex items-center justify-between border-b border-[var(--quant-border)] px-4 py-3">
+        <div
+          onTouchStart={handleDragStart}
+          onTouchMove={handleDragMove}
+          onTouchEnd={handleDragEnd}
+          onTouchCancel={handleDragEnd}
+          className="relative flex items-center justify-between border-b border-[var(--quant-border)] px-4 py-2 cursor-grab"
+        >
           <button
             type="button"
             data-testid="composer-cancel-btn"

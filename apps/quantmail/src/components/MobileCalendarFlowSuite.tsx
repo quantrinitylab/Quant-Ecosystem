@@ -444,6 +444,34 @@ export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSui
   const [showViewSwitcher, setShowViewSwitcher] = useState(false);
   const [isMonthPickerExpanded, setIsMonthPickerExpanded] = useState(false);
 
+  // Swipe Dismiss State for New/Edit Event Sheet
+  const [eventSheetDragY, setEventSheetDragY] = useState(0);
+  const [isDraggingEventSheet, setIsDraggingEventSheet] = useState(false);
+  const eventSheetStartYRef = React.useRef(0);
+  const eventSheetDragYRef = React.useRef(0);
+
+  const handleEventSheetDragStart = (e: React.TouchEvent) => {
+    eventSheetStartYRef.current = e.touches[0].clientY;
+    eventSheetDragYRef.current = 0;
+    setIsDraggingEventSheet(true);
+  };
+  const handleEventSheetDragMove = (e: React.TouchEvent) => {
+    const dy = e.touches[0].clientY - eventSheetStartYRef.current;
+    if (dy > 0) {
+      eventSheetDragYRef.current = dy;
+      setEventSheetDragY(dy);
+    }
+  };
+  const handleEventSheetDragEnd = () => {
+    setIsDraggingEventSheet(false);
+    if (eventSheetDragYRef.current > 70) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+      setSubScreen('main');
+    }
+    eventSheetDragYRef.current = 0;
+    setEventSheetDragY(0);
+  };
+
   // Selected Date State
   const [selectedDay, setSelectedDay] = useState<number>(26);
   const [activeDateKey, setActiveDateKey] = useState<string>('2026-02-26');
@@ -1108,9 +1136,36 @@ export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSui
       {/* 2. FLOW #26 & #36: NEW / EDIT EVENT SHEET                              */}
       {/* ====================================================================== */}
       {(subScreen === 'new_event' || subScreen === 'edit_event') && (
-        <div data-testid="new-event-sheet" className="flex flex-1 flex-col overflow-y-auto bg-[var(--quant-background)]">
+        <div
+          data-testid="new-event-sheet"
+          style={{
+            transform: eventSheetDragY > 0 ? `translateY(${eventSheetDragY}px)` : undefined,
+            transition: isDraggingEventSheet ? 'none' : 'transform 200ms ease-out',
+          }}
+          className="flex flex-1 flex-col overflow-y-auto bg-[var(--quant-background)]"
+        >
+          {/* iOS Grab Handle */}
+          <div
+            className="cursor-grab active:cursor-grabbing py-1 touch-none"
+            onTouchStart={handleEventSheetDragStart}
+            onTouchMove={handleEventSheetDragMove}
+            onTouchEnd={handleEventSheetDragEnd}
+            onTouchCancel={handleEventSheetDragEnd}
+          >
+            <div
+              data-testid="sheet-drag-handle"
+              className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto my-2 cursor-grab"
+            />
+          </div>
+
           {/* Sheet Top Header */}
-          <div className="sticky top-0 z-20 flex items-center justify-between border-b border-[var(--quant-border)] bg-[var(--quant-card)] px-4 py-2.5">
+          <div
+            onTouchStart={handleEventSheetDragStart}
+            onTouchMove={handleEventSheetDragMove}
+            onTouchEnd={handleEventSheetDragEnd}
+            onTouchCancel={handleEventSheetDragEnd}
+            className="sticky top-0 z-20 flex items-center justify-between border-b border-[var(--quant-border)] bg-[var(--quant-card)] px-4 py-2 cursor-grab"
+          >
             <button
               type="button"
               data-testid="close-event-sheet-btn"
