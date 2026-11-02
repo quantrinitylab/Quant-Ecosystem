@@ -44,6 +44,36 @@ import {
   MobilePhotoDrawingStudio,
   MobileNotificationsFeedSheet,
 } from './MobileBatch8Suite';
+import {
+  MobileOnboardingWalkthroughView,
+  MobilePlanDetailsSheet,
+  MobileCalendarShareRemoveUserSheet,
+  MobileReorderToolbarSheet,
+  MobileReorderAppsSheet,
+  MobileSaveToQuantDriveSheet,
+  MobileCalendarDragDropSheet,
+  MobileDoNotDisturbSheet,
+  MobileSearchContactsSheet,
+  MobileUniversalMailSearchSheet,
+  MobileSearchSettingsSheet,
+  MobileSendToQuantNoteSheet,
+  MobilePasskeySetupSheet,
+  MobileAccountDetailsSetupSheet,
+  MobileMainSettingsHubView,
+  MobileStorageBreakdownSheet,
+  MobileSubscribeWorkspaceSheet,
+  MobileDensitySelectorSheet,
+  MobileTurnOffNotificationsSheet,
+  MobileQuickDraftsBannerSheet,
+  MobileOutOfOfficeTimeRangeSheet,
+  MobileContactEmailTypeSheet,
+  MobileContactPhotoUploadSheet,
+  MobileComposerCameraSheet,
+  MobileComposerGallerySheet,
+  MobileAttachmentFilePreviewModal,
+  MobileWidgetsPreviewSheet,
+} from './MobileBatch9Suite';
+
 
 export type MobileInboxFilterKey =
   | 'all'
@@ -86,7 +116,36 @@ export type MobileInboxSubScreen =
   | 'welcome_login'
   | 'qr_scanner'
   | 'photo_drawing'
-  | 'notifications_feed';
+  | 'notifications_feed'
+  | 'onboarding'
+  | 'plan_details'
+  | 'calendar_remove_user'
+  | 'reorder_toolbar'
+  | 'reorder_apps'
+  | 'save_quantdrive'
+  | 'calendar_drag_drop'
+  | 'dnd_sheet'
+  | 'search_contacts'
+  | 'universal_search'
+  | 'search_settings'
+  | 'send_quantnote'
+  | 'passkey_setup'
+  | 'account_details'
+  | 'main_settings'
+  | 'storage_sheet'
+  | 'subscribe_workspace'
+  | 'density_compact'
+  | 'density_cozy'
+  | 'turn_off_notifications'
+  | 'quick_drafts_banner'
+  | 'ooo_time_range'
+  | 'contact_email_type'
+  | 'contact_photo_upload'
+  | 'composer_camera'
+  | 'composer_gallery'
+  | 'file_preview'
+  | 'widgets_preview'
+;
 
 export type PhotoFilterPreset = 'none' | 'process' | 'sepia' | 'chrome' | 'mono';
 
@@ -463,6 +522,105 @@ export function MobileInboxFlowSuite() {
       />
     );
   }
+  // ─── BATCH 9 SUB-SCREENS ──────────────────────────────────────────────
+  if (subScreen === 'onboarding') {
+    return <MobileOnboardingWalkthroughView onComplete={() => setSubScreen('inbox')} onSkip={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'plan_details') {
+    return <MobilePlanDetailsSheet onClose={() => setSubScreen('inbox')} onUpgrade={() => setSubScreen('subscribe_workspace')} />;
+  }
+  if (subScreen === 'calendar_remove_user') {
+    return <MobileCalendarShareRemoveUserSheet onClose={() => setSubScreen('inbox')} onRemove={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'reorder_toolbar') {
+    return <MobileReorderToolbarSheet onClose={() => setSubScreen('inbox')} onSave={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'reorder_apps') {
+    return <MobileReorderAppsSheet onClose={() => setSubScreen('inbox')} onSave={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'save_quantdrive') {
+    return <MobileSaveToQuantDriveSheet onClose={() => setSubScreen('inbox')} onSave={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'calendar_drag_drop') {
+    return <MobileCalendarDragDropSheet onClose={() => setSubScreen('inbox')} onSave={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'dnd_sheet') {
+    return <MobileDoNotDisturbSheet onClose={() => setSubScreen('inbox')} onSetDnd={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'search_contacts') {
+    return <MobileSearchContactsSheet onClose={() => setSubScreen('inbox')} onSelectContact={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'universal_search') {
+    return <MobileUniversalMailSearchSheet onClose={() => setSubScreen('inbox')} onOpenItem={() => setSubScreen('email_detail')} />;
+  }
+  if (subScreen === 'search_settings') {
+    return <MobileSearchSettingsSheet onClose={() => setSubScreen('inbox')} onSelectSetting={() => setSubScreen('main_settings')} />;
+  }
+  if (subScreen === 'send_quantnote') {
+    return <MobileSendToQuantNoteSheet onClose={() => setSubScreen('inbox')} onSend={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'passkey_setup') {
+    return <MobilePasskeySetupSheet onClose={() => setSubScreen('inbox')} onSuccess={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'account_details') {
+    return <MobileAccountDetailsSetupSheet onClose={() => setSubScreen('inbox')} onSave={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'main_settings') {
+    return <MobileMainSettingsHubView onClose={() => setSubScreen('inbox')} onNavigate={(id) => {
+      if (id === 'appearance') setSubScreen('density_compact');
+      else if (id === 'notifications') setSubScreen('turn_off_notifications');
+      else if (id === 'storage') setSubScreen('storage_sheet');
+      else if (id === 'passkey') setSubScreen('passkey_setup');
+    }} />;
+  }
+  if (subScreen === 'storage_sheet') {
+    return <MobileStorageBreakdownSheet onClose={() => setSubScreen('inbox')} onUpgrade={() => setSubScreen('subscribe_workspace')} />;
+  }
+  if (subScreen === 'subscribe_workspace') {
+    return <MobileSubscribeWorkspaceSheet onClose={() => setSubScreen('inbox')} onSubscribe={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'density_compact') {
+    return <MobileDensitySelectorSheet currentDensity="compact" onClose={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'density_cozy') {
+    return <MobileDensitySelectorSheet currentDensity="cozy" onClose={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'turn_off_notifications') {
+    return <MobileTurnOffNotificationsSheet onClose={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'quick_drafts_banner') {
+    return (
+      <div className="flex flex-col h-full w-full bg-[var(--bg-app)] p-4 justify-center">
+        <MobileQuickDraftsBannerSheet onClose={() => setSubScreen('inbox')} onTurnOff={() => setSubScreen('inbox')} />
+      </div>
+    );
+  }
+  if (subScreen === 'ooo_time_range') {
+    return <MobileOutOfOfficeTimeRangeSheet onClose={() => setSubScreen('inbox')} onSave={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'contact_email_type') {
+    return <MobileContactEmailTypeSheet onClose={() => setSubScreen('inbox')} onSelect={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'contact_photo_upload') {
+    return (
+      <div className="flex flex-col h-full w-full bg-[var(--bg-app)] p-4 justify-center">
+        <MobileContactPhotoUploadSheet onClose={() => setSubScreen('inbox')} onPhotoSelected={() => setSubScreen('inbox')} />
+      </div>
+    );
+  }
+  if (subScreen === 'composer_camera') {
+    return <MobileComposerCameraSheet onClose={() => setSubScreen('inbox')} onAttachPhoto={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'composer_gallery') {
+    return <MobileComposerGallerySheet onClose={() => setSubScreen('inbox')} onAttachImages={() => setSubScreen('inbox')} />;
+  }
+  if (subScreen === 'file_preview') {
+    return <MobileAttachmentFilePreviewModal onClose={() => setSubScreen('inbox')} onSaveToQuantDrive={() => setSubScreen('save_quantdrive')} />;
+  }
+  if (subScreen === 'widgets_preview') {
+    return <MobileWidgetsPreviewSheet onClose={() => setSubScreen('inbox')} />;
+  }
+
 
   if (subScreen === 'quick_drafts') {
     return (
@@ -1720,6 +1878,36 @@ export function MobileInboxFlowSuite() {
         >
           🔐
         </button>
+        {/* Batch 9 Flow Triggers */}
+        <button type="button" data-testid="open-onboarding-btn" onClick={() => setSubScreen('onboarding')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Onboarding">🚀</button>
+        <button type="button" data-testid="open-plan-details-btn" onClick={() => setSubScreen('plan_details')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Plan & Subscription">💳</button>
+        <button type="button" data-testid="open-calendar-remove-user-btn" onClick={() => setSubScreen('calendar_remove_user')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Calendar Share User">👥</button>
+        <button type="button" data-testid="open-reorder-toolbar-btn" onClick={() => setSubScreen('reorder_toolbar')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Reorder Toolbar">🛠️</button>
+        <button type="button" data-testid="open-reorder-apps-btn" onClick={() => setSubScreen('reorder_apps')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Reorder Apps">📱</button>
+        <button type="button" data-testid="open-save-quantdrive-btn" onClick={() => setSubScreen('save_quantdrive')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Save to QuantDrive">💾</button>
+        <button type="button" data-testid="open-calendar-drag-drop-btn" onClick={() => setSubScreen('calendar_drag_drop')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Schedule Drag Drop">📅</button>
+        <button type="button" data-testid="open-dnd-sheet-btn" onClick={() => setSubScreen('dnd_sheet')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Do Not Disturb">🌙</button>
+        <button type="button" data-testid="open-search-contacts-btn" onClick={() => setSubScreen('search_contacts')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Search Contacts">🔎</button>
+        <button type="button" data-testid="open-universal-search-btn" onClick={() => setSubScreen('universal_search')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Universal Search">🌐</button>
+        <button type="button" data-testid="open-search-settings-btn" onClick={() => setSubScreen('search_settings')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Search Settings">⚙️</button>
+        <button type="button" data-testid="open-send-quantnote-btn" onClick={() => setSubScreen('send_quantnote')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Send to QuantNote">📝</button>
+        <button type="button" data-testid="open-passkey-setup-btn" onClick={() => setSubScreen('passkey_setup')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Passkey Setup">🔑</button>
+        <button type="button" data-testid="open-account-details-btn" onClick={() => setSubScreen('account_details')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Account Details">👤</button>
+        <button type="button" data-testid="open-main-settings-btn" onClick={() => setSubScreen('main_settings')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Settings Hub">⚙️</button>
+        <button type="button" data-testid="open-storage-sheet-btn" onClick={() => setSubScreen('storage_sheet')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Storage Breakdown">☁️</button>
+        <button type="button" data-testid="open-subscribe-workspace-btn" onClick={() => setSubScreen('subscribe_workspace')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Subscribe Workspace">💎</button>
+        <button type="button" data-testid="open-density-compact-btn" onClick={() => setSubScreen('density_compact')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Compact Density">🗜️</button>
+        <button type="button" data-testid="open-density-cozy-btn" onClick={() => setSubScreen('density_cozy')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Cozy Density">🛋️</button>
+        <button type="button" data-testid="open-turn-off-notifications-btn" onClick={() => setSubScreen('turn_off_notifications')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Notifications & Sounds">🔕</button>
+        <button type="button" data-testid="open-quick-drafts-banner-btn" onClick={() => setSubScreen('quick_drafts_banner')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Quick Drafts Banner">📋</button>
+        <button type="button" data-testid="open-ooo-time-range-btn" onClick={() => setSubScreen('ooo_time_range')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="OOO Time Range">⏰</button>
+        <button type="button" data-testid="open-contact-email-type-btn" onClick={() => setSubScreen('contact_email_type')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Contact Email Type">🏷️</button>
+        <button type="button" data-testid="open-contact-photo-upload-btn" onClick={() => setSubScreen('contact_photo_upload')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Contact Photo Upload">📸</button>
+        <button type="button" data-testid="open-composer-camera-btn" onClick={() => setSubScreen('composer_camera')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Composer Camera">📷</button>
+        <button type="button" data-testid="open-composer-gallery-btn" onClick={() => setSubScreen('composer_gallery')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Composer Gallery">🖼️</button>
+        <button type="button" data-testid="open-file-preview-btn" onClick={() => setSubScreen('file_preview')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="File Preview">📄</button>
+        <button type="button" data-testid="open-widgets-preview-btn" onClick={() => setSubScreen('widgets_preview')} className="inline-flex size-8 items-center justify-center rounded-lg text-[#0078D4] hover:bg-[var(--quant-surface-hover)]" title="Widgets Gallery">🧩</button>
+
         <button
           type="button"
           data-testid="open-mobile-composer-btn"
