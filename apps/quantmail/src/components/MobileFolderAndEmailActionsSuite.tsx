@@ -713,6 +713,7 @@ export function MobileDeletedFolderView({
           <div className="flex items-center gap-3">
             <button
               type="button"
+              data-testid="deleted-back-to-inbox-btn"
               onClick={onGoToInbox}
               className="grid size-8 place-items-center rounded-full bg-[#EC4899] text-xs font-semibold text-white"
             >

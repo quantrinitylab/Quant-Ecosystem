@@ -1069,6 +1069,7 @@ export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSui
           >
             <button
               type="button"
+              data-testid="calendar-nav-email-btn"
               onClick={() => onBackToEmail?.()}
               className="flex flex-col items-center gap-0.5 text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
             >
