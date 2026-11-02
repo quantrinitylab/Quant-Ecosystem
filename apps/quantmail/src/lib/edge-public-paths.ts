@@ -35,11 +35,13 @@ export const PUBLIC_PATHS = [
   // the product's own "marketing" surface from the restructure and must be
   // readable signed-out, so it stays out of the login redirect.
   '/marketing',
+  '/mobile',
 ] as const;
 
 /** Mirrors AuthGuard's path rules exactly (incl. prefix rules). */
 export function isPublicPath(pathname: string): boolean {
   if ((PUBLIC_PATHS as readonly string[]).includes(pathname)) return true;
+  if (pathname === '/mobile' || pathname.startsWith('/mobile/')) return true;
   if (pathname.startsWith('/sso')) return true;
   if (pathname.startsWith('/oauth')) return true;
   if (pathname.startsWith('/quantgit')) return true;
