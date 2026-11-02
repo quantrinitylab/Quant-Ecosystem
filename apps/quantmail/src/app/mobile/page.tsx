@@ -5,10 +5,8 @@ import { MobileInboxFlowSuite } from '../../components/MobileInboxFlowSuite';
 
 export default function MobilePreviewPage() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [isFrameMode, setIsFrameMode] = useState<boolean>(true);
 
   useEffect(() => {
-    // Populate demo local storage tokens so local mock views operate seamlessly
     try {
       if (!localStorage.getItem('quantmail_access_token')) {
         localStorage.setItem('quantmail_access_token', 'live-demo-token');
@@ -32,16 +30,16 @@ export default function MobilePreviewPage() {
   }, [theme]);
 
   return (
-    <div className={`min-h-screen w-full transition-colors ${theme === 'dark' ? 'bg-[#0B0F17] text-white' : 'bg-[#F1F5F9] text-slate-900'}`}>
-      {/* Top Banner & Quick Controls for Desktop Previewers */}
-      <header className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--quant-border)] bg-[var(--quant-card)]/90 px-4 py-2.5 backdrop-blur-md">
+    <div className={`min-h-screen w-full transition-colors ${theme === 'dark' ? 'bg-[#090A0E] text-white' : 'bg-[#F8FAFC] text-slate-900'}`}>
+      {/* Top Floating Control Capsule */}
+      <header className="sticky top-0 z-50 flex items-center justify-between border-b border-[var(--quant-border)] bg-[var(--quant-card)]/90 px-4 py-2.5 backdrop-blur-md">
         <div className="flex items-center gap-2.5">
           <span className="grid size-7 place-items-center rounded-lg bg-[#0078D4] text-xs font-bold text-white shadow-sm">
             Q
           </span>
           <div>
-            <h1 className="text-xs font-bold tracking-tight">QuantMail Mobile Suite</h1>
-            <p className="text-[10px] text-[var(--quant-muted-foreground)]">110 Reverse-Engineered Flows • Live Interactive</p>
+            <h1 className="text-xs font-bold tracking-tight">QuantMail Mobile</h1>
+            <p className="text-[10px] text-[var(--quant-muted-foreground)]">Native Production Mobile Experience</p>
           </div>
         </div>
 
@@ -50,39 +48,20 @@ export default function MobilePreviewPage() {
           <button
             type="button"
             onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] px-2.5 py-1 text-xs font-medium hover:bg-[var(--quant-surface-hover)]"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--quant-surface-hover)] transition-colors"
           >
             <span>{theme === 'light' ? '☀️ Light' : '🌙 Dark'}</span>
-          </button>
-
-          {/* Device Frame Toggle */}
-          <button
-            type="button"
-            onClick={() => setIsFrameMode((f) => !f)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] px-2.5 py-1 text-xs font-medium hover:bg-[var(--quant-surface-hover)]"
-          >
-            <span>{isFrameMode ? '📱 iPhone 15 Frame' : '🖥️ Fullscreen'}</span>
           </button>
         </div>
       </header>
 
-      {/* Main Container */}
+      {/* Main Container: Mobile view is 390px on desktop with smooth shadow, and 100% full-width on actual mobile */}
       <main className="flex w-full items-center justify-center p-0 md:py-6">
-        {isFrameMode ? (
-          <div className="relative mx-auto flex h-[844px] w-[390px] flex-col overflow-hidden rounded-[44px] border-[6px] border-slate-800 bg-[var(--quant-background)] shadow-2xl ring-1 ring-slate-900/10">
-            {/* Dynamic Island Notch */}
-            <div className="pointer-events-none absolute left-1/2 top-2.5 z-50 h-5 w-24 -translate-x-1/2 rounded-full bg-black shadow-inner" />
-
-            {/* Mobile Inbox Flow Suite */}
-            <div className="relative h-full w-full overflow-hidden">
-              <MobileInboxFlowSuite />
-            </div>
-          </div>
-        ) : (
-          <div className="relative h-screen w-full overflow-hidden bg-[var(--quant-background)]">
+        <div className="relative mx-auto flex h-[844px] w-full max-w-[390px] flex-col overflow-hidden bg-[var(--quant-background)] md:rounded-3xl md:border md:border-[var(--quant-border)] md:shadow-2xl">
+          <div className="relative h-full w-full overflow-hidden">
             <MobileInboxFlowSuite />
           </div>
-        )}
+        </div>
       </main>
     </div>
   );
