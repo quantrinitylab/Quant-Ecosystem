@@ -58,6 +58,13 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('../../../services/api-client', () => ({
   apiClient: { loginWithPassword: loginSpy },
+  // QC-F-141: the module now exports the challenge guard; the component
+  // branches on it. Real logic, re-stated for the mock.
+  isTwoFactorChallenge: (data: unknown): boolean =>
+    typeof data === 'object' &&
+    data !== null &&
+    (data as { twoFactorRequired?: unknown }).twoFactorRequired === true &&
+    typeof (data as { challenge?: unknown }).challenge === 'string',
 }));
 
 vi.mock('../../../lib/auth-session', () => ({

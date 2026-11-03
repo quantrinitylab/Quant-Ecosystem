@@ -57,9 +57,36 @@ import { sanitizeErrorMessage } from '../lib/sanitize-error';
  */
 export const REQUEST_TIMEOUT_MS = 30_000;
 
-// ============================================================================
-// Types
-// ============================================================================
+// --------------------------------------------------------------------------
+// QC-F-141: password login answers with EITHER a session OR a second-factor
+// challenge. The challenge must never be persisted as a session — the old
+// code called setTokens unconditionally, which would have stored undefined
+// tokens on a challenge-shaped answer and wedged the client half-logged-in.
+// --------------------------------------------------------------------------
+
+/** A session minted by password login (2FA-off accounts) or by /auth/2fa/verify. */
+export type PasswordSessionData = AuthTokens & {
+  user: { id: string; email: string; username: string; displayName?: string };
+};
+
+/** The half-finished login the backend returns for 2FA-on accounts. */
+export interface TwoFactorChallengeData {
+  twoFactorRequired: true;
+  challenge: string;
+  expiresIn: number;
+}
+
+export type PasswordLoginResult = PasswordSessionData | TwoFactorChallengeData;
+
+/** Type guard so callers branch on shape, never on string-matching. */
+export function isTwoFactorChallenge(data: unknown): data is TwoFactorChallengeData {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    (data as { twoFactorRequired?: unknown }).twoFactorRequired === true &&
+    typeof (data as { challenge?: unknown }).challenge === 'string'
+  );
+}
 
 interface ApiResponse<T> {
   success: boolean;
@@ -200,18 +227,32 @@ export class QuantChatApiClient {
   // Auth
   // --------------------------------------------------------------------------
 
-  async loginWithPassword(credentials: { identifier: string; password: string }): Promise<
-    ApiResponse<
-      AuthTokens & {
-        user: { id: string; email: string; username: string; displayName?: string };
+  async loginWithPassword(credentials: {
+    identifier: string;
+    password: string;
+  }): Promise<ApiResponse<PasswordLoginResult>> {
+    const response = await this.post<PasswordLoginResult>('/auth/login', credentials);
+    // QC-F-141: only a session-shaped answer may touch the token store. A
+    // challenge-shaped answer means the login is half-finished — persisting
+    // it would wedge the client half-logged-in.
+    if (response.success && response.data && !isTwoFactorChallenge(response.data)) {
+      if (response.data.accessToken && response.data.refreshToken) {
+        this.setTokens(response.data.accessToken, response.data.refreshToken);
       }
-    >
-  > {
-    const response = await this.post<
-      AuthTokens & {
-        user: { id: string; email: string; username: string; displayName?: string };
-      }
-    >('/auth/login', credentials);
+    }
+    return response;
+  }
+
+  /**
+   * QC-F-141: complete the second factor for a password login whose account
+   * has 2FA enabled. Posts { challenge, code } to the verify route and, on
+   * success, persists the session exactly like a plain password login.
+   */
+  async verifyTwoFactorLogin(request: {
+    challenge: string;
+    code: string;
+  }): Promise<ApiResponse<PasswordSessionData>> {
+    const response = await this.post<PasswordSessionData>('/auth/2fa/verify', request);
     if (response.success && response.data) {
       this.setTokens(response.data.accessToken, response.data.refreshToken);
     }

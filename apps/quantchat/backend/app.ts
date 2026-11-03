@@ -89,6 +89,7 @@ export function getConfig(): AppConfig {
     env,
     publicPaths: [
       '/auth/login',
+      '/auth/2fa/verify', // QC-F-141: second-factor completion for password login (public by design)
       '/auth/refresh',
       '/auth/otp/request',
       '/auth/otp/verify',
@@ -153,6 +154,9 @@ export async function buildApp(config?: AppConfig) {
       jwtAudience: appConfig.jwtAudience,
     }),
   );
+  // QC-F-141: app signing config for routes/auth.ts — the 2FA challenge key
+  // is derived from jwtSecret at request time (no new env var).
+  app.decorate('appConfig', appConfig);
   await app.register(authRoutes, { prefix: '/auth' });
 
   const realtime = createRealtimeContext({
