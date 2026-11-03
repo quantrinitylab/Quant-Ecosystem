@@ -734,6 +734,15 @@ export function ConversationalThreadView({
             description: 'Build a calendar event from this conversation — attendees pulled from the thread',
             run: () => handleCreateEventFromEmail('event'),
           } satisfies Command,
+          {
+            id: 'thread.openDossier',
+            label: 'Contact Dossier & Details',
+            group: 'Conversation',
+            keys: 'i',
+            scope: THREAD_KEYBOARD_SCOPE,
+            description: 'Open contact profile dossier and shared files/media',
+            run: () => setProfileOpen(true),
+          } satisfies Command,
         ],
       [handleCreateEventFromEmail],
     ),
@@ -2125,6 +2134,30 @@ export function ConversationalThreadView({
             >
               <line x1="12" y1="17" x2="12" y2="22" />
               <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
+            </svg>
+          </button>
+
+          {/* Contact Dossier Button */}
+          <button
+            type="button"
+            onClick={() => setProfileOpen(true)}
+            className="hidden sm:flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-surface-elevated)] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] sm:min-h-0 sm:min-w-0"
+            title="Contact Dossier & Shared Media (I)"
+            aria-label="Open contact dossier and shared media"
+          >
+            <svg
+              className="size-[18px]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
           </button>
 

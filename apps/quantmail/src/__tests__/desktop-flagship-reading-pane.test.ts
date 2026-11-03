@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 
 const appDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'app');
 const pageCode = readFileSync(join(appDir, 'page.tsx'), 'utf8');
+const threadViewCode = readFileSync(join(appDir, '..', 'components', 'ConversationalThreadView.tsx'), 'utf8');
 const globalsCss = readFileSync(join(appDir, 'globals.css'), 'utf8');
 const shellCss = readFileSync(join(appDir, 'shell.css'), 'utf8');
 
@@ -69,6 +70,13 @@ describe('Desktop Flagship Outlook Architecture Contract', () => {
       expect(pageCode).toContain('<kbd>c</kbd> compose');
       expect(pageCode).toContain('<kbd>e</kbd> archive');
       expect(pageCode).toContain('<kbd>#</kbd> delete');
+    });
+
+    it('defines Superhuman Contact Dossier trigger and keyboard shortcut (I) in thread view', () => {
+      expect(threadViewCode).toContain("id: 'thread.openDossier'");
+      expect(threadViewCode).toContain("keys: 'i'");
+      expect(threadViewCode).toContain('Contact Dossier & Shared Media (I)');
+      expect(threadViewCode).toContain('setProfileOpen(true)');
     });
   });
 
