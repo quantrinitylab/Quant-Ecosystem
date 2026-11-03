@@ -351,7 +351,21 @@ export default async function authRoutes(fastify: FastifyInstance) {
   });
 
   // POST /auth/login — Email/Username/Phone + Password direct authentication
-  fastify.post('/login', async (request, reply) => {
+  // QC-F-579: per-route bucket (stricter than the global 100/min/IP). This
+  // caps brute-force throughput + argon2 compute per IP. QC-F-305's per-account
+  // lockout (5 attempts / 15 min) stays the real counter for a targeted account;
+  // this bucket is deliberately loose so it only bites far past that lockout.
+  fastify.post(
+    '/login',
+    {
+      config: {
+        rateLimit: {
+          max: Number(process.env['RATE_LIMIT_LOGIN_MAX'] ?? 20),
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    async (request, reply) => {
     const parsed = loginSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -478,7 +492,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         },
       },
     });
-  });
+    },
+  );
 
   // POST /auth/sso/exchange — Exchange a QuantMail SSO token for QuantChat-native tokens.
   //
@@ -492,7 +507,23 @@ export default async function authRoutes(fastify: FastifyInstance) {
   // This PUBLIC endpoint verifies the SSO token back-channel against QuantMail's
   // `/api/oauth/userinfo`, upserts the user by verified email, and returns
   // QuantChat-native tokens minted by `sessionTokens`.
-  fastify.post('/sso/exchange', async (request, reply) => {
+  // QC-F-579: per-route bucket (stricter than the global 100/min/IP). Every hit
+  // fans out to QuantMail's userinfo with an attacker-controlled bearer <redacted> (up
+  // to 8s upstream hold), so this caps DoS amplification + token-oracle probing
+  // to 15/min/IP. The plugin check runs in a preHandler, before QC-F-578's
+  // in-handler email_verified gate — cheap rejection first, expensive upstream
+  // fetch saved.
+  fastify.post(
+    '/sso/exchange',
+    {
+      config: {
+        rateLimit: {
+          max: Number(process.env['RATE_LIMIT_SSO_EXCHANGE_MAX'] ?? 15),
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    async (request, reply) => {
     const parsed = ssoExchangeSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -635,7 +666,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         },
       },
     });
-  });
+    },
+  );
 
   // POST /auth/refresh — redeem a refresh token for a fresh token pair.
   //
@@ -814,7 +846,20 @@ export default async function authRoutes(fastify: FastifyInstance) {
   });
 
   // POST /auth/otp/request
-  fastify.post('/otp/request', async (request, reply) => {
+  // QC-F-579: per-route bucket (stricter than the global 100/min/IP). Every hit
+  // is a billable SMS; the existing per-phone 60s cooldown is kept and now a
+  // per-IP bucket caps phone-rotation amplification to 10 SMS/min/IP.
+  fastify.post(
+    '/otp/request',
+    {
+      config: {
+        rateLimit: {
+          max: Number(process.env['RATE_LIMIT_OTP_REQUEST_MAX'] ?? 10),
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    async (request, reply) => {
     const parsed = requestSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -843,7 +888,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         expiresIn: result.expiresInSec ?? 300,
       },
     });
-  });
+    },
+  );
 
   // POST /auth/otp/verify
   fastify.post('/otp/verify', async (request, reply) => {
