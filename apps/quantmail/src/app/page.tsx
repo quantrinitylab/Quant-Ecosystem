@@ -3618,10 +3618,28 @@ function InboxPageContent() {
       if (isMobileViewport && targetId && typeof window !== 'undefined') {
         const currentPath = window.location.pathname + window.location.search;
         router.push(`/thread/${targetId}?returnTo=${encodeURIComponent(currentPath)}`);
+      } else if (!isMobileViewport && targetId && typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('threadId') !== targetId) {
+          url.searchParams.set('threadId', targetId);
+          window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+        }
       }
     },
     [isMobile, mutations, router, threads, conversationIds],
   );
+
+  const clearThreadSelection = useCallback(() => {
+    setSelectedEmail(null);
+    setSelectedThread(null);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('threadId')) {
+        url.searchParams.delete('threadId');
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+      }
+    }
+  }, []);
 
   /**
    * Superhuman-style cursor and mail actions.
@@ -3636,8 +3654,7 @@ function InboxPageContent() {
       selectedId: selectedEmail?.id ?? null,
       onOpen: (thread) => openEmail(thread.latestEmail, thread),
       onClose: () => {
-        setSelectedEmail(null);
-        setSelectedThread(null);
+        clearThreadSelection();
       },
       onToggleSelect: (id) => toggleSelect(id),
       // Escape's innermost layer. The selection bar replaces the shell's own header
@@ -3652,6 +3669,36 @@ function InboxPageContent() {
       scrollToIndex: virtualizer.scrollToIndex,
       onCompose: () => handleOpenCompose(),
     });
+
+  /**
+   * Deep link / URL restoration for Desktop Split Reading Pane.
+   * On desktop (>=1024px), if `?threadId=<id>` is present in the URL, automatically selects
+   * the matching conversation from the active thread pool.
+   * On mobile (<1024px), immediately redirects to `/thread/<id>` to preserve single-pane UX.
+   */
+  useEffect(() => {
+    const threadIdParam = searchParams?.get('threadId');
+    if (!threadIdParam) return;
+    const isMobileViewport = isMobile || (typeof window !== 'undefined' && window.innerWidth < 1024);
+    if (isMobileViewport && typeof window !== 'undefined') {
+      router.push(`/thread/${encodeURIComponent(threadIdParam)}?returnTo=${encodeURIComponent('/?view=inbox')}`);
+      return;
+    }
+    if (selectedThread && (selectedThread.id === threadIdParam || selectedThread.threadId === threadIdParam)) {
+      return;
+    }
+    const pool = displayThreads.length > 0 ? displayThreads : (threads ?? []);
+    const match = pool.find(
+      (t) =>
+        t.id === threadIdParam ||
+        t.threadId === threadIdParam ||
+        t.messages.some((m) => m.id === threadIdParam),
+    );
+    if (match) {
+      setSelectedThread(match);
+      setSelectedEmail(match.latestEmail ?? match.messages[match.messages.length - 1] ?? null);
+    }
+  }, [searchParams, isMobile, displayThreads, threads, selectedThread, router]);
 
   /**
    * The `j`/`k` cursor, said out loud.
@@ -5230,21 +5277,18 @@ function InboxPageContent() {
               }
               subject={selectedThread?.subject || selectedEmail?.subject || '(No Subject)'}
               onClose={() => {
-                setSelectedEmail(null);
-                setSelectedThread(null);
+                clearThreadSelection();
               }}
               onArchive={(ids) => {
                 if (ids && ids.length > 0) void mutations.archive(ids);
-                setSelectedEmail(null);
-                setSelectedThread(null);
+                clearThreadSelection();
               }}
               onUnarchive={(ids) => {
                 if (ids && ids.length > 0) void mutations.unarchive(ids);
               }}
               onDelete={(ids) => {
                 if (ids && ids.length > 0) void mutations.trash(ids);
-                setSelectedEmail(null);
-                setSelectedThread(null);
+                clearThreadSelection();
               }}
               onStarToggle={() => {
                 if (selectedThreadId) void mutations.toggleStar(conversationIds(selectedThreadId));
@@ -5264,6 +5308,23 @@ function InboxPageContent() {
               <p className="mt-2 max-w-sm text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
                 Click on any conversation in the list to view its contents, reply, or take actions.
               </p>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-[var(--quant-muted-foreground)]">
+                <span className="inline-flex items-center gap-1 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] px-1.5 py-0.5 font-mono shadow-xs">
+                  <kbd>j</kbd>/<kbd>k</kbd> navigate
+                </span>
+                <span className="inline-flex items-center gap-1 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] px-1.5 py-0.5 font-mono shadow-xs">
+                  <kbd>Enter</kbd> open
+                </span>
+                <span className="inline-flex items-center gap-1 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] px-1.5 py-0.5 font-mono shadow-xs">
+                  <kbd>c</kbd> compose
+                </span>
+                <span className="inline-flex items-center gap-1 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] px-1.5 py-0.5 font-mono shadow-xs">
+                  <kbd>e</kbd> archive
+                </span>
+                <span className="inline-flex items-center gap-1 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] px-1.5 py-0.5 font-mono shadow-xs">
+                  <kbd>#</kbd> delete
+                </span>
+              </div>
             </div>
           )}
         </section>

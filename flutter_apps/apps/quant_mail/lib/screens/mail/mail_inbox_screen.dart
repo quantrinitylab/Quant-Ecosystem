@@ -808,6 +808,18 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
     );
   }
 
+  String _getDateGroup(String dateFormatted) {
+    if (dateFormatted.trim().isEmpty) return '';
+    final lower = dateFormatted.toLowerCase();
+    if (lower.contains('today') || lower.contains(':') || lower.contains('am') || lower.contains('pm')) {
+      return 'Today';
+    }
+    if (lower.contains('yesterday')) {
+      return 'Yesterday';
+    }
+    return dateFormatted;
+  }
+
   Widget _buildVirtualizedThreadList() {
     final list = _filteredThreads;
 
@@ -818,8 +830,12 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
         final thread = list[index];
         final isSelected = _selectedThreadIds.contains(thread.id);
         final isNavFocused = _activeNavIndex == index;
+        final previousThread = index > 0 ? list[index - 1] : null;
+        final currentGroup = _getDateGroup(thread.dateFormatted);
+        final previousGroup = previousThread != null ? _getDateGroup(previousThread.dateFormatted) : null;
+        final showDateHeader = currentGroup.isNotEmpty && (previousGroup == null || currentGroup != previousGroup);
 
-        return Dismissible(
+        final threadCard = Dismissible(
           key: Key(thread.id),
           direction: DismissDirection.horizontal,
           // Swipe Right: Amber Snooze
@@ -1104,6 +1120,27 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
             ),
           ),
         );
+        if (showDateHeader) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 4, top: 12, bottom: 6),
+                child: Text(
+                  currentGroup,
+                  style: const TextStyle(
+                    color: QuantColors.textMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              threadCard,
+            ],
+          );
+        }
+        return threadCard;
       },
     );
   }

@@ -49,6 +49,27 @@ describe('Desktop Flagship Outlook Architecture Contract', () => {
         /if \(isMobileViewport && targetId && typeof window !== 'undefined'\)/
       );
     });
+
+    it('synchronizes threadId query parameter on desktop open and clears on dismiss', () => {
+      expect(pageCode).toMatch(/url\.searchParams\.set\('threadId',\s*targetId\)/);
+      expect(pageCode).toMatch(/url\.searchParams\.delete\('threadId'\)/);
+      expect(pageCode).toMatch(/window\.history\.replaceState\(\{\},\s*'',\s*`\$\{url\.pathname\}\$\{url\.search\}\$\{url\.hash\}`\)/);
+      expect(pageCode).toContain('clearThreadSelection');
+    });
+
+    it('restores thread from ?threadId query parameter on mount for desktop and redirects on mobile', () => {
+      expect(pageCode).toMatch(/const threadIdParam = searchParams\?\.get\('threadId'\)/);
+      expect(pageCode).toMatch(/router\.push\(`\/thread\/\$\{encodeURIComponent\(threadIdParam\)\}/);
+      expect(pageCode).toMatch(/setSelectedThread\(match\)/);
+    });
+
+    it('renders keyboard shortcut badges in the empty reading pane placeholder', () => {
+      expect(pageCode).toContain('<kbd>j</kbd>/<kbd>k</kbd> navigate');
+      expect(pageCode).toContain('<kbd>Enter</kbd> open');
+      expect(pageCode).toContain('<kbd>c</kbd> compose');
+      expect(pageCode).toContain('<kbd>e</kbd> archive');
+      expect(pageCode).toContain('<kbd>#</kbd> delete');
+    });
   });
 
   describe('CSS layout contract for side-by-side desktop pane', () => {

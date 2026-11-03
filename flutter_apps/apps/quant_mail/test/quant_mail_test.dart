@@ -888,5 +888,15 @@ void main() {
         reason: 'Violation of Sovereign Impeller Rule: Zero Skia clipPath calls allowed. Use BorderRadius/BoxDecoration.',
       );
     });
+
+    test('Outlook iOS Parity: MailInboxScreen defines sticky date headers grouping', () {
+      final file = File('lib/screens/mail/mail_inbox_screen.dart');
+      expect(file.existsSync(), isTrue);
+      final content = file.readAsStringSync();
+      expect(content.contains('_getDateGroup'), isTrue);
+      expect(content.contains("return 'Today';"), isTrue);
+      expect(content.contains("return 'Yesterday';"), isTrue);
+      expect(content.contains('showDateHeader'), isTrue);
+    });
   });
 }
