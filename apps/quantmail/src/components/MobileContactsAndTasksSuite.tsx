@@ -270,7 +270,7 @@ export function MobileAssignCategoryModal({
     { name: 'Mobbin', color: '#6366F1' },
     { name: 'Orange category', color: '#F97316' },
     { name: 'Purple category', color: '#8B5CF6' },
-    { name: 'Red category', color: '#EF4444' },
+    { name: 'Red category', color: 'var(--quant-destructive)' },
     { name: 'Yellow category', color: '#EAB308' },
   ];
 
@@ -743,7 +743,7 @@ export function MobileProfileIconCustomizerSheet({
 
   if (!isOpen) return null;
 
-  const colorPalette = ['#0078D4', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+  const colorPalette = ['#0078D4', '#10B981', '#F59E0B', 'var(--quant-destructive)', '#8B5CF6', '#EC4899'];
   const iconEmojis = ['⚡', '🚀', '⭐', '🛡️', '💼', '🎯', '💡', '🔥'];
 
   return (
@@ -1044,7 +1044,7 @@ export function MobileClearCalendarScheduleModal({
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col items-center justify-center rounded-lg bg-[var(--quant-border)]/50 size-10 text-center font-bold">
                     <span className="text-sm">27</span>
-                    <span className="text-[9px] uppercase text-[var(--quant-muted-foreground)]">Fri</span>
+                    <span className="text-[var(--q-type-xs)] uppercase text-[var(--quant-muted-foreground)]">Fri</span>
                   </div>
                   <div>
                     <span className="font-semibold text-sm block">{ev.title}</span>
