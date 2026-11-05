@@ -10,17 +10,14 @@ import { MobileComposerSheet } from '../components/MobileComposerAndDraftsSuite'
 import MobilePreviewPage from '../app/mobile/page';
 
 
-vi.mock('next/navigation', () => {
-    useRouter: () => ({
-          push: vi.fn(),
-          replace: vi.fn(),
-      prefetch: vi.fn(),
-      back: vi.fn(),
-      forward: vi.fn(),
-      refresh: vi.fn(),
-    }),
-      }));
-let container: HTMLDivElement | null = null;
+// MobileRoute calls useRouter — stub the router the way the other suites do,
+// so this suite renders the page the way the app router would mount it.
+vi.mock('next/navigation', () => ({
+      useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+      useSearchParams: () => new URLSearchParams(),
+      usePathname: () => '/mobile',
+}));
+    let container: HTMLDivElement | null = null;
 let root: Root | null = null;
 
 function renderEl(el: React.ReactElement) {
