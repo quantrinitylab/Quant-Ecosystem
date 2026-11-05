@@ -436,6 +436,14 @@ describe('QM-UIUX-093 — Snooze', () => {
   async function snoozeViaMenu() {
     await openMoreMenu();
     await click(buttonByText('Snooze…'));
+        // Slice 2 added a first-run snooze intro dialog before the snooze menu:
+    // on a fresh profile it intercepts the flow, so step through it when it
+    // is showing, then pick the preset. No assertion is touched — both
+    // Snooze guards below still drive the real menu end to end.
+    const intro = Array.from(document.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Continue to snooze',
+    );
+    if (intro) await click(intro);
     await click(buttonByText('Tomorrow'));
   }
 
