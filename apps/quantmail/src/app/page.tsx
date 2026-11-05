@@ -104,6 +104,8 @@ import { invalidateMailLists } from '../lib/offline/folders';
 import { reconcileStarredFilterParam } from '../lib/starredDeepLink';
 import { AddFolderModal, type FolderDraft } from '../components/AddFolderModal';
 import { PeopleHome } from '../components/PeopleHome';
+import { ConversationalThreadView } from '../components/ConversationalThreadView';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { MailboxViewToggle } from '../components/MailboxViewToggle';
 import type { ContactGroup, Email, EmailCategory } from '../types';
 
@@ -576,7 +578,11 @@ function EmailRow({
    */
   const swipe = useTouchSwipe({
     onArchive,
+    onDelete,
+    onToggleRead: canToggleRead ? (!thread.isRead ? onMarkRead : onMarkUnread) : undefined,
     onSnooze: () => setShowSnoozeMenu(true),
+    leftAction: 'delete',
+    rightAction: 'read',
     disabled: isChecked || showSnoozeMenu || showRowMenu || showLabelMenu,
     reducedMotion,
   });
@@ -605,12 +611,49 @@ function EmailRow({
       {swipe.direction && (
         <div
           aria-hidden="true"
-          className={`mail-row-swipe-pane ${swipe.direction === 'archive' ? 'is-archive' : 'is-snooze'} ${
+          className={`mail-row-swipe-pane is-${swipe.direction} ${
             swipe.armed ? 'is-armed' : ''
           }`}
         >
           <span className="mail-row-swipe-label" style={{ opacity: 0.45 + swipe.progress * 0.55 }}>
-            {swipe.direction === 'archive' ? (
+            {swipe.direction === 'delete' ? (
+              <>
+                <svg
+                  className="size-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 6h18" />
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                  <line x1="10" y1="11" x2="10" y2="17" />
+                  <line x1="14" y1="11" x2="14" y2="17" />
+                </svg>
+                Delete
+              </>
+            ) : swipe.direction === 'read' ? (
+              <>
+                <svg
+                  className="size-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect width="20" height="16" x="2" y="4" rx="2" />
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                </svg>
+                {!thread.isRead ? 'Mark Read' : 'Mark Unread'}
+              </>
+            ) : swipe.direction === 'archive' ? (
               <>
                 <svg
                   className="size-4"
@@ -1455,6 +1498,7 @@ function ArchivedFolderRow({
 }
 
 function InboxPageContent() {
+  const isMobile = useIsMobile(1024);
   const router = useRouter();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
@@ -3568,17 +3612,34 @@ function InboxPageContent() {
       }
       const targetId =
         resolvedEmail?.threadId || resolvedEmail?.id || thread?.threadId || thread?.id;
-      // Gmail-style navigation (user decision 2026-10-07): tapping an email
-      // ALWAYS opens the full thread view, on desktop and mobile alike.
-      // The old desktop split-view reading pane was removed — no more
-      // selecting into a side preview.
-      if (targetId && typeof window !== 'undefined') {
+      // On mobile viewports (<1024px), navigate to /thread/[id] full-page view.
+      // On desktop (lg+ / >=1024px), keep the selection in the Split Reading Pane!
+      const isMobileViewport = isMobile || (typeof window !== 'undefined' && window.innerWidth < 1024);
+      if (isMobileViewport && targetId && typeof window !== 'undefined') {
         const currentPath = window.location.pathname + window.location.search;
         router.push(`/thread/${targetId}?returnTo=${encodeURIComponent(currentPath)}`);
+      } else if (!isMobileViewport && targetId && typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('threadId') !== targetId) {
+          url.searchParams.set('threadId', targetId);
+          window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+        }
       }
     },
-    [mutations, router, threads, conversationIds],
+    [isMobile, mutations, router, threads, conversationIds],
   );
+
+  const clearThreadSelection = useCallback(() => {
+    setSelectedEmail(null);
+    setSelectedThread(null);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('threadId')) {
+        url.searchParams.delete('threadId');
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+      }
+    }
+  }, []);
 
   /**
    * Superhuman-style cursor and mail actions.
@@ -3593,8 +3654,7 @@ function InboxPageContent() {
       selectedId: selectedEmail?.id ?? null,
       onOpen: (thread) => openEmail(thread.latestEmail, thread),
       onClose: () => {
-        setSelectedEmail(null);
-        setSelectedThread(null);
+        clearThreadSelection();
       },
       onToggleSelect: (id) => toggleSelect(id),
       // Escape's innermost layer. The selection bar replaces the shell's own header
@@ -3609,6 +3669,36 @@ function InboxPageContent() {
       scrollToIndex: virtualizer.scrollToIndex,
       onCompose: () => handleOpenCompose(),
     });
+
+  /**
+   * Deep link / URL restoration for Desktop Split Reading Pane.
+   * On desktop (>=1024px), if `?threadId=<id>` is present in the URL, automatically selects
+   * the matching conversation from the active thread pool.
+   * On mobile (<1024px), immediately redirects to `/thread/<id>` to preserve single-pane UX.
+   */
+  useEffect(() => {
+    const threadIdParam = searchParams?.get('threadId');
+    if (!threadIdParam) return;
+    const isMobileViewport = isMobile || (typeof window !== 'undefined' && window.innerWidth < 1024);
+    if (isMobileViewport && typeof window !== 'undefined') {
+      router.push(`/thread/${encodeURIComponent(threadIdParam)}?returnTo=${encodeURIComponent('/?view=inbox')}`);
+      return;
+    }
+    if (selectedThread && (selectedThread.id === threadIdParam || selectedThread.threadId === threadIdParam)) {
+      return;
+    }
+    const pool = displayThreads.length > 0 ? displayThreads : (threads ?? []);
+    const match = pool.find(
+      (t) =>
+        t.id === threadIdParam ||
+        t.threadId === threadIdParam ||
+        t.messages.some((m) => m.id === threadIdParam),
+    );
+    if (match) {
+      setSelectedThread(match);
+      setSelectedEmail(match.latestEmail ?? match.messages[match.messages.length - 1] ?? null);
+    }
+  }, [searchParams, isMobile, displayThreads, threads, selectedThread, router]);
 
   /**
    * The `j`/`k` cursor, said out loud.
@@ -3707,8 +3797,11 @@ function InboxPageContent() {
       fabLabel={activeLens === 'groups' ? 'New Group' : 'Compose email'}
       aria-label="QuantMail inbox"
     >
-      <div className="inbox-workspace">
-        <section className="inbox-list-pane" aria-label="Inbox messages">
+      <div className="inbox-workspace flex flex-col lg:flex-row h-full min-h-full overflow-hidden bg-[var(--quant-background)]">
+        <section
+          className="inbox-list-pane w-full lg:w-[420px] lg:min-w-[360px] lg:max-w-[480px] lg:flex-none lg:border-r lg:border-[var(--quant-border-subtle)]"
+          aria-label="Inbox messages"
+        >
           {/*
             Mailbox view switcher (People | Inbox). In-flow, right-aligned —
             deliberately NOT fixed/overlay: the 2026-10-11 P1 was the toggle
@@ -5157,20 +5250,84 @@ function InboxPageContent() {
           )}
           <footer className="inbox-list-footer">
             <span>
-            {/* BB-P2-1: count the list the footer sits under. `displayThreads`
-                is exactly what the virtualizer renders above — the old
-                `threads` pool described a different list in the archived view
-                or under any lens/filter narrowing. */}
               {displayThreads.length} conversation{displayThreads.length === 1 ? '' : 's'}
             </span>
             <span>Ecosystem connected · SES/DKIM active</span>
           </footer>
         </section>
-        {/*
-          Gmail-style navigation (user decision 2026-10-07): the desktop
-          split-view reading pane was removed. Tapping an email navigates to
-          the full /thread/[id] view instead of selecting into a side preview.
-        */}
+
+        {/* Flagship Outlook 3-Pane Split Reading Pane */}
+        <section
+          className={`reading-pane hidden lg:flex flex-1 flex-col overflow-hidden relative bg-[var(--quant-background)] min-w-0 ${
+            !selectedThread && !selectedEmail ? 'reading-pane-empty items-center justify-center' : ''
+          }`}
+          aria-label="Reading Pane"
+        >
+          {selectedThread || selectedEmail ? (
+            <ConversationalThreadView
+              variant="pane"
+              threadId={selectedThreadId || ''}
+              initialThread={selectedThread as any}
+              initialEmails={
+                selectedThread?.messages && selectedThread.messages.length > 0
+                  ? selectedThread.messages
+                  : selectedEmail
+                  ? [selectedEmail]
+                  : []
+              }
+              subject={selectedThread?.subject || selectedEmail?.subject || '(No Subject)'}
+              onClose={() => {
+                clearThreadSelection();
+              }}
+              onArchive={(ids) => {
+                if (ids && ids.length > 0) void mutations.archive(ids);
+                clearThreadSelection();
+              }}
+              onUnarchive={(ids) => {
+                if (ids && ids.length > 0) void mutations.unarchive(ids);
+              }}
+              onDelete={(ids) => {
+                if (ids && ids.length > 0) void mutations.trash(ids);
+                clearThreadSelection();
+              }}
+              onStarToggle={() => {
+                if (selectedThreadId) void mutations.toggleStar(conversationIds(selectedThreadId));
+              }}
+              isStarred={selectedThread ? selectedThread.isStarred : Boolean(selectedEmail?.isStarred)}
+              className="h-full flex-1"
+            />
+          ) : (
+            <div className="reading-empty-content flex flex-col items-center text-center p-8 max-w-sm select-none">
+              <div className="reading-ambient" aria-hidden="true" />
+              <div className="reading-empty-icon bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-[var(--quant-muted-foreground)] shadow-md flex items-center justify-center rounded-full size-16 mb-4">
+                <MailIcon name="mail" className="size-7" />
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-[var(--quant-foreground)]">
+                Select an item to read
+              </h2>
+              <p className="mt-2 max-w-sm text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
+                Click on any conversation in the list to view its contents, reply, or take actions.
+              </p>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-[var(--quant-muted-foreground)]">
+                <span className="inline-flex items-center gap-1 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] px-1.5 py-0.5 font-mono shadow-xs">
+                  <kbd>j</kbd>/<kbd>k</kbd> navigate
+                </span>
+                <span className="inline-flex items-center gap-1 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] px-1.5 py-0.5 font-mono shadow-xs">
+                  <kbd>Enter</kbd> open
+                </span>
+                <span className="inline-flex items-center gap-1 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] px-1.5 py-0.5 font-mono shadow-xs">
+                  <kbd>c</kbd> compose
+                </span>
+                <span className="inline-flex items-center gap-1 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] px-1.5 py-0.5 font-mono shadow-xs">
+                  <kbd>e</kbd> archive
+                </span>
+                <span className="inline-flex items-center gap-1 rounded bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] px-1.5 py-0.5 font-mono shadow-xs">
+                  <kbd>#</kbd> delete
+                </span>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
 
       {/*
@@ -5272,6 +5429,6 @@ function InboxPageContent() {
 
 export default function RootPage() {
   const searchParams = useSearchParams();
-  const isInbox = searchParams?.get('view') === 'inbox';
+  const isInbox = searchParams?.get('view') !== 'people';
   return <>{isInbox ? <InboxPageContent /> : <PeopleHome />}</>;
 }

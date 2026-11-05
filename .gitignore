@@ -63,3 +63,14 @@ node_modules
 # Quant Docs engines (Rust/WebAssembly): build output and the locally built bundle
 engines/target/
 apps/quantmail/public/engines/
+
+# Flutter build & tool caches
+.dart_tool/
+**/flutter_apps/**/.dart_tool/
+**/flutter_apps/**/android/local.properties
+**/flutter_apps/**/android/app/src/main/java/
+**/flutter_apps/**/ios/Flutter/
+**/flutter_apps/**/ios/Runner/GeneratedPluginRegistrant.*
+**/flutter_apps/**/linux/flutter/
+**/flutter_apps/**/macos/Flutter/
+**/flutter_apps/**/windows/flutter/

@@ -16,7 +16,7 @@
  * The machine is one-shot per touch: `touchstart` always resets it first.
  */
 
-export type SwipeCommitDirection = 'archive' | 'snooze';
+export type SwipeCommitDirection = 'archive' | 'snooze' | 'delete' | 'flag' | 'read' | 'unread';
 
 /** idle → tracking → settling. `settling` covers both spring-back and the commit hold. */
 export type SwipeMachinePhase = 'idle' | 'tracking' | 'settling';
@@ -30,6 +30,10 @@ export interface TouchSwipeConfig {
   engagePx?: number;
   /** Claim the touch only when |dx| > |dy| × this. Default 1.2. */
   intentLockRatio?: number;
+  /** Action assigned to left swipe (negative dx). Default 'archive'. */
+  leftAction?: SwipeCommitDirection;
+  /** Action assigned to right swipe (positive dx). Default 'snooze'. */
+  rightAction?: SwipeCommitDirection;
 }
 
 export interface SwipeMachineSnapshot {
@@ -49,6 +53,8 @@ const DEFAULTS: Required<TouchSwipeConfig> = {
   maxTravelPx: 160,
   engagePx: 10,
   intentLockRatio: 1.2,
+  leftAction: 'archive',
+  rightAction: 'snooze',
 };
 
 export class TouchSwipeMachine {
@@ -148,7 +154,7 @@ export class TouchSwipeMachine {
       this.engaged = true;
     }
 
-    const heading: SwipeCommitDirection = dx >= 0 ? 'snooze' : 'archive';
+    const heading: SwipeCommitDirection = dx >= 0 ? this.cfg.rightAction : this.cfg.leftAction;
     this.direction = heading;
 
     const travel = Math.min(adx, this.cfg.maxTravelPx);

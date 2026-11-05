@@ -759,6 +759,26 @@ export function AppShell({
         — the shell's single `<QuantFab>` below is the only mount).
       */}
         <ShellChromeProvider isDrawerPresented={isDrawerPresented}>
+          {/*
+            Flagship Outlook Architecture: Slim Left App Rail (Mail/Calendar/Drive/Contacts/QuantGit).
+            Desktop only.
+          */}
+          {showSuiteNav && (
+            <DesktopAppRail
+              currentPillar={
+                currentApp === 'calendar'
+                  ? 'calendar'
+                  : currentApp === 'drive'
+                    ? 'drive'
+                    : currentApp === 'contacts'
+                      ? 'contacts'
+                      : currentApp === 'code'
+                        ? 'quantgit'
+                        : 'mail'
+              }
+              unreadCounts={{ mail: unreadCount }}
+            />
+          )}
           {sidebar && (
             <>
               {/* Backdrop for overlay drawer */}
@@ -1062,26 +1082,7 @@ export function AppShell({
             )}
           </div>
 
-          {/*
-            Desktop right app rail: slim 5-app switcher (Mail/Calendar/Drive/
-            Contacts/QuantGit), Gmail's Google-apps-rail style. Desktop only.
-          */}
-          {showSuiteNav && (
-            <DesktopAppRail
-              currentPillar={
-                currentApp === 'calendar'
-                  ? 'calendar'
-                  : currentApp === 'drive'
-                    ? 'drive'
-                    : currentApp === 'contacts'
-                      ? 'contacts'
-                      : currentApp === 'code'
-                        ? 'quantgit'
-                        : 'mail'
-              }
-              unreadCounts={{ mail: unreadCount }}
-            />
-          )}
+
 
           <QuantFab action={fabAction} />
 

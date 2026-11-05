@@ -39,8 +39,24 @@ export async function proxyToBackend(
   };
   const authHeader = request.headers.get('Authorization');
   if (authHeader) headers['Authorization'] = authHeader;
-  // Forward Origin header for auth routes that require trusted origin validation
-  const originHeader = request.headers.get('Origin');
+  // Forward Origin header for auth routes that require trusted origin validation.
+  // In standard browser same-origin POST requests, browsers often omit the Origin header;
+  // fall back to Referer origin or host header so backend trusted-origin validation succeeds.
+  let originHeader = request.headers.get('Origin');
+  if (!originHeader) {
+    const referer = request.headers.get('referer');
+    if (referer) {
+      try {
+        originHeader = new URL(referer).origin;
+      } catch {
+        /* invalid url */
+      }
+    }
+  }
+  if (!originHeader && request.headers.get('host')) {
+    const proto = request.headers.get('x-forwarded-proto') || 'https';
+    originHeader = `${proto}://${request.headers.get('host')}`;
+  }
   if (originHeader) headers['Origin'] = originHeader;
   // Forward cookies for refresh token
   const cookieHeader = request.headers.get('Cookie');

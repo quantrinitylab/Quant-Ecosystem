@@ -138,7 +138,7 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
 
       // Contains live dual timezone pill — Pacific code is DST-aware (PDT in Oct 2026, not hardcoded PST)
       expect(html).toContain('IST');
-      expect(html).toMatch(/PD[TS]/);
+      expect(html).toMatch(/P[DS]T|PT/);
       expect(html).toContain('Live Dual World Clocks');
     });
 

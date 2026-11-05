@@ -1,15 +1,15 @@
-/* ============================================================================
-   Quant Workplace — shell design system (2026-10-13, user-approved prototype)
+﻿/* ============================================================================
+   Quant Workplace â€” shell design system (2026-10-13, user-approved prototype)
    ----------------------------------------------------------------------------
    1. Per-app accent that ANIMATES between apps (registered custom properties).
    2. The connected liquid tab (`lib/liquid-bar`): mobile app switcher, mobile
-      bottom tab bar, desktop right rail — one shape language everywhere.
+      bottom tab bar, desktop right rail â€” one shape language everywhere.
    3. Quanty avatar ring + "Choose your Quanty" picker.
    Accent values themselves stay user-locked in `components/pillar-accents.ts`;
    this file only consumes `--app-accent` (set per route by AppShell).
    ========================================================================== */
 
-/* 1 — accent transitions ---------------------------------------------------- */
+/* 1 â€” accent transitions ---------------------------------------------------- */
 @property --app-accent { syntax: '<color>'; inherits: true; initial-value: #FF6B35; }
 @property --app-accent-hover { syntax: '<color>'; inherits: true; initial-value: #FF8A5C; }
 @property --app-accent-soft { syntax: '<color>'; inherits: true; initial-value: rgba(255, 107, 53, 0.14); }
@@ -30,7 +30,7 @@
   [data-app-theme] { transition: none; }
 }
 
-/* 2 — liquid connected tab ------------------------------------------------- */
+/* 2 â€” liquid connected tab ------------------------------------------------- */
 .lq-layer { position: absolute; inset: 0; pointer-events: none; }
 .lq { isolation: isolate; --lq-hot: color-mix(in srgb, var(--lq-accent, var(--app-accent)) 45%, #fff); }
 .lq-svg { position: absolute; overflow: visible; pointer-events: none; z-index: 1; }
@@ -68,7 +68,7 @@
 .qw-bar-h > .qw-segs { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding: 0 6px; }
 .qw-bar-v > .qw-segs { grid-auto-flow: row; grid-auto-rows: minmax(0, 1fr); padding: 6px 0; }
 
-/* App-logo segments (switcher + rail): no tiles behind the marks — the logo
+/* App-logo segments (switcher + rail): no tiles behind the marks â€” the logo
    sits on the glass, lifts into the tab when active, rests small otherwise. */
 .qw-seg {
   position: relative; display: grid; place-items: center; min-width: 0; outline: none;
@@ -118,9 +118,11 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 10px 26px -10px #000;
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
+.qw-tip.qw-tip-right { right: auto; left: calc(100% + 14px); transform: translateY(-50%) translateX(-6px); }
 .qw-seg:hover .qw-tip, .qw-seg:focus-visible .qw-tip { opacity: 1; transform: translateY(-50%); }
+.qw-seg:hover .qw-tip.qw-tip-right, .qw-seg:focus-visible .qw-tip.qw-tip-right { opacity: 1; transform: translateY(-50%) translateX(0); }
 
-/* 3 — Quanty avatar + picker ----------------------------------------------- */
+/* 3 â€” Quanty avatar + picker ----------------------------------------------- */
 .qw-quanty-img { display: block; border-radius: 50%; object-fit: cover; background: #0b0c10; }
 .qw-quanty-img[data-mood='busy'] { animation: qwQuantyBusy 1.6s ease-in-out infinite; }
 .qw-quanty-img[data-mood='pop'] { animation: qwQuantyPop 0.6s var(--qw-spring); }
@@ -212,7 +214,7 @@
 .sidebar-quanty-name { margin-top: -0.35rem; color: #8b93a3; font-size: 0.72rem; font-weight: 550; }
 .sidebar-quanty-cta { background: var(--app-accent); }
 
-/* ── Quant Workplace brand (desktop sidebar) ─────────────────────────── */
+/* â”€â”€ Quant Workplace brand (desktop sidebar) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .qw-brand { display: flex; align-items: center; gap: 11px; padding: 2px 4px 2px 2px; text-align: left; }
 .qw-mark { flex: none; overflow: visible; }
 .qw-mark-arc { opacity: 0.55; transition: stroke-width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease; }

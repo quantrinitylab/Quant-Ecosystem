@@ -34,6 +34,7 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { ContactsDedupeModal } from './components/ContactsDedupeModal';
 import type { DuplicateCluster } from './components/ContactsDedupeModal';
 import { ContactGroupModal } from './components/ContactGroupModal';
+import { ContactModalSheet } from './components/ContactCategoryPicker';
 import { GroupInviteLinkCard } from './components/GroupInviteLinkCard';
 import { SuggestedContacts } from './components/SuggestedContacts';
 import {
@@ -1416,135 +1417,21 @@ export default function ContactsPage() {
             setShowCreateModal(false);
             setEditingContact(null);
           }}
-          title={editingContact ? 'Edit Contact' : 'Create New Contact'}
+          showCloseButton={false}
+          fullScreenOnMobile
+          bodyClassName="p-0"
+          aria-label={editingContact ? 'Edit Contact' : 'New Contact'}
         >
-          <div className="p-4 space-y-3">
-            <div>
-              <label
-                htmlFor="contact-name"
-                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
-              >
-                Full Name *
-              </label>
-              <input
-                id="contact-name"
-                name="name"
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Full name"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
-                autoFocus
-                data-autofocus
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="contact-email"
-                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
-              >
-                Email Address *
-              </label>
-              <input
-                id="contact-email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="name@example.com"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label
-                  htmlFor="contact-phone"
-                  className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
-                >
-                  Phone
-                </label>
-                <input
-                  id="contact-phone"
-                  name="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+91 98765 43210"
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="contact-company"
-                  className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
-                >
-                  Company
-                </label>
-                <input
-                  id="contact-company"
-                  name="company"
-                  type="text"
-                  value={formData.company}
-                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                  placeholder="Acme Corp"
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label
-                htmlFor="contact-tags"
-                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
-              >
-                Tags (comma-separated)
-              </label>
-              <input
-                id="contact-tags"
-                name="tags"
-                type="text"
-                value={formData.tags}
-                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                placeholder="VIP, Executive, Engineering"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="contact-avatar"
-                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
-              >
-                Avatar image URL (optional)
-              </label>
-              <input
-                id="contact-avatar"
-                name="avatar"
-                type="url"
-                value={formData.avatar}
-                onChange={(e) => setFormData({ ...formData, avatar: e.target.value })}
-                placeholder="https://example.com/photo.jpg"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--app-accent)]"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setShowCreateModal(false);
-                  setEditingContact(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button variant="primary" onClick={handleSave}>
-                {editingContact ? 'Save Changes' : 'Create Contact'}
-              </Button>
-            </div>
-          </div>
+          <ContactModalSheet
+            formData={formData}
+            onChangeFormData={setFormData}
+            onSave={handleSave}
+            onCancel={() => {
+              setShowCreateModal(false);
+              setEditingContact(null);
+            }}
+            isEditing={Boolean(editingContact)}
+          />
         </Modal>
 
         {dialog}

@@ -103,8 +103,11 @@ import {
   type SettingsChoiceOption,
 } from './SettingsPrimitives';
 import { MailAuthCard } from './MailAuthCard';
+import { AccountsSettingsFlow } from './AccountsSettingsFlow';
 
 type SettingsTab =
+  | 'overview'
+  | 'accounts'
   | 'general'
   | 'filters'
   | 'ai'
@@ -205,6 +208,8 @@ const AI_ENGINE_MODES: AIModelOption[] = [
  * the product does not honour.
  */
 const TABS: Array<{ key: SettingsTab; label: string }> = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'accounts', label: 'Accounts' },
   { key: 'general', label: 'General' },
   { key: 'filters', label: 'Mail Filters' },
   { key: 'ai', label: 'Assistant' },
@@ -294,7 +299,7 @@ function StatusPill({ children }: { children: ReactNode }) {
 }
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('overview');
   const [profile, setProfile] = useState({ displayName: '', email: '', username: '' });
   const [loadedProfile, setLoadedProfile] = useState({ displayName: '', email: '', username: '' });
   const [profileSaving, setProfileSaving] = useState(false);
@@ -631,7 +636,7 @@ export default function SettingsPage() {
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <div className="workspace-page settings-workspace flex h-full flex-col overflow-hidden bg-[var(--quant-background)]">
-        <header className="shrink-0 border-b border-[var(--quant-border)] bg-[var(--quant-card)] px-4 pb-3 pt-5 sm:px-6">
+        <header className={`${activeTab === 'overview' || activeTab === 'accounts' ? 'hidden' : 'shrink-0'} border-b border-[var(--quant-border)] bg-[var(--quant-card)] px-4 pb-3 pt-5 sm:px-6`}>
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl border border-[var(--brand-soft-border)] bg-[var(--brand-soft)] text-[var(--brand-primary)]">
               <svg
@@ -663,7 +668,7 @@ export default function SettingsPage() {
           aria-label="Settings sections"
           aria-orientation="horizontal"
           onKeyDown={onTabKeyDown}
-          className="no-scrollbar flex shrink-0 select-none items-center gap-2 overflow-x-auto border-b border-[var(--quant-border)] bg-[var(--quant-background)] px-4 py-3 sm:px-6"
+          className={`${activeTab === 'overview' || activeTab === 'accounts' ? 'hidden' : 'flex shrink-0'} no-scrollbar select-none items-center gap-2 overflow-x-auto border-b border-[var(--quant-border)] bg-[var(--quant-background)] px-4 py-3 sm:px-6`}
         >
           {TABS.map((tab) => {
             const isActive = activeTab === tab.key;
@@ -715,6 +720,27 @@ export default function SettingsPage() {
            */
           className="mx-auto w-full max-w-3xl flex-1 space-y-6 overflow-y-auto px-4 py-6 sm:px-8"
         >
+          {(activeTab === 'overview' || activeTab === 'accounts') && (
+            <AccountsSettingsFlow
+              key={activeTab}
+              initialStep={activeTab === 'accounts' ? 'accounts' : 'overview'}
+              profile={loadedProfile}
+              hasSignature={Boolean(loadedSignature.trim())}
+              themeLabel={THEME_OPTIONS.find((o) => o.value === theme)?.label ?? theme}
+              densityLabel={DENSITY_OPTIONS.find((o) => o.value === density)?.label ?? density}
+              aiModeLabel={AI_ENGINE_MODES[aiTabbableIndex]?.name ?? 'Automatic'}
+              notificationModeLabel={
+                MAIL_NOTIFICATION_MODE_OPTIONS.find((o) => o.value === mailNotificationMode.mode)
+                  ?.label ?? mailNotificationMode.mode
+              }
+              onNavigateTab={(target) => setActiveTab(target)}
+              onProfileUpdated={(next) => {
+                setProfile(next);
+                setLoadedProfile(next);
+              }}
+            />
+          )}
+
           {activeTab === 'general' && (
             <>
               <SettingsSection

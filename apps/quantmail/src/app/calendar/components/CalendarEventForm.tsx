@@ -28,6 +28,7 @@ import {
   IconX,
 } from '../../../components/icons';
 import type { EntryType, FormState } from '../types';
+import { EventDescriptionEditor, EventLocationPicker } from './EventDescriptionEditor';
 import {
   TIMEZONES,
   CLUE_COLLECTION_METHODS,
@@ -753,16 +754,13 @@ export function CalendarEventForm({
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-2.5 py-2 text-[var(--quant-muted-foreground)]">
-                    <span className="text-base mt-1">≡</span>
-                    <textarea
-                      rows={2}
-                      placeholder="Add description, meeting agenda…"
-                      value={formState.description}
-                      onChange={(e) => setFormState({ ...formState, description: e.target.value })}
-                      className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none sm:min-h-0 focus-visible:ring-2 focus-visible:ring-[var(--app-accent)]"
-                    />
-                  </div>
+                  <EventLocationPicker value={formState.location} onChange={(nextLoc) => setFormState({ ...formState, location: nextLoc })} />
+                  <EventDescriptionEditor
+                    value={formState.description}
+                    onChange={(nextDescription) =>
+                      setFormState({ ...formState, description: nextDescription })
+                    }
+                  />
 
                   <div className="py-2 space-y-1.5 text-[var(--quant-muted-foreground)]">
                     <div className="flex items-center gap-2.5">

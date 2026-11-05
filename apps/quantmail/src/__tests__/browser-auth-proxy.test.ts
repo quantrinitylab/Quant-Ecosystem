@@ -69,6 +69,23 @@ describe('QuantMail same-origin browser auth proxy', () => {
     });
   });
 
+  it('falls back to referer origin when origin header is omitted by browser', async () => {
+    fetchMock.mockResolvedValueOnce(
+      backendJson({ success: true, data: { accessToken: 'access-token', expiresIn: 900 } }),
+    );
+    const body = JSON.stringify({ email: 'user@quantmail.in', password: 'password' });
+    const request = new NextRequest('http://localhost:3000/api/auth/login', {
+      method: 'POST',
+      headers: { referer: 'https://quantmail.in/login', 'content-type': 'application/json' },
+      body,
+    });
+
+    const response = await login(request);
+    expect(response.status).toBe(200);
+    const [, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(new Headers(init.headers).get('origin')).toBe('https://quantmail.in');
+  });
+
   it('forwards the path-scoped cookie during refresh and returns its rotation', async () => {
     const rotatedCookie =
       'quantmail_refresh=rotated-secret; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000';

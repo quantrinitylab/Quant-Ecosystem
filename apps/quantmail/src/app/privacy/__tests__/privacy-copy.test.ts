@@ -117,6 +117,14 @@ describe('Privacy page copy honesty', () => {
     expect(userFacing).not.toMatch(/immutable/i);
   });
 
+  it('states no fixed backup rotation period is published', () => {
+    // JSX source wraps this sentence after "fixed". Whitespace is layout,
+    // not a published policy change; keep the substantive copy guard strict.
+    expect(userFacing.replace(/\s+/g, ' ')).toContain(
+      'No fixed rotation period is currently published.',
+    );
+    expect(userFacing).not.toMatch(/currently\s+7\s+days/);
+  });
 
   it('never claims at-rest encryption is active (only the honest rollout note)', () => {
     // The old §4 card claimed "persisted with authenticated AES-256-GCM

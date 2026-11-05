@@ -1,14 +1,36 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
+import { apiClient } from '../../../services/api-client';
 import { SettingsSection } from '../SettingsPrimitives';
+import { AccountsSettingsFlow } from '../AccountsSettingsFlow';
 import { DataExportSettings } from './DataExportSettings';
 import { RecoveryEmailSettings } from './RecoveryEmailSettings';
 import { AccountsImportSettings } from './AccountsImportSettings';
 
 export default function AccountSettingsPage() {
+  const [profile, setProfile] = useState({ displayName: '', email: '', username: '' });
+  const [hasSignature, setHasSignature] = useState(false);
+
+  useEffect(() => {
+    void apiClient.getUserInfo().then((response) => {
+      if (!response.success || !response.data) return;
+      setProfile({
+        displayName: response.data.displayName || '',
+        email: response.data.email || '',
+        username: response.data.username || '',
+      });
+    });
+    void apiClient.getDefaultEmailSignature().then((response) => {
+      if (response.success && response.data?.contentHtml?.trim()) {
+        setHasSignature(true);
+      }
+    });
+  }, []);
+
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <div className="workspace-page settings-workspace flex h-full flex-col overflow-hidden bg-[var(--quant-background)]">
@@ -48,6 +70,17 @@ export default function AccountSettingsPage() {
         </header>
 
         <div className="mx-auto w-full max-w-3xl flex-1 space-y-6 overflow-y-auto px-4 py-6 sm:px-8">
+          <AccountsSettingsFlow
+            initialStep="detail"
+            profile={profile}
+            hasSignature={hasSignature}
+            themeLabel="Obsidian"
+            densityLabel="Comfortable"
+            aiModeLabel="Automatic"
+            notificationModeLabel="All new mail"
+            onProfileUpdated={setProfile}
+          />
+
           {/* Accounts and Import (fix/qm-accounts-import): the Gmail "Accounts
               and Import" equivalent — send-mail-as aliases, connected accounts,
               and mail/contacts import. Every control calls a real endpoint. */}

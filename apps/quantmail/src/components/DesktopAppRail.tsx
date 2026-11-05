@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 // ============================================================================
-// QuantMail — Desktop App Rail (slim right-side 5-app switcher)
+// QuantMail â€” Desktop App Rail (slim right-side 5-app switcher)
 // ============================================================================
 // Desktop-only (`hidden md:flex`). Slim vertical rail on the RIGHT edge,
 // Gmail's Google-apps-rail style: the 5 suite app logos, active app
@@ -110,8 +110,8 @@ export function DesktopAppRail({
     [effectivePillar, onPillarSelect, router],
   );
 
-  // Global keyboard shortcuts: Ctrl+1..5 / ⌘1..5 and 1..5.
-  // Labels intentionally omit the bare digit — the palette renders the actual
+  // Global keyboard shortcuts: Ctrl+1..5 / âŒ˜1..5 and 1..5.
+  // Labels intentionally omit the bare digit â€” the palette renders the actual
   // key in a <kbd> chip, so a "(1)" suffix reads as a count badge (SIA-P2-3).
   useShortcut('mod+1', () => navigatePillar('/', 'mail'), { label: 'Go to Mail', allowInInput: true });
   useShortcut('1', () => navigatePillar('/', 'mail'), { label: 'Go to Mail', allowInInput: false });
@@ -125,13 +125,13 @@ export function DesktopAppRail({
   useShortcut('5', () => navigatePillar('/quantgit', 'quantgit'), { label: 'Go to QuantGit', allowInInput: false });
 
   const activeIndex = Math.max(0, DESKTOP_PILLAR_TILES.findIndex((t) => t.id === effectivePillar));
-  const shortcutText = (n: number) => (isMac ? `⌘${n}` : `Ctrl+${n}`);
+  const shortcutText = (n: number) => (isMac ? `âŒ˜${n}` : `Ctrl+${n}`);
 
   return (
     <aside
       aria-label="App switcher"
       data-testid="desktop-app-rail"
-      className={`hidden md:flex flex-col items-center justify-center flex-none h-full bg-black pl-3.5 pr-2.5 py-3 z-30 select-none ${className}`}
+      className={`hidden md:flex flex-col items-center justify-center flex-none h-full bg-black pl-3.5 pr-2.5 py-3 z-30 select-none border-r border-[#1e2330] ${className}`}
     >
       {/*
         Quant Workplace rail (approved 2026-10-13): the vertical twin of the
@@ -178,7 +178,7 @@ export function DesktopAppRail({
                 role="tab"
                 data-testid={`desktop-app-rail-tile-${tile.id}`}
                 aria-selected={isActive}
-                // SIA-P2-3: never parenthesize the shortcut number — "Mail (1)"
+                // SIA-P2-3: never parenthesize the shortcut number â€” "Mail (1)"
                 // reads as an unread-count badge. The number lives in a <kbd>
                 // chip in the hover tooltip; the accessible name states the
                 // shortcut outright.
@@ -203,7 +203,7 @@ export function DesktopAppRail({
                 )}
 
                 {/* Tooltip opens to the LEFT (rail is on the right edge) */}
-                <span role="tooltip" className="qw-tip">
+                <span role="tooltip" className="qw-tip qw-tip-right">
                   {fullName}
                   <kbd className="rounded border border-[#30384C] bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--quant-muted-foreground)]">
                     {shortcutText(tile.shortcutNumber)}
@@ -219,16 +219,16 @@ export function DesktopAppRail({
         "More apps" overflow (switcher discoverability, 2026-10-11): the 5
         pillar tiles above are the in-product apps; sibling ecosystem apps
         (QuantChat, QuantAI) live on their own subdomains and open from here
-        via a deliberate, user-triggered panel — never spontaneously. Separated
+        via a deliberate, user-triggered panel â€” never spontaneously. Separated
         by spacing only (no divider lines, per UI rules). No keyboard shortcut
         number: Ctrl+1..5 stay reserved for the 5 pillars.
       */}
       <div className="mt-5 w-full flex items-center justify-center">
         <MoreAppsMenu
-          align="left"
+          align="right"
           buttonTestId="desktop-app-rail-tile-more"
           buttonClassName="relative flex size-11 items-center justify-center rounded-xl text-white/60 opacity-60 transition-opacity duration-200 hover:bg-[var(--quant-surface-elevated)] hover:text-white hover:opacity-100 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
-          ariaLabel="More Quant apps — open QuantChat or QuantAI"
+          ariaLabel="More Quant apps â€” open QuantChat or QuantAI"
           title="More Quant apps"
         />
       </div>

@@ -272,6 +272,13 @@ void main() {
     });
 
     testWidgets('Opens QR Scanner Modal with viewfinder frame', (tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,

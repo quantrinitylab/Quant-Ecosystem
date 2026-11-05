@@ -535,7 +535,7 @@ void main() {
         onFinalSend: (d) async {},
         onRecall: (d) => recalled = true,
       );
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       // Verify UI displays active 10s countdown and recipient
       expect(find.text('Sending in 10s...'), findsOneWidget);
@@ -586,13 +586,15 @@ void main() {
         onFinalSend: (d) async => finalSent = true,
         onRecall: (d) {},
       );
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       expect(find.text('Send Now'), findsOneWidget);
 
       // Tap Send Now
       await tester.tap(find.text('Send Now'));
       await tester.pump();
+      // Pump past the 1.5s flush timer
+      await tester.pump(const Duration(milliseconds: 1600));
 
       expect(sendNowTapped, isTrue);
       expect(finalSent, isTrue);
@@ -637,13 +639,12 @@ void main() {
       expect(find.text('Impeller Architecture Review'), findsOneWidget);
       expect(find.text('Here are the telemetry numbers.'), findsOneWidget);
 
-      // Verify remove recipient action
-      final removeIcon = find.descendant(
-        of: find.byType(Container),
-        matching: find.byIcon(Icons.close_rounded),
+      // Verify remove recipient action (chip remove button has size 13)
+      final removeIcon = find.byWidgetPredicate(
+        (w) => w is Icon && w.icon == Icons.close_rounded && w.size == 13,
       ).first;
       await tester.tap(removeIcon);
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       // Recipient chip removed
       expect(find.text('Aarav Sharma'), findsNothing);
@@ -682,9 +683,8 @@ void main() {
       await tester.pump();
 
       // Verify 25MB Attachment Guard warning banner is rendered
-      expect(find.textContaining('Attachment limit exceeded:'), findsOneWidget);
+      expect(find.textContaining('Attachment limit exceeded: 28.0 MB / 25.0 MB max'), findsOneWidget);
       expect(find.textContaining('25.0 MB max'), findsOneWidget);
-      expect(find.textContaining('28.0 MB'), findsOneWidget);
     });
   });
 
@@ -714,32 +714,33 @@ void main() {
       expect(find.text('AI Dedup'), findsOneWidget);
       expect(find.text('Circles'), findsOneWidget);
 
-      // Default subview is Contacts
-      expect(find.text('Ada Lovelace'), findsOneWidget);
+      // Default subview is Contacts (honest empty state)
+      expect(find.text('0 Contacts Displayed'), findsOneWidget);
+      expect(find.text('Sovereign Keyring Synced'), findsOneWidget);
 
       // 2. Switch to VIPs
       await tester.tap(find.text('VIPs'));
       await tester.pumpAndSettle();
       expect(activeIndex, 1);
-      expect(find.text('Executive Luminary Directory'), findsOneWidget);
+      expect(find.text('Executive VIP Radar'), findsOneWidget);
 
       // 3. Switch to Companies
       await tester.tap(find.text('Companies'));
       await tester.pumpAndSettle();
       expect(activeIndex, 2);
-      expect(find.text('Enterprise Organizations'), findsOneWidget);
+      expect(find.text('Enterprise Organizations & Teams'), findsOneWidget);
 
       // 4. Switch to AI Dedup
       await tester.tap(find.text('AI Dedup'));
       await tester.pumpAndSettle();
       expect(activeIndex, 3);
-      expect(find.text('Quant AI Identity Deduplication'), findsOneWidget);
+      expect(find.text('No duplicates found'), findsOneWidget);
 
       // 5. Switch to Circles
       await tester.tap(find.text('Circles'));
       await tester.pumpAndSettle();
       expect(activeIndex, 4);
-      expect(find.text('Cryptographic Enterprise Circles'), findsOneWidget);
+      expect(find.text('Enterprise Cryptographic Circles'), findsOneWidget);
     });
 
     testWidgets('QuantGitPillarView: Verifies all 5 sub-views (Repos, PRs, Issues, Actions, Copilot)', (tester) async {
@@ -784,7 +785,8 @@ void main() {
       await tester.tap(find.text('Actions'));
       await tester.pumpAndSettle();
       expect(activeIndex, 3);
-      expect(find.text('CI/CD Workflows'), findsOneWidget);
+      expect(find.text('No workflow runs'), findsOneWidget);
+      expect(find.textContaining('CI/CD runs will appear here'), findsOneWidget);
 
       // 5. Switch to Copilot
       await tester.tap(find.text('Copilot'));
@@ -885,6 +887,16 @@ void main() {
         isEmpty,
         reason: 'Violation of Sovereign Impeller Rule: Zero Skia clipPath calls allowed. Use BorderRadius/BoxDecoration.',
       );
+    });
+
+    test('Outlook iOS Parity: MailInboxScreen defines sticky date headers grouping', () {
+      final file = File('lib/screens/mail/mail_inbox_screen.dart');
+      expect(file.existsSync(), isTrue);
+      final content = file.readAsStringSync();
+      expect(content.contains('_getDateGroup'), isTrue);
+      expect(content.contains("return 'Today';"), isTrue);
+      expect(content.contains("return 'Yesterday';"), isTrue);
+      expect(content.contains('showDateHeader'), isTrue);
     });
   });
 }
