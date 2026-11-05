@@ -808,14 +808,14 @@ export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSui
                                 setActiveEvent(evt);
                                 setSubScreen('event_detail');
                               }}
-                              className={`truncate rounded px-1 py-0.5 text-[9px] font-medium ${style.bg} ${style.text} shadow-2xs hover:brightness-95`}
+                              className={`truncate rounded px-1 py-0.5 text-[var(--q-type-xs)] font-medium ${style.bg} ${style.text} shadow-2xs hover:brightness-95`}
                             >
                               {evt.title}
                             </div>
                           );
                         })}
                         {dayEvents.length > 3 && (
-                          <span className="text-[8px] font-semibold text-[var(--quant-muted-foreground)]">
+                          <span className="text-[var(--q-type-xs)] font-semibold text-[var(--quant-muted-foreground)]">
                             +{dayEvents.length - 3} more
                           </span>
                         )}
@@ -988,7 +988,7 @@ export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSui
                           </div>
                           {/* Real-time Indicator Line */}
                           <div className="relative flex items-center gap-1 py-1">
-                            <span className="text-[9px] font-bold text-[#0078D4]">2:29 PM</span>
+                            <span className="text-[var(--q-type-xs)] font-bold text-[#0078D4]">2:29 PM</span>
                             <div className="size-1.5 rounded-full bg-[#0078D4]" />
                             <div className="h-0.5 flex-1 bg-[#0078D4]" />
                           </div>
@@ -1028,19 +1028,19 @@ export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSui
                 <div className="relative p-1">
                   <div
                     onClick={() => { setActiveEvent(events[0]); setSubScreen('event_detail'); }}
-                    className="mb-1 rounded bg-[#B2EBF2] dark:bg-[#004D40] p-1 text-[9px] font-semibold text-[#006064] dark:text-[#E0F7FA] cursor-pointer"
+                    className="mb-1 rounded bg-[#B2EBF2] dark:bg-[#004D40] p-1 text-[var(--q-type-xs)] font-semibold text-[#006064] dark:text-[#E0F7FA] cursor-pointer"
                   >
                     Daily standup...
                   </div>
                   <div
                     onClick={() => { setActiveEvent(events[2]); setSubScreen('event_detail'); }}
-                    className="mt-6 rounded bg-[#FFCDD2] dark:bg-[#4A1418] p-1 text-[9px] font-semibold text-[#B71C1C] dark:text-[#FFEBEE] cursor-pointer"
+                    className="mt-6 rounded bg-[#FFCDD2] dark:bg-[#4A1418] p-1 text-[var(--q-type-xs)] font-semibold text-[#B71C1C] dark:text-[#FFEBEE] cursor-pointer"
                   >
                     Lunch
                   </div>
                   <div
                     onClick={() => { setActiveEvent(events[3]); setSubScreen('event_detail'); }}
-                    className="mt-4 rounded bg-[#B2EBF2] dark:bg-[#006064] p-1 text-[9px] font-semibold text-[#006064] dark:text-[#E0F7FA] cursor-pointer"
+                    className="mt-4 rounded bg-[#B2EBF2] dark:bg-[#006064] p-1 text-[var(--q-type-xs)] font-semibold text-[#006064] dark:text-[#E0F7FA] cursor-pointer"
                   >
                     Project Fortu...
                   </div>
@@ -1049,19 +1049,19 @@ export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSui
                 <div className="relative p-1">
                   <div
                     onClick={() => { setActiveEvent(events[0]); setSubScreen('event_detail'); }}
-                    className="mb-1 rounded bg-[#B2EBF2] dark:bg-[#004D40] p-1 text-[9px] font-semibold text-[#006064] dark:text-[#E0F7FA] cursor-pointer"
+                    className="mb-1 rounded bg-[#B2EBF2] dark:bg-[#004D40] p-1 text-[var(--q-type-xs)] font-semibold text-[#006064] dark:text-[#E0F7FA] cursor-pointer"
                   >
                     Daily standup...
                   </div>
                   <div
                     onClick={() => { setActiveEvent(events[1]); setSubScreen('event_detail'); }}
-                    className="mt-3 rounded bg-[#E1BEE7] dark:bg-[#311B92] p-1 text-[9px] font-semibold text-[#4A148C] dark:text-[#EDE7F6] cursor-pointer"
+                    className="mt-3 rounded bg-[#E1BEE7] dark:bg-[#311B92] p-1 text-[var(--q-type-xs)] font-semibold text-[#4A148C] dark:text-[#EDE7F6] cursor-pointer"
                   >
                     Project Fortuna: Kick-off Meeting
                   </div>
                   <div
                     onClick={() => { setActiveEvent(events[2]); setSubScreen('event_detail'); }}
-                    className="mt-2 rounded bg-[#FFCDD2] dark:bg-[#4A1418] p-1 text-[9px] font-semibold text-[#B71C1C] dark:text-[#FFEBEE] cursor-pointer"
+                    className="mt-2 rounded bg-[#FFCDD2] dark:bg-[#4A1418] p-1 text-[var(--q-type-xs)] font-semibold text-[#B71C1C] dark:text-[#FFEBEE] cursor-pointer"
                   >
                     Lunch
                   </div>
@@ -1199,7 +1199,7 @@ export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSui
           <div className="p-3.5 space-y-3.5">
             {/* Title Input Card with Red Bullet */}
             <div className="flex items-center gap-3 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-card)] px-3.5 py-3 shadow-xs">
-              <div className="size-2.5 flex-none rounded-full bg-[#EF4444]" />
+              <div className="size-2.5 flex-none rounded-full bg-[var(--quant-destructive)]" />
               <input
                 type="text"
                 data-testid="event-title-input"
@@ -1748,7 +1748,7 @@ export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSui
 
                 {/* Red Location Pin on Map */}
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-                  <div className="size-4 rounded-full bg-[#EF4444] border-2 border-white shadow-md animate-bounce" />
+                  <div className="size-4 rounded-full bg-[var(--quant-destructive)] border-2 border-white shadow-md animate-bounce" />
                   <div className="size-1 rounded-full bg-black/40 blur-2xs" />
                 </div>
               </div>
@@ -1958,7 +1958,7 @@ export function MobileCalendarFlowSuite({ onBackToEmail }: MobileCalendarFlowSui
 
               <div className="flex items-center justify-between rounded-xl bg-[var(--quant-background)] p-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-5 items-center justify-center rounded-full bg-[#EF4444] text-white text-[10px] font-bold">
+                  <div className="flex size-5 items-center justify-center rounded-full bg-[var(--quant-destructive)] text-white text-[10px] font-bold">
                     ✓
                   </div>
                   <span className="text-xs font-semibold text-[var(--quant-foreground)]">Calendar</span>

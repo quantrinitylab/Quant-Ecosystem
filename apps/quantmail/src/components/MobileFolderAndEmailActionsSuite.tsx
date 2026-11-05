@@ -641,7 +641,7 @@ export function MobileFolderEditSheet({
         {toastText && (
           <div
             data-testid="folder-toast-banner"
-            className="mx-3 mb-4 flex items-center justify-between rounded-xl bg-[#DCEAF7] dark:bg-[#1E293B] px-4 py-3 text-sm font-medium text-[#004578] dark:text-[#60A5FA]"
+            className="mx-3 mb-4 flex items-center justify-between rounded-xl bg-[#DCEAF7] dark:bg-slate-800 px-4 py-3 text-sm font-medium text-[#004578] dark:text-[#60A5FA]"
           >
             <span>{toastText}</span>
             {showToastUndo && (
@@ -1145,7 +1145,7 @@ export function MobileEmailDetailView({
                 style={{
                   backgroundColor:
                     assignedCategory.includes('Orange') ? '#F97316' :
-                    assignedCategory.includes('Red') ? '#EF4444' :
+                    assignedCategory.includes('Red') ? 'var(--quant-destructive)' :
                     assignedCategory.includes('Green') ? '#10B981' :
                     assignedCategory.includes('Blue') ? '#0078D4' :
                     assignedCategory.includes('Purple') ? '#8B5CF6' :

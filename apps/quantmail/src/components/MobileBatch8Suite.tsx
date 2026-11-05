@@ -1143,11 +1143,11 @@ export function MobilePhotoDrawingStudio({
   onDone?: () => void;
 }) {
   const [activeTool, setActiveTool] = useState<'ink' | 'crop' | 'text' | 'rotate'>('ink');
-  const [inkColor, setInkColor] = useState('#EF4444');
+  const [inkColor, setInkColor] = useState('var(--quant-destructive)');
 
   if (!isOpen) return null;
 
-  const colors = ['#EF4444', '#0078D4', '#EAB308', '#10B981', '#FFFFFF', '#000000'];
+  const colors = ['var(--quant-destructive)', '#0078D4', '#EAB308', '#10B981', '#FFFFFF', 'black'];
 
   return (
     <div

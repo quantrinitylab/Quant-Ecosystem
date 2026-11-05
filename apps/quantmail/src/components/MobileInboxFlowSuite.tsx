@@ -206,7 +206,7 @@ export const INITIAL_MOBILE_EMAILS: readonly MobileInboxEmailItem[] = [
     id: 'm-3',
     sender: 'QuantTrinity Cloud',
     avatarText: 'M',
-    avatarBg: '#22C55E',
+    avatarBg: 'var(--quant-success)',
     dateLabel: '4/9/25',
     subject: 'Updates to our terms of use',
     preview: 'Hello, You’re receiving this email because we are updating the QuantWorkplace Services Agree...',
@@ -1983,9 +1983,9 @@ export function MobileInboxFlowSuite() {
             <ellipse cx="136" cy="70" rx="20" ry="9" fill="#F3F4F6" />
             <circle cx="90" cy="74" r="42" fill="#60A5FA" />
             <path d="M48 74 H132 V86 H48 Z" fill="#FBBF24" />
-            <line x1="65" y1="110" x2="78" y2="136" stroke="#3B82F6" strokeWidth="2.5" />
-            <line x1="115" y1="110" x2="102" y2="136" stroke="#3B82F6" strokeWidth="2.5" />
-            <line x1="90" y1="116" x2="90" y2="136" stroke="#3B82F6" strokeWidth="2.5" />
+            <line x1="65" y1="110" x2="78" y2="136" className="stroke-blue-500" strokeWidth="2.5" />
+            <line x1="115" y1="110" x2="102" y2="136" className="stroke-blue-500" strokeWidth="2.5" />
+            <line x1="90" y1="116" x2="90" y2="136" className="stroke-blue-500" strokeWidth="2.5" />
             <rect x="74" y="136" width="32" height="22" rx="4" fill="#FCD34D" />
           </svg>
           <h2 className="mt-3 text-base font-semibold text-[var(--quant-foreground)]">
@@ -2201,7 +2201,7 @@ export function MobileInboxFlowSuite() {
       {inboxDeletedToast && (
         <div
           data-testid="inbox-deleted-toast"
-          className="fixed inset-x-3 bottom-28 z-40 flex items-center justify-between rounded-xl bg-[#DCEAF7] dark:bg-[#1E293B] px-4 py-3.5 text-sm font-medium text-[#004578] dark:text-[#60A5FA] shadow-lg"
+          className="fixed inset-x-3 bottom-28 z-40 flex items-center justify-between rounded-xl bg-[#DCEAF7] dark:bg-slate-800 px-4 py-3.5 text-sm font-medium text-[#004578] dark:text-[#60A5FA] shadow-lg"
         >
           <span>Deleted</span>
           <button
@@ -2228,7 +2228,7 @@ export function MobileInboxFlowSuite() {
       {inboxSentToast && (
         <div
           data-testid="inbox-email-sent-toast"
-          className="fixed inset-x-3 bottom-28 z-40 flex items-center gap-2 rounded-xl bg-[#DCEAF7] dark:bg-[#1E293B] px-4 py-3.5 text-sm font-medium text-[#004578] dark:text-[#60A5FA] shadow-lg"
+          className="fixed inset-x-3 bottom-28 z-40 flex items-center gap-2 rounded-xl bg-[#DCEAF7] dark:bg-slate-800 px-4 py-3.5 text-sm font-medium text-[#004578] dark:text-[#60A5FA] shadow-lg"
         >
           <span className="text-[#0078D4] font-bold">✓</span>
           <span>Email Sent</span>
@@ -2239,7 +2239,7 @@ export function MobileInboxFlowSuite() {
       {inboxReportedToast && (
         <div
           data-testid="inbox-reported-toast"
-          className="fixed inset-x-3 bottom-28 z-40 flex items-center justify-between rounded-xl bg-[#DCEAF7] dark:bg-[#1E293B] px-4 py-3.5 text-sm font-medium text-[#004578] dark:text-[#60A5FA] shadow-lg"
+          className="fixed inset-x-3 bottom-28 z-40 flex items-center justify-between rounded-xl bg-[#DCEAF7] dark:bg-slate-800 px-4 py-3.5 text-sm font-medium text-[#004578] dark:text-[#60A5FA] shadow-lg"
         >
           <span>Reported</span>
           <button

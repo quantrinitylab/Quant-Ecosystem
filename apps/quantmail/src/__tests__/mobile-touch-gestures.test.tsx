@@ -9,15 +9,15 @@ import { MobileInboxFlowSuite } from '../components/MobileInboxFlowSuite';
 import { MobileComposerSheet } from '../components/MobileComposerAndDraftsSuite';
 import MobilePreviewPage from '../app/mobile/page';
 
+
 // MobileRoute calls useRouter — stub the router the way the other suites do,
 // so this suite renders the page the way the app router would mount it.
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
-  usePathname: () => '/mobile',
+      useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+      useSearchParams: () => new URLSearchParams(),
+      usePathname: () => '/mobile',
 }));
-
-let container: HTMLDivElement | null = null;
+    let container: HTMLDivElement | null = null;
 let root: Root | null = null;
 
 function renderEl(el: React.ReactElement) {

@@ -159,7 +159,7 @@ function TagIcon({ color, filled = true }: { color: string; filled?: boolean }) 
       aria-hidden="true"
     >
       <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
-      <circle cx="7.5" cy="7.5" r="1.2" fill={filled ? '#111318' : color} />
+      <circle cx="7.5" cy="7.5" r="1.2" fill={filled ? 'var(--quant-surface)' : color} />
     </svg>
   );
 }
@@ -1149,7 +1149,7 @@ export function ContactModalSheet({
               type="button"
               aria-label="Remove birthday"
               onClick={() => setBirthdayValue('')}
-              className="inline-flex size-8 items-center justify-center rounded-lg text-[var(--quant-muted-foreground)] hover:text-[#EF4444]"
+              className="inline-flex size-8 items-center justify-center rounded-lg text-[var(--quant-muted-foreground)] hover:text-[var(--quant-destructive)]"
             >
               <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -1188,7 +1188,7 @@ export function ContactModalSheet({
                   return copy;
                 })
               }
-              className="inline-flex size-8 items-center justify-center rounded-lg text-[var(--quant-muted-foreground)] hover:text-[#EF4444]"
+              className="inline-flex size-8 items-center justify-center rounded-lg text-[var(--quant-muted-foreground)] hover:text-[var(--quant-destructive)]"
             >
               ×
             </button>
