@@ -9,6 +9,17 @@ import { MobileInboxFlowSuite } from '../components/MobileInboxFlowSuite';
 import { MobileComposerSheet } from '../components/MobileComposerAndDraftsSuite';
 import MobilePreviewPage from '../app/mobile/page';
 
+
+vi.mock('next/navigation', () => {
+    useRouter: () => ({
+          push: vi.fn(),
+          replace: vi.fn(),
+      prefetch: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      refresh: vi.fn(),
+    }),
+      }));
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
 
