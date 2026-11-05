@@ -694,7 +694,7 @@ export function AccountsSettingsFlow({
                       )}
                       {item.id === 'dark' && (
                         <div className="flex h-full flex-col bg-[#0B0C10]">
-                          <div className="h-5 bg-[#1F2430] px-1.5 pt-1">
+                          <div className="h-5 bg-zinc-800 px-1.5 pt-1">
                             <div className="size-2 rounded-full bg-white/40" />
                           </div>
                           <div className="flex-1 space-y-2 p-2">
@@ -715,7 +715,7 @@ export function AccountsSettingsFlow({
                             </div>
                           </div>
                           <div className="flex flex-col bg-[#0B0C10]">
-                            <div className="h-5 bg-[#1F2430]" />
+                            <div className="h-5 bg-zinc-800" />
                             <div className="space-y-2 p-1.5">
                               <div className="h-1.5 w-full rounded bg-slate-700" />
                               <div className="h-1.5 w-full rounded bg-slate-700" />
@@ -801,7 +801,7 @@ export function AccountsSettingsFlow({
                       }`}
                     >
                       {img.featured && (
-                        <span className="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-white text-[9px] text-[#0078D4] shadow">
+                        <span className="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-white text-[var(--q-type-xs)] text-[#0078D4] shadow">
                           ★
                         </span>
                       )}
@@ -979,7 +979,7 @@ export function AccountsSettingsFlow({
                       setFilters((prev) => prev.filter((f) => f.id !== rule.id));
                       void apiClient.deleteMailFilter(rule.id);
                     }}
-                    className="text-xs font-medium text-[#EF4444]"
+                    className="text-xs font-medium text-[var(--quant-destructive)]"
                   >
                     Remove
                   </button>
@@ -2181,7 +2181,7 @@ export function AccountsSettingsFlow({
             <button
               type="button"
               onClick={() => setConfirmingRemove(true)}
-              className="flex min-h-12 w-full items-center px-4 py-3.5 text-left text-sm font-normal text-[#EF4444] transition-colors hover:bg-[var(--quant-surface-hover)]"
+              className="flex min-h-12 w-full items-center px-4 py-3.5 text-left text-sm font-normal text-[var(--quant-destructive)] transition-colors hover:bg-[var(--quant-surface-hover)]"
             >
               Remove Account
             </button>
@@ -2196,7 +2196,7 @@ export function AccountsSettingsFlow({
                   type="button"
                   disabled={removingAccount}
                   onClick={() => void handleRemoveAccount()}
-                  className="rounded-lg bg-[#EF4444] px-3 py-1.5 text-xs font-semibold text-white"
+                  className="rounded-lg bg-[var(--quant-destructive)] px-3 py-1.5 text-xs font-semibold text-white"
                 >
                   {removingAccount ? 'Removing…' : 'Confirm Remove Account'}
                 </button>
