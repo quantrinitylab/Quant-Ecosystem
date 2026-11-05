@@ -82,7 +82,7 @@ export function DraftsFolderEmptyIllustration({ className = 'w-48 h-48' }: { cla
       <g transform="rotate(-35 130 95)">
         <rect x="110" y="80" width="48" height="14" rx="2" fill="url(#pencilGrad)" />
         <polygon points="110,80 96,87 110,94" fill="#FDE68A" />
-        <polygon points="96,87 92,87 96,89" fill="#1E293B" />
+        <polygon points="96,87 92,87 96,89" className="fill-slate-800" />
         <rect x="150" y="80" width="10" height="14" rx="2" fill="#F43F5E" />
         <line x1="150" y1="80" x2="150" y2="94" stroke="#CBD5E1" strokeWidth="1.5" />
       </g>
