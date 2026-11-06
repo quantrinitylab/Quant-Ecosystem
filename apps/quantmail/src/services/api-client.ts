@@ -1209,6 +1209,23 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/unsnooze`, {});
   }
 
+  // Slice 2 (thread overflow): move one message into a folder. Backend route
+  // POST /emails/:id/move { folderId } already exists; the client had no
+  // method for it, so Move Conversation could not be wired until now.
+  async moveEmail(id: string, folderId: string): Promise<ApiResponse<unknown>> {
+    return this.post(`/emails/${id}/move`, { folderId });
+  }
+
+  // Slice 2 (thread overflow: Ignore): mute/unmute a conversation thread.
+  // Backend routes POST /threads/:id/mute and /unmute already exist.
+  async muteThread(threadId: string): Promise<ApiResponse<unknown>> {
+    return this.post(`/threads/${threadId}/mute`, {});
+  }
+
+  async unmuteThread(threadId: string): Promise<ApiResponse<unknown>> {
+    return this.post(`/threads/${threadId}/unmute`, {});
+  }
+
   async markNotSpam(id: string): Promise<ApiResponse<{ message: string }>> {
     return this.post(`/emails/${id}/not-spam`, {});
   }

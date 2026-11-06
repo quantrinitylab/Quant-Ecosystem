@@ -6,8 +6,8 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { apiClient } from '../services/api-client';
-import type { ContactGroup, Email, EmailAttachment, EmailLabel, EmailThread, MessageKind } from '../types';
+import { apiClient, type EmailFolder } from '../services/api-client';
+import type { ContactGroup, Email, EmailAttachment, EmailCategory, EmailLabel, EmailThread, MessageKind } from '../types';
 import {
   useContactGroups,
   useUpdateContactGroup,
@@ -52,7 +52,17 @@ import {
   type EmailDraftEntryType,
 } from '../lib/emailToEvent';
 import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
-import { IconChat, IconClock, IconMail } from './icons';
+import { IconChat, IconClock, IconMail, MimeTypeIcon } from './icons';
+import { MoveConversationSheet } from './MoveConversationSheet';
+import {
+  THREAD_CATEGORIES,
+  THREAD_OVERFLOW_ITEMS,
+  THREAD_REACTION_PILLS,
+  activeSnoozedUntil,
+  formatAttachmentSize,
+  threadCategoryLabel,
+  type ThreadCategory,
+} from '../lib/thread-overflow';
 import {
   findConversation,
   groupEmailsIntoThreads,
@@ -1610,6 +1620,24 @@ export function ConversationalThreadView({
 
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [labelPickerOpen, setLabelPickerOpen] = useState(false);
+  // Slice 2 (thread overflow, spec order): the More menu's spec items that
+  // need their own UI — Move sheet, Categorise picker, light-mode toggle,
+  // mute state, and the one-time snooze intro. The spec's remaining items
+  // reuse handlers that already exist (Reply, Reply All, Snooze, Print).
+  const [moveSheetOpen, setMoveSheetOpen] = useState(false);
+  const [moveFolders, setMoveFolders] = useState<EmailFolder[]>([]);
+  const [moveFoldersLoading, setMoveFoldersLoading] = useState(false);
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+  const [lightMode, setLightMode] = useState(false);
+  const [muted, setMuted] = useState(
+    (initialThread as { isMuted?: boolean } | null)?.isMuted ?? false,
+  );
+  const [snoozeIntroOpen, setSnoozeIntroOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  useEffect(() => {
+    const latest = messages[messages.length - 1];
+    setPinned(Boolean(latest?.isPinned));
+  }, [messages]);
   const [availableLabels, setAvailableLabels] = useState<EmailLabel[]>([]);
   const [labelsLoading, setLabelsLoading] = useState(false);
   const openLabelPicker = useCallback(async () => {
@@ -1646,6 +1674,204 @@ export function ConversationalThreadView({
       }
     },
     [conversationMessageIds, queryClient],
+  );
+
+  // ==========================================================================
+  // Slice 2 (thread overflow, spec order) — handlers for the More menu's
+  // spec items. Each follows the file's QM-UIUX-093 rule: apiClient resolves
+  // `{ success: false }` on refusal, so a success toast is earned only when
+  // every call was accepted.
+  // ==========================================================================
+
+  const openMoveSheet = useCallback(async () => {
+    setMoveSheetOpen(true);
+    setMoveFoldersLoading(true);
+    try {
+      const res = await apiClient.getFolders();
+      if (res.success && res.data) setMoveFolders(res.data);
+    } catch {
+      // Folders simply won't list; the sheet still renders honestly empty.
+    } finally {
+      setMoveFoldersLoading(false);
+    }
+  }, []);
+
+  const handleMoveConversation = useCallback(
+    async (folderId: string, folderName: string) => {
+      const ids = conversationMessageIds;
+      if (ids.length === 0) return;
+      const sourceFolderId = messages[0]?.folderId ?? null;
+      try {
+        const results = await Promise.all(ids.map((id) => apiClient.moveEmail(id, folderId)));
+        if (results.every((r) => r?.success)) {
+          // Undo moves everything back to the folder it came from. When the
+          // source folder is unknown there is no honest Undo target, so the
+          // toast carries no Undo rather than a guessed one.
+          const undoAction = sourceFolderId
+            ? () => {
+                void Promise.all(ids.map((id) => apiClient.moveEmail(id, sourceFolderId))).then(
+                  () => invalidateMailLists(queryClient),
+                );
+              }
+            : undefined;
+          showToast({ text: `Moved to ${folderName}`, type: 'success', undoAction });
+          setMoveSheetOpen(false);
+        } else {
+          showToast({ text: 'Could not move conversation', type: 'error' });
+        }
+        invalidateMailLists(queryClient);
+      } catch {
+        showToast({ text: 'Could not move conversation', type: 'error' });
+      }
+    },
+    [conversationMessageIds, messages, queryClient],
+  );
+
+  const handleCreateMoveFolder = useCallback(async (name: string): Promise<boolean> => {
+    try {
+      const res = await apiClient.createFolder({ name });
+      if (res.success && res.data) {
+        setMoveFolders((prev) => [...prev, res.data as EmailFolder]);
+        showToast({ text: `Folder "${name}" created`, type: 'success' });
+        return true;
+      }
+      showToast({ text: 'Could not create folder', type: 'error' });
+      return false;
+    } catch {
+      showToast({ text: 'Could not create folder', type: 'error' });
+      return false;
+    }
+  }, []);
+
+  const handleSetCategory = useCallback(
+    async (category: ThreadCategory) => {
+      const ids = conversationMessageIds;
+      if (ids.length === 0) return;
+      try {
+        const res = await apiClient.setConversationCategory(
+          ids[0],
+          ids,
+          category as Exclude<EmailCategory, 'spam'>,
+        );
+        if (res?.success) {
+          showToast({ text: `Categorised as ${threadCategoryLabel(category)}`, type: 'success' });
+        } else {
+          showToast({ text: 'Could not categorise conversation', type: 'error' });
+        }
+        invalidateMailLists(queryClient);
+      } catch {
+        showToast({ text: 'Could not categorise conversation', type: 'error' });
+      }
+    },
+    [conversationMessageIds, queryClient],
+  );
+
+  const handleTogglePin = useCallback(async () => {
+    const ids = conversationMessageIds;
+    if (ids.length === 0) return;
+    const nextState = !pinned;
+    setPinned(nextState);
+    try {
+      const results = await Promise.all(ids.map((id) => apiClient.togglePin(id)));
+      if (results.every((r) => r?.success)) {
+        showToast({ text: nextState ? 'Pinned' : 'Unpinned', type: 'info' });
+      } else {
+        throw new Error('Pin refused');
+      }
+      invalidateMailLists(queryClient);
+    } catch {
+      setPinned(!nextState);
+      showToast({ text: 'Could not update pin', type: 'error' });
+    }
+  }, [conversationMessageIds, pinned, queryClient]);
+
+  const handleToggleMute = useCallback(async () => {
+    const nextState = !muted;
+    setMuted(nextState);
+    try {
+      const res = nextState
+        ? await apiClient.muteThread(threadId)
+        : await apiClient.unmuteThread(threadId);
+      if (res?.success) {
+        showToast({
+          text: nextState ? 'Conversation ignored' : 'Conversation unignored',
+          type: 'info',
+        });
+      } else {
+        throw new Error('Mute refused');
+      }
+      invalidateMailLists(queryClient);
+    } catch {
+      setMuted(!nextState);
+      showToast({ text: 'Could not update ignore status', type: 'error' });
+    }
+  }, [muted, queryClient, threadId]);
+
+  const handleUnsnooze = useCallback(async () => {
+    const ids = conversationMessageIds;
+    if (ids.length === 0) return;
+    try {
+      const results = await Promise.all(ids.map((id) => apiClient.unsnoozeEmail(id)));
+      if (results.every((r) => r?.success)) {
+        showToast({ text: 'Snooze cleared — back in your inbox', type: 'success' });
+      } else {
+        showToast({ text: 'Could not clear snooze', type: 'error' });
+      }
+      invalidateMailLists(queryClient);
+    } catch {
+      showToast({ text: 'Could not clear snooze', type: 'error' });
+    }
+  }, [conversationMessageIds, queryClient]);
+
+  // Items with no backend must never fake success: they show an honest toast
+  // naming what is missing (see lib/thread-overflow.ts for the reasons).
+  const handleUnavailableOverflow = useCallback((note: string) => {
+    showToast({ text: note, type: 'info' });
+  }, []);
+
+  // First-run snooze intro (spec: first use prompts a Snoozed-folder dialog).
+  // QuantMail's backend already surfaces snoozed mail in the SNOOZED list, so
+  // no physical folder is created — creating a duplicate "Snoozed" folder
+  // would misfile mail, since snoozing writes snoozedUntil, not a folder.
+  // The dialog therefore says where snoozed mail lives, once, and proceeds.
+  const openSnoozeFlow = useCallback(() => {
+    try {
+      if (window.localStorage.getItem('quantmail:snooze-intro-seen') !== '1') {
+        setSnoozeIntroOpen(true);
+        return;
+      }
+    } catch {
+      // Storage unavailable: fall through to the snooze menu directly.
+    }
+    setSnoozeMenuOpen(true);
+  }, []);
+  const confirmSnoozeIntro = useCallback(() => {
+    try {
+      window.localStorage.setItem('quantmail:snooze-intro-seen', '1');
+    } catch {
+      // Storage unavailable: the intro simply shows again next time.
+    }
+    setSnoozeIntroOpen(false);
+    setSnoozeMenuOpen(true);
+  }, []);
+
+  const toggleReaction = useCallback((msgKey: string, emoji: string) => {
+    setMessageReactions((prev) => {
+      const current = prev[msgKey] ?? [];
+      const next = current.includes(emoji)
+        ? current.filter((r) => r !== emoji)
+        : [...current, emoji];
+      return { ...prev, [msgKey]: next };
+    });
+  }, []);
+
+  const activeSnooze = useMemo(() => activeSnoozedUntil(messages), [messages]);
+
+  const overflowNote = useCallback(
+    (id: string) =>
+      THREAD_OVERFLOW_ITEMS.find((item) => item.id === id)?.unavailableNote ??
+      'Not available yet.',
+    [],
   );
 
   // Attachment upload in quick bar — REMOVED (honesty fix): the picker
@@ -1960,6 +2186,20 @@ export function ConversationalThreadView({
     void handleSendReply();
   }, [composeMode, handleSendReply, openFullComposer]);
 
+  // Slice 2 (View in Light Mode): a client-side reading-area toggle only.
+  // It restyles the message stream through the same CSS variables the dark
+  // theme already uses. The header stays dark (it hardcodes white text), and
+  // the toggle is not persisted or claimed as a global theme.
+  const lightModeStyle = lightMode
+    ? ({
+        '--quant-background': '#f6f5f2',
+        '--quant-surface': '#ffffff',
+        '--quant-surface-elevated': '#eceae6',
+        '--quant-foreground': '#1c1917',
+        '--quant-muted-foreground': '#57534e',
+      } as React.CSSProperties)
+    : undefined;
+
   const allExpanded = messages.length > 0 && expandedIndices.size === messages.length;
 
   return (
@@ -2088,6 +2328,28 @@ export function ConversationalThreadView({
             >
               <polyline points="9 17 4 12 9 7" />
               <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+            </svg>
+          </button>
+
+          {/* 1b. Reply All Button (slice 2, spec action bar) — sm+ only, like
+              Forward; on a phone it lives in the "…" menu's spec list. */}
+          <button
+            type="button"
+            onClick={openReplyAllComposer}
+            className="hidden sm:flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-surface-elevated)] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] sm:min-h-0 sm:min-w-0"
+            title="Reply all"
+            aria-label="Reply all"
+          >
+            <svg
+              className="size-[18px]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <polyline points="7 17 2 12 7 7" />
+              <polyline points="12 17 7 12 12 7" />
+              <path d="M22 18v-2a4 4 0 0 0-4-4H7" />
             </svg>
           </button>
 
@@ -2234,6 +2496,53 @@ export function ConversationalThreadView({
             )
           )}
 
+          {/* 5b. Move Button (slice 2, spec action bar) — sm+ only; on a phone
+              it lives in the "…" menu's spec list as "Move". */}
+          <button
+            type="button"
+            onClick={() => void openMoveSheet()}
+            className="hidden sm:flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-surface-elevated)] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] sm:min-h-0 sm:min-w-0"
+            title="Move conversation"
+            aria-label="Move conversation"
+          >
+            <svg
+              className="size-[18px]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M3 10h10a5 5 0 0 1 5 5v2" />
+              <path d="M7 6L3 10l4 4" />
+              <path d="M3 6h18" />
+            </svg>
+          </button>
+
+          {/* 5c. Delete Button (slice 2, spec action bar) — sm+ only; on a phone
+              it lives in the "…" menu as "Move to Trash". Same confirm dialog
+              as the menu's trash item, so the destructive path is identical. */}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => setConfirmTrash(true)}
+              className="hidden sm:flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-surface-elevated)] hover:text-rose-400 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] sm:min-h-0 sm:min-w-0"
+              title="Delete conversation"
+              aria-label="Delete conversation"
+            >
+              <svg
+                className="size-[18px]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M3 6h18" />
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+              </svg>
+            </button>
+          )}
+
           {/* 6. Not Spam (Rescue) */}
           {isQuarantined && (
             <button
@@ -2278,15 +2587,19 @@ export function ConversationalThreadView({
             triggerClassName="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-surface-elevated)] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)]"
             wrapperClassName="inline-flex"
             menuLabel="Conversation actions"
-            menuClassName="w-52 overflow-hidden rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] py-1 shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
+            menuClassName="w-52 overflow-y-auto max-h-[calc(100dvh-120px)] rounded-2xl border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] py-1 shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
             scope="thread-header-menu"
             height={380}
             open={moreMenuOpen}
             onOpenChange={(open) => {
               setMoreMenuOpen(open);
-              // The label picker is a sub-view of the menu — leaving the
-              // menu resets it so the next open starts at the top level.
-              if (!open) setLabelPickerOpen(false);
+              // The label/category pickers are sub-views of the menu —
+              // leaving the menu resets them so the next open starts at the
+              // top level.
+              if (!open) {
+                setLabelPickerOpen(false);
+                setCategoryPickerOpen(false);
+              }
             }}
           >
             {(close) =>
@@ -2345,8 +2658,296 @@ export function ConversationalThreadView({
                     )}
                   </div>
                 </>
+              ) : categoryPickerOpen ? (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    tabIndex={-1}
+                    onClick={() => setCategoryPickerOpen(false)}
+                    className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                  >
+                    <svg
+                      className="size-4 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden="true"
+                    >
+                      <path d="m15 18-6-6 6-6" />
+                    </svg>
+                    Categorise
+                  </button>
+                  <div className="mx-3 border-t border-white/10" aria-hidden="true" />
+                  <div className="max-h-56 overflow-y-auto py-1">
+                    {THREAD_CATEGORIES.map((category) => (
+                      <button
+                        key={category}
+                        type="button"
+                        role="menuitem"
+                        tabIndex={-1}
+                        onClick={() => {
+                          close();
+                          setCategoryPickerOpen(false);
+                          void handleSetCategory(category);
+                        }}
+                        className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                      >
+                        <svg
+                          className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.42 0l8.58-8.58a1 1 0 0 0 0-1.42L12 2z" />
+                          <circle cx="7" cy="7" r="1.5" />
+                        </svg>
+                        {threadCategoryLabel(category)}
+                      </button>
+                    ))}
+                  </div>
+                </>
               ) : (
               <>
+                {/* Slice 2 — spec overflow items 1–14, in spec order. Item 15
+                    (Reply All) is the existing button below. Unavailable
+                    items keep their exact label, render muted, and show an
+                    honest toast naming what is missing — never a fake success. */}
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    void openMoveSheet();
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M3 10h10a5 5 0 0 1 5 5v2" />
+                    <path d="M7 6L3 10l4 4" />
+                  </svg>
+                  Move
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  title={overflowNote('move-to-other')}
+                  onClick={() => {
+                    close();
+                    handleUnavailableOverflow(overflowNote('move-to-other'));
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M3 10h10a5 5 0 0 1 5 5v2" />
+                    <path d="M7 6L3 10l4 4" />
+                    <circle cx="19" cy="5" r="2" />
+                  </svg>
+                  Move to Other
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  title={overflowNote('flag')}
+                  onClick={() => {
+                    close();
+                    handleUnavailableOverflow(overflowNote('flag'));
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M4 15s1-1 4-1 5 2 8 2V4s-1 1-4 1-5-2-8-2v15" />
+                    <line x1="4" y1="22" x2="4" y2="15" />
+                  </svg>
+                  Flag
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    setCategoryPickerOpen(true);
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.42 0l8.58-8.58a1 1 0 0 0 0-1.42L12 2z" />
+                    <circle cx="7" cy="7" r="1.5" />
+                  </svg>
+                  Categorise
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    void handleTogglePin();
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill={pinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <line x1="12" y1="17" x2="12" y2="22" />
+                    <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
+                  </svg>
+                  {pinned ? 'Unpin' : 'Pin'}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    openSnoozeFlow();
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <circle cx="12" cy="13" r="8" />
+                    <path d="M12 9v4l2 2" />
+                  </svg>
+                  Snooze…
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    handleCreateEventFromEmail('task');
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <path d="m9 12 2 2 4-4" />
+                  </svg>
+                  Create a Task
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  title={overflowNote('report-junk')}
+                  onClick={() => {
+                    close();
+                    handleUnavailableOverflow(overflowNote('report-junk'));
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                  </svg>
+                  Report Junk
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  title={overflowNote('report-phishing')}
+                  onClick={() => {
+                    close();
+                    handleUnavailableOverflow(overflowNote('report-phishing'));
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <path d="M12 8v5M12 16h.01" />
+                  </svg>
+                  Report Phishing
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  title={overflowNote('block')}
+                  onClick={() => {
+                    close();
+                    handleUnavailableOverflow(overflowNote('block'));
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                  </svg>
+                  Block
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    void handleToggleMute();
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  </svg>
+                  {muted ? 'Unignore' : 'Ignore'}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    window.print();
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <polyline points="6 9 6 2 18 2 18 9" />
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                    <rect width="12" height="8" x="6" y="14" />
+                  </svg>
+                  Print
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    setLightMode(!lightMode);
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                  </svg>
+                  {lightMode ? 'View in Dark Mode' : 'View in Light Mode'}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    openReplyComposer();
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                >
+                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <polyline points="9 17 4 12 9 7" />
+                    <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+                  </svg>
+                  Reply
+                </button>
                 <button
                   type="button"
                   role="menuitem"
@@ -2372,8 +2973,13 @@ export function ConversationalThreadView({
                   Reply all
                 </button>
 
-                {/* Phone-only: the header's Forward and Pin buttons stand down
-                    below `sm`, so the menu carries them there. */}
+                <div className="mx-3 border-t border-white/10" aria-hidden="true" />
+
+                {/* QuantMail extras, kept below the spec list: the spec's 15
+                    end at Reply All. The phone-only Pin item is gone — the
+                    spec Pin above covers all sizes. */}
+                {/* Phone-only: the header's Forward button stands down
+                    below `sm`, so the menu carries it there. */}
                 <button
                   type="button"
                   role="menuitem"
@@ -2397,29 +3003,9 @@ export function ConversationalThreadView({
                   </svg>
                   Forward
                 </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  tabIndex={-1}
-                  onClick={() => {
-                    close();
-                    void handleToggleStar();
-                  }}
-                  className="flex sm:hidden w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
-                >
-                  <svg
-                    className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
-                    viewBox="0 0 24 24"
-                    fill={starred ? 'currentColor' : 'none'}
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    aria-hidden="true"
-                  >
-                    <line x1="12" y1="17" x2="12" y2="22" />
-                    <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
-                  </svg>
-                  {starred ? 'Unpin' : 'Pin to top'}
-                </button>
+                {/* (Slice 2: the phone-only Pin item is gone — the spec Pin
+                    above covers all sizes and pins via the real pin route,
+                    not the star toggle.) */}
 
                 {/* BB-P1-3: standard conversation actions, each wired to the
                     real endpoint the inbox row/bulk actions use.
@@ -2480,30 +3066,6 @@ export function ConversationalThreadView({
                   role="menuitem"
                   tabIndex={-1}
                   onClick={() => {
-                    close();
-                    setSnoozeMenuOpen(true);
-                  }}
-                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
-                >
-                  <svg
-                    className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    aria-hidden="true"
-                  >
-                    <circle cx="12" cy="13" r="8" />
-                    <path d="M12 9v4l2 2" />
-                  </svg>
-                  Snooze…
-                </button>
-
-                <button
-                  type="button"
-                  role="menuitem"
-                  tabIndex={-1}
-                  onClick={() => {
                     void openLabelPicker();
                   }}
                   className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
@@ -2549,31 +3111,6 @@ export function ConversationalThreadView({
                     <path d="m7 9 5-5 5 5" />
                   </svg>
                   {allExpanded ? 'Collapse all' : 'Expand all'}
-                </button>
-
-                <button
-                  type="button"
-                  role="menuitem"
-                  tabIndex={-1}
-                  onClick={() => {
-                    close();
-                    window.print();
-                  }}
-                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
-                >
-                  <svg
-                    className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    aria-hidden="true"
-                  >
-                    <polyline points="6 9 6 2 18 2 18 9" />
-                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                    <rect width="12" height="8" x="6" y="14" />
-                  </svg>
-                  Print conversation
                 </button>
 
                 {conversationIsArchived && onUnarchive && (
@@ -2633,6 +3170,41 @@ export function ConversationalThreadView({
         </div>
       </div>
 
+      {/* Slice 2 (spec: Snoozed folder return-time badges): when this thread
+          is snoozed, the return time rides under the header with a bell and
+          an Unsnooze action — the data is the messages' own snoozedUntil. */}
+      {activeSnooze && (
+        <div className="mx-4 mt-3 flex items-center gap-2 rounded-xl border border-[var(--quant-primary)]/30 bg-[var(--quant-primary)]/10 px-3.5 py-2.5 sm:mx-6">
+          <svg
+            className="size-4 shrink-0 text-[var(--quant-primary)]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="13" r="8" />
+            <path d="M12 9v4l2 2" />
+          </svg>
+          <span className="min-w-0 flex-1 text-[13px] font-medium text-[var(--quant-foreground)]">
+            Snoozed until{' '}
+            {activeSnooze.toLocaleString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
+          <button
+            type="button"
+            onClick={() => void handleUnsnooze()}
+            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--quant-primary)] hover:bg-[var(--quant-primary)]/10"
+          >
+            Unsnooze
+          </button>
+        </div>
+      )}
+
       {/* Main Conversation Stream (Chronological Stack) */}
       <div
         ref={scrollContainerRef}
@@ -2641,7 +3213,8 @@ export function ConversationalThreadView({
         onTouchMove={handleSwipeTouchMove}
         onTouchEnd={handleSwipeTouchEnd}
         onTouchCancel={handleSwipeTouchCancel}
-        className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4 max-w-4xl mx-auto w-full"
+        style={lightModeStyle}
+        className={`flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4 max-w-4xl mx-auto w-full ${lightMode ? 'bg-[#faf9f7]' : ''}`}
       >
         {/* QM-UIUX-046: real AI thread-summarization entry point */}
         {!isLoading && messages.length > 0 && (
@@ -3292,6 +3865,58 @@ export function ConversationalThreadView({
                       )}
                     </AnimatePresence>
 
+                    {/* Slice 2 (spec: attachment chips under the subject):
+                        compact chips — name, type, size — above the body.
+                        They download exactly like the letter card's grid
+                        below; the grid stays as the full preview. */}
+                    {hasAtt && (
+                      <div className="flex flex-wrap gap-2 px-4 sm:px-5 pb-3">
+                        {msgAttachments.map((att, attIndex) => {
+                          const attName =
+                            (att as { filename?: string; name?: string }).filename ??
+                            (att as { name?: string }).name ??
+                            'attachment';
+                          const attSize = (att as { size?: number }).size ?? 0;
+                          const attUrl = (att as { url?: string }).url;
+                          return (
+                            <button
+                              key={(att as { id?: string }).id ?? `chip-${index}-${attIndex}`}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (attUrl) {
+                                  const a = document.createElement('a');
+                                  a.href = attUrl;
+                                  a.download = attName;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                  showToast({ text: `Downloading ${attName}…`, type: 'success' });
+                                } else {
+                                  showToast({ text: `Downloading ${attName}…`, type: 'info' });
+                                }
+                              }}
+                              aria-label={`Download ${attName}`}
+                              className="inline-flex min-h-[36px] items-center gap-2 rounded-full border border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] px-3 text-xs font-medium text-[var(--quant-foreground)] transition-colors hover:border-[var(--quant-primary)]/40"
+                            >
+                              <MimeTypeIcon
+                                mimeType={
+                                  (att as { mimeType?: string; contentType?: string }).mimeType ??
+                                  (att as { contentType?: string }).contentType ??
+                                  'application/octet-stream'
+                                }
+                                size={14}
+                              />
+                              <span className="max-w-[160px] truncate">{attName}</span>
+                              <span className="text-[var(--quant-muted-foreground)]">
+                                {formatAttachmentSize(attSize)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     {/*
                      * Body, rendered flat.
                      *
@@ -3453,6 +4078,39 @@ export function ConversationalThreadView({
 
       {/* Chatbot-Style Bottom Floating Quick Reply Bar — Gmail-style: no divider on desktop */}
       <div className="p-3 sm:p-4 bg-[#08090d]/95 md:bg-black border-t border-[var(--quant-surface-elevated)]/60 md:border-t-0 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
+        {/*
+          Slice 2 (spec: reaction pills above the action bar): one tap
+          toggles the reaction on the latest message. Same honesty as the
+          existing system — reactions live in localStorage only, because no
+          message-reaction endpoint exists on the backend yet. They are
+          never presented as persisted server-side.
+        */}
+        {messages.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="React to latest message">
+            {THREAD_REACTION_PILLS.map((emoji) => {
+              const latestIndex = messages.length - 1;
+              const latest = messages[latestIndex];
+              const latestKey = latest?.id ?? `msg-${latestIndex}`;
+              const active = (messageReactions[latestKey] ?? []).includes(emoji);
+              return (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => toggleReaction(latestKey, emoji)}
+                  aria-pressed={active}
+                  aria-label={`React ${emoji}`}
+                  className={`flex min-h-[36px] min-w-[36px] items-center justify-center rounded-full border px-2 text-base transition-all active:scale-95 ${
+                    active
+                      ? 'border-[var(--quant-primary)]/60 bg-[var(--quant-primary)]/15'
+                      : 'border-[var(--quant-surface-elevated)] bg-[var(--quant-surface)] hover:border-[var(--quant-primary)]/40'
+                  }`}
+                >
+                  {emoji}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {/*
           AI quick-reply chips: suggestions for the latest message. One tap
           fills the reply bar — previously imported but never rendered, so
@@ -3792,6 +4450,53 @@ export function ConversationalThreadView({
           }}
         />
       )}
+      {/* Slice 2 (spec: Move Conversation sheet + first-run snooze dialog). */}
+      <MoveConversationSheet
+        open={moveSheetOpen}
+        onClose={() => setMoveSheetOpen(false)}
+        folders={moveFolders}
+        foldersLoading={moveFoldersLoading}
+        currentFolderId={messages[0]?.folderId ?? null}
+        onMove={(folderId, folderName) => void handleMoveConversation(folderId, folderName)}
+        onCreateFolder={handleCreateMoveFolder}
+      />
+
+      {snoozeIntroOpen && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="snooze-intro-title"
+            className="w-full max-w-sm rounded-2xl border border-[#3A404D] bg-[var(--quant-surface)] p-5"
+          >
+            <h2 id="snooze-intro-title" className="text-base font-bold text-white">
+              Snoozed folder
+            </h2>
+            <p className="mt-2 text-xs text-[var(--quant-muted-foreground)]">
+              Snoozed conversations return to the Snoozed view at the time you
+              choose — no separate folder needs creating, because snoozing
+              already files them there.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSnoozeIntroOpen(false)}
+                className="min-h-[44px] rounded-xl border border-[var(--quant-surface-elevated)] px-4 text-xs font-semibold text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmSnoozeIntro}
+                className="min-h-[44px] rounded-xl bg-[var(--quant-primary)] px-4 text-xs font-bold text-white"
+              >
+                Continue to snooze
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmTrash && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 p-4">
           <div
