@@ -258,6 +258,9 @@ function stubQuantMailUserinfo(identity: { email: string; username?: string; dis
           email: identity.email,
           username: identity.username ?? identity.email.split('@')[0],
           displayName: identity.displayName ?? 'SSO User',
+          // QC-F-578: the route now requires QuantMail to PROVE verification;
+          // these tests exercise the verified-identity paths.
+          email_verified: true,
         },
       }),
     }),
