@@ -222,6 +222,9 @@ export interface QuantyApproval {
 /** A browser task Quanty ran (or is running). */
 export interface QuantyBrowserTask {
   id: string;
+  /** Owning user. Tasks are listed per-user only; a missing owner is never
+   *  returned to any caller (fail closed). */
+  userId?: string;
   title: string;
   url: string;
   thumbnailUrl?: string;
