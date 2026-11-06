@@ -399,6 +399,67 @@ paths:
               schema:
                 $ref: '#/components/schemas/SuccessWrapper'
 
+  /conversations/{id}/screen-capture:
+    post:
+      tags: [Messages]
+      summary: Report a screenshot or screen recording of the chat (detection + notice only)
+      description: >-
+        Called by the client when it DETECTS a screenshot or a screen
+        recording of the chat surface. Posts an in-thread system notice
+        ("<name> took a screenshot" / "<name> started a screen recording")
+        and fans it out live so connected clients render the dismissible
+        banner pill. Detection + notice only — captures cannot be
+        prevented, and nothing here claims otherwise.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            description: Conversation ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind:
+                  type: string
+                  enum: [screenshot, screen_recording]
+      responses:
+        '201':
+          description: Capture notice recorded (or suppressed by the other member's allowScreenshots pref in DIRECT threads)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessWrapper'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Caller is not a member of the conversation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /messages/{id}:
     put:
       tags: [Messages]

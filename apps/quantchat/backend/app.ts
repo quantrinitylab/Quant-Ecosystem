@@ -28,6 +28,7 @@ import settingsRoutes from './routes/settings';
 import messageRequestsRoutes from './routes/message-requests';
 import themesRoutes from './routes/themes';
 import ephemeralRoutes from './routes/ephemeral';
+import threadCaptureRoutes from './routes/thread-capture';
 import gamesRoutes from './routes/games';
 import channelsRoutes from './routes/channels';
 import discoverRoutes from './routes/discover';
@@ -41,6 +42,9 @@ import { websocketRoutes } from './routes/websocket';
 import { createE2EERelay } from './services/e2ee-relay-factory';
 import { AutoReplyManager } from './lib/auto-reply-manager';
 import { ScheduledMessageWorker } from './services/scheduled-message-worker';
+import { DisappearingMessageWorker } from './services/disappearing-message-worker';
+import { MediaService } from './services/media.service';
+import { publishConversationEvent } from './services/realtime-publisher';
 import { createRealtimeContext } from './lib/realtime-context';
 import { PrismaOutboxService } from './services/outbox.service';
 import { DeliveryWorker } from './services/delivery-worker';
@@ -169,6 +173,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(searchRoutes, { prefix: '/search' });
   await app.register(themesRoutes, { prefix: '/conversations' });
   await app.register(ephemeralRoutes, { prefix: '/conversations' });
+  await app.register(threadCaptureRoutes, { prefix: '/conversations' });
   await app.register(encryptionRoutes, { prefix: '/encryption' });
   await app.register(mediaRoutes, { prefix: '/media' });
   await app.register(callsRoutes, { prefix: '/calls' });
@@ -215,6 +220,46 @@ export async function buildApp(config?: AppConfig) {
   scheduledWorker.start();
   app.addHook('onClose', async () => {
     scheduledWorker.stop();
+  });
+
+  // Phase 1B: durable disappearing-message sweep. In-process interval worker
+  // (single-instance by convention — see the worker's header); no
+  // BullMQ/Redis. Replaces DisappearingService's in-memory setTimeout
+  // expiry, which did not survive process restarts.
+
+  // Shared media registry so the sweep worker's expiry flags (410 Gone) are
+  // visible to the /media routes. MediaService is in-memory today — the
+  // registry does not survive restarts (see the port docs); the message rows
+  // in the database are still the durable source of truth.
+  const mediaService = new MediaService();
+  app.decorate('mediaService', mediaService);
+
+  const disappearingWorker = new DisappearingMessageWorker(
+    (app as unknown as { prisma: PrismaClient }).prisma,
+    {
+      // Optional: override the 60s default via env.
+      // intervalMs: Number(process.env['DISAPPEARING_SWEEP_INTERVAL_MS'] ?? 60_000),
+      snapMediaExpirer: mediaService, // implements SnapMediaExpirer (system-only port)
+      onExpired: (record) => {
+        // K25 — realtime fan-out for expiry deletes (contract §28
+        // `chat.message.deleted.v1`), same shape as routes/messages.ts.
+        void publishConversationEvent(app, record.conversationId, {
+          eventType: 'chat.message.deleted.v1',
+          resourceRef: record.id,
+          aggregateVersion: 1,
+          data: { id: record.id, conversationId: record.conversationId, reason: 'expired' },
+        });
+      },
+      onError: (error, record) => {
+        app.log.error({ err: error, record }, 'disappearing message sweep failed');
+      },
+    },
+  );
+  if (appConfig.env !== 'test') {
+    disappearingWorker.start();
+  }
+  app.addHook('onClose', async () => {
+    disappearingWorker.stop();
   });
 
   await app.register(reelsRoutes, { prefix: '/reels' });
@@ -281,3 +326,4 @@ export async function buildApp(config?: AppConfig) {
 
   return app;
 }
+
