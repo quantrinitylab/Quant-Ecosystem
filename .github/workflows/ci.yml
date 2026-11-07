@@ -80,10 +80,9 @@ jobs:
       - name: Audit installed dependency graph (high/critical)
         run: pnpm audit:dependencies
 
-      - name: Validate canonical project memory
-        run: |
-          pnpm memory:validate
-          pnpm test:memory
+      # Canonical project-memory validation (front matter, links, freshness)
+      # runs in the separate `project-memory` job below, not in this gate. See
+      # the comment on that job for why.
 
       # @quant/database tests and downstream builds import the generated client.
       # Generate once before Turbo fans package tasks out in parallel so no task
@@ -157,6 +156,38 @@ jobs:
         # Selects directly changed workspaces. Unrelated pre-existing failures
         # elsewhere in the monorepo do not block this gate.
         run: npx turbo typecheck lint test build --concurrency=2 --continue ${{ steps.base.outputs.filter }}
+
+  # Canonical project-memory validation (front matter, links, freshness).
+  #
+  # Deliberately NOT part of `gate`. deploy-oci.yml requires a green `gate` on
+  # the exact main HEAD, and this validator fails once a document's review_by or
+  # last_verified date passes. Keeping it inside `gate` would freeze every deploy
+  # on a calendar date, hotfixes included. A red run here means "refresh the
+  # docs", not "release blocked". Owner approved the split on 2026-11-07.
+  project-memory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate canonical project memory
+        run: |
+          pnpm memory:validate
+          pnpm test:memory
 
   # Hard gate: Memory V2 shadow evidence must survive client reconstruction and
   # preserve tenant isolation against a real PostgreSQL instance.
