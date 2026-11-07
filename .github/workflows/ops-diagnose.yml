@@ -12,9 +12,12 @@ name: Ops diagnose (read-only vm-app report)
 #   * Read-only. The script restarts nothing and writes nothing on the VM; its
 #     database session is read-only at the server.
 #   * Output is names, counts, dates and yes/no flags. This repository (and so
-#     this log) is public: infra/oci/ops/scrub-output.mjs masks e-mail
-#     addresses, credentials in URLs and long token-like strings before
-#     anything is printed.
+#     this log) is public, so the report is encrypted before it is printed:
+#     scrub-output.mjs masks e-mail addresses, URL credentials and long
+#     tokens, then encrypt-report.mjs seals it with the public key in
+#     infra/oci/ops/report-public-key.pem. Only the holder of the private key
+#     (kept outside the repository and outside GitHub) can read it, with
+#     decrypt-report.mjs. If the public key is missing the step fails.
 #   * Runs only from main (the same rule as deploy-oci.yml), so a branch cannot
 #     swap in a different script and run it with the deploy key.
 #   * No new secret. It reuses environment `oci-staging` (OCI_DEPLOY_SSH_KEY,
@@ -78,30 +81,34 @@ jobs:
         run: |
           set -euo pipefail
           [ "$WITH_DB" = true ] || WITH_DB=false
+          # Fail closed: without the public key there is nothing safe to print.
+          test -s infra/oci/ops/report-public-key.pem || { echo 'report-public-key.pem is missing' >&2; exit 1; }
           compose_sha="$(sha256sum compose/quant-stack.yml | cut -d' ' -f1)"
           # tr strips any CR so a CRLF checkout cannot break the remote shell.
-          # Everything the VM prints passes through the scrubber before it
-          # reaches the log; if the scrubber fails the step fails.
+          # The report is scrubbed, written to a file, encrypted, and only the
+          # encrypted block reaches the (public) log. ssh's own messages go to a
+          # separate file and are shown, scrubbed, only when the run fails.
+          set +e
           tr -d '\r' < infra/oci/ops/diagnose-vm-app.sh \
-            | ssh -i ~/.ssh/oci-deploy -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 \
+            | ssh -i ~/.ssh/oci-deploy -o BatchMode=yes -o LogLevel=ERROR -o ConnectTimeout=15 -o ServerAliveInterval=15 \
                 "$OCI_SSH_USER@$VM_APP_IP" \
-                "VM_APP_IP='$VM_APP_IP' REPO_COMPOSE_SHA256='$compose_sha' WITH_DB='$WITH_DB' bash -s" 2>&1 \
-            | node infra/oci/ops/scrub-output.mjs \
-            | tee diagnose.txt
-
-      - name: Publish report to the run summary
-        if: always()
-        shell: bash
-        run: |
-          if [ -s diagnose.txt ]; then
-            {
-              echo '## vm-app diagnose (read-only)'
-              echo
-              echo '```text'
-              cat diagnose.txt
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
+                "VM_APP_IP='$VM_APP_IP' REPO_COMPOSE_SHA256='$compose_sha' WITH_DB='$WITH_DB' bash -s" 2> ssh-stderr.txt \
+            | node infra/oci/ops/scrub-output.mjs > diagnose.txt
+          status=("${PIPESTATUS[@]}")
+          set -e
+          if [ "${status[1]}" -ne 0 ] || [ "${status[2]}" -ne 0 ]; then
+            echo "ssh exit ${status[1]}, scrubber exit ${status[2]}" >&2
+            node infra/oci/ops/scrub-output.mjs < ssh-stderr.txt >&2 || true
+            exit 1
           fi
+          node infra/oci/ops/encrypt-report.mjs infra/oci/ops/report-public-key.pem < diagnose.txt > diagnose.enc.txt
+          {
+            echo "report: $(wc -l < diagnose.txt) lines, $(wc -c < diagnose.txt) bytes"
+            echo "encrypted block sha256: $(sha256sum < diagnose.enc.txt | cut -d' ' -f1)"
+            echo "decrypt with infra/oci/ops/decrypt-report.mjs and the private ops key"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          cat diagnose.enc.txt
+          rm -f diagnose.txt ssh-stderr.txt
 
       - name: Remove deploy SSH key
         if: always()

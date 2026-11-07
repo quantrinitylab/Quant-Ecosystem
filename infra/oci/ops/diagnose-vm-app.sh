@@ -103,6 +103,25 @@ main() {
     $DK system df 2>&1
   fi
 
+  section "docker disk hygiene"
+  if [ -n "$DK" ]; then
+    $DK info --format 'logging_driver={{.LoggingDriver}} storage_driver={{.Driver}} root={{.DockerRootDir}}' 2>&1 | head -n1
+    echo "-- /etc/docker/daemon.json"
+    readf /etc/docker/daemon.json | head -n 20
+    echo "-- images (repository, tag, size, age)"
+    $DK images --format '  {{.Repository}}:{{.Tag}}  {{.Size}}  {{.CreatedSince}}' 2>&1 | head -n 40
+    echo "-- largest container log files (no rotation fills the disk)"
+    sudo -n find /var/lib/docker/containers -maxdepth 2 -name '*-json.log' -printf '%s %f\n' 2>/dev/null \
+      | sort -rn | head -n 8 | awk '{ printf "  %.1f MB  %s\n", $1 / 1048576, substr($2, 1, 12) }'
+  else
+    echo "skipped (no docker access)"
+  fi
+
+  section "patching and time"
+  printf 'ntp_synchronized: %s\n' "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)"
+  printf 'running kernel: %s | newest installed kernel: %s\n' "$(uname -r)" "$(rpm -q kernel-uek --last 2>/dev/null | head -n1 | cut -d' ' -f1)"
+  printf 'pending security advisories: %s\n' "$(timeout 60 sudo -n dnf -q updateinfo list security 2>/dev/null | grep -c .)"
+
   section "deploy state (/opt/quant/oci)"
   ls -la --time-style=long-iso /opt/quant/oci 2>&1 | head -n 20
   printf 'last-good-tag: %s\n' "$(readf /opt/quant/oci/.last-good-tag)"
@@ -158,6 +177,11 @@ main() {
   # ------------------------------------------------------------- network --
   section "listening ports and firewall"
   printf 'listening tcp ports: %s\n' "$(ss -ltnH 2>/dev/null | awk '{n=split($4,a,":"); print a[n]}' | sort -n | uniq | tr '\n' ' ')"
+  echo "-- port and owning process"
+  sudo -n ss -ltnpH 2>/dev/null | awk '{
+    n = split($4, a, ":"); port = a[n]; proc = "?"
+    if (match($0, /users:\(\("[^"]+"/)) proc = substr($0, RSTART + 9, RLENGTH - 10)
+    print "  " port " " proc }' | sort -n | uniq
   if systemctl is-active --quiet firewalld 2>/dev/null; then
     echo "firewalld: active"
     sudo -n firewall-cmd --list-all 2>/dev/null | grep -E '^[[:space:]]*(services|ports|sources):'
@@ -438,6 +462,14 @@ SELECT count(*) AS stuck_deferred FROM delivery_attempts WHERE status::text = 'd
 \echo '-- sent mail still queued after an hour'
 SELECT count(*) AS stuck_queued FROM emails WHERE "deliveryStatus"::text = 'queued' AND "sentAt" < now() - interval '1 hour';
 
+\echo '-- refresh tokens: how many are dead weight'
+SELECT count(*) AS total,
+       count(*) FILTER (WHERE "expiresAt" < now()) AS expired,
+       count(*) FILTER (WHERE "isRevoked") AS revoked,
+       count(DISTINCT family) AS families,
+       count(DISTINCT "userId") AS users
+FROM refresh_tokens;
+
 \echo '-- suppressions, dkim keys, attachments'
 SELECT (SELECT count(*) FROM email_suppressions) AS suppressions,
        (SELECT count(*) FROM domain_auth_keys)   AS dkim_keys,
@@ -453,6 +485,13 @@ SELECT current_setting('server_version') AS pg_version,
        current_setting('max_connections') AS max_connections,
        (SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()) AS open_connections;
 SELECT extname AS extensions FROM pg_extension ORDER BY 1;
+
+\echo '-- uptime and activity of this database'
+SELECT pg_postmaster_start_time()::date AS server_up_since,
+       pg_is_in_recovery() AS is_replica,
+       (SELECT xact_commit FROM pg_stat_database WHERE datname = current_database()) AS commits,
+       (SELECT xact_rollback FROM pg_stat_database WHERE datname = current_database()) AS rollbacks,
+       (SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()) AS deadlocks;
 
 \echo '-- biggest tables by live rows'
 SELECT relname, n_live_tup AS approx_rows FROM pg_stat_user_tables ORDER BY n_live_tup DESC LIMIT 15;
