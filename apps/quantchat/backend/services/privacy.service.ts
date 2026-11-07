@@ -111,7 +111,7 @@ export interface PrivacyPrismaLike {
     ) => Promise<Array<{ id: string; preferences: unknown }>>;
   };
   closeFriend?: {
-    findMany: (args: unknown) => Promise<Array<{ userId: string }>>;
+    findMany: (args: unknown) => Promise<Array<{ userId: string; friendId?: string }>>;
   };
   conversationMember?: {
     findMany: (
@@ -608,6 +608,138 @@ export class PrivacyService {
 
     owners.delete(viewerId);
     return owners;
+  }
+
+  /**
+   * QC-F-524 — presence relationship halves, shared by the two batched
+   * presence helpers below. The presence relationship definition lives in
+   * exactly this one place (band §4.1): two users are presence-related
+   * when they share an ACTIVE membership (leftAt null) in ANY conversation
+   * (DIRECT, GROUP or CHANNEL — deliberately NOT friendOwnerIdsFor's
+   * DIRECT-only filter: the shipped chat list renders presence dots for
+   * group/channel participants too) OR a CloseFriend edge exists in
+   * EITHER direction. Each half is fail-closed and never throws: a failed
+   * or unwired read proves no relationships from that half.
+   */
+  private async presenceCoMemberIds(userId: string): Promise<Set<string>> {
+    const related = new Set<string>();
+    try {
+      const memberships = (await this.prisma.conversationMember?.findMany({
+        where: { userId, leftAt: null },
+        select: { conversationId: true },
+      })) ?? [];
+      const conversationIds = [...new Set(memberships.map((m) => m.conversationId))];
+      if (conversationIds.length > 0) {
+        const coMemberships = (await this.prisma.conversationMember?.findMany({
+          where: { conversationId: { in: conversationIds }, leftAt: null },
+          select: { userId: true },
+        })) ?? [];
+        for (const m of coMemberships) {
+          if (m.userId && m.userId !== userId) related.add(m.userId);
+        }
+      }
+    } catch {
+      // Fail-closed: a failed membership read proves no co-members.
+    }
+    return related;
+  }
+
+  private async presenceCloseFriendIds(userId: string): Promise<Set<string>> {
+    const related = new Set<string>();
+    // Direction 1: users who listed `userId` as a close friend.
+    try {
+      const edges = (await this.prisma.closeFriend?.findMany({
+        where: { friendId: userId },
+        select: { userId: true },
+      })) ?? [];
+      for (const edge of edges) {
+        if (edge.userId && edge.userId !== userId) related.add(edge.userId);
+      }
+    } catch {
+      // Fail-closed: a failed edge read proves no edges from this direction.
+    }
+    // Direction 2: users `userId` listed as close friends.
+    try {
+      const edges = (await this.prisma.closeFriend?.findMany({
+        where: { userId },
+        select: { friendId: true },
+      })) ?? [];
+      for (const edge of edges) {
+        if (edge.friendId && edge.friendId !== userId) related.add(edge.friendId);
+      }
+    } catch {
+      // Fail-closed: a failed edge read proves no edges from this direction.
+    }
+    return related;
+  }
+
+  /**
+   * QC-F-524 — snapshot direction: of `candidateIds`, the subset whose
+   * presence `viewerId` may see on the RELATIONSHIP + BLOCK gates alone
+   * (the caller still applies the owner's showOnlineStatus gate via
+   * resolveMany — §4.3 keeps the prefs cache in play). The viewer themself
+   * is always relationship-visible when they are among the candidates.
+   * The block cut reuses blockedExclusionsFor (QC-F-447) unchanged: a
+   * proven block in either direction AND an unreadable (uncertain) block
+   * list both hide the candidate — unproven = hidden, fail-closed.
+   * Batched: at most 5 queries (2 membership + 2 edge + 1 block batch),
+   * never a per-candidate loop. Never throws.
+   */
+  async presenceVisibleIdsFor(
+    viewerId: string,
+    candidateIds: string[],
+  ): Promise<Set<string>> {
+    const candidates = [...new Set(candidateIds)];
+    const visible = new Set<string>();
+    if (candidates.length === 0) return visible;
+    const candidateSet = new Set(candidates);
+
+    const related = new Set<string>([
+      ...(await this.presenceCoMemberIds(viewerId)),
+      ...(await this.presenceCloseFriendIds(viewerId)),
+    ]);
+    const relatedCandidates = candidates.filter((id) => id !== viewerId && related.has(id));
+    if (relatedCandidates.length > 0) {
+      const { excluded, uncertain } = await this.blockedExclusionsFor(
+        viewerId,
+        relatedCandidates,
+      );
+      for (const id of relatedCandidates) {
+        if (!excluded.has(id) && !uncertain.has(id)) visible.add(id);
+      }
+    }
+    if (candidateSet.has(viewerId)) visible.add(viewerId);
+    return visible;
+  }
+
+  /**
+   * QC-F-524 — broadcast direction: the VIEWERS who may receive
+   * `ownerId`'s presence transitions — the reverse enumeration of
+   * presenceVisibleIdsFor over the same relationship definition, minus
+   * the block cut. The owner is deliberately NOT in the returned set (the
+   * websocket layer adds the owner's own sockets itself, so this helper
+   * keeps meaning "other people", like friendOwnerIdsFor). Note on the
+   * blockedExclusionsFor argument order: the helper's first parameter is
+   * named for a viewer, but the block verdict is a symmetric PAIR
+   * property (either direction excludes), so passing the owner here cuts
+   * exactly the same pairs. Batched: at most 5 queries. Never throws;
+   * total failure yields an empty set (only the owner's own sockets will
+   * receive the transition — fail-closed).
+   */
+  async presenceAudienceFor(ownerId: string): Promise<Set<string>> {
+    const audience = new Set<string>([
+      ...(await this.presenceCoMemberIds(ownerId)),
+      ...(await this.presenceCloseFriendIds(ownerId)),
+    ]);
+    audience.delete(ownerId);
+    if (audience.size > 0) {
+      const { excluded, uncertain } = await this.blockedExclusionsFor(ownerId, [
+        ...audience,
+      ]);
+      for (const id of excluded) audience.delete(id);
+      for (const id of uncertain) audience.delete(id);
+    }
+    return audience;
   }
 
   /**

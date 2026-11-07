@@ -176,6 +176,23 @@ function makeFakePrisma(users: FakeUser[]) {
         let row: FakeUser | undefined;
         if (typeof where['email'] === 'string') {
           row = users.find((u) => u.email === where['email']);
+        } else if (
+          where['email'] &&
+          typeof where['email'] === 'object' &&
+          'equals' in (where['email'] as Record<string, unknown>)
+        ) {
+          // QC-F-537: the SSO tombstone check queries findFirst with a
+          // direct { equals, mode: 'insensitive' } email condition; match
+          // it faithfully like the findMany plumbing below. (Harness
+          // plumbing only: every QC-F-041 assertion is unchanged.)
+          const { equals, mode } = where['email'] as { equals: unknown; mode?: string };
+          if (typeof equals === 'string') {
+            row = users.find((u) =>
+              mode === 'insensitive'
+                ? u.email.toLowerCase() === equals.toLowerCase()
+                : u.email === equals,
+            );
+          }
         } else if (Array.isArray(where['OR'])) {
           const or = where['OR'] as Record<string, string>[];
           row = users.find(
@@ -218,6 +235,13 @@ function makeFakePrisma(users: FakeUser[]) {
               return false;
             }),
           );
+        }
+        // QC-F-537: the SSO upsert now also queries findMany with a DIRECT
+        // (non-OR) email condition — the same { equals, mode: 'insensitive' }
+        // shape, matched with the same faithfulness. (Harness plumbing
+        // only: every QC-F-041 assertion in this file is unchanged.)
+        if ('email' in where) {
+          rows = rows.filter((u) => matchesField(u.email, where['email']));
         }
         if (where['deletedAt'] === null) rows = rows.filter((u) => !u.deletedAt);
         return typeof take === 'number' ? rows.slice(0, take) : rows;

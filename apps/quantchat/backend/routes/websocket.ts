@@ -1,7 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import websocketPlugin, { type WebSocket } from '@fastify/websocket';
 import { ConnectionAuth, AuthError } from '@quant/realtime';
-import { assertProductionSecret, requiresRealSecret } from '@quant/server-core';
+import {
+  assertProductionSecret,
+  createAppError,
+  requiresRealSecret,
+} from '@quant/server-core';
 import type { PresenceManager } from '@quant/realtime/presence';
 import type { RealtimeBackplane, RoomEvent } from '../services/realtime-backplane';
 import { BACKPLANE_PRESENCE_CHANNEL } from '../services/realtime-backplane';
@@ -167,7 +171,11 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   // PrivacyService (30s-cached resolver) gates presence publication, the
   // presence list, typing frames, and read-receipt fan-out below. When no
   // Prisma is wired (minimal harness) there is no prefs store to consult
-  // and the layer keeps its previous behaviour.
+  // and the layer keeps its previous behaviour — with ONE deliberate
+  // exception (QC-F-524, C6): presence is fail-closed without a privacy
+  // service, because there is then no way to prove a recipient
+  // relationship. The snapshot answers empty and a transition reaches
+  // only the owner's own sockets (see fanOutPresenceToAudience).
   const privacy: PrivacyService | null = prismaClient
     ? getPrivacyService(prismaClient)
     : null;
@@ -284,14 +292,34 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       bufferForResume(conversationChannel(conversationId), event.envelope, event.excludeUserIds);
     }
     // Presence transitions are user-scoped, not room-scoped: a remote instance
-    // published it on the dedicated presence channel, so fan it out to every
-    // open local socket (Requirement 5.3 — subscribed instances receive it; the
-    // frontend re-renders affected indicators per Requirement 11.3).
+    // published it on the dedicated presence channel (Requirement 5.3 —
+    // subscribed instances receive it; the frontend re-renders affected
+    // indicators per Requirement 11.3). QC-F-524: the fan-out is
+    // recipient-scoped — this instance computes the transition owner's
+    // audience from its own relationship graph (the audience never travels
+    // on the wire, so a block placed after publication still cuts), and a
+    // frame whose owner cannot be identified is dropped (fail-closed).
     if (
       conversationId === BACKPLANE_PRESENCE_CHANNEL ||
       (isChatEventEnvelope(frame) && frame.event_type === 'chat.presence.v1')
     ) {
-      broadcastToAllSockets(frame);
+      const ownerId = extractPresenceOwnerId(frame);
+      if (!ownerId) {
+        fastify.log.warn(
+          'remote presence frame dropped: owner not identifiable (fail-closed)',
+        );
+        return;
+      }
+      // The backplane handler contract is synchronous; the scoped fan-out
+      // is async (audience lookup). Fire-and-forget with failures logged,
+      // never thrown — the same pattern the typing branch uses below.
+      void (async () => {
+        try {
+          await fanOutPresenceToAudience(frame, ownerId);
+        } catch (err: unknown) {
+          fastify.log.error({ err, ownerId }, 'remote presence fan-out failed');
+        }
+      })();
       return;
     }
     const room = rooms.get(conversationId);
@@ -308,11 +336,55 @@ export async function websocketRoutes(fastify: FastifyInstance) {
     }
   });
 
-  /** Send a payload to every open socket connected to THIS instance. */
-  function broadcastToAllSockets(payload: unknown): void {
-    const data = JSON.stringify(payload);
-    for (const socket of socketUsers.keys()) {
-      if (socket.readyState === socket.OPEN) {
+  /**
+   * QC-F-524 — the owner of a presence frame, or null when it cannot be
+   * identified. Envelope frames carry the user in `payload.userId` (with
+   * `resource_ref` as the §18 fallback — publishPresence stamps both);
+   * legacy payload-only frames carry `userId` at the top level. A frame
+   * with no identifiable owner is dropped by the caller: an owner-less
+   * presence transition must never reach anyone (fail-closed).
+   */
+  function extractPresenceOwnerId(frame: unknown): string | null {
+    if (!frame || typeof frame !== 'object') return null;
+    const record = frame as {
+      payload?: unknown;
+      resource_ref?: unknown;
+      userId?: unknown;
+    };
+    const payload =
+      record.payload && typeof record.payload === 'object'
+        ? (record.payload as { userId?: unknown })
+        : null;
+    if (typeof payload?.userId === 'string' && payload.userId) return payload.userId;
+    if (typeof record.resource_ref === 'string' && record.resource_ref) {
+      return record.resource_ref;
+    }
+    if (typeof record.userId === 'string' && record.userId) return record.userId;
+    return null;
+  }
+
+  /**
+   * QC-F-524 — recipient-scoped presence fan-out, the SINGLE delivery path
+   * for presence transitions on this instance (local publishPresence and
+   * remote backplane fan-in both come through here, so the filter can
+   * never diverge between them). A socket receives the frame only when
+   * its user IS the transition's owner (their own other devices stay in
+   * sync) or is in the owner's freshly computed presence audience
+   * (PrivacyService.presenceAudienceFor: any-conversation co-members and
+   * either-direction close friends, minus blocked/uncertain pairs). With
+   * no privacy service wired there is no way to prove a relationship, so
+   * only the owner's own sockets receive the frame (fail-closed, C6).
+   * Presence is ephemeral and never resume-buffered, so withholding
+   * delivery here is the whole cut — nothing replays it later.
+   */
+  async function fanOutPresenceToAudience(frame: unknown, ownerId: string): Promise<void> {
+    const audience = privacy
+      ? await privacy.presenceAudienceFor(ownerId)
+      : new Set<string>();
+    const data = JSON.stringify(frame);
+    for (const [socket, recipientId] of socketUsers) {
+      if (socket.readyState !== socket.OPEN) continue;
+      if (recipientId === ownerId || audience.has(recipientId)) {
         socket.send(data);
       }
     }
@@ -348,7 +420,10 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       channel: BACKPLANE_PRESENCE_CHANNEL,
       sequencer: { next: (c: string) => backplane.nextSequence(c) },
     });
-    broadcastToAllSockets(envelope);
+    // QC-F-524: local delivery is recipient-scoped (the owner's audience);
+    // the backplane publish below stays unscoped on the wire — every
+    // receiving instance computes the audience from its own graph.
+    await fanOutPresenceToAudience(envelope, userId);
     const event: RoomEvent = {
       type: 'presence:update',
       originInstanceId: backplane.instanceId,
@@ -1122,15 +1197,51 @@ export async function websocketRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.get('/presence', async () => {
+  fastify.get('/presence', async (request) => {
+    // QC-F-524: the snapshot is recipient-scoped. The old handler took no
+    // request at all and returned the instance's whole online roster to
+    // any authenticated caller (only the owner's showOnlineStatus gate
+    // applied) — any logged-in user, including someone the target had
+    // blocked, could enumerate who is online and poll for transitions.
+    // Now the caller must be identified (production's global hook already
+    // 401s anonymous requests; this in-handler check is defence-in-depth
+    // and what makes the handler testable/honest under a bare harness),
+    // the `userIds` the shipped client already sends are honoured (an id
+    // that was not requested can never be returned), and of the requested
+    // ids only relationship-visible ones survive.
+    const callerId = (request as { auth?: { userId?: string } }).auth?.userId;
+    if (!callerId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const rawUserIds = (request.query as { userIds?: unknown } | undefined)?.userIds;
+    const requested =
+      typeof rawUserIds === 'string'
+        ? [...new Set(rawUserIds.split(',').map((id) => id.trim()).filter(Boolean))]
+        : [];
+    // No requested ids -> empty, never the roster (anti-enumeration: the
+    // roster is not a directory). With no privacy service there is no way
+    // to prove a relationship, so the answer is empty too (fail-closed;
+    // the pre-524 behaviour returned the raw roster here — that WAS the
+    // leak, C6).
+    if (requested.length === 0 || !privacy) return { online: [] };
     const online = presence.getOnlineInApp('quantchat');
-    // QC-F-042: users with showOnlineStatus off are filtered out of the
-    // snapshot (their ZSET entry stays — only visibility is gated). A
-    // prefs failure hides the user rather than failing the whole list.
-    if (!privacy || online.length === 0) return { online };
-    const resolved = await privacy.resolveMany(online);
+    if (online.length === 0) return { online: [] };
+    const onlineSet = new Set(online);
+    const candidates = requested.filter((id) => onlineSet.has(id));
+    if (candidates.length === 0) return { online: [] };
+    // Relationship + block gates (QC-F-524, PrivacyService band §4.1).
+    const visible = await privacy.presenceVisibleIdsFor(callerId, candidates);
+    if (visible.size === 0) return { online: [] };
+    // QC-F-042 owner gate, unchanged: users with showOnlineStatus off are
+    // filtered out of the snapshot (their ZSET entry stays — only
+    // visibility is gated). A prefs failure hides the user rather than
+    // failing the whole list.
+    const resolved = await privacy.resolveMany([...visible]);
     return {
-      online: online.filter((id) => resolved.get(id)?.prefs.showOnlineStatus ?? false),
+      online: requested.filter(
+        (id) =>
+          visible.has(id) && (resolved.get(id)?.prefs.showOnlineStatus ?? false),
+      ),
     };
   });
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -107,6 +107,9 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
   // 2. HEADER & BUTTON CONSOLIDATION (CalendarHeader.tsx)
   // ==========================================================================
   describe('2. Header & Button Consolidation', () => {
+    beforeEach(() => vi.useFakeTimers({ toFake: ['Date'] }));
+    afterEach(() => vi.useRealTimers());
+
     it('consolidates duplicate New Event buttons into a single sleek action button in top-right', () => {
       const html = renderToStaticMarkup(
         <CalendarHeader
@@ -125,7 +128,11 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
       expect(html).not.toContain('<select');
     });
 
-    it('renders single clean live IST/PST pill and removes duplicate timezone displays', () => {
+    it.each([
+      ['summer', '2026-07-15T12:00:00Z', 'PDT'],
+      ['winter', '2026-01-15T12:00:00Z', 'PST'],
+    ])('renders the live IST/Pacific pill in %s', (_season, instant, pacificCode) => {
+      vi.setSystemTime(new Date(instant));
       const html = renderToStaticMarkup(
         <CalendarHeader
           activeMonthName="October"
@@ -136,9 +143,11 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
         />,
       );
 
-      // Contains live dual timezone pill — Pacific code is DST-aware (PDT in Oct 2026, not hardcoded PST)
+      // Assert the abbreviation for an explicit instant, not the runner's date.
+      // /PD[TS]/ only matched PDT/PDS, so it incorrectly rejected winter PST.
       expect(html).toContain('IST');
-      expect(html).toMatch(/PD[TS]/);
+      expect(html).toContain(pacificCode);
+      expect(html).not.toContain(pacificCode === 'PDT' ? 'PST' : 'PDT');
       expect(html).toContain('Live Dual World Clocks');
     });
 
@@ -300,6 +309,9 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
     // Sub-View 4: Schedule (CalendarScheduleSubView)
     // ------------------------------------------------------------------------
     describe('Sub-View 4: Schedule (CalendarScheduleSubView)', () => {
+      beforeEach(() => vi.useFakeTimers({ toFake: ['Date'] }));
+      afterEach(() => vi.useRealTimers());
+
       it('renders segmented sub-tabs for Clock and Reminders', () => {
         const html = renderToStaticMarkup(
           <CalendarScheduleSubView
@@ -314,7 +326,21 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
         expect(html).toContain('Reminders');
       });
 
-      it('renders live world clocks (IST, PST, EST, GMT) and hourly time blocking in Clock view', () => {
+      it.each([
+        // UK and US daylight-saving transitions happen on different dates;
+        // the two US clocks also change at different UTC instants.
+        ['summer', '2026-07-15T12:00:00Z', 'PDT', 'UTC-7', 'EDT', 'UTC-4', 'UTC+1'],
+        ['winter', '2026-01-15T12:00:00Z', 'PST', 'UTC-8', 'EST', 'UTC-5', 'UTC'],
+        ['before UK fall-back', '2026-10-25T00:59:59Z', 'PDT', 'UTC-7', 'EDT', 'UTC-4', 'UTC+1'],
+        ['after UK fall-back', '2026-10-25T01:00:00Z', 'PDT', 'UTC-7', 'EDT', 'UTC-4', 'UTC'],
+        ['before US Eastern fall-back', '2026-11-01T05:59:59Z', 'PDT', 'UTC-7', 'EDT', 'UTC-4', 'UTC'],
+        ['after US Eastern fall-back', '2026-11-01T06:00:00Z', 'PDT', 'UTC-7', 'EST', 'UTC-5', 'UTC'],
+        ['before US Pacific fall-back', '2026-11-01T08:59:59Z', 'PDT', 'UTC-7', 'EST', 'UTC-5', 'UTC'],
+        ['after US Pacific fall-back', '2026-11-01T09:00:00Z', 'PST', 'UTC-8', 'EST', 'UTC-5', 'UTC'],
+      ])('renders real world-clock labels and offsets %s', (
+        _case, instant, pacificCode, pacificOffset, easternCode, easternOffset, londonOffset,
+      ) => {
+        vi.setSystemTime(new Date(instant));
         const html = renderToStaticMarkup(
           <CalendarScheduleSubView
             events={mockEvents}
@@ -324,29 +350,22 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
           />,
         );
 
-        // Zone codes/offsets are DST-aware: derive the expected labels for
-        // TODAY via Intl instead of hardcoding them. Hardcoded PDT/EDT/UTC+1
-        // fail outside daylight saving time (UK DST ended 2026-10-25, so
-        // London renders GMT/UTC, and US DST ends 2026-11-01, so PDT/EDT
-        // become PST/EST). Kolkata has no DST. The Kolkata GMT-style code
-        // maps to IST, mirroring the component's STATIC_ZONE_CODES.
-        const now = new Date();
-        const tzPart = (tz: string, style: 'short' | 'shortOffset'): string =>
-          new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: style })
-            .formatToParts(now)
-            .find((p) => p.type === 'timeZoneName')?.value ?? '';
-        for (const tz of [
-          'Asia/Kolkata',
-          'America/Los_Angeles',
-          'America/New_York',
-          'Europe/London',
+        // Keep the real component and Intl implementation. Only Date is faked.
+        // Match each offset with its own rendered clock/city so another card
+        // cannot accidentally satisfy the assertion. ICU can spell zero as
+        // UTC or UTC+0; normalize only those equivalent zero-offset tokens.
+        const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ')
+          .replace(/\bUTC\+0(?=\s)/g, 'UTC');
+        for (const [label, city] of [
+          ['IST UTC+5:30', 'New Delhi / Mumbai'],
+          [`${pacificCode} ${pacificOffset}`, 'San Francisco'],
+          [`${easternCode} ${easternOffset}`, 'New York'],
+          [londonOffset, 'London'],
         ]) {
-          const rawCode = tzPart(tz, 'short');
-          const code =
-            rawCode.startsWith('GMT') && tz === 'Asia/Kolkata' ? 'IST' : rawCode;
-          const offset = tzPart(tz, 'shortOffset').replace(/^GMT/, 'UTC');
-          expect(html).toContain(code);
-          expect(html).toContain(offset);
+          const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          expect(text).toMatch(new RegExp(
+            `${escapedLabel} \\d{2}:\\d{2}:\\d{2} (?:AM|PM) ${city}(?: |$)`,
+          ));
         }
         expect(html).toContain('Hourly Time Blocking Schedule');
       });
