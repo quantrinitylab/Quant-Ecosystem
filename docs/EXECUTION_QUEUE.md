@@ -4,9 +4,9 @@ doc_type: execution-queue
 authority: canonical
 status: active
 owner: platform-architecture
-last_verified: 2026-10-29
-verified_at_commit: 09a0a22e9aa5fe288d22987b90a6119a70f7c467
-review_by: 2026-11-28
+last_verified: 2026-11-07
+verified_at_commit: 130e2f5d37b690942376f5481ee9e85ebc2e7787
+review_by: 2026-12-07
 supersedes: []
 superseded_by: []
 canonical_scope: execution-priority
@@ -48,6 +48,8 @@ Use the existing [M11d protocol](./M11D_PROTOCOL.md), [runbook](./M11D_RUNBOOK.m
 ## Owner-directed parallel feature work (recorded, not a milestone change)
 
 On 2026-09-20 the owner explicitly authorized a parallel QuantMail product-feature workstream outside M11D. This is recorded here per the update rule; it does **not** change the active milestone, which remains M11D-SHADOW-CANARY work unit 4, and it does **not** promote any backlog item.
+
+**Infrastructure note (2026-11-07).** Records below that mention `quant-staging`, ECR, `kubectl`, or `staging-*.yaml` manifests describe the AWS EKS staging environment, which was retired when the live sites moved to Oracle OCI (see `docs/CURRENT_STATE.md`, section "Hosting and deployment reality"). They are kept as dated records of work done at the time, and their live evidence is not current deployment truth. The apps and manifests they name may since have been renamed or removed (Current State records the known cases), and the OCI stack deploys only QuantMail, QuantChat, and QuantAI, through six `deploy-oci.yml` targets. The 2026-11-07 refresh changed only infrastructure references: the milestone, the work-unit states, and the other records were carried forward from 2026-10-29 and were not re-verified.
 
 - **QM-SMART-INBOX** — populate the `aiCategory` column that the inbox category tabs already read but nothing wrote. The rules-based `SmartInboxService` (already built and unit-tested) is now invoked by `InboundIngestAdapter` for non-quarantined inbound mail, and the category is persisted via `EmailService.receive`. Scope is additive and fail-open: a categorization fault cannot block delivery, and quarantined mail is never categorized. This closes a real Gmail-parity gap (Primary/Social/Promotions/Updates/Forums were permanently empty). Evidence: backend typecheck clean on touched files plus `smart-inbox.service.test.ts` and inbound-ingest tests.
 - **QM-SMART-INBOX-LEARN** — durable, per-user learned categorization (beyond fixed Gmail tabs). New shared memory channel `UserInboxCategoryMemory` (`@quant/ai`) records sender→category corrections in user-owned memory; `PATCH /emails/:id/category` reassigns an owned email and best-effort records the correction; `InboundIngestAdapter` consults the learned store before built-in heuristics so a user's own past decision for a sender wins and survives restart. Fail-open throughout. Also fixed a stale `packages/auth/dist` build artifact that was breaking the QuantMail backend PAT typecheck (rebuilt `@quant/auth` and `@quant/common`; not a source change). Evidence: `@quant/ai` + backend typecheck clean; `user-inbox-category-memory.test.ts` (5/5), ingest learned-override test, PAT service tests (5/5).
@@ -99,11 +101,11 @@ On 2026-09-20 the owner explicitly authorized a parallel QuantMail product-featu
 
   Honest limits: still one producer on one action, and **no app reads `user_interest_signals` yet**, so nothing is personalised by it — the loop exists but nothing consumes its output. Server certificate unverified until `DATABASE_CA_CERT` is set.
 
-- **BLOCKER: quantmail-backend cannot deploy.** Deploying it from main `2a6716c4` crash-looped and auto-rolled back (no outage; the pre-existing pod still serves). Not the schema change — the image fails at boot with `Object storage is not configured. Missing: CLOUDFLARE_R2_ENDPOINT | R2_ENDPOINT | S3_ENDPOINT, R2_ACCESS_KEY_ID…, R2_SECRET_ACCESS_KEY…`, plus an `ERR_SOCKET_BAD_PORT` from a NaN port. So quantmail-backend is pinned to a stale image and cannot take new code until staging has real R2/S3 credentials. It also could not carry migration 0069, which is why the migration Job used the quantube-backend image; `fix-staging.yml` hardcodes the quantmail image and would not have worked.
+- **SUPERSEDED 2026-11-07, former blocker on retired EKS staging: quantmail-backend cannot deploy.** Deploying it from main `2a6716c4` crash-looped and auto-rolled back (no outage; the pre-existing pod still serves). Not the schema change — the image fails at boot with `Object storage is not configured. Missing: CLOUDFLARE_R2_ENDPOINT | R2_ENDPOINT | S3_ENDPOINT, R2_ACCESS_KEY_ID…, R2_SECRET_ACCESS_KEY…`, plus an `ERR_SOCKET_BAD_PORT` from a NaN port. So quantmail-backend is pinned to a stale image and cannot take new code until staging has real R2/S3 credentials. It also could not carry migration 0069, which is why the migration Job used the quantube-backend image; `fix-staging.yml` hardcodes the quantmail image and would not have worked. This blocker belonged to the retired EKS staging environment. On OCI, `quantmail-backend` is a `deploy-oci.yml` target, and the live QuantMail health endpoint returned 200 on 2026-11-07. Which image SHA runs, and whether Drive storage on the VM is configured for R2 or for OCI Object Storage, is unverified.
 
 ## Parallel operational-readiness boundary
 
-The 2026-08-07 security/provider/infrastructure hardening stack is merged, but it did not replace the active milestone. External administrators may work on reversible prerequisites—GitHub OIDC, read-authorized EKS verification, real secret provisioning, private-endpoint access, plan review, immutable images, and staging evidence—without marking production ready or advancing this queue.
+The 2026-08-07 security/provider/infrastructure hardening stack is merged, but it did not replace the active milestone. Its AWS-specific prerequisites (GitHub OIDC, read-authorized EKS verification, and Terraform plan review) targeted the retired AWS plan and no longer apply to the live system. External administrators may work on reversible prerequisites for the live OCI stack, such as real secret provisioning, private-endpoint access, immutable images, and evidence of the live state of the mail path, without marking production ready or advancing this queue. None of this is recorded as a queue work unit yet; add one with linked evidence before starting it.
 
 ## Ordered backlog
 

@@ -4,9 +4,9 @@ doc_type: authority-index
 authority: canonical
 status: active
 owner: platform-architecture
-last_verified: 2026-10-29
-verified_at_commit: 09a0a22e9aa5fe288d22987b90a6119a70f7c467
-review_by: 2026-11-28
+last_verified: 2026-11-07
+verified_at_commit: 130e2f5d37b690942376f5481ee9e85ebc2e7787
+review_by: 2026-12-07
 supersedes: []
 superseded_by: []
 canonical_scope: repository-authority
@@ -47,4 +47,4 @@ For a new session—especially a prompt containing only `continue`—read this i
 
 ## Update protocol
 
-Update Current State when verified facts, risks, or gate decisions change. Update the Execution Queue when priority or milestone state changes, and update the ADR index with every ADR addition or supersession. Run `pnpm memory:validate` before review; CI enforces the validator and its focused tests.
+Update Current State when verified facts, risks, or gate decisions change. Update the Execution Queue when priority or milestone state changes, and update the ADR index with every ADR addition or supersession. Run `pnpm memory:validate` before review; CI enforces the validator and its focused tests. The validator rejects a canonical document whose `last_verified` date is more than 45 days old or whose `review_by` date has passed. The CI `gate` job runs it, and `deploy-oci.yml` requires a successful `gate` check on the release commit, so an expired document blocks deploys. Refresh the dates only after re-verifying the content.
