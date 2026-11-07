@@ -1,0 +1,78 @@
+name: DB backup (encrypted, off-host)
+
+# Nightly, restore-tested, encrypted backup of the production database.
+#
+# WHAT: SSHes to vm-app with the existing deploy key and streams infra/oci/backup/backup-db.sh. The
+# script dumps the database, restores the dump into a throwaway container and compares row counts,
+# encrypts the dump to the PUBLIC age recipient in infra/oci/backup/age-recipient.txt, uploads it to
+# object storage, reads it back and compares checksums, then prunes by age (never below 7 copies).
+#
+# WHY NOT A VM TIMER: the schedule, the script and its history live in the repository, a failed run
+# turns this workflow red and GitHub emails the owner, and nothing on the host has to be installed.
+#
+# SAFETY
+#   * Read-only on the database (pg_dump). Writes only under the private `_ops/backups/pg` prefix.
+#   * The private key is NOT on the VM and NOT in GitHub; only the public recipient is in the repo.
+#     Without the private key a backup cannot be read, by us or by anyone who gets the bucket.
+#   * Output is sealed for the ops key before it reaches the (public) log. See infra/oci/ops/.
+#   * Runs only from main, so a branch cannot swap in a different script and run it with the deploy key.
+#   * No new secret. Reuses environment `oci-staging` (OCI_DEPLOY_SSH_KEY, vars.VM_APP_IP,
+#     vars.OCI_SSH_USER). That environment deploys the LIVE VMs, despite its name.
+
+on:
+  schedule:
+    - cron: '17 20 * * *' # 20:17 UTC = 01:47 IST, the quietest hour
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Back up the production database
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: oci-staging
+    permissions:
+      contents: read
+    env:
+      VM_APP_IP: ${{ vars.VM_APP_IP }}
+      OCI_SSH_USER: ${{ vars.OCI_SSH_USER || 'opc' }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up SSH to vm-app
+        shell: bash
+        env:
+          OCI_DEPLOY_SSH_KEY: ${{ secrets.OCI_DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$VM_APP_IP" || { echo 'vars.VM_APP_IP is empty' >&2; exit 1; }
+          [[ "$VM_APP_IP" =~ ^[A-Za-z0-9.-]+$ ]] || { echo 'VM_APP_IP looks invalid' >&2; exit 1; }
+          [[ "$OCI_SSH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo 'OCI_SSH_USER looks invalid' >&2; exit 1; }
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          bash scripts/prepare-oci-deploy-key.sh "$HOME/.ssh/oci-deploy"
+          ssh-keyscan -H "$VM_APP_IP" >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run the backup on vm-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          recipient="$(tr -d '[:space:]' < infra/oci/backup/age-recipient.txt)"
+          [[ "$recipient" =~ ^age1[0-9a-z]{58}$ ]] || { echo 'age-recipient.txt is not a valid age recipient' >&2; exit 1; }
+          bash infra/oci/ops/run-remote-report.sh infra/oci/backup/backup-db.sh "QBK_AGE_RECIPIENT=$recipient"
+
+      - name: Remove deploy SSH key
+        if: always()
+        shell: bash
+        run: rm -f ~/.ssh/oci-deploy
