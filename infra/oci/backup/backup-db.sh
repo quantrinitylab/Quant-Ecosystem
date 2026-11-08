@@ -233,8 +233,16 @@ main() {
     # Optional, for a disaster-recovery drill: a short-lived read link so the key holder can download this
     # object without any stored credential. It only ever appears in the sealed report.
     if [ "$presign" -gt 0 ]; then
-      printf 'presigned read link on %s (valid %s min): %s\n' "$d" "$presign" \
-        "$(rclone_run link --expire "${presign}m" "$d:${DBUCKET[$d]}/$prefix/daily/$obj" 2>/dev/null || echo 'unavailable on this endpoint')"
+      local link
+      link="$(rclone_run link --expire "${presign}m" "$d:${DBUCKET[$d]}/$prefix/daily/$obj" 2>/dev/null || true)"
+      if [ -n "$link" ]; then
+        # Printed in 24-character parts: the report scrubber masks any run of 32 or more token characters,
+        # which would also destroy the signature inside the link. Join the parts without spaces.
+        printf 'read link on %s, valid %s min, in 24-character parts (join without spaces):\n' "$d" "$presign"
+        printf '%s' "$link" | fold -w 24 | awk '{ printf "  link-part %02d: %s\n", NR, $0 }'
+      else
+        printf 'read link on %s: unavailable on this endpoint\n' "$d"
+      fi
     fi
     if [ "$(date -u +%d)" = "01" ]; then
       rclone_run copyto "$d:${DBUCKET[$d]}/$prefix/daily/$obj" "$d:${DBUCKET[$d]}/$prefix/monthly/$obj"

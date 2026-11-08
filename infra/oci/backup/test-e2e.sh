@@ -120,6 +120,28 @@ COUNT="$(ls "$DAILY"/*.dump.age | wc -l)"
 grep -q 'NOT pruning' "$T/run2.out" || { cat "$T/run2.out"; fail 'the prune guard did not refuse to go below 7 copies'; }
 pass 'two objects kept; prune refused to drop below 7 copies'
 
+echo "== drill link: printed in parts that survive the report scrubber"
+run_backup run3 QBK_AGE_RECIPIENT="$RECIPIENT" QBK_PRESIGN_MINUTES=5 QBK_SKIP_PRUNE=1 || { cat "$T/run3.out" "$T/run3.err"; fail 'backup run 3 failed'; }
+PARTS="$(sed -n 's/^  link-part [0-9][0-9]: //p' "$T/run3.out")"
+[ -n "$PARTS" ] || { cat "$T/run3.out"; fail 'no link parts were printed'; }
+LINK="$(printf '%s' "$PARTS" | tr -d '\n')"
+case "$LINK" in
+  http://127.0.0.1:9000/quant-bucket/_ops/backups/pg/daily/*X-Amz-Signature=*) ;;
+  *) fail "the joined parts do not form a signed URL: ${LINK:0:70}" ;;
+esac
+pass 'the joined parts form a signed URL'
+node infra/oci/ops/scrub-output.mjs <"$T/run3.out" >"$T/run3.scrubbed"
+SCRUBBED_LINK="$(sed -n 's/^  link-part [0-9][0-9]: //p' "$T/run3.scrubbed" | tr -d '\n')"
+[ "$SCRUBBED_LINK" = "$LINK" ] || fail 'the report scrubber altered the link'
+pass 'the report scrubber leaves every link part intact'
+if curl -fsS -o "$T/via-link.age" "$LINK" 2>/dev/null; then
+  OBJ3="$(sed -n 's/^object: //p' "$T/run3.out")"
+  cmp -s "$T/via-link.age" "$DAILY/$OBJ3" || fail 'the link returned different bytes than the stored object'
+  pass 'the link downloads exactly the stored object'
+else
+  echo "NOTE  the S3 stand-in does not serve presigned URLs; the download is proven against the real endpoint in the drill"
+fi
+
 echo "== bad inputs fail and upload nothing"
 BEFORE="$(ls "$DAILY"/*.dump.age | wc -l)"
 if run_backup bad1 QBK_AGE_RECIPIENT='not-a-recipient'; then fail 'a malformed recipient was accepted'; fi

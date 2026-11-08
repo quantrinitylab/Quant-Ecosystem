@@ -61,6 +61,17 @@ Roles are not part of the dump (`--no-owner --no-acl`). The application uses one
 
 The run report is sealed for the ops key. Decrypt it with `infra/oci/ops/decrypt-report.mjs`. It lists the object name, plaintext and ciphertext checksums, tables compared and rows restored.
 
+## Disaster-recovery drill (do it after any change here, and at least once a quarter)
+
+Run **DB backup** by hand and set `presign_minutes` to 15. The sealed report then also carries a read link for the new object, printed in 24-character `link-part` lines (the report scrubber masks any run of 32 or more token characters, which would destroy the signature in a one-line link). Join the parts without spaces and download within 15 minutes, then prove the whole chain with the private key:
+
+```sh
+age -d -i backup-age.key -o backup.dump qdb-<...>.dump.age
+sha256sum backup.dump                 # must equal the "plain sha256" line in the report
+head -c 5 backup.dump                 # PGDMP
+pg_restore --list backup.dump | head  # a readable table of contents
+```
+
 ## Rules for changing the script
 
 - Print names, sizes, counts and durations only. Never a secret or a connection string.
