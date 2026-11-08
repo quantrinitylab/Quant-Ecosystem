@@ -85,7 +85,9 @@ delete or overwrite anything younger than two weeks. The backup job prunes only 
 * **Large Drive uploads (multipart) cannot be downloaded.** `POST /drive/upload/multipart/:id/complete` stores the row with
   empty `encryptionIV`, `encryptionAuthTag` and `encryptionKey`, and `GET /drive/files/:id/download` always runs
   `checkedPlaintext`, which throws `Corrupt key envelope` for such rows. The upload also goes through the shared
-  resolver (`ATTACHMENTS_BUCKET`) while the download reads the Drive bucket. Until this is fixed the browser should not
-  use the multipart route for files above the normal upload limit.
+  resolver (`ATTACHMENTS_BUCKET`) while the download reads the Drive bucket. Nothing under `apps/quantmail/src` calls
+  the multipart routes today, so users cannot reach this, but the API would accept such an upload as soon as shared
+  storage is configured and then could not return it. Fix the download side, and route every Drive byte through one
+  bucket, before the UI uses it.
 * The browser uploads multipart parts straight to R2 with presigned URLs, which needs CORS on that bucket
   (`PUT`, `ETag` exposed, origin `https://quantmail.in`). Not configured.
