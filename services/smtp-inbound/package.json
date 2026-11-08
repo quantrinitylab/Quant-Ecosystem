@@ -13,20 +13,20 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "smtp-server": "^3.13.0",
-    "mailparser": "^3.7.0",
-    "nodemailer": "^9.0.1",
-    "zod": "^3.24.2",
+    "smtp-server": "^3.21.3",
+    "mailparser": "^3.14.2",
+    "nodemailer": "^10.3.1",
+    "zod": "^4.6.7",
     "pino": "^9.6.0",
     "@quant/common": "workspace:*",
     "@quant/health-server": "workspace:*"
   },
   "devDependencies": {
     "@types/smtp-server": "^3.5.0",
-    "@types/mailparser": "^3.4.0",
-    "@types/nodemailer": "^8.0.0",
+    "@types/mailparser": "^3.9.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/node": "^22.0.0",
     "vitest": "^4",
-    "typescript": "~5.5.0"
+    "typescript": "~5.9.3"
   }
 }
