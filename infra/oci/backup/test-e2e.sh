@@ -27,6 +27,8 @@ PG_IMAGE="$(pin PG_IMAGE)"
 
 pass() { printf 'PASS  %s\n' "$*"; }
 fail() { printf 'FAIL  %s\n' "$*" >&2; exit 1; }
+# Work directories are qbk.XXXXXX; the lock file /var/tmp/qbk.lock is a file, not a directory.
+leftover_dirs() { find /var/tmp -maxdepth 1 -type d -name 'qbk.*' 2>/dev/null || true; }
 
 echo "== source database (pgvector) with sample data"
 docker run -d --name qbk-src -e POSTGRES_PASSWORD=srcpw-9f3a -e POSTGRES_DB=quantdb -p 127.0.0.1:55433:5432 "$PGVECTOR_IMAGE" >/dev/null
@@ -107,7 +109,7 @@ if grep -E 'srcpw-9f3a|TestSecretKey-77b1|AKIATESTACCESS' "$T/run1.out" "$T/run1
 pass 'no password or key in stdout or stderr'
 
 [ -z "$(docker ps -aq --filter name=qbk-restore)" ] || fail 'a restore container was left behind'
-[ -z "$(ls -d /var/tmp/qbk.* 2>/dev/null || true)" ] || fail 'a work directory with the plaintext dump was left behind'
+[ -z "$(leftover_dirs)" ] || fail 'a work directory with the plaintext dump was left behind'
 pass 'nothing left behind (no restore container, no work directory)'
 
 echo "== run 2: second object, retention guard"
@@ -128,7 +130,7 @@ pass 'unreachable database rejected'
 AFTER="$(ls "$DAILY"/*.dump.age | wc -l)"
 [ "$BEFORE" -eq "$AFTER" ] || fail 'a failed run uploaded an object'
 pass 'failed runs uploaded nothing'
-[ -z "$(ls -d /var/tmp/qbk.* 2>/dev/null || true)" ] || fail 'a failed run left a work directory behind'
+[ -z "$(leftover_dirs)" ] || fail 'a failed run left a work directory behind'
 pass 'failed runs cleaned up'
 
 echo
