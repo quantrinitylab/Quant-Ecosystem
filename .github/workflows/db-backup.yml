@@ -1,17 +1,21 @@
 name: DB backup (encrypted, off-host)
 
-# Nightly, restore-tested, encrypted backup of the production database.
+# Nightly, restore-tested, encrypted backup of the production database, and of the VM's own config.
 #
 # WHAT: SSHes to vm-app with the existing deploy key and streams infra/oci/backup/backup-db.sh. The
 # script dumps the database, restores the dump into a throwaway container and compares row counts,
 # encrypts the dump to the PUBLIC age recipient in infra/oci/backup/age-recipient.txt, uploads it to
-# object storage, reads it back and compares checksums, then prunes by age (never below 7 copies).
+# object storage, reads it back and compares checksums. It then archives /etc/quant (secrets.env, the
+# origin certificate and key, the Caddyfile: the things neither the repository nor the database holds),
+# encrypts and stores that the same way, and finally prunes by age (never below 7 copies of either kind).
 #
 # WHY NOT A VM TIMER: the schedule, the script and its history live in the repository, a failed run
 # turns this workflow red and GitHub emails the owner, and nothing on the host has to be installed.
 #
 # SAFETY
-#   * Read-only on the database (pg_dump). Writes only under the private `_ops/backups/pg` prefix.
+#   * Read-only on the database (pg_dump) and on /etc/quant. Writes only under the private
+#     `_ops/backups/pg` and `_ops/backups/vmconf` prefixes. The config archive is encrypted on the VM
+#     before it is uploaded; its plaintext lives in a 0700 work directory for seconds.
 #   * The private key is NOT on the VM and NOT in GitHub; only the public recipient is in the repo.
 #     Without the private key a backup cannot be read, by us or by anyone who gets the bucket.
 #   * Output is sealed for the ops key before it reaches the (public) log. See infra/oci/ops/.

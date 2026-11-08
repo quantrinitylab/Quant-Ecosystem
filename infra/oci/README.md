@@ -33,6 +33,15 @@ There is **no spare A1 capacity**. A third A1 VM, or a larger shape, is paid. Be
 table. Oracle also reclaims *idle* Always Free instances (a week of low CPU, network and, on A1, memory use), so a
 VM that sits at near zero use is at some risk on a free-only account.
 
+**The limit is enforced when the trial ends.** Oracle's rule: if a tenancy has more A1 capacity than an Always Free
+tenancy gets, all of its A1 instances are disabled when the trial period ends and deleted 30 days later, unless the
+account is upgraded to a paid one. To keep A1 instances on a free-only account the total must be at most 2 OCPUs and
+12 GB *before* the trial ends. Paid resources that were created with trial credits are reclaimed at the same moment
+unless the account is upgraded. See Oracle's [Free Tier, "When Your Trial Period Ends"](https://docs.oracle.com/iaas/Content/FreeTier/freetier.htm).
+This tenancy's trial ends about 2026-11-16. Support requests (needed, for example, to ask for outbound port 25 for a
+mail server, which is blocked by default on tenancies created after 2021-06-23) are available to paid accounts only
+([Oracle](https://docs.oracle.com/en-us/iaas/Content/GSG/Tasks/contactingsupport.htm)).
+
 History: until 2026-11-08 the VMs were 4 OCPU / 24 GB and 2 OCPU / 12 GB with a 100 GB data volume, which was inside
 the old allowance and the free trial's credits but not inside the current Always Free one. They were shrunk, and the
 database moved off the data volume, before the trial ended (about 30 days after the tenancy was created on
@@ -71,8 +80,15 @@ database moved off the data volume, before the trial ended (about 30 days after 
 
 * Nightly logical backup, encrypted to a public key, restore-tested on a throwaway container, uploaded and read
   back: [`backup/README.md`](backup/README.md), workflow `db-backup.yml` (20:17 UTC).
-* Oracle's own boot-volume backups (policy `silver`) exist for both VMs. They count against the free backup
-  allowance, so prune the manual `pre-change-*` ones a week after a change.
+* The same job archives `/etc/quant` (`secrets.env` with the Drive master key, the Cloudflare origin certificate and
+  key, the Caddyfile), encrypts it to the same key and stores it beside the dump. That directory is the part of
+  `vm-app` that cannot be rebuilt from the repository or the database. Restore steps: `backup/README.md`.
+* Oracle's own volume backups: the Always Free allowance is **5 backups in total** across block and boot volumes
+  ([Oracle](https://blogs.oracle.com/developers/backing-up-your-always-free-vms-in-the-oracle-cloud)). The predefined
+  `silver` policy (weekly kept 4 weeks, monthly kept a year, yearly kept 5 years) cannot stay within that for long.
+  On 2026-11-08 the tenancy held 12: 9 scheduled by `silver` and 3 manual `pre-change-*`. Bring the count to 5 or
+  fewer before the trial ends, take a manual backup before a risky change, and prune the `pre-change-*` ones a week
+  after it.
 * Policy: no change that can lose data without a backup younger than 24 hours that has been verified.
 
 ## Object storage
