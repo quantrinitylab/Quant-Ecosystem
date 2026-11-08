@@ -1,0 +1,75 @@
+name: Ops housekeeping (vm-app images and disk)
+
+# Weekly clean-up of old application images on vm-app, plus a disk report.
+#
+# WHY: each deploy pulls a 2.3 to 3.4 GB image and nothing removed the old ones. On 2026-11-07 the VM
+# held 34 GB of images (19 GB unused) on an 83 GB disk; a full disk breaks the next deploy.
+#
+# SAFETY: removes only our own application images older than 7 days that no container uses and that are
+# not the rollback targets in .last-good-tag / .prev-tag. Docker itself refuses to remove an image that a
+# container uses. No volume, container or network is touched. Output is sealed for the ops key because
+# this repository's logs are public. Runs only from main. No new secret: reuses environment oci-staging.
+
+on:
+  schedule:
+    - cron: '30 21 * * 0' # Sunday 21:30 UTC = Monday 03:00 IST
+  workflow_dispatch:
+    inputs:
+      max_age_days:
+        description: 'Remove unused application images older than this many days'
+        required: false
+        default: '7'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ops-housekeeping
+  cancel-in-progress: false
+
+jobs:
+  housekeeping:
+    name: Prune old images on vm-app
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: oci-staging
+    permissions:
+      contents: read
+    env:
+      VM_APP_IP: ${{ vars.VM_APP_IP }}
+      OCI_SSH_USER: ${{ vars.OCI_SSH_USER || 'opc' }}
+      MAX_AGE_DAYS: ${{ inputs.max_age_days || '7' }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up SSH to vm-app
+        shell: bash
+        env:
+          OCI_DEPLOY_SSH_KEY: ${{ secrets.OCI_DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$VM_APP_IP" || { echo 'vars.VM_APP_IP is empty' >&2; exit 1; }
+          [[ "$VM_APP_IP" =~ ^[A-Za-z0-9.-]+$ ]] || { echo 'VM_APP_IP looks invalid' >&2; exit 1; }
+          [[ "$OCI_SSH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo 'OCI_SSH_USER looks invalid' >&2; exit 1; }
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          bash scripts/prepare-oci-deploy-key.sh "$HOME/.ssh/oci-deploy"
+          ssh-keyscan -H "$VM_APP_IP" >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run housekeeping on vm-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$MAX_AGE_DAYS" =~ ^[0-9]{1,3}$ ]] || MAX_AGE_DAYS=7
+          bash infra/oci/ops/run-remote-report.sh infra/oci/ops/housekeeping-vm-app.sh "QHK_MAX_AGE_DAYS=$MAX_AGE_DAYS"
+
+      - name: Remove deploy SSH key
+        if: always()
+        shell: bash
+        run: rm -f ~/.ssh/oci-deploy

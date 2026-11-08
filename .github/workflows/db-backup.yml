@@ -23,6 +23,13 @@ on:
   schedule:
     - cron: '17 20 * * *' # 20:17 UTC = 01:47 IST, the quietest hour
   workflow_dispatch:
+    inputs:
+      presign_minutes:
+        description: 'Drill only: print a short-lived read link for the new object in the sealed report (0 = no link)'
+        required: false
+        default: '0'
+        type: choice
+        options: ['0', '15', '60']
 
 permissions:
   contents: read
@@ -43,6 +50,7 @@ jobs:
     env:
       VM_APP_IP: ${{ vars.VM_APP_IP }}
       OCI_SSH_USER: ${{ vars.OCI_SSH_USER || 'opc' }}
+      PRESIGN_MINUTES: ${{ inputs.presign_minutes || '0' }}
     steps:
       - name: Checkout main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -70,7 +78,9 @@ jobs:
           set -euo pipefail
           recipient="$(tr -d '[:space:]' < infra/oci/backup/age-recipient.txt)"
           [[ "$recipient" =~ ^age1[0-9a-z]{58}$ ]] || { echo 'age-recipient.txt is not a valid age recipient' >&2; exit 1; }
-          bash infra/oci/ops/run-remote-report.sh infra/oci/backup/backup-db.sh "QBK_AGE_RECIPIENT=$recipient"
+          [[ "$PRESIGN_MINUTES" =~ ^[0-9]{1,4}$ ]] || PRESIGN_MINUTES=0
+          bash infra/oci/ops/run-remote-report.sh infra/oci/backup/backup-db.sh \
+            "QBK_AGE_RECIPIENT=$recipient" "QBK_PRESIGN_MINUTES=$PRESIGN_MINUTES"
 
       - name: Remove deploy SSH key
         if: always()

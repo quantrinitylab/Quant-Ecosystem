@@ -8,11 +8,10 @@ on:
   pull_request:
     paths:
       - 'infra/oci/backup/**'
-      - 'infra/oci/ops/run-remote-report.sh'
-      - 'infra/oci/ops/encrypt-report.mjs'
-      - 'infra/oci/ops/scrub-output.mjs'
+      - 'infra/oci/ops/**'
       - '.github/workflows/db-backup.yml'
       - '.github/workflows/db-backup-test.yml'
+      - '.github/workflows/ops-housekeeping.yml'
   workflow_dispatch:
 
 permissions:
@@ -45,7 +44,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for f in infra/oci/backup/backup-db.sh infra/oci/backup/test-e2e.sh infra/oci/ops/run-remote-report.sh infra/oci/ops/diagnose-vm-app.sh; do
+          for f in infra/oci/backup/backup-db.sh infra/oci/backup/test-e2e.sh \
+                   infra/oci/ops/run-remote-report.sh infra/oci/ops/test-run-remote-report.sh \
+                   infra/oci/ops/housekeeping-vm-app.sh infra/oci/ops/test-housekeeping.sh \
+                   infra/oci/ops/diagnose-vm-app.sh; do
             bash -n "$f"
             echo "ok: $f"
           done
@@ -57,3 +59,7 @@ jobs:
       - name: Remote-report wrapper test (fake ssh)
         shell: bash
         run: bash infra/oci/ops/test-run-remote-report.sh
+
+      - name: Housekeeping test (fake docker)
+        shell: bash
+        run: bash infra/oci/ops/test-housekeeping.sh
