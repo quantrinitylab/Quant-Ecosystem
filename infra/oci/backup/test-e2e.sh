@@ -5,10 +5,13 @@
 # What it proves:
 #   * a dump of a database with the vector extension is restored, compared and encrypted to a public key
 #   * the uploaded object decrypts with the matching private key into a valid archive
+#   * the VM config directory is archived and encrypted too: the object decrypts into exactly the files that
+#     were there (copies named *.bak* excluded) and is not plaintext in the bucket
 #   * no password or secret key appears in the script's output
-#   * nothing is left behind: no restore container, no plaintext dump in /var/tmp
-#   * the retention guard refuses to prune below 7 copies
+#   * nothing is left behind: no restore container, no plaintext dump or config archive in /var/tmp
+#   * the retention guard refuses to prune below 7 copies, for the dump and for the config copies
 #   * bad inputs (malformed recipient, unreachable database) fail and upload nothing
+#   * a missing config directory fails the run loudly, after the database copy is already safe
 
 set -Eeuo pipefail
 cd "$(dirname "$0")/../../.."
@@ -78,12 +81,24 @@ DRIVE_S3_REGION=us-east-1
 DRIVE_S3_FORCE_PATH_STYLE=true
 EOF
 
+# The VM config directory (/etc/quant in production). Every file carries an unmistakable marker so the test can
+# tell plaintext from ciphertext, and one copy named *.bak* that must be left out of the archive.
+CONF="$T/etc-quant"
+mkdir -p "$CONF/certs" "$CONF/caddy"
+printf 'JWT_SECRET=conf-marker-jwt-3c9e\nDRIVE_MASTER_KEY=conf-marker-drive-8d41\n' >"$CONF/secrets.env"
+printf -- '-----BEGIN CERTIFICATE-----\nconf-marker-cert-a71f\n-----END CERTIFICATE-----\n' >"$CONF/certs/origin.pem"
+printf -- '-----BEGIN PRIVATE KEY-----\nconf-marker-key-02be\n-----END PRIVATE KEY-----\n' >"$CONF/certs/origin-key.pem"
+printf ':443 {\n  respond "conf-marker-caddy-5d2c"\n}\n' >"$CONF/caddy/Caddyfile"
+printf 'OLD=conf-marker-stale-91aa\n' >"$CONF/secrets.env.bak-20260101T000000Z"
+chmod 600 "$CONF/certs/origin-key.pem"
+
 run_backup() { # <out-prefix> [env assignments...]
   local out="$1"; shift
-  env "$@" QBK_ENV_FILE="$T/secrets.env" QBK_AGE_BIN="$AGE_BIN" QBK_RESTORE_TMPFS=512m \
+  env QBK_CONF_DIR="$CONF" "$@" QBK_ENV_FILE="$T/secrets.env" QBK_AGE_BIN="$AGE_BIN" QBK_RESTORE_TMPFS=512m \
     bash infra/oci/backup/backup-db.sh >"$T/$out.out" 2>"$T/$out.err"
 }
 DAILY="$T/s3/quant-bucket/_ops/backups/pg/daily"
+CONF_DAILY="$T/s3/quant-bucket/_ops/backups/vmconf/daily"
 
 echo "== run 1: happy path"
 run_backup run1 QBK_AGE_RECIPIENT="$RECIPIENT" || { cat "$T/run1.out" "$T/run1.err"; fail 'backup run 1 failed'; }
@@ -105,12 +120,29 @@ pass "archive lists $TABLES tables with data"
 ! head -c 2000 "$OBJ" | grep -q 'PGDMP' || fail 'the stored object looks like plaintext'
 pass 'stored object is not plaintext'
 
-if grep -E 'srcpw-9f3a|TestSecretKey-77b1|AKIATESTACCESS' "$T/run1.out" "$T/run1.err" >/dev/null; then fail 'a secret appeared in the output'; fi
+if grep -E 'srcpw-9f3a|TestSecretKey-77b1|AKIATESTACCESS|conf-marker' "$T/run1.out" "$T/run1.err" >/dev/null; then fail 'a secret appeared in the output'; fi
 pass 'no password or key in stdout or stderr'
 
 [ -z "$(docker ps -aq --filter name=qbk-restore)" ] || fail 'a restore container was left behind'
-[ -z "$(leftover_dirs)" ] || fail 'a work directory with the plaintext dump was left behind'
+[ -z "$(leftover_dirs)" ] || fail 'a work directory with the plaintext dump or config archive was left behind'
 pass 'nothing left behind (no restore container, no work directory)'
+
+echo "== run 1: the VM config copy"
+grep -q '^CONF_OK ' "$T/run1.out" || { cat "$T/run1.out"; fail 'no CONF_OK line'; }
+pass 'run 1 stored a config copy (CONF_OK)'
+COBJ="$(ls "$CONF_DAILY"/qconf-*.tar.age | head -n1)"
+[ -s "$COBJ" ] || fail 'no encrypted config object was uploaded'
+mkdir -p "$T/conf-restore"
+age -d -i "$T/key.txt" "$COBJ" | tar -xf - -C "$T/conf-restore"
+for f in secrets.env certs/origin.pem certs/origin-key.pem caddy/Caddyfile; do
+  cmp -s "$CONF/$f" "$T/conf-restore/etc-quant/$f" || fail "the restored $f differs from the original"
+done
+pass 'the config object decrypts into exactly the original files'
+[ ! -e "$T/conf-restore/etc-quant/secrets.env.bak-20260101T000000Z" ] || fail 'a backup copy (*.bak*) was archived'
+[ "$(find "$T/conf-restore" -type f | wc -l)" -eq 4 ] || fail 'the config archive holds an unexpected number of files'
+pass 'four files archived; the *.bak* copy was left out'
+! grep -qa 'conf-marker' "$COBJ" || fail 'the stored config object looks like plaintext'
+pass 'the stored config object is not plaintext'
 
 echo "== run 2: second object, retention guard"
 sleep 1
@@ -119,6 +151,10 @@ COUNT="$(ls "$DAILY"/*.dump.age | wc -l)"
 [ "$COUNT" -eq 2 ] || fail "expected 2 objects after two runs, found $COUNT"
 grep -q 'NOT pruning' "$T/run2.out" || { cat "$T/run2.out"; fail 'the prune guard did not refuse to go below 7 copies'; }
 pass 'two objects kept; prune refused to drop below 7 copies'
+CCOUNT="$(ls "$CONF_DAILY"/qconf-*.tar.age | wc -l)"
+[ "$CCOUNT" -eq 2 ] || fail "expected 2 config objects after two runs, found $CCOUNT"
+[ "$(grep -c 'NOT pruning' "$T/run2.out")" -eq 2 ] || { cat "$T/run2.out"; fail 'the prune guard did not protect both the dump and the config copies'; }
+pass 'two config objects kept; the guard covers the config copies too'
 
 echo "== drill link: printed in parts that survive the report scrubber"
 run_backup run3 QBK_AGE_RECIPIENT="$RECIPIENT" QBK_PRESIGN_MINUTES=5 QBK_SKIP_PRUNE=1 || { cat "$T/run3.out" "$T/run3.err"; fail 'backup run 3 failed'; }
@@ -142,15 +178,29 @@ else
   echo "NOTE  the S3 stand-in does not serve presigned URLs; the download is proven against the real endpoint in the drill"
 fi
 
+echo "== a missing config directory fails the run, after the database copy is safe"
+DB_BEFORE="$(ls "$DAILY"/*.dump.age | wc -l)"
+CONF_BEFORE="$(ls "$CONF_DAILY"/qconf-*.tar.age | wc -l)"
+sleep 1
+if run_backup nocfg QBK_AGE_RECIPIENT="$RECIPIENT" QBK_CONF_DIR="$T/no-such-dir" QBK_SKIP_PRUNE=1; then fail 'a missing config directory was accepted'; fi
+grep -q 'config directory' "$T/nocfg.err" || { cat "$T/nocfg.err"; fail 'the failure did not name the config directory'; }
+[ "$(ls "$DAILY"/*.dump.age | wc -l)" -eq $((DB_BEFORE + 1)) ] || fail 'the database copy was not stored before the config failure'
+[ "$(ls "$CONF_DAILY"/qconf-*.tar.age | wc -l)" -eq "$CONF_BEFORE" ] || fail 'a config object appeared although the config directory is missing'
+[ -z "$(leftover_dirs)" ] || fail 'the failed run left a work directory behind'
+pass 'a missing config directory fails loudly; the database copy is stored; no config object; nothing left behind'
+
 echo "== bad inputs fail and upload nothing"
 BEFORE="$(ls "$DAILY"/*.dump.age | wc -l)"
+CBEFORE="$(ls "$CONF_DAILY"/qconf-*.tar.age | wc -l)"
 if run_backup bad1 QBK_AGE_RECIPIENT='not-a-recipient'; then fail 'a malformed recipient was accepted'; fi
 pass 'malformed recipient rejected'
 sed -i 's#@127.0.0.1:55433/#@127.0.0.1:1/#' "$T/secrets.env"
 if run_backup bad2 QBK_AGE_RECIPIENT="$RECIPIENT"; then fail 'an unreachable database was accepted'; fi
 pass 'unreachable database rejected'
 AFTER="$(ls "$DAILY"/*.dump.age | wc -l)"
+CAFTER="$(ls "$CONF_DAILY"/qconf-*.tar.age | wc -l)"
 [ "$BEFORE" -eq "$AFTER" ] || fail 'a failed run uploaded an object'
+[ "$CBEFORE" -eq "$CAFTER" ] || fail 'a failed run uploaded a config object'
 pass 'failed runs uploaded nothing'
 [ -z "$(leftover_dirs)" ] || fail 'a failed run left a work directory behind'
 pass 'failed runs cleaned up'

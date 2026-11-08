@@ -10,16 +10,21 @@
 #   3. restores that dump into a throwaway pgvector container and compares per-table row counts
 #   4. encrypts with age to a PUBLIC recipient (the private key is not on the VM, nor in GitHub)
 #   5. uploads, reads the object back and compares its SHA-256
-#   6. prunes: daily copies older than QBK_KEEP_DAILY_DAYS (35), monthly copies older than 400 days,
-#      never below 7 daily copies
+#   6. archives the VM's own config directory (/etc/quant: secrets.env, the Cloudflare origin certificate and
+#      key, the Caddyfile), which is in neither the repository nor the database, encrypts it to the same
+#      recipient and stores it next to the dump, verified by read-back the same way. Without this copy a lost
+#      VM would also lose DRIVE_MASTER_KEY and the other keys that make stored data readable. The database
+#      copy is stored first, so a problem with the config copy turns the run red without costing the dump.
+#   7. prunes both kinds of copy: daily copies older than QBK_KEEP_DAILY_DAYS (35), monthly copies older than
+#      400 days, never below 7 daily copies
 #
 # Rules: print names, sizes, counts and durations only. Never print a secret or a connection string.
 # Everything lives in main() and runs with stdin from /dev/null, so no command can swallow the rest of
 # this script from the SSH pipe. Any failure exits non-zero, which turns the workflow red.
 #
 # Environment: QBK_AGE_RECIPIENT (required). Optional: QBK_PRESIGN_MINUTES (print a read link for a drill).
-# Mostly for tests: QBK_ENV_FILE, QBK_REMOTE_PREFIX, QBK_KEEP_DAILY_DAYS, QBK_KEEP_MONTHLY_DAYS, QBK_AGE_BIN,
-# QBK_BIN_DIR, QBK_RESTORE_TMPFS, QBK_SKIP_PRUNE.
+# Mostly for tests: QBK_ENV_FILE, QBK_CONF_DIR, QBK_REMOTE_PREFIX, QBK_REMOTE_CONF_PREFIX, QBK_KEEP_DAILY_DAYS,
+# QBK_KEEP_MONTHLY_DAYS, QBK_AGE_BIN, QBK_BIN_DIR, QBK_RESTORE_TMPFS, QBK_SKIP_PRUNE.
 
 # Pinned tools. Change them together with infra/oci/backup/README.md.
 PG_IMAGE='postgres@sha256:aae6554de426ae1990f1a939ff183a0299146cf7142a6f4c379c3357af9cc2d8'                # postgres:15-alpine, 2026-11-06
@@ -64,6 +69,7 @@ main() {
 
   local env_file="${QBK_ENV_FILE:-/etc/quant/secrets.env}"
   local prefix="${QBK_REMOTE_PREFIX:-_ops/backups/pg}"
+  local conf_dir="${QBK_CONF_DIR:-/etc/quant}" conf_prefix="${QBK_REMOTE_CONF_PREFIX:-_ops/backups/vmconf}"
   local keep_daily="${QBK_KEEP_DAILY_DAYS:-35}" keep_monthly="${QBK_KEEP_MONTHLY_DAYS:-400}"
   local presign="${QBK_PRESIGN_MINUTES:-0}"
   [[ "$presign" =~ ^[0-9]{1,4}$ ]] || die 'QBK_PRESIGN_MINUTES must be a whole number of minutes'
@@ -250,25 +256,66 @@ main() {
     fi
   done
 
+  # ---------------------------------------------------------------- vm config
+  # What neither the repository nor the dump can rebuild: /etc/quant holds secrets.env (DRIVE_MASTER_KEY and the
+  # JWT and token secrets), the Cloudflare origin certificate and key, and the Caddyfile. Copies of secrets.env
+  # that sync-secrets.sh leaves beside it (*.bak*) are left out. The plaintext archive exists only inside the
+  # private work directory and is deleted as soon as it is encrypted.
+  section "vm config"
+  local cobj cplain_sha cenc_sha cenc_bytes cfiles
+  [ -d "$conf_dir" ] || die "the config directory $conf_dir does not exist"
+  conf_tar() { "$@" tar -C "$(dirname -- "$conf_dir")" --numeric-owner --exclude='*.bak*' -cf - -- "$(basename -- "$conf_dir")"; }
+  if ! conf_tar >"$work/conf.tar" 2>/dev/null; then
+    conf_tar sudo -n >"$work/conf.tar" 2>/dev/null || die "cannot read $conf_dir, not even with sudo"
+  fi
+  # List into a file first: `tar -t | grep -q` would end the pipe early and trip pipefail.
+  tar -tf "$work/conf.tar" >"$work/conf.list"
+  cfiles="$(grep -vc '/$' "$work/conf.list" || true)"
+  [ "${cfiles:-0}" -ge 2 ] || die 'the config archive holds fewer than 2 files'
+  grep -q '/secrets\.env$' "$work/conf.list" || die 'the config archive has no secrets.env'
+  cplain_sha="$(sha256sum <"$work/conf.tar" | cut -d' ' -f1)"
+  "$AGE_BIN" -r "$QBK_AGE_RECIPIENT" -o "$work/conf.tar.age" "$work/conf.tar"
+  rm -f -- "$work/conf.tar" "$work/conf.list"
+  cenc_bytes="$(stat -c %s "$work/conf.tar.age")"
+  cenc_sha="$(sha256sum <"$work/conf.tar.age" | cut -d' ' -f1)"
+  cobj="qconf-${ts}-${cplain_sha:0:8}.tar.age"
+  # Not "object:", which the drill instructions and the test read for the database copy.
+  printf 'config object: %s\nconfig files: %s | encrypted: %s bytes, sha256 %s\n' "$cobj" "$cfiles" "$cenc_bytes" "$cenc_sha"
+  for d in "${DESTS[@]}"; do
+    rclone_run rcat "$d:${DBUCKET[$d]}/$conf_prefix/daily/$cobj" <"$work/conf.tar.age"
+    back="$(rclone_run cat "$d:${DBUCKET[$d]}/$conf_prefix/daily/$cobj" | sha256sum | cut -d' ' -f1)"
+    [ "$back" = "$cenc_sha" ] || die "config read-back checksum mismatch on destination $d"
+    printf 'uploaded and verified by read-back on %s\n' "$d"
+    if [ "$(date -u +%d)" = "01" ]; then
+      rclone_run copyto "$d:${DBUCKET[$d]}/$conf_prefix/daily/$cobj" "$d:${DBUCKET[$d]}/$conf_prefix/monthly/$cobj"
+      printf 'monthly copy kept on %s\n' "$d"
+    fi
+  done
+  printf 'CONF_OK object=%s files=%s encrypted_bytes=%s destinations=%s\n' "$cobj" "$cfiles" "$cenc_bytes" "${#DESTS[@]}"
+
   # ---------------------------------------------------------------- prune
   section "retention"
   if [ -n "${QBK_SKIP_PRUNE:-}" ]; then
     echo "skipped (QBK_SKIP_PRUNE)"
   else
     local -a all old
+    local pfx kind
     for d in "${DESTS[@]}"; do
-      mapfile -t all < <(rclone_run lsf --files-only "$d:${DBUCKET[$d]}/$prefix/daily" | sort)
-      mapfile -t old < <(rclone_run lsf --files-only --min-age "${keep_daily}d" "$d:${DBUCKET[$d]}/$prefix/daily" | sort)
-      printf '%s: %s daily copies, %s older than %s days\n' "$d" "${#all[@]}" "${#old[@]}" "$keep_daily"
-      if [ "${#old[@]}" -gt 0 ] && [ $(( ${#all[@]} - ${#old[@]} )) -ge 7 ]; then
-        rclone_run delete --min-age "${keep_daily}d" "$d:${DBUCKET[$d]}/$prefix/daily"
-        printf '%s: pruned %s old daily copies\n' "$d" "${#old[@]}"
-      elif [ "${#old[@]}" -gt 0 ]; then
-        printf '%s: NOT pruning, it would leave fewer than 7 daily copies\n' "$d"
-      fi
-      if rclone_run lsf --files-only "$d:${DBUCKET[$d]}/$prefix/monthly" >/dev/null 2>&1; then
-        rclone_run delete --min-age "${keep_monthly}d" "$d:${DBUCKET[$d]}/$prefix/monthly" || true
-      fi
+      for pfx in "$prefix" "$conf_prefix"; do
+        kind="${pfx##*/}"
+        mapfile -t all < <(rclone_run lsf --files-only "$d:${DBUCKET[$d]}/$pfx/daily" | sort)
+        mapfile -t old < <(rclone_run lsf --files-only --min-age "${keep_daily}d" "$d:${DBUCKET[$d]}/$pfx/daily" | sort)
+        printf '%s %s: %s daily copies, %s older than %s days\n' "$d" "$kind" "${#all[@]}" "${#old[@]}" "$keep_daily"
+        if [ "${#old[@]}" -gt 0 ] && [ $(( ${#all[@]} - ${#old[@]} )) -ge 7 ]; then
+          rclone_run delete --min-age "${keep_daily}d" "$d:${DBUCKET[$d]}/$pfx/daily"
+          printf '%s %s: pruned %s old daily copies\n' "$d" "$kind" "${#old[@]}"
+        elif [ "${#old[@]}" -gt 0 ]; then
+          printf '%s %s: NOT pruning, it would leave fewer than 7 daily copies\n' "$d" "$kind"
+        fi
+        if rclone_run lsf --files-only "$d:${DBUCKET[$d]}/$pfx/monthly" >/dev/null 2>&1; then
+          rclone_run delete --min-age "${keep_monthly}d" "$d:${DBUCKET[$d]}/$pfx/monthly" || true
+        fi
+      done
     done
   fi
 

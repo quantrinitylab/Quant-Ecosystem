@@ -37,7 +37,7 @@ Combines 5 interconnected pillars under a unified Obsidian luxury shell with sea
 ## 🌐 2. INFRASTRUCTURE & DEPLOYMENT TELEMETRY
 - **Live**: Oracle Cloud (`ap-mumbai-1`), two Ampere A1 VMs inside the Always Free allowance: `vm-app` (1 OCPU / 8 GB, Docker Compose: Caddy, QuantMail, QuantChat, QuantAI, Redis) and `vm-db` (1 OCPU / 4 GB, PostgreSQL 15 + pgvector). The old AWS EKS staging is retired and the AWS account no longer exists. Map and rules: [`infra/oci/README.md`](infra/oci/README.md).
 - **Public Domains**: `https://quantmail.in`, `https://quantai.quantrinity.in`, `https://quantchat.quantrinity.in` (Cloudflare proxy and edge TLS, Caddy on the VM).
-- **CI/CD**: GitHub Actions: `deploy-oci.yml` (build, push to GHCR, SSH + `docker compose`), nightly restore-tested encrypted database backup (`db-backup.yml`), weekly housekeeping, and `ops-secrets-sync.yml`; all use the `oci-staging` environment. The AWS OIDC pipeline is dead.
+- **CI/CD**: GitHub Actions: `deploy-oci.yml` (build, push to GHCR, SSH + `docker compose`), nightly restore-tested encrypted database backup plus an encrypted copy of the VM's `/etc/quant` (secrets, origin certificate, Caddyfile) (`db-backup.yml`), weekly housekeeping, and `ops-secrets-sync.yml`; all use the `oci-staging` environment. The AWS OIDC pipeline is dead.
 - **Database & Storage**: PostgreSQL via Prisma ORM + Redis. Files belong in Cloudflare R2 (bucket map, variables and cut-over steps in [`docs/runbooks/r2-storage.md`](docs/runbooks/r2-storage.md)); until that cut-over Drive still uses the Oracle Object Storage bucket `quantmail-drive`.
 
 ---
