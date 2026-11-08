@@ -109,7 +109,7 @@ P0/P1/P2 and live HEALTHY (calendar/drive/login surfaces, honest 401s, no old-lo
 
 | Item | Was | Now | Evidence |
 |---|---|---|---|
-| Infra: hosting | AWS staging (EKS/RDS) | Oracle OCI live | vm-app (A1.Flex 4/24GB, 80.225.234.186) + vm-db (A1.Flex 2/12GB) Running ap-mumbai-1; all three sites live ~19:50 IST 2026-10-17 (migration runbook) |
+| Infra: hosting | AWS staging (EKS/RDS) | Oracle OCI live | vm-app (A1.Flex, 1 OCPU/8GB since 2026-11-08, was 4/24GB; 80.225.234.186) + vm-db (A1.Flex, 1 OCPU/4GB, was 2/12GB; Postgres data now on its boot volume) Running ap-mumbai-1, sized to the Oracle Always Free allowance (`infra/oci/README.md`); all three sites live ~19:50 IST 2026-10-17 (migration runbook) |
 | QuantAI login/SSO | BROKEN (backend 403'd forwarded Origin) | FIXED live | Root cause 2026-10-18: `CORS_ORIGINS` lacked quantai/quantchat origins (manual `/etc/quant/secrets.env` fix + backend recreate on OCI; login live-verified) |
 | QuantAI one-click SSO (ticket→token exchange) | MISSING | MERGED, not live | PR #1304 merged 2026-10-18 (gate+full-sweep green); deploy blocked by #1243 hold. **New P2 on it (2026-10-18 audit):** `apps/quantai/src/app/api/auth/sso/ticket/route.ts` sets cookie maxAge 3600 while access token TTL is 900s — user appears signed in while token-gated calls 401 |
 | QuantChat backend on Oracle | never deployed | infra MERGED, not live | PR #1302 merged 2026-10-18 (`deploy-oci.yml` + `compose/quant-stack.yml` quantchat-backend target); image building; deploy blocked by #1243 hold |

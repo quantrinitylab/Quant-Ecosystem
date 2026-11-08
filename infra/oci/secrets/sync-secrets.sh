@@ -179,15 +179,26 @@ main() {
     local -a svc
     case "$restart" in
       backends) svc=(quantmail-backend quantchat-backend quantai-backend) ;;
-      all) svc=(quantmail-frontend quantmail-backend quantchat quantchat-backend quantai quantai-backend) ;;
+      all) svc=(quantmail-backend quantchat-backend quantai-backend quantmail-frontend quantchat quantai) ;;
     esac
-    # Keep the running release: read the tag from a running container instead of guessing.
-    local tag
-    tag="$(docker inspect --format '{{.Config.Image}}' "$(docker ps -q --filter 'name=quantmail-backend' | head -n1)" 2>/dev/null | sed 's/^.*://')"
-    [[ "$tag" =~ ^[A-Za-z0-9._-]{1,128}$ ]] || die 'could not read the running image tag, refusing to restart blindly'
-    printf '\nrecreating: %s (image tag %s)\n' "${svc[*]}" "${tag:0:12}"
-    IMAGE_TAG="$tag" docker compose -f "$compose" up -d --no-deps --force-recreate "${svc[@]}" 2>&1 | sed 's/^/  /'
-    sleep 8
+    # Every service keeps the release it runs now. QuantMail, QuantChat and QuantAI are deployed separately and
+    # usually run different tags, so the tag is read from each service's own container, never from a neighbour.
+    # All tags are read first: if one service is not running nothing is recreated, instead of restarting half.
+    local s cid tag
+    local -A TAG=()
+    for s in "${svc[@]}"; do
+      cid="$(docker ps -q --filter "label=com.docker.compose.service=$s" | head -n1)"
+      [ -n "$cid" ] || die "service $s is not running, refusing to guess its image tag"
+      tag="$(docker inspect --format '{{.Config.Image}}' "$cid" | sed 's/^.*://')"
+      [[ "$tag" =~ ^[A-Za-z0-9._-]{1,128}$ ]] || die "could not read a usable image tag for $s"
+      TAG["$s"]="$tag"
+    done
+    printf '\n'
+    for s in "${svc[@]}"; do
+      printf 'recreating %s (image tag %s)\n' "$s" "${TAG[$s]:0:12}"
+      IMAGE_TAG="${TAG[$s]}" docker compose -f "$compose" up -d --no-deps --force-recreate "$s" 2>&1 | sed 's/^/  /'
+    done
+    sleep "${QSYNC_SETTLE_SECONDS:-8}"
     docker ps --format '  {{.Names}} | {{.Status}}' | sort
   elif [ "$restart" != none ]; then
     printf '\nno restart needed, nothing changed\n'
