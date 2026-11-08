@@ -6,11 +6,17 @@
 #
 # Architecture (migration runbook §2):
 #   vm-app  (10.1.1.140, public 80.225.234.186) — this compose stack
-#   vm-db   (10.1.1.174, private)               — Postgres (ankane/pgvector),
-#                                                data on the 100 GB block volume
-#                                                mounted at /data, 91 migrations
-#                                                applied, vector ext enabled.
-#   Object Storage bucket quantmail-drive (S3-compat) replaces the old S3 bucket.
+#   vm-db   (10.1.1.174)                        — Postgres (ankane/pgvector), bound to
+#                                                the private address; data in
+#                                                /data/postgres on the boot volume
+#                                                (moved off the old 100 GB block
+#                                                volume on 2026-11-08 to stay inside
+#                                                the 200 GB Always Free storage).
+#   Sizes: vm-app 1 OCPU / 8 GB, vm-db 1 OCPU / 4 GB (2 OCPU / 12 GB is the whole
+#   Always Free A1 allowance). See infra/oci/README.md.
+#   Files: Drive and attachments are meant to live in Cloudflare R2, see
+#   docs/runbooks/r2-storage.md. Until that cut-over they are still on the
+#   Oracle Object Storage bucket quantmail-drive (DRIVE_S3_*).
 #
 # VM provisioning contract (must exist before first deploy):
 #   * /etc/quant/secrets.env (0600 root) — DATABASE_URL (-> 10.1.1.174),
@@ -33,11 +39,25 @@
 # Frontend -> backend wiring is server-side: the quantmail frontend proxies
 # /api/* to $QUANTMAIL_BACKEND_URL (default localhost:3010); here it points at
 # the backend service on the compose network.
+#
+# Logs: every service uses the same rotating json-file driver (x-logging below).
+# Without a limit, docker keeps container logs forever and slowly fills the
+# boot volume. 3 files x 10 MB per container is plenty for `docker logs`;
+# anything that must be kept longer belongs in a log shipper, not on this disk.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
 
 services:
+
   quant-proxy:
     image: caddy:2-alpine
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "80:80"
       - "443:443"
@@ -50,6 +70,7 @@ services:
   quantmail-frontend:
     image: ghcr.io/quantrinitylab/quant-oci-quantmail-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *default-logging
     env_file:
       - /etc/quant/secrets.env
     environment:
@@ -61,6 +82,7 @@ services:
   quantmail-backend:
     image: ghcr.io/quantrinitylab/quant-oci-quantmail-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *default-logging
     env_file:
       - /etc/quant/secrets.env
     environment:
@@ -75,11 +97,13 @@ services:
   quant-redis:
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *default-logging
     command: ["redis-server", "--appendonly", "yes"]
 
   quantchat:
     image: ghcr.io/quantrinitylab/quant-oci-quantchat:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *default-logging
     env_file:
       - /etc/quant/secrets.env
     environment:
@@ -96,6 +120,7 @@ services:
   quantchat-backend:
     image: ghcr.io/quantrinitylab/quant-oci-quantchat-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *default-logging
     env_file:
       - /etc/quant/secrets.env
     environment:
@@ -110,6 +135,7 @@ services:
   quantai:
     image: ghcr.io/quantrinitylab/quant-oci-quantai:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *default-logging
     env_file:
       - /etc/quant/secrets.env
     environment:
@@ -125,6 +151,7 @@ services:
   quantai-backend:
     image: ghcr.io/quantrinitylab/quant-oci-quantai-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *default-logging
     env_file:
       - /etc/quant/secrets.env
     environment:
