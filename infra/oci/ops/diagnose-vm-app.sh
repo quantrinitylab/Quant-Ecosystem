@@ -417,8 +417,10 @@ main() {
     fi
     export PGURL="$dbbase?${dbparams:+$dbparams&}connect_timeout=8"
     export PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=15000 -c lock_timeout=2000 -c idle_in_transaction_session_timeout=10000'
-    docker image inspect postgres:16-alpine >/dev/null 2>&1 || timeout 120 docker pull -q postgres:16-alpine >/dev/null 2>&1
-    timeout 90 docker run --rm -i -e PGURL -e PGOPTIONS postgres:16-alpine \
+    # Same pinned image the backup uses (postgres:15-alpine, matches the 15.4 server), so no extra image is kept.
+    pg_image='postgres@sha256:aae6554de426ae1990f1a939ff183a0299146cf7142a6f4c379c3357af9cc2d8'
+    docker image inspect "$pg_image" >/dev/null 2>&1 || timeout 300 docker pull -q "$pg_image" >/dev/null 2>&1
+    timeout 90 docker run --rm -i -e PGURL -e PGOPTIONS "$pg_image" \
       sh -c 'psql "$PGURL" -X -q -P pager=off -P footer=off -P null=- -f -' 2>&1 <<'SQL' | mask_db
 \echo '-- users'
 SELECT count(*) AS users_total,

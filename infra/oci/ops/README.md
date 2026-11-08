@@ -8,6 +8,8 @@ Operator tooling for the live Oracle Cloud VMs. Everything in this folder is rea
 | `scrub-output.mjs` | Filter between `ssh` and the file. Masks e-mail addresses, credentials inside URLs and long token-like strings. |
 | `encrypt-report.mjs`, `report-public-key.pem` | Seals the scrubbed report for the ops key before anything is printed. |
 | `decrypt-report.mjs` | Reads the sealed block (a raw file or a downloaded job log). Needs the private key, which is never in this repository. |
+| `run-remote-report.sh` | Shared wrapper: runs a local script on vm-app over SSH, scrubs and seals what it prints, and prints only ciphertext. Used by the backup and housekeeping workflows. Tested by `test-run-remote-report.sh`. |
+| `housekeeping-vm-app.sh` | Weekly: removes our own old, unused application images (never the rollback tags, never an image a container uses) and reports disk use. Tested by `test-housekeeping.sh`. Run by `.github/workflows/ops-housekeeping.yml`. |
 | `../../../.github/workflows/ops-diagnose.yml` | Runs the files above over SSH with the existing deploy key. |
 
 ## Run it
