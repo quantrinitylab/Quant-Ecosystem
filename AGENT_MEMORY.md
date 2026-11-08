@@ -1,6 +1,6 @@
 # 🧠 QUANT ECOSYSTEM — MASTER ARCHITECTURE & MEMORY
 
-> **System Status**: Fresh Baseline | Node.js 22 LTS | Next.js 15 | Fastify Microservices | EKS Staging Active  
+> **System Status**: Fresh Baseline | Node.js 22 LTS | Next.js 15 | Fastify Microservices | Oracle Cloud (OCI) live, AWS retired  
 > **Master Structure**: See [PROJECT_STRUCTURE.md](file:///c:/Users/Pc/Quant-Ecosystem/PROJECT_STRUCTURE.md) for complete 10-audit blueprint.  
 > **Design Tokens**: See [UI_UX_SPEC.md](file:///c:/Users/Pc/Quant-Ecosystem/UI_UX_SPEC.md) for Obsidian luxury tokens.  
 > **Roadmap**: See [MASTER_PLAN.md](file:///c:/Users/Pc/Quant-Ecosystem/MASTER_PLAN.md) for phase-by-phase plan, Definition of Done, and licensing policy.
@@ -35,10 +35,10 @@ Combines 5 interconnected pillars under a unified Obsidian luxury shell with sea
 ---
 
 ## 🌐 2. INFRASTRUCTURE & DEPLOYMENT TELEMETRY
-- **Live Staging**: AWS EKS cluster `quant-staging` (21 active pods running nominal).
-- **Public Domain**: `https://quantmail.in` (Cloudflare CDN / Edge SSL).
-- **CI/CD**: GitHub Actions OIDC staging deployment pipeline (`Deploy staging (OIDC)`).
-- **Database & Storage**: PostgreSQL via Prisma ORM + Redis / Valkey + S3 / MinIO object storage.
+- **Live**: Oracle Cloud (`ap-mumbai-1`), two Ampere A1 VMs inside the Always Free allowance: `vm-app` (1 OCPU / 8 GB, Docker Compose: Caddy, QuantMail, QuantChat, QuantAI, Redis) and `vm-db` (1 OCPU / 4 GB, PostgreSQL 15 + pgvector). The old AWS EKS staging is retired and the AWS account no longer exists. Map and rules: [`infra/oci/README.md`](infra/oci/README.md).
+- **Public Domains**: `https://quantmail.in`, `https://quantai.quantrinity.in`, `https://quantchat.quantrinity.in` (Cloudflare proxy and edge TLS, Caddy on the VM).
+- **CI/CD**: GitHub Actions: `deploy-oci.yml` (build, push to GHCR, SSH + `docker compose`), nightly restore-tested encrypted database backup (`db-backup.yml`), weekly housekeeping, and `ops-secrets-sync.yml`; all use the `oci-staging` environment. The AWS OIDC pipeline is dead.
+- **Database & Storage**: PostgreSQL via Prisma ORM + Redis. Files belong in Cloudflare R2 (bucket map, variables and cut-over steps in [`docs/runbooks/r2-storage.md`](docs/runbooks/r2-storage.md)); until that cut-over Drive still uses the Oracle Object Storage bucket `quantmail-drive`.
 
 ---
 

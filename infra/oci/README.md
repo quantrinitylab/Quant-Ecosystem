@@ -49,6 +49,9 @@ database moved off the data volume, before the trial ended (about 30 days after 
   closing it is on the list.
 * **OCI CLI:** a browser-login session (`oci session authenticate`) lasts at most an hour and can only be refreshed
   while still valid. For long unattended work use an API-key user with a narrow policy instead.
+* **sshd** on both VMs has a drop-in, `/etc/ssh/sshd_config.d/00-quant-hardening.conf` (read first): no root login, no
+  passwords, 3 attempts, 20 s login grace, no X11. `opc` with a key is the only way in. When editing `sshd_config` as
+  `opc` remember it is root-only: use `sudo grep`, or a check that "finds nothing" will mislead you.
 * **Run Command** (Cloud Agent) is enabled on the VMs but commands stayed in `ACCEPTED` and never ran on 2026-11-08.
   Do not rely on it until that is diagnosed.
 

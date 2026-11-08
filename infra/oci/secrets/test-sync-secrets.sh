@@ -126,5 +126,58 @@ done
 [ "$all_ok" = yes ]; report $? 'eight consecutive changing runs all succeed'
 [ "$(count_baks)" = 5 ]; report $? 'at most five backups are kept'
 
+# ------------------------------------------------------------------ restart: every service keeps its own image tag
+fake="$work/bin"
+mkdir -p "$fake"
+cat >"$fake/docker" <<'EOF'
+#!/usr/bin/env bash
+# Fake docker for the restart tests. QuantMail, QuantChat and QuantAI run different tags on purpose.
+log="${FAKE_DOCKER_LOG:?}"
+tag_of() { case "$1" in quantmail-*) echo aaaaaaaa1111 ;; quantchat*) echo bbbbbbbb2222 ;; quantai*) echo cccccccc3333 ;; esac; }
+case "$1" in
+  ps)
+    if [ "$2" = "-q" ]; then
+      for a in "$@"; do
+        case "$a" in
+          label=com.docker.compose.service=*)
+            s="${a#label=com.docker.compose.service=}"
+            if [ "$s" != "${FAKE_DOCKER_MISSING:-}" ]; then echo "cid-$s"; fi ;;
+        esac
+      done
+    else
+      echo 'fake | Up 1 second'
+    fi ;;
+  inspect) s="${*: -1}"; s="${s#cid-}"; echo "ghcr.io/example/quant-oci-$s:$(tag_of "$s")" ;;
+  compose) echo "up ${*: -1} IMAGE_TAG=${IMAGE_TAG:-unset}" >>"$log" ;;
+esac
+EOF
+chmod +x "$fake/docker"
+: >"$work/compose.yml"
+dlog="$work/docker.log"
+
+fresh_env
+: >"$dlog"
+run "R2_ACCESS_KEY_ID=$KEY_ID
+" QSYNC_RESTART=backends QSYNC_COMPOSE="$work/compose.yml" QSYNC_SETTLE_SECONDS=0 PATH="$fake:$PATH" FAKE_DOCKER_LOG="$dlog"
+[ "$rc" -eq 0 ] && grep -qx 'up quantmail-backend IMAGE_TAG=aaaaaaaa1111' "$dlog" && grep -qx 'up quantchat-backend IMAGE_TAG=bbbbbbbb2222' "$dlog" && grep -qx 'up quantai-backend IMAGE_TAG=cccccccc3333' "$dlog"; report $? 'restart=backends recreates each backend on its own running image tag'
+[ "$(wc -l <"$dlog" | tr -d ' ')" = 3 ]; report $? 'restart=backends touches exactly the three backends'
+
+: >"$dlog"
+run "R2_ACCESS_KEY_ID=$KEY_ID
+" QSYNC_RESTART=backends QSYNC_COMPOSE="$work/compose.yml" QSYNC_SETTLE_SECONDS=0 PATH="$fake:$PATH" FAKE_DOCKER_LOG="$dlog"
+[ "$rc" -eq 0 ] && [ ! -s "$dlog" ] && out_has 'no restart needed'; report $? 'nothing changed means no restart'
+
+fresh_env
+: >"$dlog"
+run "R2_ACCESS_KEY_ID=$KEY_ID
+" QSYNC_RESTART=all QSYNC_COMPOSE="$work/compose.yml" QSYNC_SETTLE_SECONDS=0 PATH="$fake:$PATH" FAKE_DOCKER_LOG="$dlog"
+[ "$rc" -eq 0 ] && [ "$(wc -l <"$dlog" | tr -d ' ')" = 6 ] && grep -qx 'up quantchat IMAGE_TAG=bbbbbbbb2222' "$dlog" && grep -qx 'up quantai IMAGE_TAG=cccccccc3333' "$dlog" && grep -qx 'up quantmail-frontend IMAGE_TAG=aaaaaaaa1111' "$dlog"; report $? 'restart=all recreates six services, frontends on their own tags'
+
+fresh_env
+: >"$dlog"
+run "R2_ACCESS_KEY_ID=$KEY_ID
+" QSYNC_RESTART=backends QSYNC_COMPOSE="$work/compose.yml" QSYNC_SETTLE_SECONDS=0 PATH="$fake:$PATH" FAKE_DOCKER_LOG="$dlog" FAKE_DOCKER_MISSING=quantchat-backend
+[ "$rc" -ne 0 ] && out_has 'refusing to guess' && [ ! -s "$dlog" ]; report $? 'a service that is not running aborts the restart before anything is recreated'
+
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
