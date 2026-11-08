@@ -3,8 +3,9 @@ name: Deploy OCI (SSH + compose)
 # ── Oracle Cloud deploy path ─────────────────────────────────────────────
 # Created 2026-10-17 for the Oracle Cloud migration (old AWS account dead).
 # Deploys the staging stack to OCI A1 VMs via SSH + docker compose — no OKE,
-# no EKS. Architecture: vm-app (4 OCPU/24 GB, public IP) runs the app compose
-# stack; vm-db (2 OCPU/12 GB, private) runs Postgres; images from GHCR.
+# no EKS. Architecture: vm-app (1 OCPU/8 GB, public IP) runs the app compose
+# stack; vm-db (1 OCPU/4 GB, Postgres bound to its private IP) runs Postgres;
+# images from GHCR. Sizes since 2026-11-08, see infra/oci/README.md.
 #
 # HOW IT WORKS
 #   1. validate-release: release_sha must be the exact current main HEAD and

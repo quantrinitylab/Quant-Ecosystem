@@ -77,6 +77,9 @@ jobs:
       - name: Test OCI deploy SSH-key preparation
         run: node --test scripts/__tests__/prepare-oci-deploy-key.test.mjs
 
+      - name: Test OCI compose contract
+        run: pnpm test:compose-contract
+
       - name: Audit installed dependency graph (high/critical)
         run: pnpm audit:dependencies
 
