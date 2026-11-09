@@ -341,7 +341,7 @@ describe('Observability — spans emitted for delivery, agent steps, retrieval (
       })),
     };
     const prisma = {
-      user: { findFirst: vi.fn(async () => ({ id: 'user-1' })) },
+      user: { findMany: vi.fn(async () => [{ id: 'user-1' }]) },
       emailFolder: { findFirst: vi.fn(async () => ({ id: 'folder-inbox-1' })) },
       email: { update: vi.fn(async () => ({})) },
     };

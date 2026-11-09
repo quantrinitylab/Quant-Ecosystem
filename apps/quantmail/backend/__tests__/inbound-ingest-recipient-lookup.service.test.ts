@@ -8,10 +8,18 @@
  * an exact-match `findUnique` never hits those rows and their inbound mail was
  * dropped with INBOUND_NO_RECIPIENT.
  *
- * The `user.findFirst` double below emulates Postgres `mode: 'insensitive'`
+ * The `user.findMany` double below emulates Postgres `mode: 'insensitive'`
  * semantics (comparison on the lowercased value) over a seeded user table, so a
  * lowercase on-the-wire address resolves to the mixed-case legacy row exactly
- * like production does.
+ * like production does. It also emulates the `deletedAt: null` filter: only
+ * live rows are eligible, so a tombstoned row never swallows mail or creates
+ * ambiguity against a live row of the same address.
+ *
+ * Ambiguity is a hold, never first-row-wins: when two live rows share one
+ * address modulo case (the @unique index is case-sensitive, so both can
+ * exist), ingest rejects with INBOUND_RECIPIENT_AMBIGUOUS (409) and stores
+ * nothing — delivering to the first row by storage order would hand one
+ * twin's mail to the other.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -27,11 +35,26 @@ import {
 
 const LEGACY_USER_ID = 'user-legacy';
 const CANONICAL_USER_ID = 'user-canonical';
+const TWIN_UPPER_ID = 'user-twin-upper';
+const TWIN_LOWER_ID = 'user-twin-lower';
+const GHOST_LIVE_ID = 'user-ghost-live';
 
-/** Seeded users: one legacy mixed-case row, one canonical lowercase row. */
+/**
+ * Seeded users: one legacy mixed-case row, one canonical lowercase row, one
+ * case-colliding live pair (two rows, one address modulo case), and one
+ * address with a live row plus a tombstoned row (deletedAt set).
+ */
 const USERS = [
-  { id: LEGACY_USER_ID, email: 'LegacyCase@quantmail.test' },
-  { id: CANONICAL_USER_ID, email: 'canonical@quantmail.test' },
+  { id: LEGACY_USER_ID, email: 'LegacyCase@quantmail.test', deletedAt: null },
+  { id: CANONICAL_USER_ID, email: 'canonical@quantmail.test', deletedAt: null },
+  { id: TWIN_UPPER_ID, email: 'Twin@quantmail.test', deletedAt: null },
+  { id: TWIN_LOWER_ID, email: 'twin@quantmail.test', deletedAt: null },
+  { id: GHOST_LIVE_ID, email: 'ghost@quantmail.test', deletedAt: null },
+  {
+    id: 'user-ghost-dead',
+    email: 'Ghost@quantmail.test',
+    deletedAt: new Date('2026-01-01T00:00:00.000Z'),
+  },
 ];
 
 /**
@@ -73,13 +96,20 @@ function createMockPrisma() {
   const mock = {
     rows,
     user: {
-      // Emulates `where: { email: { equals, mode: 'insensitive' } }`: matches
-      // the seeded row regardless of the stored row's case.
-      findFirst: vi.fn(
-        async (args: { where: { email: { equals: string; mode?: string } } }) => {
+      // Emulates `where: { email: { equals, mode: 'insensitive' },
+      // deletedAt: null }` + `take`: matches only LIVE rows regardless of the
+      // stored row's case, at most `take` of them.
+      findMany: vi.fn(
+        async (args: {
+          where: { email: { equals: string; mode?: string }; deletedAt?: null };
+          take?: number;
+        }) => {
           const wanted = args.where.email.equals.toLowerCase();
-          const found = USERS.find((user) => user.email.toLowerCase() === wanted);
-          return found ? { id: found.id } : null;
+          return USERS.filter(
+            (user) => user.email.toLowerCase() === wanted && user.deletedAt === null,
+          )
+            .slice(0, args.take ?? 2)
+            .map((user) => ({ id: user.id }));
         },
       ),
       findUnique: vi.fn(async () => null),
@@ -177,9 +207,11 @@ describe('inbound ingest recipient lookup — case-insensitive user match', () =
     const data = emailCreateData(prisma);
     expect(data['userId']).toBe(LEGACY_USER_ID);
     expect(email.id).toBeDefined();
-    // The lookup must ask for case-insensitive matching, not an exact match.
-    expect(prisma.user.findFirst).toHaveBeenCalledWith({
-      where: { email: { equals: 'legacycase@quantmail.test', mode: 'insensitive' } },
+    // The lookup must ask for case-insensitive matching over LIVE rows only,
+    // capped at 2 so ambiguity is detectable — never a first-row-wins query.
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { email: { equals: 'legacycase@quantmail.test', mode: 'insensitive' }, deletedAt: null },
+      take: 2,
     });
   });
 
@@ -216,5 +248,49 @@ describe('inbound ingest recipient lookup — case-insensitive user match', () =
     ).rejects.toMatchObject({ code: 'INBOUND_NO_RECIPIENT', statusCode: 404 });
 
     expect(prisma.email.create).not.toHaveBeenCalled();
+  });
+
+  it('holds on ambiguity: two live rows sharing one address modulo case deliver to NOBODY', async () => {
+    await expect(
+      adapter.ingest(
+        message({
+          to: ['twin@quantmail.test'],
+          messageId: 'CAcase-insensitive-5@mail.example.com',
+        }),
+        { verdict: PASS_VERDICT },
+      ),
+    ).rejects.toMatchObject({ code: 'INBOUND_RECIPIENT_AMBIGUOUS', statusCode: 409 });
+
+    // Neither twin got the mail: first-row-wins would have stored it for one.
+    expect(prisma.email.create).not.toHaveBeenCalled();
+  });
+
+  it('ignores a tombstoned row: live row plus deleted row of the same address routes to the live row', async () => {
+    await adapter.ingest(
+      message({
+        to: ['ghost@quantmail.test'],
+        messageId: 'CAcase-insensitive-6@mail.example.com',
+      }),
+      { verdict: PASS_VERDICT },
+    );
+
+    expect(emailCreateData(prisma)['userId']).toBe(GHOST_LIVE_ID);
+  });
+
+  it('ignores a tombstoned row for ambiguity: deleted twin does not hold a live row', async () => {
+    // Only the live ghost row matches once tombstones are filtered, so this
+    // is a single-match delivery, not an ambiguity hold (covered above by the
+    // ghost routing test asserting the live userId, not a rejection).
+    await expect(
+      adapter.ingest(
+        message({
+          to: ['GHOST@quantmail.test'],
+          messageId: 'CAcase-insensitive-7@mail.example.com',
+        }),
+        { verdict: PASS_VERDICT },
+      ),
+    ).resolves.toBeDefined();
+
+    expect(emailCreateData(prisma)['userId']).toBe(GHOST_LIVE_ID);
   });
 });
