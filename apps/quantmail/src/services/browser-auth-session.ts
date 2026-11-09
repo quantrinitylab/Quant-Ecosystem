@@ -292,6 +292,62 @@ export const browserAuthSession = {
   },
 
   /**
+   * Passkey (WebAuthn) sign-in — the two legs of a passwordless login.
+   * `passkeyLoginVerify` mints a browser session exactly like `login` does
+   * (access token in memory, refresh in the HttpOnly cookie), so it goes
+   * through rememberAccess; when the account has TOTP on and the assertion
+   * carried no user verification, the backend answers with a TOTP
+   * challenge instead of a session, and the caller falls through to
+   * `completeTwoFactor` — the same shape `login` returns for that case.
+   * The registration legs mint no session and are plain posts.
+   */
+  async passkeyLoginOptions(
+    email: string,
+  ): Promise<
+    AuthResponse<{ options: unknown; challengeToken: string; expiresIn: number }>
+  > {
+    return post<{ options: unknown; challengeToken: string; expiresIn: number }>(
+      '/auth/passkeys/login/options',
+      { email },
+    );
+  },
+
+  async passkeyLoginVerify(
+    email: string,
+    response: unknown,
+    challengeToken: string,
+  ): Promise<AuthResponse<BrowserLoginResult>> {
+    return rememberAccess(
+      await post<BrowserLoginResult>('/auth/passkeys/login/verify', {
+        email,
+        response,
+        challengeToken,
+      }),
+    );
+  },
+
+  async passkeyRegisterOptions(): Promise<
+    AuthResponse<{ options: unknown; challengeToken: string; expiresIn: number }>
+  > {
+    return post<{ options: unknown; challengeToken: string; expiresIn: number }>(
+      '/auth/passkeys/register/options',
+      {},
+    );
+  },
+
+  async passkeyRegisterVerify(
+    response: unknown,
+    challengeToken: string,
+    name?: string | null,
+  ): Promise<AuthResponse<{ passkey: unknown }>> {
+    return post<{ passkey: unknown }>('/auth/passkeys/register/verify', {
+      response,
+      challengeToken,
+      name: name ?? null,
+    });
+  },
+
+  /**
    * Lost-authenticator recovery (fix/qm-2fa-challenge-recovery-link): public,
    * pre-session entry points to the real /auth/2fa/recover endpoints.
    * Both go through the /api proxy like every other auth call. The request

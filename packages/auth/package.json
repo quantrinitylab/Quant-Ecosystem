@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./services/token-service": "./src/services/token-service.ts",
+    "./services/passkey-ceremony": "./src/services/passkey-ceremony.ts",
     "./lib/secrets": "./src/lib/secrets.ts",
     "./lib/prisma": "./src/lib/prisma.ts",
     "./crypto/secure-random": "./src/crypto/secure-random.ts",

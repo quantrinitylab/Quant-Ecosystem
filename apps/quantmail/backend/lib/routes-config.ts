@@ -25,6 +25,14 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
     methods: ['POST'],
   },
   { pattern: /^auth\/2fa\/status$/, methods: ['GET'] },
+  // Passkeys (fix/qm-passkey-webauthn-r2): registration + management carry
+  // the caller's access token through to the backend, which is what
+  // actually authorises them; the login options/verify legs are public
+  // (the passkey assertion IS the credential) and are rate-limited there.
+  { pattern: /^auth\/passkeys$/, methods: ['GET'] },
+  { pattern: /^auth\/passkeys\/register\/(?:options|verify)$/, methods: ['POST'] },
+  { pattern: /^auth\/passkeys\/login\/(?:options|verify)$/, methods: ['POST'] },
+  { pattern: /^auth\/passkeys\/[^/]+$/, methods: ['DELETE'] },
   // Active Sessions tab (QM-SCREEN-016): real session list + revoke-others.
   // `revoke-others` is the destructive one; the backend step-up-guards it.
   { pattern: /^auth\/sessions$/, methods: ['GET'] },

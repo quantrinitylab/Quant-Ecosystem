@@ -7,6 +7,12 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { IconCheck } from '../../components/icons';
 import { TwoFactorQrCode } from '../../components/security/TwoFactorQrCode';
 import { showToast } from '../../components/InboxToast';
+import { browserAuthSession } from '../../services/browser-auth-session';
+import {
+  isPasskeySupported,
+  startPasskeyRegistration,
+  type PasskeyRegistrationOptionsJSON,
+} from '../../lib/passkey-client';
 import {
   apiClient,
   type OAuthGrant,
@@ -260,6 +266,25 @@ export default function SecurityPage() {
   );
   const [passwordError, setPasswordError] = useState('');
 
+  // ─── Passkeys State ─────────────────────────────────────────────────────────
+  // Display metadata only — the server never sends a public key, and the
+  // list must never claim a passkey exists that the server did not return.
+  interface PasskeyRow {
+    id: string;
+    name: string | null;
+    deviceType: string | null;
+    backedUp: boolean;
+    transports: string[];
+    createdAt: string;
+    lastUsedAt: string | null;
+  }
+  const [passkeys, setPasskeys] = useState<PasskeyRow[] | null>(null);
+  const [passkeysLoading, setPasskeysLoading] = useState(false);
+  const [passkeysError, setPasskeysError] = useState('');
+  const [passkeysNotice, setPasskeysNotice] = useState('');
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [passkeyName, setPasskeyName] = useState('');
+
   // ─── Sessions State ─────────────────────────────────────────────────────────
   const [sessions, setSessions] = useState<ActiveSession[] | null>(null);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -277,9 +302,74 @@ export default function SecurityPage() {
     setStatus(response.data);
   }, []);
 
+  // ─── Passkeys Handlers ──────────────────────────────────────────────────────
+  const loadPasskeys = useCallback(async () => {
+    setPasskeysLoading(true);
+    setPasskeysError('');
+    const response = await apiClient.getPasskeys();
+    setPasskeysLoading(false);
+    if (!response.success || !response.data) {
+      setPasskeysError(response.error?.message || 'Could not load your passkeys.');
+      return;
+    }
+    setPasskeys(response.data.passkeys);
+  }, []);
+
+  const handleAddPasskey = useCallback(async () => {
+    if (!isPasskeySupported()) {
+      setPasskeysError('This browser cannot create a passkey.');
+      return;
+    }
+    setPasskeyBusy(true);
+    setPasskeysError('');
+    setPasskeysNotice('');
+    try {
+      const optionsResponse = await browserAuthSession.passkeyRegisterOptions();
+      if (!optionsResponse.success || !optionsResponse.data) {
+        throw new Error(optionsResponse.error?.message || 'Could not start passkey setup.');
+      }
+      const created = await startPasskeyRegistration(
+        optionsResponse.data.options as PasskeyRegistrationOptionsJSON,
+      );
+      const verifyResponse = await browserAuthSession.passkeyRegisterVerify(
+        created,
+        optionsResponse.data.challengeToken,
+        passkeyName.trim() || null,
+      );
+      if (!verifyResponse.success) {
+        throw new Error(verifyResponse.error?.message || 'That passkey could not be verified.');
+      }
+      setPasskeyName('');
+      setPasskeysNotice('Passkey added. You can now sign in with it from the login page.');
+      await loadPasskeys();
+    } catch (caught) {
+      setPasskeysError(caught instanceof Error ? caught.message : 'Could not add a passkey.');
+    } finally {
+      setPasskeyBusy(false);
+    }
+  }, [loadPasskeys, passkeyName]);
+
+  const handleDeletePasskey = useCallback(
+    async (id: string) => {
+      setPasskeyBusy(true);
+      setPasskeysError('');
+      setPasskeysNotice('');
+      const response = await apiClient.deletePasskey(id);
+      setPasskeyBusy(false);
+      if (!response.success) {
+        setPasskeysError(response.error?.message || 'Could not remove that passkey.');
+        return;
+      }
+      setPasskeysNotice('Passkey removed.');
+      await loadPasskeys();
+    },
+    [loadPasskeys],
+  );
+
   useEffect(() => {
     void loadStatus();
-  }, [loadStatus]);
+    void loadPasskeys();
+  }, [loadStatus, loadPasskeys]);
 
   // ─── Sessions Handlers ──────────────────────────────────────────────────────
   const loadSessions = useCallback(async () => {
@@ -899,6 +989,100 @@ export default function SecurityPage() {
                       </div>
                     </div>
                   ) : null}
+                </div>
+              </section>
+
+              <section>
+                <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-1">
+                  Passkeys
+                </h2>
+                <p className="text-sm text-[var(--quant-muted-foreground)] mb-4">
+                  Sign in with a fingerprint, face, or PIN instead of your password. A passkey
+                  with user verification also stands in for your authenticator code at sign-in;
+                  one without it still asks for the code on a two-factor account.
+                </p>
+                <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5 space-y-4">
+                  {passkeysNotice ? (
+                    <p
+                      role="status"
+                      aria-live="polite"
+                      className="rounded-md border border-[var(--quant-success)]/25 bg-[var(--quant-success)]/10 px-3 py-2 text-sm text-[var(--quant-success)]"
+                    >
+                      {passkeysNotice}
+                    </p>
+                  ) : null}
+                  {passkeysError ? (
+                    <p role="alert" className="text-sm text-[var(--quant-destructive)]">
+                      {passkeysError}
+                    </p>
+                  ) : null}
+                  {passkeysLoading ? (
+                    <div className="space-y-3">
+                      <Skeleton variant="rect" width="100%" height="40px" />
+                    </div>
+                  ) : passkeys && passkeys.length === 0 ? (
+                    <p className="text-sm text-[var(--quant-muted-foreground)]">
+                      No passkeys yet. Add one and the login page offers passwordless sign-in.
+                    </p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {(passkeys ?? []).map((passkey) => (
+                        <li
+                          key={passkey.id}
+                          className="flex flex-wrap items-center justify-between gap-3"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-[var(--quant-foreground)]">
+                              {passkey.name ??
+                                (passkey.deviceType
+                                  ? `${passkey.deviceType} passkey`
+                                  : 'Passkey')}
+                            </p>
+                            <p className="text-xs text-[var(--quant-muted-foreground)]">
+                              Added{' '}
+                              {new Date(passkey.createdAt).toLocaleDateString(undefined, {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                              })}
+                              {passkey.lastUsedAt
+                                ? ` · Last used ${new Date(passkey.lastUsedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}`
+                                : ' · Never used'}
+                              {passkey.backedUp ? ' · Backed up' : ''}
+                            </p>
+                          </div>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            disabled={passkeyBusy}
+                            onClick={() => void handleDeletePasskey(passkey.id)}
+                          >
+                            Remove
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="min-w-52 flex-1">
+                      <FormField label="Passkey name (optional)">
+                        <Input
+                          type="text"
+                          value={passkeyName}
+                          onChange={(e) => setPasskeyName(e.target.value)}
+                          placeholder="e.g. MacBook Touch ID"
+                          maxLength={80}
+                        />
+                      </FormField>
+                    </div>
+                    <Button
+                      variant="primary"
+                      disabled={passkeyBusy}
+                      onClick={() => void handleAddPasskey()}
+                    >
+                      {passkeyBusy ? 'Waiting for your authenticator…' : 'Add a passkey'}
+                    </Button>
+                  </div>
                 </div>
               </section>
 
