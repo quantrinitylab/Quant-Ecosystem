@@ -28,6 +28,11 @@ import {
   sessionMetadataFromRequest,
 } from '../lib/auth-session';
 import {
+  KnownDeviceStore,
+  isNewDeviceSignIn,
+  sendNewDeviceAlert,
+} from '../lib/new-device-alert';
+import {
   BACKUP_CODE_COUNT,
   digestsMatch,
   generateBackupCodes,
@@ -374,9 +379,34 @@ export async function twoFactorRoutes(fastify: FastifyInstance) {
         );
       }
 
-      return reply.send(
-        await issueBrowserSession(tokenService, reply, user, sessionMetadataFromRequest(request)),
-      );
+      // Same new-device alert as /auth/login, for the same reason: detection
+      // must run BEFORE issuance records this device, and a failed SES send
+      // must never fail a login whose second factor just verified.
+      const metadata = sessionMetadataFromRequest(request);
+      // Detection failure must never fail a login whose second factor just
+      // verified — the alert is advisory, not a gate.
+      let newDevice = false;
+      try {
+        newDevice = await isNewDeviceSignIn(
+          prisma as unknown as KnownDeviceStore,
+          user.id,
+          metadata,
+        );
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[new-device-alert] detection failed; skipping alert', error);
+      }
+      const session = await issueBrowserSession(tokenService, reply, user, metadata);
+      if (newDevice) {
+        await sendNewDeviceAlert({
+          to: user.email,
+          name: user.displayName,
+          userAgent: metadata.userAgent,
+          ipAddress: metadata.ipAddress,
+          signedInAt: new Date(),
+        });
+      }
+      return reply.send(session);
     },
   );
 

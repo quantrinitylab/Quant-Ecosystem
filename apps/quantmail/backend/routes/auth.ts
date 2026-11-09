@@ -16,6 +16,11 @@ import {
   sessionUserPayload,
   setRefreshCookie,
 } from '../lib/auth-session';
+import {
+  KnownDeviceStore,
+  isNewDeviceSignIn,
+  sendNewDeviceAlert,
+} from '../lib/new-device-alert';
 import { signTwoFactorChallenge } from '../lib/two-factor';
 import {
   MAX_VERIFICATION_ATTEMPTS,
@@ -199,9 +204,37 @@ export async function authRoutes(fastify: FastifyInstance) {
         });
       }
 
-      return reply.send(
-        await issueBrowserSession(tokenService, reply, user, sessionMetadataFromRequest(request)),
-      );
+      // New-device security alert: detect BEFORE issuing the session, because
+      // issuance records this device and a post-issuance check would always
+      // self-match. The alert is best-effort and never fails the login — a
+      // failed SES send is logged by sendNewDeviceAlert, not surfaced.
+      const metadata = sessionMetadataFromRequest(request);
+      // Detection failure must never fail a login whose password just
+      // verified — same rule as /auth/refresh's best-effort profile embed.
+      // The alert is advisory; a detector outage means no alert, not no
+      // sign-in.
+      let newDevice = false;
+      try {
+        newDevice = await isNewDeviceSignIn(
+          prisma as unknown as KnownDeviceStore,
+          user.id,
+          metadata,
+        );
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[new-device-alert] detection failed; skipping alert', error);
+      }
+      const session = await issueBrowserSession(tokenService, reply, user, metadata);
+      if (newDevice) {
+        await sendNewDeviceAlert({
+          to: user.email,
+          name: user.displayName,
+          userAgent: metadata.userAgent,
+          ipAddress: metadata.ipAddress,
+          signedInAt: new Date(),
+        });
+      }
+      return reply.send(session);
     },
   );
 
