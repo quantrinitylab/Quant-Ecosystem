@@ -20,10 +20,16 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import {
+  hasUrgentSubject,
   isImportantMail,
+  normalizeMailNotificationLabelOverrides,
   normalizeMailNotificationMode,
+  readMailNotificationLabelOverridesFromPreferences,
   readMailNotificationModeFromPreferences,
+  readUserMailNotificationPreferences,
   readUserMailNotificationMode,
+  shouldNotifyForMail,
+  writeUserMailNotificationLabelOverrides,
   writeUserMailNotificationMode,
   type MailNotificationModeStore,
 } from '../services/mail-notification-mode.service';
@@ -143,6 +149,190 @@ describe('readUserMailNotificationMode', () => {
     const warn = vi.fn();
     await expect(readUserMailNotificationMode(store, 'u1', { warn })).resolves.toBe('all');
     expect(warn).toHaveBeenCalledOnce();
+  });
+});
+
+describe('hasUrgentSubject / urgency in isImportantMail', () => {
+  it('treats urgency phrases as urgent', () => {
+    expect(hasUrgentSubject({ subject: 'Action required: sign this' })).toBe(true);
+    expect(hasUrgentSubject({ subject: 'Deadline tomorrow' })).toBe(true);
+    expect(hasUrgentSubject({ snippet: 'please respond when you can' })).toBe(true);
+  });
+
+  it('lets bulk markers veto urgency, so promo urgency stays bulk', () => {
+    expect(hasUrgentSubject({ subject: 'URGENT deal ends tonight, unsubscribe here' })).toBe(false);
+    expect(hasUrgentSubject({ subject: 'Urgent newsletter: 50% off' })).toBe(false);
+  });
+
+  it('makes an urgent bulk-categorised mail important, and keeps a plain one bulk', () => {
+    expect(isImportantMail({ aiCategory: 'promotions', subject: 'Action required' })).toBe(true);
+    expect(isImportantMail({ aiCategory: 'promotions', subject: 'Weekly roundup' })).toBe(false);
+  });
+
+  it('does not let urgency rescue a mail with no subject or snippet', () => {
+    expect(hasUrgentSubject({})).toBe(false);
+    expect(isImportantMail({ aiCategory: 'updates' })).toBe(false);
+  });
+});
+
+describe('normalizeMailNotificationLabelOverrides', () => {
+  it('keeps only string ids mapped to all/none', () => {
+    expect(
+      normalizeMailNotificationLabelOverrides({
+        'lbl-1': 'all',
+        'lbl-2': 'none',
+        'lbl-3': 'everything',
+        'lbl-4': null,
+      }),
+    ).toEqual({ 'lbl-1': 'all', 'lbl-2': 'none' });
+  });
+
+  it('normalizes non-objects to an empty map', () => {
+    expect(normalizeMailNotificationLabelOverrides(undefined)).toEqual({});
+    expect(normalizeMailNotificationLabelOverrides(null)).toEqual({});
+    expect(normalizeMailNotificationLabelOverrides('all')).toEqual({});
+    expect(normalizeMailNotificationLabelOverrides([])).toEqual({});
+  });
+});
+
+describe('readMailNotificationLabelOverridesFromPreferences', () => {
+  it('reads the documented key and ignores non-object preferences', () => {
+    expect(
+      readMailNotificationLabelOverridesFromPreferences({
+        mailNotificationLabelOverrides: { 'lbl-1': 'none' },
+      }),
+    ).toEqual({ 'lbl-1': 'none' });
+    expect(readMailNotificationLabelOverridesFromPreferences({})).toEqual({});
+    expect(readMailNotificationLabelOverridesFromPreferences(null)).toEqual({});
+  });
+});
+
+describe('readUserMailNotificationPreferences', () => {
+  it('reads mode and overrides in one store read', async () => {
+    const store = memoryStore({
+      u1: {
+        mailNotificationMode: 'important',
+        mailNotificationLabelOverrides: { 'lbl-1': 'all' },
+      },
+    });
+    await expect(readUserMailNotificationPreferences(store, 'u1')).resolves.toEqual({
+      mode: 'important',
+      overrides: { 'lbl-1': 'all' },
+    });
+  });
+
+  it('fails open to all + no overrides when the store throws', async () => {
+    const store: MailNotificationModeStore = {
+      user: {
+        findUnique: vi.fn(async () => {
+          throw new Error('db down');
+        }),
+        update: vi.fn(),
+      },
+    };
+    const warn = vi.fn();
+    await expect(readUserMailNotificationPreferences(store, 'u1', { warn })).resolves.toEqual({
+      mode: 'all',
+      overrides: {},
+    });
+    expect(warn).toHaveBeenCalledOnce();
+  });
+});
+
+describe('writeUserMailNotificationLabelOverrides', () => {
+  it('merges overrides without dropping the mode or unrelated keys', async () => {
+    const store = memoryStore({
+      u1: { mailNotificationMode: 'important', theme: 'dark' },
+    });
+    await writeUserMailNotificationLabelOverrides(store, 'u1', { 'lbl-9': 'none' });
+    expect(store.user.update).toHaveBeenCalledWith({
+      where: { id: 'u1' },
+      data: {
+        preferences: {
+          mailNotificationMode: 'important',
+          theme: 'dark',
+          mailNotificationLabelOverrides: { 'lbl-9': 'none' },
+        },
+      },
+    });
+    await expect(readUserMailNotificationPreferences(store, 'u1')).resolves.toEqual({
+      mode: 'important',
+      overrides: { 'lbl-9': 'none' },
+    });
+  });
+});
+
+describe('shouldNotifyForMail', () => {
+  it('master-off: no label override revives a notification', () => {
+    expect(
+      shouldNotifyForMail(
+        { aiCategory: 'primary', labels: ['lbl-1'] },
+        { mode: 'off', overrides: { 'lbl-1': 'all' } },
+      ),
+    ).toBe(false);
+  });
+
+  it('a none override on any carried label silences, even under all', () => {
+    expect(
+      shouldNotifyForMail(
+        { aiCategory: 'primary', labels: ['lbl-1', 'lbl-2'] },
+        { mode: 'all', overrides: { 'lbl-2': 'none' } },
+      ),
+    ).toBe(false);
+  });
+
+  it('mute wins over force-notify when a mail carries both', () => {
+    expect(
+      shouldNotifyForMail(
+        { aiCategory: 'promotions', labels: ['lbl-1', 'lbl-2'] },
+        { mode: 'important', overrides: { 'lbl-1': 'all', 'lbl-2': 'none' } },
+      ),
+    ).toBe(false);
+  });
+
+  it('an all override forces notification under important', () => {
+    expect(
+      shouldNotifyForMail(
+        { aiCategory: 'promotions', labels: ['lbl-1'] },
+        { mode: 'important', overrides: { 'lbl-1': 'all' } },
+      ),
+    ).toBe(true);
+  });
+
+  it('an override for a label the mail does not carry changes nothing', () => {
+    expect(
+      shouldNotifyForMail(
+        { aiCategory: 'promotions', labels: ['lbl-9'] },
+        { mode: 'important', overrides: { 'lbl-1': 'all' } },
+      ),
+    ).toBe(false);
+    expect(
+      shouldNotifyForMail(
+        { aiCategory: 'primary', labels: ['lbl-9'] },
+        { mode: 'all', overrides: { 'lbl-1': 'none' } },
+      ),
+    ).toBe(true);
+  });
+
+  it('falls back to the mode when no carried label has an override', () => {
+    expect(
+      shouldNotifyForMail({ aiCategory: 'promotions' }, { mode: 'all', overrides: {} }),
+    ).toBe(true);
+    expect(
+      shouldNotifyForMail({ aiCategory: 'promotions' }, { mode: 'important', overrides: {} }),
+    ).toBe(false);
+    expect(
+      shouldNotifyForMail({ aiCategory: 'primary' }, { mode: 'important', overrides: {} }),
+    ).toBe(true);
+  });
+
+  it('treats non-array labels as no labels', () => {
+    expect(
+      shouldNotifyForMail(
+        { aiCategory: 'promotions', labels: 'lbl-1' },
+        { mode: 'important', overrides: { 'lbl-1': 'all' } },
+      ),
+    ).toBe(false);
   });
 });
 
