@@ -116,8 +116,10 @@ export function BranchesTab({
         isDefault: false,
         isProtected: false,
         protection: 'none',
-        aheadBy: 0,
-        behindBy: 0,
+        // No aheadBy/behindBy: a freshly created branch's divergence from
+        // the default branch equals its source's (unknown here) — 0 would
+        // be invented, so the row renders "not computed" until real values
+        // exist.
         lastCommitAuthor: currentUsername || 'Unknown',
         lastCommitMessage: `Branch created from ${sourceBranch}`,
         lastCommitTime: 'just now',
@@ -367,25 +369,40 @@ export function BranchesTab({
 
                 {/* Behind / Ahead Indicator & Delete Action */}
                 <div className="flex items-center gap-3 shrink-0">
-                  <div
-                    data-testid="behind-ahead-indicator"
-                    className="flex items-center gap-1 text-[11px] font-mono bg-[#0D1117] px-2.5 py-1 rounded-md border border-[#30363D]"
-                    title={`${branch.behindBy} commits behind, ${branch.aheadBy} commits ahead of ${defaultBranchItem.name}`}
-                  >
-                    <span
-                      className={
-                        branch.behindBy > 0 ? 'text-[#F85149] font-bold' : 'text-[#7D8590]'
-                      }
+                  {typeof branch.aheadBy === 'number' &&
+                  typeof branch.behindBy === 'number' ? (
+                    <div
+                      data-testid="behind-ahead-indicator"
+                      className="flex items-center gap-1 text-[11px] font-mono bg-[#0D1117] px-2.5 py-1 rounded-md border border-[#30363D]"
+                      title={`${branch.behindBy} commits behind, ${branch.aheadBy} commits ahead of ${defaultBranchItem.name}`}
                     >
-                      behind {branch.behindBy}
-                    </span>
-                    <span className="text-[#30363D]">/</span>
-                    <span
-                      className={branch.aheadBy > 0 ? 'text-[#3FB950] font-bold' : 'text-[#7D8590]'}
+                      <span
+                        className={
+                          branch.behindBy > 0 ? 'text-[#F85149] font-bold' : 'text-[#7D8590]'
+                        }
+                      >
+                        behind {branch.behindBy}
+                      </span>
+                      <span className="text-[#30363D]">/</span>
+                      <span
+                        className={branch.aheadBy > 0 ? 'text-[#3FB950] font-bold' : 'text-[#7D8590]'}
+                      >
+                        ahead {branch.aheadBy}
+                      </span>
+                    </div>
+                  ) : (
+                    // Honest slot: the backend does not compute ahead/behind
+                    // for branches, so never render a "behind 0 / ahead 0"
+                    // badge as if it were measured. A present number above is
+                    // a real measurement; absence is "not computed".
+                    <div
+                      data-testid="behind-ahead-not-computed"
+                      className="flex items-center gap-1 text-[11px] font-mono bg-[#0D1117] px-2.5 py-1 rounded-md border border-[#30363D] text-[#7D8590]"
+                      title={`Ahead/behind vs ${defaultBranchItem.name} not computed yet`}
                     >
-                      ahead {branch.aheadBy}
-                    </span>
-                  </div>
+                      ahead/behind not computed
+                    </div>
+                  )}
 
                   {/* Delete branch button (enabled for non-default branch) */}
                   <button

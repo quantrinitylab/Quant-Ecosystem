@@ -1751,8 +1751,12 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         isDefault: branch.name === repo.defaultBranch,
         isProtected: branch.isProtected,
         protection: branch.isProtected ? 'require_reviews' : 'none',
-        aheadBy: 0,
-        behindBy: 0,
+        // Ahead/behind is NOT computed by this endpoint (no merge-base /
+        // rev-list count runs here), so the fields are OMITTED, never
+        // hardcoded to 0: the old `aheadBy: 0, behindBy: 0` made the UI
+        // present an unmeasured "behind 0 / ahead 0" badge as a measured
+        // signal on every row, even for diverged branches. The frontend
+        // renders an honest "not computed" slot when the fields are absent.
         ...(branch.lastCommitTimestamp !== undefined
           ? { lastCommitTimestamp: branch.lastCommitTimestamp }
           : {}),
@@ -1890,8 +1894,9 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         isDefault: branch.name === repo.defaultBranch,
         isProtected: branch.isProtected,
         protection: branch.isProtected ? 'require_reviews' : 'none',
-        aheadBy: 0,
-        behindBy: 0,
+        // No aheadBy/behindBy here either: a freshly created branch's
+        // divergence from the default branch equals its source's (unknown
+        // to this handler), so 0 would be invented, not measured.
       },
     });
   });

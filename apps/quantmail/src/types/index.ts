@@ -266,8 +266,10 @@ export interface Branch {
   sha: string;
   isProtected: boolean;
   protection: BranchProtection;
-  aheadBy: number;
-  behindBy: number;
+  // Optional: divergence vs the default branch is not computed by the
+  // branches endpoints — absence means "not computed", never a measured 0.
+  aheadBy?: number;
+  behindBy?: number;
   lastCommit: Commit;
 }
 
