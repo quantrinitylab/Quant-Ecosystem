@@ -289,7 +289,10 @@ export default function PersonPage() {
     }, []),
     onSelect: useCallback(() => {
       // Select by thread id so the inbox pre-selects the right row; fall back
-      // to the last message id if the thread id is absent. view=inbox is
+      // to the last message id if the thread id is absent. Either value is
+      // only a lookup key: the inbox resolves it to the row id itself
+      // (findPreselectThread), because a row's id is its newest message's
+      // id and neither a thread id nor an older message id equals it. view=inbox is
       // load-bearing: RootPage renders PeopleHome without it, and ?selected=
       // is only consumed inside InboxPageContent. The spam lens is carried
       // along: the inbox pre-selects only rows in the current lens corpus, so
