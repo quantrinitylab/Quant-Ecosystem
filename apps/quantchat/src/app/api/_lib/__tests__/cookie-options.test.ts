@@ -62,7 +62,10 @@ describe('QC-F-080 route-level Secure proof', () => {
     setNodeEnv('staging');
     const res = await logoutPOST(new NextRequest('http://localhost:3000/api/auth/logout', { method: 'POST' }));
     const setCookies = res.headers.getSetCookie();
-    expect(setCookies).toHaveLength(3);
+    // QC-F-154: 4, not 3 — the refresh cookie is expired on its canonical
+    // '/api/auth' path AND on '/' (path-mismatch would leave it alive,
+    // QC-F-154 §3.1-6). Every expired cookie still carries Secure.
+    expect(setCookies).toHaveLength(4);
     for (const cookie of setCookies) {
       expect(cookie).toContain('; Secure');
     }
@@ -95,7 +98,10 @@ describe('QC-F-080 route-level Secure proof', () => {
     const res = await refreshPOST(req);
     expect(res.status).toBe(200);
     const setCookies = res.headers.getSetCookie();
-    expect(setCookies).toHaveLength(2);
+    // QC-F-154: 3, not 2 — a successful rotation now re-sets BOTH canonical
+    // cookies (access + refresh) plus the one-release legacy `token` mirror.
+    // Every cookie still carries Secure.
+    expect(setCookies).toHaveLength(3);
     for (const cookie of setCookies) {
       expect(cookie).toContain('; Secure');
     }
@@ -177,8 +183,21 @@ describe('QC-F-080 static pin (brief case 14, frontend half)', () => {
       const source = readFileSync(file, 'utf8');
       const sites = source.match(/secure:/g) ?? [];
       const helperCalls = source.match(/secure: authCookieSecure\(\)/g) ?? [];
+      // QC-F-154: writers now delegate to the canonical session-cookies
+      // helper instead of inlining `secure:` sites — that is the same rule
+      // (the Secure decision still comes from authCookieSecure(), in exactly
+      // one place), expressed one level up.
+      const delegates = /from '[^']*session-cookies'/.test(source);
+      if (delegates) {
+        expect(sites).toHaveLength(0);
+        continue;
+      }
       expect(sites.length).toBeGreaterThan(0);
       expect(helperCalls).toHaveLength(sites.length);
     }
+    // And the canonical helper itself must route through authCookieSecure().
+    const canonical = readFileSync(join(apiDir, '_lib/session-cookies.ts'), 'utf8');
+    expect(canonical).toContain('authCookieSecure()');
+    expect(canonical).not.toContain("NODE_ENV === 'production'");
   });
 });
