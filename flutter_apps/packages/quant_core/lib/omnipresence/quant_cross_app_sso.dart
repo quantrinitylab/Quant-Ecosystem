@@ -1,6 +1,9 @@
 // Sovereign Quant Ecosystem - Cross-App SSO Session Sharing
 // Shared Keychain Access Group (group.com.quant.ecosystem) & Android SharedKeyStore definitions.
-// Guarantees that logging into QuantMail automatically signs the user into all other 9 Quant apps.
+// The shared-session vault lets a sibling app read a published session from secure
+// storage. Deep-link SSO *handoff tokens* are DISABLED (QC-F-307): the previous
+// unsigned base64 design was forgeable, so no handoff token is minted or accepted
+// until a signed / exchange-first design lands.
 // Invariants: Strictly ZERO raw Unicode emojis, ZERO Skia clipPath.
 
 import 'dart:convert';
@@ -277,65 +280,48 @@ class QuantCrossAppSsoVault {
   }
 
   /// Generates a tamper-evident ephemeral handoff payload for deep-link cross-app transitions.
+  ///
+  /// DISABLED (QC-F-307): the previous implementation merely base64-encoded an
+  /// unverified JSON payload containing the raw access and refresh tokens, while
+  /// the doc-comment claimed it was "tamper-evident". Anyone could forge such a
+  /// token for any user (aud/expiry were the only checks on the receiving side),
+  /// so this API must not be used. Always throws [UnsupportedError].
+  ///
+  /// The replacement design (when it lands) is a single-use opaque ticket that the
+  /// receiving app exchanges over a back channel (like the QuantChat backend's
+  /// POST /auth/sso/exchange). Raw access/refresh tokens must NEVER travel in a
+  /// payload or a URL.
+  @Deprecated(
+    'Disabled by QC-F-307: unsigned handoff tokens are forgeable. '
+    'No replacement API exists yet; cross-app navigation proceeds without SSO handoff.',
+  )
   String generateHandoffToken({
     required QuantSsoSharedSession session,
     required String targetAppPackage,
     Duration validity = const Duration(minutes: 5),
   }) {
-    final payload = {
-      'sub': session.userId,
-      'email': session.email,
-      'aud': targetAppPackage,
-      'iss': session.sourceAppPackage,
-      'iat': DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000,
-      'exp': DateTime.now().toUtc().add(validity).millisecondsSinceEpoch ~/ 1000,
-      'at': session.accessToken,
-      'rt': session.refreshToken,
-      'ws': session.activeWorkspaceId,
-      'name': session.userName,
-    };
-    final jsonStr = jsonEncode(payload);
-    return base64UrlEncode(utf8.encode(jsonStr));
+    throw UnsupportedError(
+      '[QuantCrossAppSso] generateHandoffToken is disabled (QC-F-307): '
+      'unsigned handoff tokens are forgeable (P0-A-class identity forgery). '
+      'Handoff will be re-enabled only with a signed or exchange-first design.',
+    );
   }
 
   /// Verifies and consumes an ephemeral deep-link handoff token.
+  ///
+  /// FAIL-CLOSED (QC-F-307): there is no signing infrastructure in the ecosystem,
+  /// so NO handoff token can be authenticated. Every token is rejected with null,
+  /// including tokens minted by the pre-QC-F-307 unsigned implementation. This is
+  /// deliberate: accepting an unverifiable payload as an identity is forgery.
   QuantSsoSharedSession? verifyHandoffToken(
     String token, {
     required String expectedTargetAppPackage,
   }) {
-    try {
-      final decodedBytes = base64Url.decode(token);
-      final jsonStr = utf8.decode(decodedBytes);
-      final payload = jsonDecode(jsonStr) as Map<String, dynamic>;
-
-      final aud = payload['aud'] as String?;
-      if (aud != null && aud != expectedTargetAppPackage && expectedTargetAppPackage.isNotEmpty) {
-        debugPrint('[QuantCrossAppSso] Handoff token audience mismatch: expected $expectedTargetAppPackage, got $aud');
-        return null;
-      }
-
-      final expSeconds = payload['exp'] as int?;
-      if (expSeconds != null) {
-        final expTime = DateTime.fromMillisecondsSinceEpoch(expSeconds * 1000, isUtc: true);
-        if (DateTime.now().toUtc().isAfter(expTime)) {
-          debugPrint('[QuantCrossAppSso] Handoff token has expired.');
-          return null;
-        }
-      }
-
-      return QuantSsoSharedSession(
-        accessToken: payload['at'] as String? ?? '',
-        refreshToken: payload['rt'] as String? ?? '',
-        userId: payload['sub'] as String? ?? '',
-        email: payload['email'] as String? ?? '',
-        activeWorkspaceId: payload['ws'] as String? ?? 'ws_default',
-        userName: payload['name'] as String? ?? 'Quant User',
-        syncTimestamp: DateTime.now().toUtc(),
-        sourceAppPackage: payload['iss'] as String? ?? 'com.quant.mail',
-      );
-    } catch (e) {
-      debugPrint('[QuantCrossAppSso] Error decoding handoff token: $e');
-      return null;
-    }
+    debugPrint(
+      '[QuantCrossAppSso] Handoff token REJECTED (QC-F-307): unsigned handoff '
+      'tokens cannot be verified, so all are rejected fail-closed. '
+      'Expected target: $expectedTargetAppPackage.',
+    );
+    return null;
   }
 }

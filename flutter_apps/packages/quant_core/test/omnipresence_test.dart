@@ -3,6 +3,8 @@
 // cross-app SSO session sharing, and multiplatform launcher dispatch.
 // Invariants: Strictly ZERO raw Unicode emojis, ZERO Skia clipPath.
 
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quant_core/quant_core.dart';
 
@@ -475,7 +477,7 @@ void main() {
       expect(acquired, isNull);
     });
 
-    test('Ephemeral deep-link handoff token generation and verification', () {
+    test('Unsigned handoff token generation is disabled (QC-F-307)', () {
       final ssoVault = QuantCrossAppSsoVault.inMemory();
 
       final ssoSession = QuantSsoSharedSession(
@@ -489,28 +491,51 @@ void main() {
         sourceAppPackage: 'com.quant.mail',
       );
 
-      // Generate handoff token specifically for QuantChat
-      final token = ssoVault.generateHandoffToken(
-        session: ssoSession,
-        targetAppPackage: 'com.quant.chat',
+      // The previous design base64-encoded raw credentials with no signature while
+      // claiming to be "tamper-evident". Minting such a token must now fail loudly
+      // instead of producing a forgeable blob.
+      expect(
+        () => ssoVault.generateHandoffToken(
+          session: ssoSession,
+          targetAppPackage: 'com.quant.chat',
+        ),
+        throwsA(isA<UnsupportedError>()),
       );
-      expect(token.isNotEmpty, isTrue);
+    });
 
-      // Valid consumption by QuantChat
-      final verified = ssoVault.verifyHandoffToken(
-        token,
+    test('Forged unsigned handoff token is rejected fail-closed (QC-F-307)', () {
+      final ssoVault = QuantCrossAppSsoVault.inMemory();
+
+      // NEGATIVE CONTROL: hand-craft exactly what the pre-QC-F-307 implementation
+      // minted — an unsigned base64 JSON payload impersonating another user, with a
+      // CORRECT audience and a FUTURE expiry. The old verifier accepted this as a
+      // real session (P0-A-class identity forgery); now it must be rejected.
+      final forgedPayload = {
+        'sub': 'victim_user_9',
+        'email': 'victim@quantmail.in',
+        'aud': 'com.quant.chat',
+        'iss': 'com.quant.mail',
+        'iat': DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000,
+        'exp': DateTime.now().toUtc().add(const Duration(minutes: 5)).millisecondsSinceEpoch ~/ 1000,
+        'at': 'forged_access_token',
+        'rt': 'forged_refresh_token',
+        'ws': 'ws_prod',
+        'name': 'Victim',
+      };
+      final forgedToken = base64Url.encode(utf8.encode(jsonEncode(forgedPayload)));
+
+      final rejected = ssoVault.verifyHandoffToken(
+        forgedToken,
         expectedTargetAppPackage: 'com.quant.chat',
       );
-      expect(verified, isNotNull);
-      expect(verified!.email, 'founder@quantmail.in');
-      expect(verified.accessToken, 'jwt_tok_secret');
-
-      // Audience mismatch rejected (e.g. malicious app trying to use QuantChat token)
-      final rejected = ssoVault.verifyHandoffToken(
-        token,
-        expectedTargetAppPackage: 'com.malicious.app',
-      );
       expect(rejected, isNull);
+
+      // Garbage input is also rejected (control: already rejected before the fix).
+      final garbage = ssoVault.verifyHandoffToken(
+        'not-a-token',
+        expectedTargetAppPackage: 'com.quant.chat',
+      );
+      expect(garbage, isNull);
     });
   });
 
@@ -579,6 +604,68 @@ void main() {
       expect(launched.path, '/watch');
       expect(launched.queryParameters['v'], 'yt_keynote_2026');
       expect(launched.queryParameters['t'], '120');
+    });
+
+    test('Native launch carries no SSO token even with a valid session (QC-F-307)', () async {
+      final launcher = QuantMockLauncherDelegate(
+        installedSchemes: {'quantmail', 'quantchat'},
+      );
+      final vault = QuantCrossAppSsoVault.inMemory();
+      await vault.publishSession(
+        QuantAuthSession(
+          accessToken: 'live_access_abc123',
+          refreshToken: 'live_refresh_def456',
+          user: const QuantUserProfile(id: 'u_live', email: 'live@quantmail.in', name: 'Live User'),
+          activeWorkspaceId: 'ws_prod',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+      final router = QuantOmniRouter(
+        currentApp: QuantAppRegistry.mail,
+        launcherDelegate: launcher,
+        ssoVault: vault,
+      );
+
+      final result = await router.openChatConversation(chatId: 'dev_team_sync');
+      expect(result.type, QuantOmniNavigationType.nativeExternal);
+      expect(result.isSuccess, isTrue);
+      expect(launcher.launchedUris.length, 1);
+      final launched = launcher.launchedUris.first;
+      expect(launched.queryParameters.containsKey('sso_token'), isFalse);
+      expect(launched.toString().contains('live_access_abc123'), isFalse);
+      expect(launched.toString().contains('live_refresh_def456'), isFalse);
+    });
+
+    test('Web fallback never carries raw credentials (QC-F-307)', () async {
+      // Only quantmail is installed; quantube is NOT installed -> web fallback.
+      final launcher = QuantMockLauncherDelegate(
+        installedSchemes: {'quantmail'},
+      );
+      final vault = QuantCrossAppSsoVault.inMemory();
+      await vault.publishSession(
+        QuantAuthSession(
+          accessToken: 'live_access_abc123',
+          refreshToken: 'live_refresh_def456',
+          user: const QuantUserProfile(id: 'u_live', email: 'live@quantmail.in', name: 'Live User'),
+          activeWorkspaceId: 'ws_prod',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        ),
+      );
+      final router = QuantOmniRouter(
+        currentApp: QuantAppRegistry.mail,
+        launcherDelegate: launcher,
+        ssoVault: vault,
+      );
+
+      // The old code put the RAW access token in ?sso_token= on the web URL.
+      final result = await router.openTubePlayer(videoId: 'yt_keynote_2026', startSeconds: 120);
+      expect(result.type, QuantOmniNavigationType.webFallback);
+      expect(result.isSuccess, isTrue);
+      expect(launcher.launchedUris.length, 1);
+      final launched = launcher.launchedUris.first;
+      expect(launched.queryParameters.containsKey('sso_token'), isFalse);
+      expect(launched.toString().contains('live_access_abc123'), isFalse);
+      expect(launched.toString().contains('live_refresh_def456'), isFalse);
     });
 
     test('OmniRouter shortcuts correctly build routes across ecosystem', () async {
