@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { setSessionCookies } from '../../../_lib/session-cookies';
 
 const BACKEND_URL =
   process.env.QUANTCHAT_BACKEND_URL ||
@@ -41,10 +42,28 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ ssoToken }),
     });
     const data = await res.json().catch(() => null);
-    return NextResponse.json(
+    const resp = NextResponse.json(
       data ?? { success: false, error: { code: 'EXCHANGE_FAILED', message: 'SSO exchange failed' } },
       { status: res.status },
     );
+    // QC-F-154 (Slice-1 / Release A): make the exchanged pair the canonical
+    // HttpOnly session cookies. The body still carries the tokens for the old
+    // client (Release B stops reading it); the LoginPage
+    // `refreshToken || accessToken` fallback dies with Release B, and until
+    // then a refresh that is absent simply means no refresh cookie is set —
+    // the access token is NEVER stored in the refresh cookie's place.
+    if (res.ok) {
+      const issued = (data as { data?: { accessToken?: unknown; refreshToken?: unknown } } | null)?.data;
+      const accessToken = issued?.accessToken;
+      if (typeof accessToken === 'string' && accessToken) {
+        const refreshToken = issued?.refreshToken;
+        setSessionCookies(resp, {
+          accessToken,
+          refreshToken: typeof refreshToken === 'string' && refreshToken ? refreshToken : undefined,
+        });
+      }
+    }
+    return resp;
   } catch {
     return NextResponse.json(
       {
