@@ -3760,7 +3760,9 @@ Scope: packages/agent-runtime/src/orchestrator.ts; approval queue/engine; task s
 Dependencies: QM-BACK-005; QM-QUANTY-001; canonical approval/step-up contract.
 
 ## QM-QUANTY-010 — Quanty external MCP must have a real transport plus server/tool policy enforcement
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-quanty-010-real-mcp-transports
 Finding: apps/quantai/backend/services/mcp-bridge.service.ts defines external MCP registration/discovery/invocation but its default transport is NullMcpTransport, and repository search found no concrete implementation of this bridge McpTransport interface. The service comment says real adapters are wired in staging, but the checked code does not provide them. invokeTool also forwards the requested tool and args without bridge-level schema/risk/policy validation.
 Required: ship audited HTTP and stdio MCP transports with handshake, timeout, cancellation, TLS/endpoint validation, connection limits, subprocess sandboxing and secret isolation. After tools/list, validate/normalize schemas, assign stable capability IDs and risk tiers, and require policy before tools/call. Validate args against schema, bound payload/output size, redact sensitive output and emit audit/correlation data. Refresh cached capabilities on list changes.
 For stdio, prevent arbitrary executable/arg/env injection; use allowlisted runtime images/commands or a sandbox with CPU/memory/network/filesystem limits. For HTTP, prevent SSRF to internal/private networks. Add MCP conformance tests for initialize/list/call, malformed responses, poisoning, schema mismatch, oversized output, timeout, disconnect and reconnect.
