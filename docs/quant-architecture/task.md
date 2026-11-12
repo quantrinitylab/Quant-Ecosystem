@@ -58,7 +58,9 @@ Required: evidence-backed security language and centralized security copy.
 Dependencies: QM-AUTH-001.
 
 ## QM-AUTH-004 — Safe login result/navigation state
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-auth-004-safe-login-result-state
 Scope: login result banners, safe return handling.
 Finding: arbitrary success query text can be rendered as trusted success copy.
 Required: allowlisted result codes or authenticated internal navigation state; never treat URL prose as server evidence.
