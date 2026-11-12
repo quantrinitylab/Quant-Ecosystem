@@ -327,7 +327,9 @@ Required: separate ASR confidence/entity confidence/risk; resolve recipient; dra
 Dependencies: QM-QUANTY-001; auth/session bootstrap.
 
 ## QM-QUANTY-004 — Cross-app Quanty task graph from QuantMail
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-quanty-004-cross-app-task-graph
 Example: Email Rahul and then open QuantMax.
 Required: typed task graph, parallel/background work, foreground navigation, clarification node, cancellation, unknown outcome, verification and scoped handoff capability.
 Dependencies: ecosystem handoff + Quanty task graph architecture.
