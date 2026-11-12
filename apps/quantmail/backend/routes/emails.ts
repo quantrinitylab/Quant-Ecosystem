@@ -163,6 +163,26 @@ function mutationOpts(
   };
 }
 
+/**
+ * Validate and extract optional boolean flag target from body.
+ * If undefined or empty object, returns undefined (toggle mode).
+ * If present and boolean, returns the boolean.
+ * If present and non-boolean (including null), throws 400 INVALID_FLAG_VALUE.
+ */
+export function parseFlagTarget(body: unknown): boolean | undefined {
+  if (body === undefined || body === null || typeof body !== 'object') {
+    return undefined;
+  }
+  if (!('isFlagged' in body)) {
+    return undefined;
+  }
+  const val = (body as Record<string, unknown>).isFlagged;
+  if (typeof val === 'boolean') {
+    return val;
+  }
+  throw createAppError('isFlagged must be a boolean', 400, 'INVALID_FLAG_VALUE');
+}
+
 async function getOrCreateFolder(
   prisma: PrismaClient,
   userId: string,
@@ -2127,6 +2147,23 @@ export default async function emailsRoutes(
     const service = new EmailService(prisma);
     // QM-BACK-002: guard + correlation for the pin mutation.
     const email = await service.togglePin(request.params.id, userId, mutationOpts(request, reply));
+
+    return reply.send({ success: true, data: formatEmailRecord(email) });
+  });
+
+  // POST /emails/:id/flag — set or toggle flag. Independent from star and pin.
+  fastify.post<{ Params: { id: string } }>('/:id/flag', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const target = parseFlagTarget(request.body);
+    const opts = mutationOpts(request, reply);
+
+    const prisma = getPrisma(fastify);
+    const service = new EmailService(prisma);
+    const email = await service.setFlagged(request.params.id, userId, target, opts);
 
     return reply.send({ success: true, data: formatEmailRecord(email) });
   });

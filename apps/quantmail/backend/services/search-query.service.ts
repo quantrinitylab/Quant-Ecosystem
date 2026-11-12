@@ -481,7 +481,7 @@ export class SearchQueryService {
         // by the /search/emails route) keeps the attachment clip icon and
         // label filters honest: it derives `hasAttachments` from the
         // attachments array, and the client's chip matcher reads `labels`.
-        const dataSql = `SELECT id, "userId", "folderId", "threadId", "fromAddress", "fromName", "toAddresses", "ccAddresses", "bccAddresses", subject, "bodyPlain", snippet, "isRead", "isStarred", "isArchived", "isDraft", "isTrash", "isSpam", "hasAttachments", "attachments", "labels", "createdAt", "receivedAt", "sentAt" FROM emails WHERE ${whereSql} ORDER BY "receivedAt" DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
+        const dataSql = `SELECT id, "userId", "folderId", "threadId", "fromAddress", "fromName", "toAddresses", "ccAddresses", "bccAddresses", subject, "bodyPlain", snippet, "isRead", "isStarred", "isFlagged", "isArchived", "isDraft", "isTrash", "isSpam", "hasAttachments", "attachments", "labels", "createdAt", "receivedAt", "sentAt" FROM emails WHERE ${whereSql} ORDER BY "receivedAt" DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
 
         const [countRes, data] = await Promise.all([
           (this.prisma as any).$queryRawUnsafe(countSql, ...params),
