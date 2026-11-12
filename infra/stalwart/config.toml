@@ -1,0 +1,189 @@
+# ============================================================================
+# Stalwart Mail Server Configuration (v0.8+)
+# QuantMail Open-Source Mail Engine Production & Development Topology
+#
+# Protocols & Features:
+#   - JMAP (RFC 8620, RFC 8621, RFC 8622) on port 8080
+#   - IMAP4rev2 (RFC 9051) on port 143 (STARTTLS) and 993 (Implicit TLS)
+#   - SMTP / Submission (RFC 5321, RFC 6409) on port 25, 587, and 465
+#   - Sieve Mail Filtering (RFC 5228, RFC 5804)
+#   - Automated DKIM, SPF, DMARC, and ARC signing / validation
+#   - PostgreSQL Directory & Metadata Store
+#   - S3 / Cloudflare R2 Blob Storage
+# ============================================================================
+
+[server]
+hostname = "%{env:STALWART_HOSTNAME:-mail.quantmail.internal}%"
+base-path = "%{env:STALWART_BASE_PATH:-/opt/stalwart-mail}%"
+
+# ----------------------------------------------------------------------------
+# Network Listeners
+# ----------------------------------------------------------------------------
+
+[server.listener."smtp"]
+bind = ["0.0.0.0:25", "[::]:25"]
+protocol = "smtp"
+
+[server.listener."submission"]
+bind = ["0.0.0.0:587", "[::]:587"]
+protocol = "smtp"
+tls.implicit = false
+
+[server.listener."submissions"]
+bind = ["0.0.0.0:465", "[::]:465"]
+protocol = "smtp"
+tls.implicit = true
+
+[server.listener."imap"]
+bind = ["0.0.0.0:143", "[::]:143"]
+protocol = "imap"
+tls.implicit = false
+
+[server.listener."imaps"]
+bind = ["0.0.0.0:993", "[::]:993"]
+protocol = "imap"
+tls.implicit = true
+
+[server.listener."jmap"]
+bind = ["0.0.0.0:8080", "[::]:8080"]
+protocol = "http"
+
+[server.listener."management"]
+bind = ["127.0.0.1:8081", "[::1]:8081"]
+protocol = "http"
+
+# ----------------------------------------------------------------------------
+# TLS Certificates
+# ----------------------------------------------------------------------------
+
+[certificate."default"]
+cert = "%{env:STALWART_TLS_CERT:-/etc/ssl/certs/mail.crt}%"
+private-key = "%{env:STALWART_TLS_KEY:-/etc/ssl/private/mail.key}%"
+
+# ----------------------------------------------------------------------------
+# Directory & Authentication (PostgreSQL Integration)
+# ----------------------------------------------------------------------------
+
+[directory."sql"]
+type = "sql"
+driver = "postgres"
+address = "%{env:DATABASE_HOST:-localhost}%"
+port = "%{env:DATABASE_PORT:-5432}%"
+database = "%{env:DATABASE_NAME:-quantmail}%"
+user = "%{env:DATABASE_USER:-quant}%"
+secret = "%{env:DATABASE_PASSWORD}%"
+pool.max-connections = 30
+pool.idle-timeout = "10m"
+
+[directory."sql".query]
+principal = """
+SELECT id, email AS name, 'individual' AS type, password_hash AS secret,
+       COALESCE(quota_bytes, 10737418240) AS quota, TRUE AS enabled
+FROM users
+WHERE email = $1 OR username = $1;
+"""
+members = """
+SELECT member_email AS name
+FROM group_members
+WHERE group_email = $1;
+"""
+recipients = """
+SELECT email AS name
+FROM users
+WHERE email = $1;
+"""
+
+# ----------------------------------------------------------------------------
+# Storage Architecture: SQL Metadata + S3/R2 Object Storage for Blobs
+# ----------------------------------------------------------------------------
+
+[store."sql"]
+type = "sql"
+driver = "postgres"
+address = "%{env:DATABASE_HOST:-localhost}%"
+port = "%{env:DATABASE_PORT:-5432}%"
+database = "%{env:DATABASE_NAME:-quantmail}%"
+user = "%{env:DATABASE_USER:-quant}%"
+secret = "%{env:DATABASE_PASSWORD}%"
+
+[store."s3"]
+type = "s3"
+bucket = "%{env:STALWART_S3_BUCKET:-quantmail-blobs}%"
+region = "%{env:AWS_REGION:-auto}%"
+endpoint = "%{env:STALWART_S3_ENDPOINT:-https://r2.cloudflarestorage.com}%"
+credentials.access-key-id = "%{env:AWS_ACCESS_KEY_ID:-}%"
+credentials.secret-access-key = "%{env:AWS_SECRET_ACCESS_KEY:-}%"
+
+[storage]
+data = "sql"
+fts = "sql"
+blob = "s3"
+lookup = "sql"
+
+# ----------------------------------------------------------------------------
+# JMAP Server (RFC 8620, RFC 8621, RFC 8622)
+# ----------------------------------------------------------------------------
+
+[jmap]
+url = "http://%{env:STALWART_HOSTNAME:-localhost}:8080"
+upload-limit = 52428800 # 50 MB
+max-size-attachments-per-email = 52428800
+
+# ----------------------------------------------------------------------------
+# IMAP4rev2 Server (RFC 9051)
+# ----------------------------------------------------------------------------
+
+[imap]
+auth.mechanisms = ["plain", "login"]
+auth.allow-plain-text = false
+
+# ----------------------------------------------------------------------------
+# SMTP / Submission (RFC 5321, RFC 6409)
+# ----------------------------------------------------------------------------
+
+[smtp]
+auth.mechanisms = ["plain", "login"]
+auth.allow-plain-text = false
+
+[smtp.outbound]
+hostname = "%{env:STALWART_HOSTNAME:-mail.quantmail.internal}%"
+timeout = "30s"
+
+# ----------------------------------------------------------------------------
+# DKIM Signing
+# ----------------------------------------------------------------------------
+
+[signature."quantmail-dkim"]
+domain = "%{env:MAIL_SENDER_DOMAIN:-quantmail.app}%"
+selector = "%{env:DKIM_SELECTOR:-default}%"
+private-key = "%{env:DKIM_PRIVATE_KEY_PATH:-/etc/quant/dkim/default.private}%"
+headers = ["From", "To", "Subject", "Date", "Message-ID", "Reply-To", "Cc", "MIME-Version", "Content-Type"]
+algorithm = "rsa-sha256"
+canonicalization = "relaxed/relaxed"
+
+# ----------------------------------------------------------------------------
+# Sieve Mail Filtering (RFC 5228, RFC 5804)
+# ----------------------------------------------------------------------------
+
+[sieve]
+enabled = true
+max-script-size = 1048576 # 1 MB
+max-scripts-per-user = 10
+trusted-extensions = [
+  "fileinto",
+  "reject",
+  "envelope",
+  "body",
+  "relational",
+  "subaddress",
+  "copy",
+  "vacation"
+]
+
+# ----------------------------------------------------------------------------
+# Management REST API
+# ----------------------------------------------------------------------------
+
+[management]
+enabled = true
+admin-token = "%{env:STALWART_ADMIN_SECRET}%"

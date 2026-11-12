@@ -62,7 +62,12 @@ async function main(): Promise<void> {
 }
 
 // Only auto-start when executed directly (not when imported by tests).
-if (process.argv[1] && process.argv[1].endsWith('worker.ts')) {
+if (
+  process.argv[1] &&
+  (process.argv[1].endsWith('worker.ts') ||
+    process.argv[1].endsWith('worker.mjs') ||
+    process.argv[1].endsWith('worker.js'))
+) {
   void main();
 }
 

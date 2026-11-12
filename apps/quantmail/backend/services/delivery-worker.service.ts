@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { resolveMx as dnsResolveMx } from 'node:dns/promises';
 import { createConnection } from 'node:net';
+import { connect as connectTls } from 'node:tls';
 import type { PrismaClient, Email } from '@prisma/client';
 import { createAppError, isAppError } from '@quant/server-core';
 import {
@@ -131,6 +132,11 @@ export interface SmtpDeliveryParams {
   from: string;
   recipient: string;
   rawMessage: string;
+  auth?: {
+    user: string;
+    pass: string;
+  };
+  secure?: boolean;
 }
 
 /** Port for transmitting a message to a recipient's MX host over SMTP. */
@@ -175,15 +181,29 @@ export class NetSmtpTransport implements SmtpTransport {
   send(params: SmtpDeliveryParams): Promise<SmtpResult> {
     const port = params.port ?? 25;
     return new Promise<SmtpResult>((resolve) => {
-      const socket = createConnection({ host: params.mxHost, port });
-      const steps = [
-        `EHLO ${this.heloName}`,
+      const socket =
+        params.secure || port === 465
+          ? connectTls({
+              host: params.mxHost,
+              port,
+              rejectUnauthorized: process.env['NODE_ENV'] === 'production',
+            })
+          : createConnection({ host: params.mxHost, port });
+
+      const steps: string[] = [`EHLO ${this.heloName}`];
+      if (params.auth && params.auth.user && params.auth.pass) {
+        const authPayload = Buffer.from(`\0${params.auth.user}\0${params.auth.pass}`).toString(
+          'base64',
+        );
+        steps.push(`AUTH PLAIN ${authPayload}`);
+      }
+      steps.push(
         `MAIL FROM:<${params.from}>`,
         `RCPT TO:<${params.recipient}>`,
         'DATA',
         `${params.rawMessage}\r\n.`,
         'QUIT',
-      ];
+      );
       let step = -1;
       let lastResponse = '';
 
@@ -203,7 +223,14 @@ export class NetSmtpTransport implements SmtpTransport {
 
       socket.on('data', (chunk: string) => {
         lastResponse = chunk.trim();
-        const code = Number.parseInt(lastResponse.slice(0, 3), 10);
+        const lines = lastResponse.split(/\r?\n/);
+        const lastLine = lines[lines.length - 1] ?? '';
+        // Multiline replies continue with a hyphen (e.g. 250-); wait for final line (e.g. 250 )
+        if (/^\d{3}-/.test(lastLine)) {
+          return;
+        }
+
+        const code = Number.parseInt(lastLine.slice(0, 3) || lastResponse.slice(0, 3), 10);
         if (Number.isNaN(code)) {
           return;
         }

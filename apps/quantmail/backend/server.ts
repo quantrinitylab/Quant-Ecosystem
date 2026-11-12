@@ -9,10 +9,15 @@ import { buildWorker } from './worker.js';
 async function main(): Promise<void> {
   const config = getConfig();
   const app = await buildApp(config);
-  const deliveryWorker = buildWorker();
+  const enableEmbeddedWorker = process.env['ENABLE_EMBEDDED_WORKER'] !== 'false';
+  const deliveryWorker = enableEmbeddedWorker ? buildWorker() : null;
 
   await app.listen({ port: config.port, host: config.host });
-  app.log.info('outbound delivery worker started');
+  if (deliveryWorker) {
+    app.log.info('outbound delivery worker started');
+  } else {
+    app.log.info('embedded outbound delivery worker disabled (ENABLE_EMBEDDED_WORKER=false)');
+  }
 
   let shuttingDown = false;
   const shutdown = async (signal: string) => {
@@ -23,7 +28,9 @@ async function main(): Promise<void> {
     try {
       // Stop queue consumption before closing the app and its shared database
       // resources so in-flight delivery state is persisted safely.
-      await deliveryWorker.close();
+      if (deliveryWorker) {
+        await deliveryWorker.close();
+      }
       await app.close();
       process.exit(0);
     } catch (error) {
