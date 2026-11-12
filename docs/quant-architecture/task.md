@@ -50,7 +50,9 @@ Do not: squeeze desktop onto mobile; invent security claims; replace working aut
 Dependencies: QM-AUTH-001.
 
 ## QM-AUTH-003 — Truthful auth/security copy
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-auth-003-truthful-security-copy
 Finding: current login brand panel claims end-to-end encryption while QuantMail settings explicitly state the product is not end-to-end encrypted.
 Required: evidence-backed security language and centralized security copy.
 Dependencies: QM-AUTH-001.
