@@ -1,5 +1,5 @@
 name: quant_chat
-description: 'Sovereign E2EE WhatsApp & Signal Killer Flutter Application for Quant Ecosystem.'
+description: 'QuantChat messaging application for the Quant Ecosystem.'
 version: 1.0.0
 homepage: https://quantchat.in
 publish_to: 'none'
@@ -17,6 +17,9 @@ dependencies:
     path: ../../packages/quant_ui
   quant_core:
     path: ../../packages/quant_core
+  # BSD-3 (flutter.dev). Used by QuickCaptureScreen for addressed quick snaps.
+  # Same version as the Phase 1A camera tab to keep future merges clean.
+  camera: ^0.10.5+9
 
 dev_dependencies:
   flutter_test:
