@@ -1242,6 +1242,14 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/pin`, {});
   }
 
+  async setFlagged(id: string, flagged: boolean): Promise<ApiResponse<Email>> {
+    return this.post(
+      `/emails/${id}/flag`,
+      { isFlagged: flagged },
+      { idempotencyKey: mintIdempotencyKey() },
+    );
+  }
+
   async markAsRead(id: string): Promise<ApiResponse<{ message: string }>> {
     return this.post(`/emails/${id}/read`, {});
   }

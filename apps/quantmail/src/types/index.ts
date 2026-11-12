@@ -65,6 +65,7 @@ export interface Email extends BaseEntity {
   isRead: boolean;
   isStarred: boolean;
   isPinned?: boolean;
+  isFlagged?: boolean;
   isArchived: boolean;
   isDraft: boolean;
   isSpam?: boolean;
@@ -138,6 +139,7 @@ export interface EmailThread extends BaseEntity {
   isRead: boolean;
   isStarred: boolean;
   isPinned?: boolean;
+  isFlagged?: boolean;
   labels: string[];
   snippet: string;
   messages: Email[];

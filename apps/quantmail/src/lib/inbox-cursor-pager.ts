@@ -53,6 +53,19 @@ export class InboxCursorPager {
     this.extended = false;
   }
 
+  patch(patched: Map<string, Email>): boolean {
+    let changed = false;
+    this.tail = this.tail.map((email) => {
+      const replacement = patched.get(email.id);
+      if (replacement) {
+        changed = true;
+        return replacement;
+      }
+      return email;
+    });
+    return changed;
+  }
+
   merge(firstPage: Email[]): Email[] {
     if (this.tail.length === 0) return firstPage;
     const seen = new Set(firstPage.map((email) => email.id));

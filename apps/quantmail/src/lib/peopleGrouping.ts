@@ -299,6 +299,9 @@ function collapseDuplicateSends(messages: Email[]): Email[] {
       isPinned:
         Boolean((twin as { isPinned?: boolean }).isPinned) ||
         Boolean((message as { isPinned?: boolean }).isPinned),
+      isFlagged:
+        Boolean((twin as { isFlagged?: boolean }).isFlagged) ||
+        Boolean((message as { isFlagged?: boolean }).isFlagged),
       snippet: twin.snippet || message.snippet,
       threadId: twin.threadId || message.threadId,
       collapsedIds: Array.from(

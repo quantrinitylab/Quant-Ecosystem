@@ -1563,4 +1563,51 @@ describe('threadMessageIds', () => {
     expect(threadMessageIds(undefined)).toEqual([]);
     expect(threadMessageIds({ id: 'm1' } as ConversationThread)).toEqual([]);
   });
+
+  describe('isFlagged grouping (AC-14)', () => {
+    it('sets isFlagged = true when 1 of 3 messages is flagged, and false when none flagged', () => {
+      const threadWithOneFlagged = groupEmailsIntoThreads([
+        email({ subject: 'Thread 1', isFlagged: false }),
+        email({ subject: 'Thread 1', isFlagged: true }),
+        email({ subject: 'Thread 1', isFlagged: false }),
+      ]);
+      expect(threadWithOneFlagged).toHaveLength(1);
+      expect(threadWithOneFlagged[0].isFlagged).toBe(true);
+
+      const threadWithNoneFlagged = groupEmailsIntoThreads([
+        email({ subject: 'Thread 2', isFlagged: false }),
+        email({ subject: 'Thread 2', isFlagged: false }),
+        email({ subject: 'Thread 2', isFlagged: false }),
+      ]);
+      expect(threadWithNoneFlagged).toHaveLength(1);
+      expect(threadWithNoneFlagged[0].isFlagged).toBe(false);
+    });
+
+    it('folds two copies of one send with one flagged into a flagged message', () => {
+      const now = new Date('2026-01-01T12:00:00Z');
+      const threads = groupEmailsIntoThreads([
+        email({
+          subject: 'Duplicate Send',
+          from: { email: 'me@test.com' },
+          to: [{ email: 'me@test.com' }],
+          sentAt: now,
+          isSent: true,
+          isFlagged: false,
+        }),
+        email({
+          subject: 'Duplicate Send',
+          from: { email: 'me@test.com' },
+          to: [{ email: 'me@test.com' }],
+          sentAt: now,
+          isSent: false,
+          isFlagged: true,
+        }),
+      ], 'me@test.com');
+
+      expect(threads).toHaveLength(1);
+      expect(threads[0].isFlagged).toBe(true);
+      expect(threads[0].messages).toHaveLength(1);
+      expect(threads[0].messages[0].isFlagged).toBe(true);
+    });
+  });
 });
