@@ -188,7 +188,9 @@ Required: devices/sessions, 2FA setup/verify/recovery, privacy controls, Quanty 
 Dependencies: QM-AUTH-007/008; platform step-up task.
 
 ## QM-WORK-011 — Admin Domains + DLP/Audit
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-work-011-admin-domains-dlp-audit
 Scope: M19/M20.
 Required: domain administration, DLP policy, audit explorer, RBAC, tenant isolation, immutable/auditable admin actions, export/deletion/legal-hold integration.
 Dependencies: security/audit backend contracts.
