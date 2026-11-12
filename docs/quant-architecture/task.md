@@ -174,7 +174,9 @@ Required: durable notification center, grouping/dedupe, read/unread, action reau
 Dependencies: notification architecture 20; workspace shell.
 
 ## QM-WORK-009 — Universal cross-app search
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-work-009-universal-search
 Scope: M13.
 Required: authorization-aware federation across permitted Mail/Calendar/Drive/Contacts/QuantGit resources; source hydration; stale ACL protection; deletion invalidation.
 Dependencies: ecosystem resource/context contract; search architecture.
