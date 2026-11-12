@@ -166,7 +166,9 @@ Required: event details, attendees, recurrence, mail relation, Drive artifacts, 
 Dependencies: QM-WORK-004.
 
 ## QM-WORK-008 — Notifications center completion
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-work-008-notifications-center
 Scope: M15 notification center + notification API/bell.
 Required: durable notification center, grouping/dedupe, read/unread, action reauthorization, privacy/lock-screen behavior, cross-app events.
 Dependencies: notification architecture 20; workspace shell.
