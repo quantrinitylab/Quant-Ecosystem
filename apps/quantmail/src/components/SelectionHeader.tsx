@@ -64,11 +64,14 @@ export interface SelectionHeaderProps {
   totalVisible: number;
   /** Drives Pin/Unpin, which is one toggle rather than two menu rows. */
   allPinned: boolean;
+  /** Drives Flag/Unflag (S1), which sets all to unflagged if all flagged, else flags all. */
+  allFlagged?: boolean;
   /** When true, the Archive control becomes "Move to inbox" (unarchive). */
   isArchiveView?: boolean;
   onDeselectAll: () => void;
   onSelectAllVisible: () => void;
   onTogglePin: () => void;
+  onToggleFlag?: () => void;
   onMarkRead: () => void;
   onMarkUnread: () => void;
   /** Available for one selected conversation; teaches future sender sorting. */
@@ -83,10 +86,12 @@ export function SelectionHeader({
   count,
   totalVisible,
   allPinned,
+  allFlagged = false,
   isArchiveView,
   onDeselectAll,
   onSelectAllVisible,
   onTogglePin,
+  onToggleFlag,
   onMarkRead,
   onMarkUnread,
   onMoveToCategory,
@@ -165,7 +170,7 @@ export function SelectionHeader({
           scope="selection-more"
           // Four rows plus a divider. Only used to keep the menu on screen when the
           // trigger sits near the bottom edge, which this one never does.
-          height={count === 1 && onMoveToCategory ? 460 : 220}
+          height={(count === 1 && onMoveToCategory ? 460 : 220) + (onToggleFlag ? 40 : 0)}
         >
           {(close) => {
             // "Select all" is a selection command; the rest act on what is already
@@ -209,6 +214,22 @@ export function SelectionHeader({
                       {allPinned ? 'Unpin' : 'Pin to top'}
                     </span>
                   </button>
+                  {onToggleFlag && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="snooze-option"
+                      onClick={() => {
+                        onToggleFlag();
+                        close();
+                      }}
+                    >
+                      <span className="inline-flex items-center gap-2.5">
+                        <MailIcon name="flag" filled={allFlagged} className="size-4 shrink-0" />
+                        {allFlagged ? 'Unflag' : 'Flag'}
+                      </span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     role="menuitem"

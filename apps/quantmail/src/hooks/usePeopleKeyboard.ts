@@ -408,7 +408,7 @@ export function usePeopleKeyboard(options: UsePeopleKeyboardOptions): PeopleKeyb
       ...peopleCommand('inbox.pin'),
       scope: SCOPE,
       icon: 'star',
-      keywords: ['flag', 'pin', 'important', 'star'],
+      keywords: ['pin', 'important', 'star'],
       enabled: () => focusedRow !== null,
       run: () => {
         if (focusedRow) void mutations.toggleStar(idsOf(focusedRow));

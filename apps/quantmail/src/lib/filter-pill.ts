@@ -38,24 +38,25 @@
 export type FilterPillTurn = 'any' | 'needs_you' | 'waiting';
 
 /** The filter values the page's `InboxFilter` type carries. */
-export type FilterPillFilter = 'starred' | 'attachment';
+export type FilterPillFilter = 'starred' | 'attachment' | 'flagged';
 
 /** One applied narrowing, as the page renders it. */
 export type FilterPill =
   | { kind: 'turn'; key: 'turn:needs_you' | 'turn:waiting'; label: string }
-  | { kind: 'filter'; key: 'filter:starred' | 'filter:attachment'; label: string };
+  | { kind: 'filter'; key: 'filter:starred' | 'filter:attachment' | 'filter:flagged'; label: string };
 
 /** Canonical filter order, matching the page's `INBOX_FILTERS`. */
-const FILTER_ORDER: FilterPillFilter[] = ['starred', 'attachment'];
+export const FILTER_ORDER: FilterPillFilter[] = ['starred', 'attachment', 'flagged'];
 
 const TURN_LABELS: Record<Exclude<FilterPillTurn, 'any'>, string> = {
   needs_you: 'Your turn',
   waiting: 'Their turn',
 };
 
-const FILTER_LABELS: Record<FilterPillFilter, string> = {
+export const FILTER_LABELS: Record<FilterPillFilter, string> = {
   starred: 'Pinned',
   attachment: 'Has attachment',
+  flagged: 'Flagged',
 };
 
 /**

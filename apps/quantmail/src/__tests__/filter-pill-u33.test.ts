@@ -48,13 +48,17 @@ describe('U3.3 (1) one pill per narrowing, turn first, canonical order', () => {
     expect(deriveFilterPills('any', new Set(['attachment']))).toEqual([
       { kind: 'filter', key: 'filter:attachment', label: 'Has attachment' },
     ]);
+    expect(deriveFilterPills('any', new Set(['flagged']))).toEqual([
+      { kind: 'filter', key: 'filter:flagged', label: 'Flagged' },
+    ]);
   });
 
-  it('orders turn first, then filters canonically, not by insertion order', () => {
-    expect(deriveFilterPills('waiting', new Set(['attachment', 'starred']))).toEqual([
+  it('orders turn first, then filters canonically (pinned, attachment, flagged), not by insertion order', () => {
+    expect(deriveFilterPills('waiting', new Set(['flagged', 'attachment', 'starred']))).toEqual([
       { kind: 'turn', key: 'turn:waiting', label: 'Their turn' },
       { kind: 'filter', key: 'filter:starred', label: 'Pinned' },
       { kind: 'filter', key: 'filter:attachment', label: 'Has attachment' },
+      { kind: 'filter', key: 'filter:flagged', label: 'Flagged' },
     ]);
     expect(areFilterPillsVisible(deriveFilterPills('any', new Set(['starred'])))).toBe(true);
   });
@@ -81,6 +85,16 @@ describe('U3.3 (2) per-pill X removes only that narrowing', () => {
     });
     expect(next.turn).toBe('waiting');
     expect(next.filters).toEqual(new Set(['attachment']));
+  });
+
+  it('removes only flagged filter when flagged pill is removed', () => {
+    const filters = new Set(['starred', 'flagged'] as const);
+    const next = removeFilterPill('any', filters, {
+      kind: 'filter',
+      key: 'filter:flagged',
+      label: 'Flagged',
+    });
+    expect(next.filters).toEqual(new Set(['starred']));
   });
 
   it('never mutates the input set', () => {
@@ -153,5 +167,14 @@ describe('U3.3 (4) filtered-empty state names the active view honestly', () => {
         pillLabels: ['Your turn', 'Pinned', 'Has attachment'],
       }),
     ).toBe('No conversation in All matches Your turn, Pinned, and Has attachment.');
+  });
+
+  it('describes empty view naming Flagged pill (AC-21)', () => {
+    expect(
+      describeEmptyView({
+        lensLabel: 'All',
+        pillLabels: ['Flagged'],
+      }),
+    ).toBe('No conversation in All matches Flagged.');
   });
 });

@@ -25,6 +25,7 @@ export type MailIconName =
   | 'search'
   | 'star'
   | 'pin'
+  | 'flag'
   | 'trash'
   | 'reply'
   | 'forward'
@@ -101,6 +102,12 @@ const PATHS: Record<MailIconName, ReactNode> = {
       <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
     </>
   ),
+  flag: (
+    <>
+      <path d="M4 15s1-1 4-1 5 2 8 2V4s-1 1-4 1-5-2-8-2v15" />
+      <line x1="4" y1="22" x2="4" y2="15" />
+    </>
+  ),
   trash: (
     <>
       <path d="M3 6h18" />
@@ -139,15 +146,17 @@ const PATHS: Record<MailIconName, ReactNode> = {
 export function MailIcon({
   name,
   className = 'h-4 w-4',
+  filled = false,
 }: {
   name: MailIconName;
   className?: string;
+  filled?: boolean;
 }) {
   return (
     <svg
       className={className}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
       strokeWidth="1.8"
       strokeLinecap="round"
