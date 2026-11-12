@@ -22,9 +22,9 @@
     "@quant/common": "workspace:*",
     "@quant/database": "workspace:*",
     "@simplewebauthn/server": "^13.3.2",
-    "argon2": "^0.43.0",
+    "argon2": "^0.45.2",
     "jose": "^6.0.11",
-    "openpgp": "^6.3.0",
+    "openpgp": "^6.3.2",
     "otplib": "^12.0.1",
     "@prisma/client": "^6.19.3"
   },
