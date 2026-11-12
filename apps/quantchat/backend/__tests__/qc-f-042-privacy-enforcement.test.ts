@@ -496,6 +496,11 @@ describe('QC-F-277 whoCanMessage: addMember gate', () => {
           added.push(row as Record<string, unknown>);
           return row;
         },
+        // QC-F-518 fixture support: addMember probes for a left row to
+        // revive before creating; this harness models no left rows.
+        async updateMany() {
+          return { count: 0 };
+        },
       },
       user: {
         async findUnique(args: unknown) {

@@ -318,6 +318,23 @@ export class QuantChatApiClient {
     return this.get(`/conversations/${conversationId}`);
   }
 
+  /**
+   * QC-F-518: update conversation fields (PUT /conversations/:id). The
+   * historyVisibility toggle rides this route — the backend gates it to
+   * conversation admins and rejects it on direct conversations.
+   */
+  async updateConversation(
+    conversationId: string,
+    patch: {
+      name?: string;
+      description?: string;
+      isArchived?: boolean;
+      historyVisibility?: 'visible' | 'hidden';
+    },
+  ): Promise<ApiResponse<Conversation>> {
+    return this.put(`/conversations/${conversationId}`, patch);
+  }
+
   async getMessages(
     conversationId: string,
     limit?: number,

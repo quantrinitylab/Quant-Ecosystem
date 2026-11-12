@@ -37,6 +37,8 @@ interface ChannelFeedPage {
   messages: ChannelMessageView[];
   hasMore: boolean;
   nextCursor: string | null;
+  /** QC-F-518: true when this caller's feed was bounded at their join. */
+  historyHidden?: boolean;
 }
 
 /**

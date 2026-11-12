@@ -548,6 +548,7 @@ model Conversation {
   themeId       String?
   disappearTimer Int?            // seconds, null = no timer
   isArchived    Boolean          @default(false)
+  historyVisibility HistoryVisibility @default(VISIBLE)
   lastMessageAt DateTime?
   metadata      Json             @default("{}")
   createdAt     DateTime         @default(now())
@@ -567,6 +568,11 @@ enum ConversationType {
   DIRECT
   GROUP
   CHANNEL
+}
+
+enum HistoryVisibility {
+  VISIBLE
+  HIDDEN
 }
 
 model ConversationMember {

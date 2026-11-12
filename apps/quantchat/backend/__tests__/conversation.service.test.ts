@@ -40,6 +40,10 @@ function createMockPrisma() {
       count: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      // QC-F-518 fixture support: addMember now probes for a left row to
+      // revive (updateMany) before creating. This harness models no left
+      // rows, so the probe honestly answers count 0.
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
       return fn({
