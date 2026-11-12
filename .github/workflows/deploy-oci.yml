@@ -171,7 +171,8 @@ jobs:
           case "$TARGET" in
             quantmail)
               images="quant-oci-quantmail-frontend:apps/quantmail/Dockerfile quant-oci-quantmail-backend:apps/quantmail/Dockerfile.backend"
-              compose_services="quantmail-frontend quantmail-backend" ;;
+              compose_services="quantmail-frontend quantmail-backend"
+              runs_migrations=true ;;
             quantmail-backend)
               images="quant-oci-quantmail-backend:apps/quantmail/Dockerfile.backend"
               compose_services="quantmail-backend"

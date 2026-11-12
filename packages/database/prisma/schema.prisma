@@ -737,6 +737,8 @@ model Email {
   isRead         Boolean       @default(false)
   isStarred      Boolean       @default(false)
   isPinned       Boolean       @default(false)
+  // Per-message Outlook-style flag (QuantMail S1). Independent of isStarred/isPinned.
+  isFlagged      Boolean       @default(false)
   isImportant    Boolean       @default(false)
   isDraft        Boolean       @default(false)
   isSent         Boolean       @default(false)
