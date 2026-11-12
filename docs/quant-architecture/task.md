@@ -311,7 +311,9 @@ Owner: Muse
 Branch: feat/qm-quanty-002-inline-context
 Notes: claimed 2026-10-08; PR #612 MERGED 2026-10-08 (gate green): evidence refs (quant:// deep links + verbatim quotes ≤280ch), enforceContextBudget 32KB oldest-first + contextTruncated flag, prepareSendPreview + POST /emails/:id/send-preview (cost, reversibility, idempotency key), provenance (capability ID, model, producedBy); built ON #593 registry, 4 new capabilities registered; tests 99/99 registry + 33 quantmail green; flaky gmail-mcp tamper test fixed deterministically (final byte now guaranteed different)
 ## QM-QUANTY-003 — Quanty voice-to-mail workflow
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-quanty-003-voice-to-mail
 Example: Quanty, Rahul ko email likho aur bhejo.
 Required: separate ASR confidence/entity confidence/risk; resolve recipient; draft; restate critical entities; confirmation for external send; execute through mail command; verify authoritative sent state.
 Dependencies: QM-QUANTY-001; auth/session bootstrap.
