@@ -12,12 +12,8 @@ import { apiClient, type MailFilterItem, type SendAsIdentity } from '../../servi
 import { browserAuthSession } from '../../services/browser-auth-session';
 import { showToast } from '../../components/InboxToast';
 import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
-import { MobileInboxFlowSuite } from '../../components/MobileInboxFlowSuite';
-import { MobileCalendarFlowSuite } from '../../components/MobileCalendarFlowSuite';
-import {
-  MobileAutomaticRepliesSheet,
-  MobileProfileIconCustomizerSheet,
-} from '../../components/MobileContactsAndTasksSuite';
+import { MobileAutomaticRepliesSheet } from '../../components/MobileAutomaticRepliesSheet';
+import { MobileProfileIconCustomizerSheet } from '../../components/MobileProfileIconCustomizerSheet';
 
 export type AccountsFlowStep =
   | 'overview'
@@ -28,9 +24,7 @@ export type AccountsFlowStep =
   | 'editor_language'
   | 'sync_settings'
   | 'addins'
-  | 'add_account'
-  | 'mobile_inbox'
-  | 'mobile_calendar';
+  | 'add_account';
 
 export interface WorkspaceAddInItem {
   id: string;
@@ -1389,24 +1383,6 @@ export function AccountsSettingsFlow({
     );
   }
 
-  // ─── SUB-SHEET: Mobile Inbox Flow Suite (Flows #5, #8, #11, #12, #40, #48, #49)
-  if (step === 'mobile_inbox') {
-    return (
-      <div className="-mx-4 -my-3">
-        <MobileInboxFlowSuite />
-      </div>
-    );
-  }
-
-  // ─── SUB-SHEET: Mobile Calendar Flow Suite (Flows #15, #95, #18, #26, #77, #80, #43, #36, #16, #42, #91, #104)
-  if (step === 'mobile_calendar') {
-    return (
-      <div className="-mx-4 -my-3">
-        <MobileCalendarFlowSuite onBackToEmail={() => setStep('overview')} />
-      </div>
-    );
-  }
-
   // ─── SCREEN 0: Settings Sheet Overview ─────────────────────────────────────
   if (step === 'overview') {
     return (
@@ -1605,10 +1581,9 @@ export function AccountsSettingsFlow({
             )}
 
             {matchesSearch('Email', 'filters rules inbox screening categories') && (
-              <button
-                type="button"
+              <Link
+                href="/"
                 data-testid="settings-open-email-inbox-btn"
-                onClick={() => setStep('mobile_inbox')}
                 className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-[var(--quant-border)] px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-[var(--quant-surface-hover)]"
               >
                 <span className="flex items-center gap-3.5">
@@ -1626,14 +1601,13 @@ export function AccountsSettingsFlow({
                   <span className="text-sm font-normal text-[var(--quant-foreground)]">Email</span>
                 </span>
                 <ChevronRight />
-              </button>
+              </Link>
             )}
 
             {matchesSearch('Calendar', 'events schedule meetings') && (
-              <button
-                type="button"
+              <Link
+                href="/calendar"
                 data-testid="settings-open-mobile-calendar-btn"
-                onClick={() => setStep('mobile_calendar')}
                 className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-[var(--quant-border)] px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-[var(--quant-surface-hover)]"
               >
                 <span className="flex items-center gap-3.5">
@@ -1653,7 +1627,7 @@ export function AccountsSettingsFlow({
                   </span>
                 </span>
                 <ChevronRight />
-              </button>
+              </Link>
             )}
 
             {matchesSearch('Contacts', 'people address book vcard directory') && (
