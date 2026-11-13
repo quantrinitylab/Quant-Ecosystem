@@ -42,7 +42,9 @@ Dependencies: none.
 Validation: repository/source audit completed.
 
 ## QM-AUTH-002 — Login visual system / responsive UX
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-auth-002-login-visual-system
 Scope: login page, AuthShell, AuthBrandPanel, auth CSS/tokens, shared brand primitives.
 Goal: authentication must visually continue into the QuantMail workspace. Desktop split composition; mobile single-flow composition; keyboard/focus/reduced-motion/safe-area support.
 States: initial, identifier, password, submitting, error, 2FA, recovery-code, expired, locked/rate-limited, offline, service-unavailable, SSO-return, account-switch, add-account.
@@ -104,7 +106,9 @@ Dependencies: QM-AUTH-002 through QM-AUTH-009.
 # P0 — QuantMail Trust / Fake-Data Cleanup
 
 ## QM-TRUST-001 — Remove unsupported auth encryption claims
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-trust-001-remove-unsupported-encryption-claims
 Scope: login/auth/booking security copy.
 Dependencies: QM-AUTH-003.
 
