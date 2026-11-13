@@ -90,11 +90,33 @@ export interface DockedComposerProps {
    * entry point passes 'chat'.
    */
   initialMessageKind?: 'mail' | 'chat';
+  /** Initial priority/importance level. */
+  initialPriority?: 'HIGH' | 'NORMAL' | 'LOW';
 }
 
 // ----------------------------------------------------------------------------
 // Pure SVG Vector Icons (strictly ZERO raw Unicode emojis)
 // ----------------------------------------------------------------------------
+
+function IconHighImportance({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  );
+}
+
+function IconLowImportance({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="8 12 12 16 16 12" />
+      <line x1="12" y1="8" x2="12" y2="16" />
+    </svg>
+  );
+}
 
 function IconMinus({ className = 'size-4' }: { className?: string }) {
   return (
@@ -268,10 +290,13 @@ export function DockedComposer({
   onSendSuccess,
   onDiscard,
   initialMessageKind = 'mail',
+  initialPriority = 'NORMAL',
 }: DockedComposerProps) {
   const router = useRouter();
   const { queueSend } = useUndoSend();
   const { data: contacts = [] } = useContacts();
+
+  const [priority, setPriority] = useState<'HIGH' | 'NORMAL' | 'LOW'>(initialPriority);
 
   /**
    * Honest chrome for the entry point: the inbox "New chat" button opens this
@@ -584,6 +609,7 @@ export function DockedComposer({
       // draft so send() honors it; the update path applies absent-key
       // discipline (omitting the flag never flips a saved opt-out back on).
       trackOpens,
+      priority,
     };
     const ref = serverDraftRef.current;
     const shareKey = draftShareKey(replyToId);
@@ -1035,6 +1061,7 @@ export function DockedComposer({
       attachments: [...attachments],
       replyToId,
       scheduledAt,
+      priority,
     };
 
     const { to: toList, cc: ccList, bcc: bccList } = buildRecipientPayload(
@@ -1061,6 +1088,7 @@ export function DockedComposer({
       setBody(draftSnapshot.body);
       setBodyFormats(draftSnapshot.bodyFormats);
       setAttachments(draftSnapshot.attachments);
+      setPriority(draftSnapshot.priority);
       setIsMinimized(false);
     };
 
@@ -1088,6 +1116,7 @@ export function DockedComposer({
           inReplyTo: draftSnapshot.replyToId,
           scheduledAt: draftSnapshot.scheduledAt,
           messageKind: initialMessageKind,
+          priority: draftSnapshot.priority,
         };
         let emailId = serverDraftRef.current.getId();
         if (emailId) {
@@ -1126,6 +1155,7 @@ export function DockedComposer({
             messageKind: initialMessageKind,
             // fix/qm-composer-open-tracking-2: per-composer beacon opt-out.
             trackOpens,
+            priority: draftSnapshot.priority,
           });
           if (!composeRes.success || !composeRes.data?.id) {
             throw new Error(composeRes.error?.message || 'Failed to compose email');
@@ -1631,6 +1661,40 @@ export function DockedComposer({
             title="Attach files (25MB limit)"
           >
             <IconPaperclip className="size-4" />
+          </button>
+
+          {/* Slice S5: High Importance Toggle */}
+          <button
+            type="button"
+            onClick={() => setPriority((prev) => (prev === 'HIGH' ? 'NORMAL' : 'HIGH'))}
+            aria-pressed={priority === 'HIGH'}
+            aria-label={priority === 'HIGH' ? 'High importance: on' : 'Set high importance'}
+            data-testid="docked-composer-high-importance-toggle"
+            className={`relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl border transition-colors ${
+              priority === 'HIGH'
+                ? 'border-rose-500/60 bg-rose-500/20 text-rose-400 font-bold'
+                : 'border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white'
+            }`}
+            title={priority === 'HIGH' ? 'High importance: ON (tap to set normal)' : 'Set high importance'}
+          >
+            <IconHighImportance className="size-4" />
+          </button>
+
+          {/* Slice S5: Low Importance Toggle */}
+          <button
+            type="button"
+            onClick={() => setPriority((prev) => (prev === 'LOW' ? 'NORMAL' : 'LOW'))}
+            aria-pressed={priority === 'LOW'}
+            aria-label={priority === 'LOW' ? 'Low importance: on' : 'Set low importance'}
+            data-testid="docked-composer-low-importance-toggle"
+            className={`relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl border transition-colors ${
+              priority === 'LOW'
+                ? 'border-sky-500/60 bg-sky-500/20 text-sky-400 font-bold'
+                : 'border-[var(--quant-surface-elevated)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-white'
+            }`}
+            title={priority === 'LOW' ? 'Low importance: ON (tap to set normal)' : 'Set low importance'}
+          >
+            <IconLowImportance className="size-4" />
           </button>
 
           {/* Writing-assistant trigger (local templates) */}

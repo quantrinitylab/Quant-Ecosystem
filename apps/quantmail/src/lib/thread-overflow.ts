@@ -42,9 +42,7 @@ export const THREAD_OVERFLOW_ITEMS: OverflowItemDef[] = [
   {
     id: 'move-to-other',
     label: 'Move to Other',
-    kind: 'unavailable',
-    unavailableNote:
-      'Focused filing is not stored on the server yet — it needs a focused-override field first.',
+    kind: 'wired',
   },
   {
     id: 'flag',
@@ -60,20 +58,17 @@ export const THREAD_OVERFLOW_ITEMS: OverflowItemDef[] = [
   {
     id: 'report-junk',
     label: 'Report Junk',
-    kind: 'unavailable',
-    unavailableNote: 'There is no mark-as-spam route yet — only the not-spam rescue exists.',
+    kind: 'wired',
   },
   {
     id: 'report-phishing',
     label: 'Report Phishing',
-    kind: 'unavailable',
-    unavailableNote: 'There is no phishing-report route yet — the safety banner only scans.',
+    kind: 'wired',
   },
   {
     id: 'block',
     label: 'Block',
-    kind: 'unavailable',
-    unavailableNote: 'There is no block-sender route yet.',
+    kind: 'wired',
   },
   { id: 'ignore', label: 'Ignore', kind: 'wired' },
   { id: 'print', label: 'Print', kind: 'wired' },
@@ -81,6 +76,16 @@ export const THREAD_OVERFLOW_ITEMS: OverflowItemDef[] = [
   { id: 'reply', label: 'Reply', kind: 'wired' },
   { id: 'reply-all', label: 'Reply All', kind: 'wired' },
 ];
+
+/** Outlook 6 Color Categories (Red, Orange, Yellow, Green, Blue, Purple) */
+export const OUTLOOK_COLOR_CATEGORIES = [
+  { name: 'Red', color: '#EF4444' },
+  { name: 'Orange', color: '#FF6B35' },
+  { name: 'Yellow', color: '#F59E0B' },
+  { name: 'Green', color: '#10B981' },
+  { name: 'Blue', color: '#38BDF8' },
+  { name: 'Purple', color: '#8B5CF6' },
+] as const;
 
 /** Reaction pills shown above the action bar. Generic emoji, QuantMail's own set. */
 export const THREAD_REACTION_PILLS = ['👍', '❤️', '😂', '😮', '😢'] as const;

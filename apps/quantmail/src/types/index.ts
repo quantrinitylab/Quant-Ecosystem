@@ -10,7 +10,7 @@ export type { QuantApp };
 // Email Types
 // ============================================================================
 
-export type EmailPriority = 'high' | 'normal' | 'low';
+export type EmailPriority = 'high' | 'normal' | 'low' | 'HIGH' | 'NORMAL' | 'LOW' | 'URGENT';
 export type EmailCategory = 'primary' | 'social' | 'promotions' | 'updates' | 'forums' | 'spam';
 export type EmailStatus = 'draft' | 'sending' | 'sent' | 'delivered' | 'failed' | 'bounced';
 

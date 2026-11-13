@@ -37,25 +37,39 @@
 /** The turn values the page's `InboxTurn` type carries. */
 export type FilterPillTurn = 'any' | 'needs_you' | 'waiting';
 
-/** The filter values the page's `InboxFilter` type carries. */
-export type FilterPillFilter = 'starred' | 'attachment';
+/** The filter values the page's `InboxFilter` and Outlook filter tokens carry. */
+export type FilterPillFilter =
+  | 'unread'
+  | 'flagged'
+  | 'starred'
+  | 'attachment'
+  | 'to_me';
 
 /** One applied narrowing, as the page renders it. */
 export type FilterPill =
-  | { kind: 'turn'; key: 'turn:needs_you' | 'turn:waiting'; label: string }
-  | { kind: 'filter'; key: 'filter:starred' | 'filter:attachment'; label: string };
+  | { kind: 'turn'; key: `turn:${Exclude<FilterPillTurn, 'any'>}`; label: string }
+  | { kind: 'filter'; key: `filter:${FilterPillFilter}`; label: string };
 
-/** Canonical filter order, matching the page's `INBOX_FILTERS`. */
-const FILTER_ORDER: FilterPillFilter[] = ['starred', 'attachment'];
+/** Canonical filter order, supporting Outlook filter tokens. */
+export const FILTER_ORDER: FilterPillFilter[] = [
+  'unread',
+  'flagged',
+  'starred',
+  'attachment',
+  'to_me',
+];
 
 const TURN_LABELS: Record<Exclude<FilterPillTurn, 'any'>, string> = {
   needs_you: 'Your turn',
   waiting: 'Their turn',
 };
 
-const FILTER_LABELS: Record<FilterPillFilter, string> = {
+export const FILTER_LABELS: Record<FilterPillFilter, string> = {
+  unread: 'Unread',
+  flagged: 'Flagged',
   starred: 'Pinned',
   attachment: 'Has attachment',
+  to_me: 'To me',
 };
 
 /**
@@ -93,16 +107,16 @@ export function areFilterPillsVisible(pills: readonly FilterPill[]): boolean {
  * that filter only; an unknown pill leaves the state unchanged.
  * Callers apply the returned pair with the page's existing setters.
  */
-export function removeFilterPill(
+export function removeFilterPill<F extends FilterPillFilter = FilterPillFilter>(
   turn: FilterPillTurn,
-  filters: ReadonlySet<FilterPillFilter>,
+  filters: ReadonlySet<F>,
   pill: FilterPill,
-): { turn: FilterPillTurn; filters: Set<FilterPillFilter> } {
+): { turn: FilterPillTurn; filters: Set<F> } {
   if (pill.kind === 'turn') {
     return { turn: 'any', filters: new Set(filters) };
   }
   const next = new Set(filters);
-  next.delete(pill.key.replace('filter:', '') as FilterPillFilter);
+  next.delete(pill.key.replace('filter:', '') as F);
   return { turn, filters: next };
 }
 

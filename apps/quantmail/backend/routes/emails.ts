@@ -24,7 +24,8 @@ import { ImapImporterService } from '../services/imap-importer.service';
 import { resolveSendAsIdentity } from './send-as';
 import { retentionService } from './retention';
 import { RetentionService } from '../services/retention.service';
-import { suppressionService } from '../services/suppression.service';
+import { suppressionService, SuppressionService } from '../services/suppression.service';
+import { appendServerAuditRecord } from './audit-logs';
 import { emitOutbox, MailOutboxEvents } from '../lib/outbox-events';
 import {
   MutationOptions,
@@ -2392,4 +2393,310 @@ export default async function emailsRoutes(
       return reply.send({ success: true, data: job });
     },
   );
+
+  // POST /emails/:id/categories — Slice S2: toggle Outlook color categories on an email
+  fastify.post<{ Params: { id: string } }>('/:id/categories', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const schema = z.object({
+      category: z.string().optional(),
+      categories: z.array(z.string()).optional(),
+      action: z.enum(['toggle', 'add', 'remove', 'set']).optional().default('toggle'),
+    });
+    const parsed = schema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      throw parsed.error;
+    }
+
+    const prisma = getPrisma(fastify);
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email || email.deletedAt) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+    if (email.userId !== userId) {
+      throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    }
+
+    const currentLabels: string[] = Array.isArray(email.labels) ? (email.labels as string[]) : [];
+    let nextLabels = [...currentLabels];
+    const { category, categories, action } = parsed.data;
+
+    const targets = category ? [category.trim()] : (categories ?? []).map((c) => c.trim());
+
+    if (action === 'set' && categories) {
+      nextLabels = [...categories];
+    } else {
+      for (const target of targets) {
+        const idx = nextLabels.findIndex(
+          (l) => l.toLowerCase() === target.toLowerCase(),
+        );
+        if (action === 'toggle') {
+          if (idx >= 0) {
+            nextLabels.splice(idx, 1);
+          } else {
+            nextLabels.push(target);
+          }
+        } else if (action === 'add') {
+          if (idx < 0) nextLabels.push(target);
+        } else if (action === 'remove') {
+          if (idx >= 0) nextLabels.splice(idx, 1);
+        }
+      }
+    }
+
+    const requestId = resolveRequestId(request, reply);
+    const updated = await prisma.$transaction(async (tx) => {
+      const res = await versionedUpdate<Email>(tx as unknown as VersionedTx, {
+        id: email.id,
+        resource: 'Email',
+        notFoundCode: 'EMAIL_NOT_FOUND',
+        notFoundMessage: 'Email not found',
+        expectedVersion: parseExpectedVersion(request.body),
+        data: { labels: nextLabels },
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.threadLabelChanged,
+        aggregateType: 'EmailThread',
+        aggregateId: email.threadId ?? email.id,
+        payload: {
+          userId,
+          emailId: email.id,
+          labels: nextLabels,
+          requestId,
+        },
+      });
+      return res;
+    });
+
+    return reply.send({
+      success: true,
+      data: formatEmailRecord(updated as Email),
+      labels: nextLabels,
+    });
+  });
+
+  // POST /emails/:id/block — Slice S3: block sender and move email/thread to spam
+  fastify.post<{ Params: { id: string } }>('/:id/block', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = getPrisma(fastify);
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email || email.deletedAt) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+    if (email.userId !== userId) {
+      throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    }
+
+    const fromAddr = email.fromAddress?.trim();
+    if (fromAddr) {
+      try {
+        const supService = new SuppressionService(prisma as any);
+        await supService.suppress(
+          fromAddr,
+          'MANUAL',
+          'USER',
+          { blockedBy: userId, emailId: email.id },
+        );
+      } catch (err: any) {
+        if (err?.code !== 'DATABASE_UNAVAILABLE') {
+          throw err;
+        }
+      }
+    }
+
+    if (email.threadId) {
+      await prisma.email.updateMany({
+        where: { threadId: email.threadId, userId },
+        data: { isSpam: true, folderId: 'spam' },
+      });
+    } else {
+      await prisma.email.update({
+        where: { id: email.id },
+        data: { isSpam: true, folderId: 'spam' },
+      });
+    }
+
+    return reply.send({
+      success: true,
+      message: 'Sender blocked and conversation moved to spam',
+      blockedSender: fromAddr,
+    });
+  });
+
+  // POST /emails/:id/report-junk — Slice S3: mark email/thread as spam
+  fastify.post<{ Params: { id: string } }>('/:id/report-junk', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = getPrisma(fastify);
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email || email.deletedAt) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+    if (email.userId !== userId) {
+      throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    }
+
+    if (email.threadId) {
+      await prisma.email.updateMany({
+        where: { threadId: email.threadId, userId },
+        data: { isSpam: true, folderId: 'spam' },
+      });
+    } else {
+      await prisma.email.update({
+        where: { id: email.id },
+        data: { isSpam: true, folderId: 'spam' },
+      });
+    }
+
+    return reply.send({
+      success: true,
+      message: 'Reported as junk and moved to spam',
+    });
+  });
+
+  // POST /emails/:id/report-phishing — Slice S3: mark email/thread as spam+trash and record audit log
+  fastify.post<{ Params: { id: string } }>('/:id/report-phishing', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = getPrisma(fastify);
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email || email.deletedAt) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+    if (email.userId !== userId) {
+      throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    }
+
+    if (email.threadId) {
+      await prisma.email.updateMany({
+        where: { threadId: email.threadId, userId },
+        data: { isSpam: true, isTrash: true, folderId: 'trash' },
+      });
+    } else {
+      await prisma.email.update({
+        where: { id: email.id },
+        data: { isSpam: true, isTrash: true, folderId: 'trash' },
+      });
+    }
+
+    appendServerAuditRecord({
+      userId,
+      orgId: (request as any).auth?.orgId ?? null,
+      action: 'email.report_phishing',
+      resource: 'email',
+      resourceId: email.id,
+      metadata: {
+        fromAddress: email.fromAddress,
+        subject: email.subject,
+        threadId: email.threadId,
+      },
+      ip: request.ip ?? null,
+      userAgent: (request.headers['user-agent'] as string) ?? null,
+    });
+
+    const prismaAny = prisma as any;
+    if (prismaAny.auditLog?.create) {
+      await prismaAny.auditLog
+        .create({
+          data: {
+            userId,
+            action: 'email.report_phishing',
+            resource: 'email',
+            resourceId: email.id,
+            details: {
+              fromAddress: email.fromAddress,
+              subject: email.subject,
+              threadId: email.threadId,
+            },
+          },
+        })
+        .catch(() => undefined);
+    }
+
+    return reply.send({
+      success: true,
+      message: 'Reported as phishing and moved to trash',
+    });
+  });
+
+  // PATCH /emails/:id/focused — Slice S4: update email focused override
+  fastify.patch<{ Params: { id: string } }>('/:id/focused', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const schema = z.object({
+      isFocused: z.boolean().nullable(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      throw parsed.error;
+    }
+
+    const prisma = getPrisma(fastify);
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email || email.deletedAt) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+    if (email.userId !== userId) {
+      throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    }
+
+    const { isFocused } = parsed.data;
+    let targetEmails: Email[] = [email];
+    if (email.threadId) {
+      targetEmails = await prisma.email.findMany({
+        where: { threadId: email.threadId, userId },
+      });
+    }
+
+    await Promise.all(
+      targetEmails.map(async (em) => {
+        const curLabels: string[] = Array.isArray(em.labels) ? (em.labels as string[]) : [];
+        let nextLabels = curLabels.filter(
+          (l) => l !== '__focused_override__' && l !== '__other_override__',
+        );
+        let nextImportant = em.isImportant;
+
+        if (isFocused === true) {
+          nextLabels.push('__focused_override__');
+          nextImportant = true;
+        } else if (isFocused === false) {
+          nextLabels.push('__other_override__');
+          nextImportant = false;
+        }
+
+        return prisma.email.update({
+          where: { id: em.id },
+          data: {
+            labels: nextLabels,
+            isImportant: nextImportant,
+          },
+        });
+      }),
+    );
+
+    return reply.send({
+      success: true,
+      data: {
+        id: email.id,
+        isFocused,
+        updatedCount: targetEmails.length,
+      },
+    });
+  });
 }

@@ -78,6 +78,11 @@ import { receiptStatusOf, openStatusOf } from '../lib/readReceipt';
 import { looksLikeMarkdown, useSafeMarkdownHtml } from '../lib/markdown';
 import { formatDetailDate } from '../lib/honest-date';
 import { invalidateMailLists } from '../lib/offline/folders';
+import {
+  OutlookCategoryPill,
+  OUTLOOK_COLOR_CATEGORIES,
+  getOutlookCategory,
+} from './CategoryPicker';
 import { plainTextToHtml } from '../lib/email-body';
 import { ThreadSummaryCard, messagesToSummaryPayload, type ThreadSummaryResult } from './ThreadSummaryCard';
 import { useAuth } from '../providers/auth-provider';
@@ -1766,6 +1771,97 @@ export function ConversationalThreadView({
     [conversationMessageIds, queryClient],
   );
 
+  const threadCategories = useMemo(() => {
+    const allLabels = messages.flatMap((m) => m.labels || []);
+    return Array.from(new Set(allLabels));
+  }, [messages]);
+
+  const handleToggleOutlookCategory = useCallback(
+    async (categoryName: string) => {
+      const emailId = primaryMessage?.id || conversationMessageIds[0];
+      if (!emailId) return;
+      try {
+        const res = await apiClient.toggleEmailCategory(emailId, categoryName);
+        if (res?.success) {
+          showToast({ text: `Category ${categoryName} updated`, type: 'success' });
+          invalidateMailLists(queryClient);
+        } else {
+          showToast({ text: 'Could not update category', type: 'error' });
+        }
+      } catch {
+        showToast({ text: 'Could not update category', type: 'error' });
+      }
+    },
+    [primaryMessage, conversationMessageIds, queryClient],
+  );
+
+  const handleBlockSender = useCallback(async () => {
+    const emailId = primaryMessage?.id || conversationMessageIds[0];
+    if (!emailId) return;
+    try {
+      const res = await apiClient.blockSender(emailId);
+      if (res?.success) {
+        showToast({ text: 'Sender blocked and conversation moved to Spam', type: 'success' });
+        invalidateMailLists(queryClient);
+        onClose?.();
+      } else {
+        showToast({ text: 'Could not block sender', type: 'error' });
+      }
+    } catch {
+      showToast({ text: 'Could not block sender', type: 'error' });
+    }
+  }, [primaryMessage, conversationMessageIds, queryClient, onClose]);
+
+  const handleReportJunk = useCallback(async () => {
+    const emailId = primaryMessage?.id || conversationMessageIds[0];
+    if (!emailId) return;
+    try {
+      const res = await apiClient.reportJunk(emailId);
+      if (res?.success) {
+        showToast({ text: 'Reported as junk and moved to Spam', type: 'success' });
+        invalidateMailLists(queryClient);
+        onClose?.();
+      } else {
+        showToast({ text: 'Could not report junk', type: 'error' });
+      }
+    } catch {
+      showToast({ text: 'Could not report junk', type: 'error' });
+    }
+  }, [primaryMessage, conversationMessageIds, queryClient, onClose]);
+
+  const handleReportPhishing = useCallback(async () => {
+    const emailId = primaryMessage?.id || conversationMessageIds[0];
+    if (!emailId) return;
+    try {
+      const res = await apiClient.reportPhishing(emailId);
+      if (res?.success) {
+        showToast({ text: 'Reported as phishing and moved to Trash', type: 'success' });
+        invalidateMailLists(queryClient);
+        onClose?.();
+      } else {
+        showToast({ text: 'Could not report phishing', type: 'error' });
+      }
+    } catch {
+      showToast({ text: 'Could not report phishing', type: 'error' });
+    }
+  }, [primaryMessage, conversationMessageIds, queryClient, onClose]);
+
+  const handleMoveToOther = useCallback(async () => {
+    const targetId = threadId || primaryMessage?.id || conversationMessageIds[0];
+    if (!targetId) return;
+    try {
+      const res = await apiClient.setThreadFocused(targetId, false);
+      if (res?.success) {
+        showToast({ text: 'Moved to Other', type: 'success' });
+        invalidateMailLists(queryClient);
+      } else {
+        showToast({ text: 'Could not move conversation', type: 'error' });
+      }
+    } catch {
+      showToast({ text: 'Could not move conversation', type: 'error' });
+    }
+  }, [threadId, primaryMessage, conversationMessageIds, queryClient]);
+
   const handleTogglePin = useCallback(async () => {
     const ids = conversationMessageIds;
     if (ids.length === 0) return;
@@ -2259,6 +2355,11 @@ export function ConversationalThreadView({
                     {activeGroup.name}
                   </span>
                   <ThreadKindBadge mix={conversationKindMix} />
+                  {threadCategories.map((catName) => {
+                    const cat = getOutlookCategory(catName);
+                    if (!cat) return null;
+                    return <OutlookCategoryPill key={cat.name} category={cat.name} />;
+                  })}
                 </span>
                 <span className="truncate text-[11px] text-[var(--quant-muted-foreground)] transition-colors group-hover:text-[var(--quant-primary-hover)]">
                   {activeGroup.emails.length}{' '}
@@ -2290,6 +2391,11 @@ export function ConversationalThreadView({
                     {otherParticipant.name || participantSummary}
                   </span>
                   <ThreadKindBadge mix={conversationKindMix} />
+                  {threadCategories.map((catName) => {
+                    const cat = getOutlookCategory(catName);
+                    if (!cat) return null;
+                    return <OutlookCategoryPill key={cat.name} category={cat.name} />;
+                  })}
                 </span>
                 <span className="truncate text-[11px] text-[var(--quant-muted-foreground)] transition-colors group-hover:text-[var(--quant-primary-hover)]">
                   {otherParticipant.email || threadSubject || 'Tap for details & media'}
@@ -2680,35 +2786,48 @@ export function ConversationalThreadView({
                     Categorise
                   </button>
                   <div className="mx-3 border-t border-white/10" aria-hidden="true" />
-                  <div className="max-h-56 overflow-y-auto py-1">
-                    {THREAD_CATEGORIES.map((category) => (
-                      <button
-                        key={category}
-                        type="button"
-                        role="menuitem"
-                        tabIndex={-1}
-                        onClick={() => {
-                          close();
-                          setCategoryPickerOpen(false);
-                          void handleSetCategory(category);
-                        }}
-                        className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
-                      >
-                        <svg
-                          className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
+                  <div className="max-h-56 overflow-y-auto py-1 space-y-0.5">
+                    {OUTLOOK_COLOR_CATEGORIES.map((cat) => {
+                      const isApplied = threadCategories.some(
+                        (l) =>
+                          l.toLowerCase() === cat.name.toLowerCase() ||
+                          `${cat.name.toLowerCase()} category` === l.toLowerCase(),
+                      );
+                      return (
+                        <button
+                          key={cat.name}
+                          type="button"
+                          role="menuitem"
+                          tabIndex={-1}
+                          onClick={() => {
+                            close();
+                            setCategoryPickerOpen(false);
+                            void handleToggleOutlookCategory(cat.name);
+                          }}
+                          className="flex w-full min-h-[44px] items-center justify-between px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
                         >
-                          <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.42 0l8.58-8.58a1 1 0 0 0 0-1.42L12 2z" />
-                          <circle cx="7" cy="7" r="1.5" />
-                        </svg>
-                        {threadCategoryLabel(category)}
-                      </button>
-                    ))}
+                          <div className="flex items-center gap-3">
+                            <span
+                              className="size-3 rounded-full shrink-0"
+                              style={{ backgroundColor: cat.color }}
+                              aria-hidden="true"
+                            />
+                            <span>{cat.name}</span>
+                          </div>
+                          {isApplied && (
+                            <svg
+                              className="size-4 text-[var(--quant-primary)]"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                            >
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </>
               ) : (
@@ -2737,12 +2856,11 @@ export function ConversationalThreadView({
                   type="button"
                   role="menuitem"
                   tabIndex={-1}
-                  title={overflowNote('move-to-other')}
                   onClick={() => {
                     close();
-                    handleUnavailableOverflow(overflowNote('move-to-other'));
+                    void handleMoveToOther();
                   }}
-                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
                 >
                   <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <path d="M3 10h10a5 5 0 0 1 5 5v2" />
@@ -2835,12 +2953,11 @@ export function ConversationalThreadView({
                   type="button"
                   role="menuitem"
                   tabIndex={-1}
-                  title={overflowNote('report-junk')}
                   onClick={() => {
                     close();
-                    handleUnavailableOverflow(overflowNote('report-junk'));
+                    void handleReportJunk();
                   }}
-                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
                 >
                   <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <path d="M3 6h18" />
@@ -2853,12 +2970,11 @@ export function ConversationalThreadView({
                   type="button"
                   role="menuitem"
                   tabIndex={-1}
-                  title={overflowNote('report-phishing')}
                   onClick={() => {
                     close();
-                    handleUnavailableOverflow(overflowNote('report-phishing'));
+                    void handleReportPhishing();
                   }}
-                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
                 >
                   <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -2870,12 +2986,11 @@ export function ConversationalThreadView({
                   type="button"
                   role="menuitem"
                   tabIndex={-1}
-                  title={overflowNote('block')}
                   onClick={() => {
                     close();
-                    handleUnavailableOverflow(overflowNote('block'));
+                    void handleBlockSender();
                   }}
-                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
                 >
                   <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <circle cx="12" cy="12" r="10" />

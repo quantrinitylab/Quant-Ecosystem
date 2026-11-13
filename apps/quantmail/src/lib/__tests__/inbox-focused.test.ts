@@ -43,6 +43,16 @@ describe('inbox-focused: Focused/Other rule', () => {
     expect(matchesFocusedRule({ category: 'updates' })).toBe(false);
     expect(matchesFocusedRule({ category: 'forums' })).toBe(false);
   });
+
+  it('supports explicit isFocusedOverride boolean', () => {
+    expect(matchesFocusedRule({ category: 'promotions', isFocusedOverride: true })).toBe(true);
+    expect(matchesFocusedRule({ category: 'primary', isContact: true, isFocusedOverride: false })).toBe(false);
+  });
+
+  it('supports __focused_override__ and __other_override__ labels', () => {
+    expect(matchesFocusedRule({ category: 'promotions', labels: ['__focused_override__'] })).toBe(true);
+    expect(matchesFocusedRule({ category: 'primary', isImportant: true, labels: ['__other_override__'] })).toBe(false);
+  });
 });
 
 describe('inbox-focused: @-mention segments', () => {

@@ -1262,6 +1262,42 @@ export class QuantMailApiClient {
     return this.patch(`/emails/${anchorId}/category`, { emailIds, category });
   }
 
+  /** Slice S2: Toggle an Outlook color category on an email */
+  async toggleEmailCategory(
+    id: string,
+    category: string,
+  ): Promise<ApiResponse<{ labels: string[] }>> {
+    return this.post(`/emails/${id}/categories`, { category });
+  }
+
+  /** Slice S2: Seed default 6 Outlook color categories */
+  async seedDefaultCategories(): Promise<ApiResponse<Array<{ name: string; color: string }>>> {
+    return this.post('/labels/categories/seed', {});
+  }
+
+  /** Slice S3: Block sender and move email/thread to spam */
+  async blockSender(id: string): Promise<ApiResponse<{ message: string; blockedSender?: string }>> {
+    return this.post(`/emails/${id}/block`, {});
+  }
+
+  /** Slice S3: Report junk and move email/thread to spam */
+  async reportJunk(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/emails/${id}/report-junk`, {});
+  }
+
+  /** Slice S3: Report phishing and move email/thread to trash */
+  async reportPhishing(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/emails/${id}/report-phishing`, {});
+  }
+
+  /** Slice S4: Override thread Focused/Other classification */
+  async setThreadFocused(
+    id: string,
+    isFocused: boolean | null,
+  ): Promise<ApiResponse<{ id: string; isFocused: boolean | null }>> {
+    return this.patch(`/threads/${id}/focused`, { isFocused });
+  }
+
   async backfillInboxCategories(input: { limit?: number; cursor?: string }): Promise<
     ApiResponse<{
       scanned: number;

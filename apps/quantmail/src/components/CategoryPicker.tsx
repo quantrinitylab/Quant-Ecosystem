@@ -17,8 +17,143 @@
  * classifier; no automatic backfill), never a verified label.
  * The note below says so in the UI, not just in a comment.
  */
+import { useMemo } from 'react';
 import { CATEGORY_META, CATEGORY_ORDER, type SelectableCategory } from '../lib/category-filter';
 import { IconCheck } from './icons';
+
+/** Outlook 6 Color Categories (Red, Orange, Yellow, Green, Blue, Purple) */
+export const OUTLOOK_COLOR_CATEGORIES = [
+  { name: 'Red', color: '#EF4444' },
+  { name: 'Orange', color: '#FF6B35' },
+  { name: 'Yellow', color: '#F59E0B' },
+  { name: 'Green', color: '#10B981' },
+  { name: 'Blue', color: '#38BDF8' },
+  { name: 'Purple', color: '#8B5CF6' },
+] as const;
+
+export type OutlookColorCategory = (typeof OUTLOOK_COLOR_CATEGORIES)[number];
+
+export function getOutlookCategory(nameOrLabel: string): OutlookColorCategory | undefined {
+  if (!nameOrLabel) return undefined;
+  const norm = nameOrLabel.trim().toLowerCase();
+  return OUTLOOK_COLOR_CATEGORIES.find(
+    (c) =>
+      c.name.toLowerCase() === norm ||
+      `${c.name.toLowerCase()} category` === norm,
+  );
+}
+
+export function OutlookCategoryPill({
+  category,
+  onRemove,
+  className = '',
+}: {
+  category: string;
+  onRemove?: () => void;
+  className?: string;
+}) {
+  const cat = getOutlookCategory(category) ?? { name: category, color: '#6B7280' };
+  return (
+    <span
+      data-testid={`category-pill-${cat.name.toLowerCase()}`}
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold border shrink-0 transition-colors ${className}`}
+      style={{
+        backgroundColor: `${cat.color}20`,
+        borderColor: `${cat.color}55`,
+        color: cat.color,
+      }}
+    >
+      <span
+        className="size-1.5 rounded-full shrink-0"
+        style={{ backgroundColor: cat.color }}
+        aria-hidden="true"
+      />
+      <span>{cat.name}</span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          aria-label={`Remove category ${cat.name}`}
+          className="ml-0.5 hover:opacity-75 focus-visible:outline-none"
+        >
+          ×
+        </button>
+      )}
+    </span>
+  );
+}
+
+export interface OutlookColorCategoryPickerProps {
+  selectedCategories: ReadonlySet<string> | readonly string[];
+  onToggleCategory: (categoryName: string) => void;
+  className?: string;
+}
+
+export function OutlookColorCategoryPicker({
+  selectedCategories,
+  onToggleCategory,
+  className = '',
+}: OutlookColorCategoryPickerProps) {
+  const selectedSet = useMemo(() => {
+    const set = new Set<string>();
+    const items =
+      selectedCategories instanceof Set ? Array.from(selectedCategories) : selectedCategories;
+    for (const item of items) {
+      set.add(item.toLowerCase());
+      if (!item.toLowerCase().endsWith(' category')) {
+        set.add(`${item.toLowerCase()} category`);
+      }
+    }
+    return set;
+  }, [selectedCategories]);
+
+  return (
+    <div
+      role="group"
+      aria-label="Outlook Color Categories"
+      className={`py-1 space-y-0.5 ${className}`}
+    >
+      {OUTLOOK_COLOR_CATEGORIES.map((cat) => {
+        const isSelected = selectedSet.has(cat.name.toLowerCase());
+        return (
+          <button
+            key={cat.name}
+            type="button"
+            role="checkbox"
+            aria-checked={isSelected}
+            onClick={() => onToggleCategory(cat.name)}
+            className="w-full min-h-[40px] px-3.5 flex items-center justify-between text-left text-xs transition-colors hover:bg-[var(--quant-surface-elevated)] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+          >
+            <div className="flex items-center gap-2.5">
+              <span
+                aria-hidden="true"
+                className="size-3 rounded-full shrink-0 shadow-sm"
+                style={{ backgroundColor: cat.color }}
+              />
+              <span
+                className={`truncate ${
+                  isSelected
+                    ? 'text-[var(--quant-foreground)] font-bold'
+                    : 'text-[var(--quant-muted-foreground)]'
+                }`}
+              >
+                {cat.name}
+              </span>
+            </div>
+            {isSelected && (
+              <span className="text-[var(--quant-primary)]">
+                <IconCheck size={14} strokeWidth={2.4} />
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export interface CategoryPickerProps {
   open: boolean;

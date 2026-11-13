@@ -39,7 +39,67 @@ function getLabelDelegate(fastify: FastifyInstance): LabelDelegate {
   return (fastify as unknown as { prisma: { label: LabelDelegate } }).prisma.label;
 }
 
+export const OUTLOOK_COLOR_CATEGORIES = [
+  { name: 'Red', color: '#EF4444' },
+  { name: 'Orange', color: '#FF6B35' },
+  { name: 'Yellow', color: '#F59E0B' },
+  { name: 'Green', color: '#10B981' },
+  { name: 'Blue', color: '#38BDF8' },
+  { name: 'Purple', color: '#8B5CF6' },
+] as const;
+
 export default async function labelsRoutes(fastify: FastifyInstance) {
+  // POST /labels/categories/seed — seed default 6 Outlook color categories
+  fastify.post('/categories/seed', async (request, reply) => {
+    const userId = getUserId(request);
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new EmailService(prisma as never);
+    const existingLabels = await service.getLabels(userId);
+    const delegate = getLabelDelegate(fastify);
+
+    const seeded: Label[] = [];
+    for (const cat of OUTLOOK_COLOR_CATEGORIES) {
+      const match = existingLabels.find(
+        (l) =>
+          l.name.toLowerCase() === cat.name.toLowerCase() ||
+          l.name.toLowerCase() === `${cat.name.toLowerCase()} category`,
+      );
+      if (match) {
+        seeded.push(match);
+      } else {
+        const created = await delegate.create({
+          data: {
+            userId,
+            name: cat.name,
+            color: cat.color,
+          },
+        });
+        seeded.push(created);
+      }
+    }
+
+    return reply.status(201).send({ success: true, data: seeded });
+  });
+
+  // GET /labels/categories — list default or user color categories
+  fastify.get('/categories', async (request, reply) => {
+    const userId = getUserId(request);
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new EmailService(prisma as never);
+    const existingLabels = await service.getLabels(userId);
+    const matching = existingLabels.filter((l) =>
+      OUTLOOK_COLOR_CATEGORIES.some(
+        (c) =>
+          c.name.toLowerCase() === l.name.toLowerCase() ||
+          `${c.name.toLowerCase()} category` === l.name.toLowerCase(),
+      ),
+    );
+    return reply.send({
+      success: true,
+      data: matching.length > 0 ? matching : OUTLOOK_COLOR_CATEGORIES,
+    });
+  });
+
   // GET /labels — list the current user's labels
   fastify.get('/', async (request, reply) => {
     const userId = getUserId(request);

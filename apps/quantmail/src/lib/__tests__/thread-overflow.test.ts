@@ -32,13 +32,7 @@ describe('thread overflow order (spec order, exact)', () => {
 
   it('marks exactly the no-backend items unavailable, each with an honest note', () => {
     const unavailable = THREAD_OVERFLOW_ITEMS.filter((item) => item.kind === 'unavailable');
-    expect(unavailable.map((item) => item.id)).toEqual([
-      'move-to-other',
-      'flag',
-      'report-junk',
-      'report-phishing',
-      'block',
-    ]);
+    expect(unavailable.map((item) => item.id)).toEqual(['flag']);
     for (const item of unavailable) {
       expect(item.unavailableNote).toBeTruthy();
     }
@@ -50,10 +44,14 @@ describe('thread overflow order (spec order, exact)', () => {
     );
     expect(wired).toEqual([
       'move',
+      'move-to-other',
       'categorise',
       'pin',
       'snooze',
       'create-task',
+      'report-junk',
+      'report-phishing',
+      'block',
       'ignore',
       'print',
       'light-mode',

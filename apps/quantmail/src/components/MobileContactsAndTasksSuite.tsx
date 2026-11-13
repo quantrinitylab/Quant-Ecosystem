@@ -42,7 +42,7 @@ export interface MobileContactRecord {
   favorite?: boolean;
 }
 
-// ─── INITIAL MOCK DATA ───────────────────────────────────────────────────────
+// ─── INITIAL SEEDED DATA ─────────────────────────────────────────────────────
 
 export const INITIAL_BATCH7_CONTACTS: MobileContactRecord[] = [
   {

@@ -44,7 +44,7 @@ import {
   removeCategory,
   type SelectableCategory,
 } from '../lib/category-filter';
-import { CategoryPicker } from '../components/CategoryPicker';
+import { CategoryPicker, OutlookCategoryPill, getOutlookCategory } from '../components/CategoryPicker';
 import {
   deriveFilterPills,
   describeEmptyView,
@@ -853,6 +853,12 @@ function EmailRow({
               {/* Unsent writing reads as a draft everywhere it surfaces (search,
                   All mail) — the same badge the Drafts tab uses. */}
               {email?.isDraft && <span className="draft-badge shrink-0">Draft</span>}
+              {/* Outlook 6 Color Categories */}
+              {thread.labels?.map((label) => {
+                const cat = getOutlookCategory(label);
+                if (!cat) return null;
+                return <OutlookCategoryPill key={label} category={cat.name} />;
+              })}
             </div>
             {/*
               Green unread pill with the thread's REAL unread count (wired from
@@ -3111,11 +3117,13 @@ function InboxPageContent() {
             category: t.category,
             isContact: isContactThread(t),
             isImportant: isImportantThread(t),
+            labels: t.labels,
           })
         : !matchesFocusedRule({
             category: t.category,
             isContact: isContactThread(t),
             isImportant: isImportantThread(t),
+            labels: t.labels,
           }),
     );
   }, [activeThreadPool, activeLens, activeTurn, activeFilters, activeCategories, narrowThreads, isInboxPool, focusMode, isContactThread, isImportantThread]);

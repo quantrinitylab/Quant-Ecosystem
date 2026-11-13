@@ -58,6 +58,14 @@ describe('U3.3 (1) one pill per narrowing, turn first, canonical order', () => {
     ]);
     expect(areFilterPillsVisible(deriveFilterPills('any', new Set(['starred'])))).toBe(true);
   });
+
+  it('supports Outlook filter tokens unread, flagged, to_me in canonical order', () => {
+    expect(deriveFilterPills('any', new Set(['to_me', 'unread', 'flagged']))).toEqual([
+      { kind: 'filter', key: 'filter:unread', label: 'Unread' },
+      { kind: 'filter', key: 'filter:flagged', label: 'Flagged' },
+      { kind: 'filter', key: 'filter:to_me', label: 'To me' },
+    ]);
+  });
 });
 
 describe('U3.3 (2) per-pill X removes only that narrowing', () => {

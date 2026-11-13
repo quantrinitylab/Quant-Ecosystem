@@ -175,4 +175,78 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
     const result = await service.markThreadRead(request.params.id, userId, mutationOpts(request, reply));
     return reply.send({ success: true, data: result });
   });
+
+  // PATCH /threads/:id/focused — Slice S4: update thread focused override
+  fastify.patch<{ Params: { id: string } }>('/:id/focused', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const schema = z.object({
+      isFocused: z.boolean().nullable(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      throw parsed.error;
+    }
+
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const { isFocused } = parsed.data;
+    const targetId = request.params.id;
+
+    let emails = await prisma.email.findMany({
+      where: { threadId: targetId, userId },
+    });
+    if (emails.length === 0) {
+      const single = await prisma.email.findUnique({
+        where: { id: targetId },
+      });
+      if (!single || single.userId !== userId) {
+        throw createAppError('Thread not found', 404, 'THREAD_NOT_FOUND');
+      }
+      if (single.threadId) {
+        emails = await prisma.email.findMany({
+          where: { threadId: single.threadId, userId },
+        });
+      } else {
+        emails = [single];
+      }
+    }
+
+    await Promise.all(
+      emails.map(async (em: any) => {
+        const curLabels: string[] = Array.isArray(em.labels) ? em.labels : [];
+        let nextLabels = curLabels.filter(
+          (l: string) => l !== '__focused_override__' && l !== '__other_override__',
+        );
+        let nextImportant = em.isImportant;
+
+        if (isFocused === true) {
+          nextLabels.push('__focused_override__');
+          nextImportant = true;
+        } else if (isFocused === false) {
+          nextLabels.push('__other_override__');
+          nextImportant = false;
+        }
+
+        return prisma.email.update({
+          where: { id: em.id },
+          data: {
+            labels: nextLabels,
+            isImportant: nextImportant,
+          },
+        });
+      }),
+    );
+
+    return reply.send({
+      success: true,
+      data: {
+        id: targetId,
+        isFocused,
+        updatedCount: emails.length,
+      },
+    });
+  });
 }

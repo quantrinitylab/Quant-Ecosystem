@@ -24,6 +24,10 @@ export type FocusedThreadSignals = {
   isContact?: boolean;
   /** True when starred or high-priority. */
   isImportant?: boolean;
+  /** Explicit override from server or client: true -> force Focused, false -> force Other, null/undefined -> fallback to rule */
+  isFocusedOverride?: boolean | null;
+  /** Labels on the thread, which might contain __focused_override__ or __other_override__ */
+  labels?: readonly string[];
 };
 
 /**
@@ -31,8 +35,16 @@ export type FocusedThreadSignals = {
  * Focused = a direct (primary-category) conversation, OR one with someone in
  * the address book, OR a starred/high-priority one. Other = everything else
  * (updates, offers, social and forums mail that is none of those three).
+ * An explicit server/client override (`isFocusedOverride` or labels `__focused_override__`/`__other_override__`)
+ * takes precedence over heuristic signals.
  */
 export function matchesFocusedRule(signals: FocusedThreadSignals): boolean {
+  if (signals.isFocusedOverride === true) return true;
+  if (signals.isFocusedOverride === false) return false;
+  if (signals.labels) {
+    if (signals.labels.includes('__focused_override__')) return true;
+    if (signals.labels.includes('__other_override__')) return false;
+  }
   return (
     signals.category === 'primary' || signals.isContact === true || signals.isImportant === true
   );
