@@ -58,6 +58,8 @@ export interface AIInferenceRequest {
   systemPrompt?: string;
   context?: Array<{ role: string; content: string }>;
   model?: string;
+  temperature?: number;
+  maxTokens?: number;
   userId: string;
   app: string;
   feature: string;

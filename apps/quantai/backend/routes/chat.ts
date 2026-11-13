@@ -7,6 +7,7 @@ const sendMessageSchema = z.object({
   content: z.string().min(1).max(100000),
   model: z.string().optional(),
   temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().int().positive().optional(),
   useAgent: z.boolean().optional(),
   agentId: z.string().optional(),
 });
@@ -23,7 +24,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const { content, model, temperature, useAgent, agentId } = parseResult.data;
+    const { content, model, temperature, maxTokens, useAgent, agentId } = parseResult.data;
 
     // If agent mode is enabled, use the orchestrator
     if (useAgent) {
@@ -34,6 +35,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           userId,
           model,
           temperature,
+          maxTokens,
         });
 
         return reply.send({
@@ -54,7 +56,9 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
     const response = await aiEngine.chat([{ role: 'user', content }], {
       model: model || 'gpt-4o',
-      temperature: temperature || 0.7,
+      temperature: temperature ?? 0.7,
+      maxTokens,
+      userId,
     });
 
     return reply.send({
