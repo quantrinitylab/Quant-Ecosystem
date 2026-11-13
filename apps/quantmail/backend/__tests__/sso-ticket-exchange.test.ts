@@ -89,6 +89,17 @@ const exchange = async (
   return r;
 };
 
+const resolve = async (
+  handlers: Map<string, RouteHandler>,
+  payload: Record<string, unknown>,
+) => {
+  const handler = handlers.get('POST /sso/ticket/resolve');
+  if (!handler) throw new Error('resolve route not registered');
+  const r = reply();
+  await handler({ body: payload, headers: {} }, r);
+  return r;
+};
+
 describe('POST /sso/ticket/exchange', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -267,5 +278,149 @@ describe('POST /sso/ticket/exchange', () => {
     await handler({ body: { ticket }, headers: { authorization: `Basic ${basic}` } }, r);
     expect(r.statusCode).toBe(200);
     expect(r.body.success).toBe(true);
+  });
+});
+
+describe('POST /sso/ticket/resolve', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    mocks.prisma.oAuthClient.findUnique.mockReset();
+    mocks.prisma.user.findUnique.mockReset();
+    mocks.prisma.oAuthClient.findUnique.mockResolvedValue(clientRow());
+    mocks.prisma.user.findUnique.mockResolvedValue({ emailVerified: true });
+  });
+
+  it('returns email_verified: true for verified users so QuantAI WR-578 gate succeeds', async () => {
+    const handlers = await loadHandlers();
+    const ticket = await mintSsoTicket({
+      userId: 'user-verified-1',
+      email: 'verified@quantmail.in',
+      username: 'verifieduser',
+      displayName: 'Verified User',
+      clientId: CLIENT_ID,
+    });
+    mocks.prisma.user.findUnique.mockResolvedValue({ emailVerified: true });
+
+    const r = await resolve(handlers, {
+      ticket,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+    });
+
+    expect(r.statusCode).toBe(200);
+    expect(r.body.user).toEqual({
+      id: 'user-verified-1',
+      email: 'verified@quantmail.in',
+      username: 'verifieduser',
+      displayName: 'Verified User',
+      email_verified: true,
+    });
+    expect(r.body.clientId).toBe(CLIENT_ID);
+  });
+
+  it('returns email_verified: false for unverified users so QuantAI fails closed with 401 SSO_EMAIL_UNVERIFIED', async () => {
+    const handlers = await loadHandlers();
+    const ticket = await mintSsoTicket({
+      userId: 'user-unverified-2',
+      email: 'unverified@quantmail.in',
+      username: 'unverifieduser',
+      displayName: 'Unverified User',
+      clientId: CLIENT_ID,
+    });
+    mocks.prisma.user.findUnique.mockResolvedValue({ emailVerified: false });
+
+    const r = await resolve(handlers, {
+      ticket,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+    });
+
+    expect(r.statusCode).toBe(200);
+    expect(r.body.user).toEqual({
+      id: 'user-unverified-2',
+      email: 'unverified@quantmail.in',
+      username: 'unverifieduser',
+      displayName: 'Unverified User',
+      email_verified: false,
+    });
+  });
+
+  it('fails closed with email_verified: false when user lookup returns null or throws', async () => {
+    const handlers = await loadHandlers();
+    const ticket = await mintSsoTicket({
+      userId: 'user-missing-3',
+      email: 'missing@quantmail.in',
+      username: 'missinguser',
+      displayName: 'Missing User',
+      clientId: CLIENT_ID,
+    });
+    mocks.prisma.user.findUnique.mockResolvedValue(null);
+
+    const r = await resolve(handlers, {
+      ticket,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+    });
+
+    expect(r.statusCode).toBe(200);
+    expect(r.body.user.email_verified).toBe(false);
+
+    // Database error failure mode
+    const ticket2 = await mintSsoTicket({
+      userId: 'user-err-4',
+      email: 'err@quantmail.in',
+      username: 'erruser',
+      displayName: 'Err User',
+      clientId: CLIENT_ID,
+    });
+    mocks.prisma.user.findUnique.mockRejectedValue(new Error('DB connection pool exhausted'));
+
+    const r2 = await resolve(handlers, {
+      ticket: ticket2,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+    });
+
+    expect(r2.statusCode).toBe(200);
+    expect(r2.body.user.email_verified).toBe(false);
+  });
+
+  it('rejects invalid client credentials with 401', async () => {
+    const handlers = await loadHandlers();
+    const ticket = await mintSsoTicket({
+      userId: 'user-123',
+      email: 'someone@quantmail.in',
+      username: 'someone',
+      displayName: 'Someone',
+      clientId: CLIENT_ID,
+    });
+
+    const r = await resolve(handlers, {
+      ticket,
+      client_id: CLIENT_ID,
+      client_secret: 'wrong-secret',
+    });
+
+    expect(r.statusCode).toBe(401);
+    expect(r.body.error).toBe('invalid_client');
+  });
+
+  it('rejects consumed or expired ticket with 400', async () => {
+    const handlers = await loadHandlers();
+    const ticket = await mintSsoTicket({
+      userId: 'user-123',
+      email: 'someone@quantmail.in',
+      username: 'someone',
+      displayName: 'Someone',
+      clientId: CLIENT_ID,
+    });
+
+    const creds = { client_id: CLIENT_ID, client_secret: CLIENT_SECRET };
+    const first = await resolve(handlers, { ticket, ...creds });
+    expect(first.statusCode).toBe(200);
+
+    const second = await resolve(handlers, { ticket, ...creds });
+    expect(second.statusCode).toBe(400);
+    expect(second.body.error).toBe('invalid_grant');
   });
 });
