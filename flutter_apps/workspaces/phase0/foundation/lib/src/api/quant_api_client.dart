@@ -390,3 +390,9 @@ class QuantApiClient {
     );
   }
 }
+
+/// Enforces that [baseUrl] uses https:// or http:// on a loopback host.
+/// Throws [ArgumentError] if the scheme is not https or loopback http.
+void requireHttpsBaseUrl(String baseUrl) {
+  QuantApiClient._normalizeBaseUrl(baseUrl);
+}

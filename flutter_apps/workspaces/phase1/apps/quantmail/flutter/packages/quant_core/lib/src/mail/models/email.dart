@@ -159,6 +159,10 @@ class Email {
     this.isRead = false,
     this.isStarred = false,
     this.hasAttachments = false,
+    this.isFlagged = false,
+    this.isPinned = false,
+    this.colorCategories = const [],
+    this.isFocused,
     this.folderId,
   });
 
@@ -178,6 +182,21 @@ class Email {
       return const [];
     }
 
+    List<String> categories(dynamic value) {
+      if (value is List) {
+        return value
+            .map((e) => e.toString())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
+      return const [];
+    }
+
+    bool? focused(dynamic value) {
+      if (value is bool) return value;
+      return null;
+    }
+
     return Email(
       id: json['id'] as String? ?? '',
       threadId: json['threadId'] as String?,
@@ -195,6 +214,10 @@ class Email {
       isRead: json['isRead'] == true,
       isStarred: json['isStarred'] == true,
       hasAttachments: json['hasAttachments'] == true,
+      isFlagged: json['isFlagged'] == true || json['flagged'] == true,
+      isPinned: json['isPinned'] == true || json['pinned'] == true,
+      colorCategories: categories(json['colorCategories'] ?? json['categories']),
+      isFocused: focused(json['isFocused'] ?? json['focused']),
       folderId: json['folderId'] as String?,
     );
   }
@@ -236,6 +259,19 @@ class Email {
   /// Whether the message carries attachments.
   final bool hasAttachments;
 
+  /// Whether the message is flagged for follow-up (Outlook parity).
+  final bool isFlagged;
+
+  /// Whether the message is pinned (Outlook parity).
+  final bool isPinned;
+
+  /// Outlook-style color category labels (e.g. 'Red category', 'Work').
+  final List<String> colorCategories;
+
+  /// Outlook-style Focused inbox categorization (`true` for Focused,
+  /// `false` for Other, `null` when uncategorized).
+  final bool? isFocused;
+
   /// Owning folder identifier.
   final String? folderId;
 
@@ -253,8 +289,53 @@ class Email {
         'isRead': isRead,
         'isStarred': isStarred,
         'hasAttachments': hasAttachments,
+        'isFlagged': isFlagged,
+        'isPinned': isPinned,
+        if (colorCategories.isNotEmpty) 'colorCategories': colorCategories,
+        if (isFocused != null) 'isFocused': isFocused,
         if (folderId != null) 'folderId': folderId,
       };
+
+  /// Creates a copy of this email with the given fields replaced.
+  Email copyWith({
+    String? id,
+    String? threadId,
+    String? subject,
+    String? snippet,
+    EmailAddress? from,
+    List<EmailAddress>? to,
+    List<EmailAddress>? cc,
+    DateTime? date,
+    List<String>? labels,
+    bool? isRead,
+    bool? isStarred,
+    bool? hasAttachments,
+    bool? isFlagged,
+    bool? isPinned,
+    List<String>? colorCategories,
+    bool? isFocused,
+    String? folderId,
+  }) {
+    return Email(
+      id: id ?? this.id,
+      threadId: threadId ?? this.threadId,
+      subject: subject ?? this.subject,
+      snippet: snippet ?? this.snippet,
+      from: from ?? this.from,
+      to: to ?? this.to,
+      cc: cc ?? this.cc,
+      date: date ?? this.date,
+      labels: labels ?? this.labels,
+      isRead: isRead ?? this.isRead,
+      isStarred: isStarred ?? this.isStarred,
+      hasAttachments: hasAttachments ?? this.hasAttachments,
+      isFlagged: isFlagged ?? this.isFlagged,
+      isPinned: isPinned ?? this.isPinned,
+      colorCategories: colorCategories ?? this.colorCategories,
+      isFocused: isFocused ?? this.isFocused,
+      folderId: folderId ?? this.folderId,
+    );
+  }
 
   @override
   String toString() => 'Email(id: $id, subject: $subject)';

@@ -123,6 +123,9 @@ List<ThreadSummary> _sampleThreads() {
       messageCount: 4,
       lastMessageDate: now.subtract(const Duration(minutes: 5)),
       isRead: false,
+      isFlagged: true,
+      isPinned: true,
+      colorCategories: ['Orange Category'],
       participantNames: ['Aarav Mehta'],
     ),
     ThreadSummary(
@@ -132,6 +135,8 @@ List<ThreadSummary> _sampleThreads() {
       messageCount: 1,
       lastMessageDate: now.subtract(const Duration(hours: 2)),
       isRead: false,
+      isFlagged: true,
+      colorCategories: ['Blue Category'],
       participantNames: ['IndiGo'],
     ),
     ThreadSummary(

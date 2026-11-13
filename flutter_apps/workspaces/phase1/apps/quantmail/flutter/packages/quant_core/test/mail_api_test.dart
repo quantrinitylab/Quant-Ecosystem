@@ -513,6 +513,10 @@ void main() {
       expect(sparse.messageCount, isNull);
       expect(sparse.lastMessageDate, isNull);
       expect(sparse.isRead, isTrue, reason: 'defaults to read when unknown');
+      expect(sparse.isFlagged, isFalse);
+      expect(sparse.isPinned, isFalse);
+      expect(sparse.colorCategories, isEmpty);
+      expect(sparse.isFocused, isNull);
       expect(sparse.participantNames, isEmpty);
 
       expect(ThreadSummary.fromJson({}).id, isEmpty);
@@ -523,6 +527,10 @@ void main() {
         'messageCount': 4,
         'lastMessageDate': '2026-10-02T12:00:00.000Z',
         'isRead': false,
+        'isFlagged': true,
+        'isPinned': true,
+        'colorCategories': ['Red', 'Work'],
+        'isFocused': true,
         'participants': [
           {'name': 'Alice'},
           {'email': 'bob@example.com'},
@@ -531,10 +539,49 @@ void main() {
       });
       expect(full.messageCount, 4);
       expect(full.isRead, isFalse);
+      expect(full.isFlagged, isTrue);
+      expect(full.isPinned, isTrue);
+      expect(full.colorCategories, ['Red', 'Work']);
+      expect(full.isFocused, isTrue);
       expect(
         full.participantNames,
         ['Alice', 'bob@example.com', 'carol@example.com'],
       );
+
+      final json = full.toJson();
+      expect(json['isFlagged'], isTrue);
+      expect(json['isPinned'], isTrue);
+      expect(json['colorCategories'], ['Red', 'Work']);
+      expect(json['isFocused'], isTrue);
+
+      final copy = full.copyWith(isFlagged: false, isFocused: false);
+      expect(copy.isFlagged, isFalse);
+      expect(copy.isFocused, isFalse);
+      expect(copy.isPinned, isTrue);
+    });
+
+    test('Email supports Outlook Mobile parity fields (flag, pin, categories, focused)', () {
+      final email = Email.fromJson({
+        'id': 'e1',
+        'isFlagged': true,
+        'isPinned': true,
+        'colorCategories': ['Blue', 'Urgent'],
+        'isFocused': true,
+      });
+      expect(email.isFlagged, isTrue);
+      expect(email.isPinned, isTrue);
+      expect(email.colorCategories, ['Blue', 'Urgent']);
+      expect(email.isFocused, isTrue);
+
+      final json = email.toJson();
+      expect(json['isFlagged'], isTrue);
+      expect(json['isPinned'], isTrue);
+      expect(json['colorCategories'], ['Blue', 'Urgent']);
+      expect(json['isFocused'], isTrue);
+
+      final copy = email.copyWith(isFlagged: false);
+      expect(copy.isFlagged, isFalse);
+      expect(copy.isPinned, isTrue);
     });
   });
 

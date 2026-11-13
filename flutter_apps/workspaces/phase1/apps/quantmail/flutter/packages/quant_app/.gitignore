@@ -32,6 +32,8 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/test/failures/
+/test/shots_tmp/
 
 # Symbolication related
 app.*.symbols

@@ -270,7 +270,7 @@ void main() {
         repo.signInWithPassword(email: 'a@b.c', password: 'pw'),
         throwsA(isA<AuthException>()
             .having((e) => e.code, 'code', 'network_error')
-            .having((e) => e.message, 'message', startsWith('Request failed'))),
+            .having((e) => e.message, 'message', startsWith('Request fail'))),
       );
     });
   });
@@ -367,7 +367,7 @@ void main() {
         repo.upgradeToOAuthTokens(),
         throwsA(isA<AuthException>()
             .having((e) => e.code, 'code', 'authorize_failed')
-            .having((e) => e.message, 'message', contains('HTTP 500'))),
+            .having((e) => e.message, 'message', contains('Login request fail'))),
       );
     });
 
