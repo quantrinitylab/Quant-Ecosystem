@@ -69,13 +69,17 @@ Required: allowlisted result codes or authenticated internal navigation state; n
 Dependencies: QM-AUTH-001.
 
 ## QM-AUTH-005 — Password recovery end-to-end contract
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-auth-005-password-recovery-contract
 Finding: client password-reset endpoints were inspected but active backend does not provide the required complete recovery contract; confirmation page is missing and non-network failures can be treated as completion.
 Required: request + confirm endpoints, rate limiting, non-enumerating response, hashed single-use token, expiry/reuse handling, verified delivery, confirmation UI, session invalidation, audit/observability.
 Dependencies: QM-AUTH-001.
 
 ## QM-AUTH-006 — Registration ownership/verification contract
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-auth-006-registration-verification-contract
 Finding: client sends acceptTerms but inspected backend does not validate/store it; new accounts are marked email-verified without inspected ownership proof.
 Required: versioned Terms/Privacy consent record, email ownership challenge, verification state machine, resend/expiry/reuse handling, honest activation state.
 Dependencies: QM-AUTH-001.
