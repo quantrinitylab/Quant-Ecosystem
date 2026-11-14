@@ -100,7 +100,9 @@ Rule: products remain source of truth; Quanty receives only governed minimum use
 Dependencies: QM-AUTH-001; ecosystem contracts 20/21/22.
 
 ## QM-AUTH-009 — Cross-app SSO handoff hardening
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-auth-009-sso-handoff-hardening
 Finding: architecture requires server-verifiable short-lived scoped handoff; audit found a client-side base64-only SSO ticket verification path elsewhere.
 Required: signed/server-verifiable ticket, audience/client binding, nonce/replay protection, short expiry, target allowlist, token scrubbing, destination reauthorization.
 Dependencies: QM-AUTH-008; ecosystem contract 20.
