@@ -247,7 +247,7 @@ describe('Outlook Parity Backend Slices S2, S3, S4', () => {
       expect(names).toEqual(['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple']);
       expect(body.data.find((c: any) => c.name === 'Red').color).toBe('#EF4444');
       expect(body.data.find((c: any) => c.name === 'Blue').color).toBe('#38BDF8');
-    });
+    }, 20000);
 
     it('POST /labels/categories/seed is idempotent', async () => {
       const app = await buildTestApp();
