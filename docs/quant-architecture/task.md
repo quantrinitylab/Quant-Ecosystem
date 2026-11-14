@@ -2832,7 +2832,9 @@ Scope: `apps/quantmail/src/app/drive/` subviews.
 Dependencies: none.
 
 ## QM-UIUX-021 — Remove unverified E2EE/AES-256 claims on Drive Vault tab
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-uiux-021-drive-vault-e2ee-claims
 Finding: badge `E2EE` + aria-label "AES-256 E2EE Sovereign Cryptographic Vault" with no reviewed crypto contract. Exactly what QM-TRUST-003 forbids. Evidence: `~/workspace/audits/2026-10-08-uiux-deep/drive-audit.md`.
 Required: remove the claims or replace with evidence-backed language per QM-TRUST-003.
 Scope: Drive Vault tab.
