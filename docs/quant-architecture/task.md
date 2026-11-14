@@ -92,7 +92,9 @@ Required: challenge ID/lifetime, attempt limits, TOTP/recovery separation, repla
 Dependencies: QM-AUTH-001.
 
 ## QM-AUTH-008 — Workspace bootstrap after authentication
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-auth-008-workspace-bootstrap
 Goal: one authoritative bootstrap response for identity, account state, devices/session summary, permissions/capabilities, notification state, product config and Quanty session bootstrap.
 Rule: products remain source of truth; Quanty receives only governed minimum useful context.
 Dependencies: QM-AUTH-001; ecosystem contracts 20/21/22.
