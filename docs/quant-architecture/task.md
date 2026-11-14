@@ -139,7 +139,9 @@ Notes: Staging deploy verification pending next deploy cycle.
 # P0 — QuantMail Workspace UX
 
 ## QM-WORK-001 — Canonical QuantMail Design OS foundation
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-work-001-design-os-foundation
 Scope: @quant/brand, @quant/shared-ui, QuantMail semantic tokens/CSS.
 Required: surface/type/focus/motion/responsive tokens, product accent semantics, contrast-safe pairs, no ungoverned direct colors on migrated surfaces, Indic fallback preservation.
 Dependencies: QM-AUTH-002.
