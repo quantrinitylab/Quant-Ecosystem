@@ -85,7 +85,9 @@ Required: versioned Terms/Privacy consent record, email ownership challenge, ver
 Dependencies: QM-AUTH-001.
 
 ## QM-AUTH-007 — Login 2FA state machine hardening
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-auth-007-login-2fa-state-machine
 Required: challenge ID/lifetime, attempt limits, TOTP/recovery separation, replay protection, generic failure copy, session issuance only after successful verification, secret-free audit, recovery-code consumption.
 Dependencies: QM-AUTH-001.
 
