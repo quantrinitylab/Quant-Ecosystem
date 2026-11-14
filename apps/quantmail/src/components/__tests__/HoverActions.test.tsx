@@ -203,4 +203,36 @@ describe('HoverActions', () => {
       'Move conversation to Trash?',
     );
   });
+
+  describe('Flag action (AC-18)', () => {
+    it('shows "Flag" button when isFlagged is false, "Unflag" when true', () => {
+      const unflagged = renderBar({ onToggleFlag: () => {}, isFlagged: false });
+      expect(byLabel(unflagged, 'Flag')).not.toBeNull();
+      expect(byLabel(unflagged, 'Unflag')).toBeNull();
+
+      const flagged = renderBar({ onToggleFlag: () => {}, isFlagged: true });
+      expect(byLabel(flagged, 'Unflag')).not.toBeNull();
+      expect(byLabel(flagged, 'Flag')).toBeNull();
+    });
+
+    it('fires onToggleFlag once per click and does not bubble to row', () => {
+      const onToggleFlag = vi.fn();
+      const container = renderBar({ onToggleFlag, isFlagged: false });
+      const btn = byLabel(container, 'Flag');
+      click(btn);
+      expect(onToggleFlag).toHaveBeenCalledTimes(1);
+    });
+
+    it('is absent without onToggleFlag handler', () => {
+      const container = renderBar({ onToggleFlag: undefined });
+      expect(byLabel(container, 'Flag')).toBeNull();
+      expect(byLabel(container, 'Unflag')).toBeNull();
+    });
+
+    it('is absent in spam mode even if onToggleFlag is provided', () => {
+      const container = renderBar({ onToggleFlag: () => {}, isSpam: true });
+      expect(byLabel(container, 'Flag')).toBeNull();
+      expect(byLabel(container, 'Unflag')).toBeNull();
+    });
+  });
 });

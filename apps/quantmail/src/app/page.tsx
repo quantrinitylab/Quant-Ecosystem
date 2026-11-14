@@ -89,6 +89,7 @@ import {
   threadMessageIds,
   type ConversationThread,
 } from '../lib/threading';
+import { allConversationsFlagged, readFlag } from '../lib/message-flag';
 import { safeISODateTime } from '../lib/honest-date';
 import { useAuth } from '../providers/auth-provider';
 import { useContactDirectory } from '../hooks/useContacts';
@@ -224,7 +225,7 @@ type InboxLens =
   | 'snoozed'
   | (string & {});
 type InboxTurn = 'any' | 'needs_you' | 'waiting';
-type InboxFilter = 'starred' | 'attachment';
+type InboxFilter = 'starred' | 'attachment' | 'flagged';
 
 const INBOX_LENSES: Array<{ key: InboxLens; label: string; hint: string }> = [
   { key: 'all', label: 'All', hint: 'Every conversation, automated mail included' },
@@ -251,6 +252,7 @@ const INBOX_TURNS: Array<{ key: InboxTurn; label: string; hint: string }> = [
 const INBOX_FILTERS: Array<{ key: InboxFilter; label: string }> = [
   { key: 'starred', label: 'Pinned' },
   { key: 'attachment', label: 'Has attachment' },
+  { key: 'flagged', label: 'Flagged' },
 ];
 
 function formatReceivedAt(value?: string | Date) {
@@ -390,6 +392,7 @@ type EmailRowProps = {
    */
   onToggleStar: (event: React.MouseEvent | null) => void;
   onTogglePin: (event: React.MouseEvent | null) => void;
+  onToggleFlag: (event: React.MouseEvent | null) => void;
   onOpen: () => void;
   onArchive: () => void;
   onUnarchive?: () => void;
@@ -426,6 +429,7 @@ function EmailRow({
   onToggleSelect,
   onToggleStar,
   onTogglePin,
+  onToggleFlag,
   onOpen,
   onArchive,
   onUnarchive,
@@ -824,10 +828,7 @@ function EmailRow({
                 </span>
               )}
               {/*
-                Slice 1: pin badge. There is no flagged field anywhere in the
-                Email model or the thread type, so no red flag badge is faked
-                from the star — that would mislabel starred mail as flagged.
-                The flag badge is documented as not implemented (see summary).
+                S1: Outlook-style message flag indicator. Independent of isStarred/isPinned.
               */}
               {thread.isPinned && (
                 <span
@@ -843,6 +844,16 @@ function EmailRow({
                   >
                     <path d="M8 3h8v3l-3 11-1 4-1-4-3-11V3z" />
                   </svg>
+                </span>
+              )}
+              {thread.isFlagged && (
+                <span
+                  role="img"
+                  aria-label="Flagged"
+                  title="Flagged"
+                  className="inline-flex shrink-0 text-[var(--quant-destructive)]"
+                >
+                  <MailIcon name="flag" filled className="size-3.5" />
                 </span>
               )}
               {isSpamMode && (
@@ -936,6 +947,8 @@ function EmailRow({
               onSnooze={() => setShowSnoozeMenu((prev) => !prev)}
               onToggleStar={onToggleStar}
               onTogglePin={onTogglePin}
+              onToggleFlag={onToggleFlag}
+              isFlagged={thread.isFlagged}
               onLabel={() => setShowLabelMenu(true)}
               isSpam={isSpamMode}
               onRescueSpam={onRescueSpam}
@@ -1104,6 +1117,24 @@ function EmailRow({
                       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                     </svg>
                     <span>{email.isStarred ? 'Unstar' : 'Star'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      close();
+                      onToggleFlag(e);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-destructive)] rounded-lg transition-colors text-left"
+                  >
+                    <MailIcon
+                      name="flag"
+                      filled={thread.isFlagged}
+                      className="size-3.5 shrink-0"
+                    />
+                    <span>{thread.isFlagged ? 'Unflag' : 'Flag'}</span>
                   </button>
 
                   {/* BB-P1-1: no read toggle on all-self conversations — the
@@ -2605,8 +2636,10 @@ function InboxPageContent() {
   );
 
   const matchesFilter = useCallback(
-    (t: ConversationThread, filter: InboxFilter) =>
-      filter === 'starred' ? t.isStarred : threadHasAttachment(t),
+    (t: ConversationThread, filter: InboxFilter) => {
+      if (filter === 'flagged') return readFlag(t);
+      return filter === 'starred' ? t.isStarred : threadHasAttachment(t);
+    },
     [threadHasAttachment],
   );
 
@@ -3000,7 +3033,7 @@ function InboxPageContent() {
    * filter already on, that is exactly the length of the list under it.
    */
   const filterCounts = useMemo(() => {
-    const counts = { starred: 0, attachment: 0 } as Record<InboxFilter, number>;
+    const counts = { starred: 0, attachment: 0, flagged: 0 } as Record<InboxFilter, number>;
     for (const { key } of INBOX_FILTERS) {
       const others = new Set(activeFilters);
       others.delete(key);
@@ -3548,6 +3581,29 @@ function InboxPageContent() {
     [mutations, conversationIds],
   );
 
+  const setThreadFlagged = useCallback(
+    async (event: React.MouseEvent | null, ids: string[], flagged: boolean) => {
+      event?.stopPropagation();
+      await mutations.setFlagged(ids, flagged);
+    },
+    [mutations],
+  );
+
+  const batchSetFlagged = useCallback(
+    async (selectedIdsList: string[], flagged: boolean) => {
+      setSelectedIds(new Set());
+      const targetThreads = displayThreads.filter(
+        (t) =>
+          selectedIdsList.includes(t.id) ||
+          selectedIdsList.includes(t.threadId || '') ||
+          t.messages.some((m) => selectedIdsList.includes(m.id)),
+      );
+      const idsToChange = targetThreads.flatMap((t) => threadMessageIds(t));
+      await mutations.setFlagged(idsToChange, flagged, selectedIdsList.length);
+    },
+    [mutations, displayThreads],
+  );
+
   const archiveEmail = useCallback(
     (id: string) => mutations.archive(conversationIds(id)),
     [mutations, conversationIds],
@@ -3771,14 +3827,21 @@ function InboxPageContent() {
     [selectedIds, displayThreads],
   );
 
+  const allSelectedFlagged = useMemo(
+    () => allConversationsFlagged(displayThreads, selectedIds),
+    [displayThreads, selectedIds],
+  );
+
   const selectionHeader = (
     <SelectionHeader
       count={selectedIds.size}
       totalVisible={displayThreads.length}
       allPinned={allSelectedPinned}
+      allFlagged={allSelectedFlagged}
       onDeselectAll={() => setSelectedIds(new Set())}
       onSelectAllVisible={() => setSelectedIds(new Set(displayThreads.map((t) => t.id)))}
       onTogglePin={() => void batchTogglePin(Array.from(selectedIds), allSelectedPinned)}
+      onToggleFlag={() => void batchSetFlagged(Array.from(selectedIds), !allSelectedFlagged)}
       onMarkRead={() => void batchMarkRead(Array.from(selectedIds), true)}
       onMarkUnread={() => void batchMarkRead(Array.from(selectedIds), false)}
       onMoveToCategory={(category) => void moveSelectedToCategory(category)}
@@ -4898,6 +4961,9 @@ function InboxPageContent() {
                               onToggleSelect={(event) => toggleSelect(thread.id, event)}
                               onToggleStar={(event) => void toggleStar(event, thread.id)}
                               onTogglePin={(event) => void togglePin(event, thread.id)}
+                              onToggleFlag={(event) =>
+                                void setThreadFlagged(event, threadMessageIds(thread), !thread.isFlagged)
+                              }
                               onOpen={() => {
                                 focusRow(thread.id);
                                 openEmail(thread.latestEmail, thread);
@@ -5225,6 +5291,9 @@ function InboxPageContent() {
                           onToggleSelect={(event) => toggleSelect(thread.id, event)}
                           onToggleStar={(event) => void toggleStar(event, thread.id)}
                           onTogglePin={(event) => void togglePin(event, thread.id)}
+                          onToggleFlag={(event) =>
+                            void setThreadFlagged(event, threadMessageIds(thread), !thread.isFlagged)
+                          }
                           onOpen={() => {
                             focusRow(thread.id);
                             openEmail(thread.latestEmail, thread);

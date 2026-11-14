@@ -22,6 +22,7 @@ export type MailMutationKind =
   | 'restore'
   | 'toggleStar'
   | 'togglePin'
+  | 'setFlagged'
   | 'markRead'
   | 'markUnread'
   | 'snooze'
@@ -33,6 +34,8 @@ export interface OutboxEntry {
   emailId: string;
   /** ISO timestamp, for `snooze`. */
   snoozeUntil?: string;
+  /** Explicit boolean target for `setFlagged` (S1). */
+  flagged?: boolean;
   createdAt: number;
   attempts: number;
   lastError?: string;
@@ -58,6 +61,13 @@ function execute(entry: OutboxEntry): Promise<Envelope> {
       return apiClient.toggleStar(entry.emailId);
     case 'togglePin':
       return apiClient.togglePin(entry.emailId);
+    case 'setFlagged':
+      return typeof entry.flagged === 'boolean'
+        ? apiClient.setFlagged(entry.emailId, entry.flagged)
+        : Promise.resolve({
+            success: false,
+            error: { message: 'Queued flag change has no target state', statusCode: 400 },
+          });
     case 'markRead':
       return apiClient.markAsRead(entry.emailId);
     case 'markUnread':
@@ -121,13 +131,14 @@ function isOnline(): boolean {
 export async function enqueue(
   kind: MailMutationKind,
   emailId: string,
-  extra: { snoozeUntil?: Date } = {},
+  extra: { snoozeUntil?: Date; flagged?: boolean } = {},
 ): Promise<{ sent: boolean; rejected?: OutboxEntry }> {
   const entry: OutboxEntry = {
     id: createId('outbox'),
     kind,
     emailId,
     snoozeUntil: extra.snoozeUntil?.toISOString(),
+    flagged: extra.flagged,
     createdAt: Date.now(),
     attempts: 0,
   };
@@ -151,50 +162,67 @@ async function refreshPendingCount(): Promise<void> {
   setState({ pending: all.length });
 }
 
+let rerun = false;
+
+async function drainOnce(): Promise<boolean> {
+  const entries = (await mailDatabase.getAll<OutboxEntry>(STORE_OUTBOX)).sort(
+    (a, b) => a.createdAt - b.createdAt,
+  );
+
+  for (const entry of entries) {
+    if (!isOnline()) return true;
+
+    let envelope: Envelope;
+    try {
+      envelope = await execute(entry);
+    } catch (error) {
+      // Transport failure: keep the entry and schedule a retry.
+      await recordAttempt(entry, error instanceof Error ? error.message : 'Network error');
+      return true;
+    }
+
+    if (envelope.success) {
+      await mailDatabase.delete(STORE_OUTBOX, entry.id);
+      continue;
+    }
+
+    if (isPermanent(envelope.error?.statusCode)) {
+      await mailDatabase.delete(STORE_OUTBOX, entry.id);
+      setState({
+        rejected: [...state.rejected, { ...entry, lastError: envelope.error?.message }],
+      });
+      continue;
+    }
+
+    await recordAttempt(entry, envelope.error?.message ?? 'Server error');
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Send every queued mutation in order.
  *
  * Serialised through a single in-flight promise: two `online` events, or an
  * `online` event racing a fresh `enqueue`, must not send the same entry twice.
+ * Concurrent enqueues flag rerun = true to ensure entries arrived during
+ * execution are drained before settling (MEDIUM 3).
  */
 export function flush(): Promise<void> {
-  if (flushing) return flushing;
+  if (flushing) {
+    rerun = true;
+    return flushing;
+  }
 
   flushing = (async () => {
     setState({ isFlushing: true });
     try {
-      const entries = (await mailDatabase.getAll<OutboxEntry>(STORE_OUTBOX)).sort(
-        (a, b) => a.createdAt - b.createdAt,
-      );
-
-      for (const entry of entries) {
-        if (!isOnline()) break;
-
-        let envelope: Envelope;
-        try {
-          envelope = await execute(entry);
-        } catch (error) {
-          // Transport failure: keep the entry and schedule a retry.
-          await recordAttempt(entry, error instanceof Error ? error.message : 'Network error');
-          break;
-        }
-
-        if (envelope.success) {
-          await mailDatabase.delete(STORE_OUTBOX, entry.id);
-          continue;
-        }
-
-        if (isPermanent(envelope.error?.statusCode)) {
-          await mailDatabase.delete(STORE_OUTBOX, entry.id);
-          setState({
-            rejected: [...state.rejected, { ...entry, lastError: envelope.error?.message }],
-          });
-          continue;
-        }
-
-        await recordAttempt(entry, envelope.error?.message ?? 'Server error');
-        break;
-      }
+      let stopped = false;
+      do {
+        rerun = false;
+        stopped = await drainOnce();
+      } while (rerun && !stopped);
 
       await refreshPendingCount();
     } finally {

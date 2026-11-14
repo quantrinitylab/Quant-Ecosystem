@@ -928,6 +928,131 @@ describe('EmailService', () => {
     });
   });
 
+  describe('setFlagged', () => {
+    it('toggles flag from false to true independently from star and pin', async () => {
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isFlagged: false, isStarred: true, isPinned: false, version: 1 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isFlagged: true, isStarred: true, isPinned: false, version: 2 });
+
+      const result = await service.setFlagged('email-1', 'user-1');
+
+      expect(result.isFlagged).toBe(true);
+      expect(result.isStarred).toBe(true);
+      expect(result.isPinned).toBe(false);
+
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: { id: 'email-1' },
+        data: {
+          isFlagged: true,
+          updatedAt: expect.any(Date),
+          version: { increment: 1 },
+        },
+      });
+    });
+
+    it('toggles flag from true to false', async () => {
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isFlagged: true, isStarred: false, isPinned: true, version: 2 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isFlagged: false, isStarred: false, isPinned: true, version: 3 });
+
+      const result = await service.setFlagged('email-1', 'user-1');
+
+      expect(result.isFlagged).toBe(false);
+      expect(result.isPinned).toBe(true);
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: { id: 'email-1' },
+        data: {
+          isFlagged: false,
+          updatedAt: expect.any(Date),
+          version: { increment: 1 },
+        },
+      });
+    });
+
+    it('sets an explicit target even if equal to current stored value and increments version', async () => {
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isFlagged: true, version: 5 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isFlagged: true, version: 6 });
+
+      const result = await service.setFlagged('email-1', 'user-1', true);
+
+      expect(result.isFlagged).toBe(true);
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: { id: 'email-1' },
+        data: {
+          isFlagged: true,
+          updatedAt: expect.any(Date),
+          version: { increment: 1 },
+        },
+      });
+    });
+
+    it('supports expectedVersion in mutationOpts', async () => {
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isFlagged: false, version: 3 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isFlagged: true, version: 4 });
+
+      await service.setFlagged('email-1', 'user-1', true, { expectedVersion: 3 });
+
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: { id: 'email-1', version: 3 },
+        data: {
+          isFlagged: true,
+          updatedAt: expect.any(Date),
+          version: { increment: 1 },
+        },
+      });
+    });
+
+    it('rejects with 409 VERSION_CONFLICT when version check fails', async () => {
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isFlagged: false, version: 4 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', isFlagged: false, version: 5 }); // current is 5, expected is 3
+
+      // updateMany returns { count: 0 } when version condition fails
+      prisma.email.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      await expect(service.setFlagged('email-1', 'user-1', true, { expectedVersion: 3 }))
+        .rejects.toMatchObject({
+          statusCode: 409,
+          code: 'VERSION_CONFLICT',
+        });
+    });
+
+    it('throws 404 for missing email', async () => {
+      prisma.email.findUnique.mockResolvedValue(null);
+      await expect(service.setFlagged('missing', 'user-1')).rejects.toMatchObject({
+        statusCode: 404,
+        code: 'EMAIL_NOT_FOUND',
+      });
+    });
+
+    it('throws 403 for other user email', async () => {
+      prisma.email.findUnique.mockResolvedValue({ id: 'email-1', userId: 'user-2' });
+      await expect(service.setFlagged('email-1', 'user-1')).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('allows flagging an owned email with deletedAt set (A4)', async () => {
+      prisma.email.findUnique
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', deletedAt: new Date(), isFlagged: false, version: 1 })
+        .mockResolvedValueOnce({ id: 'email-1', userId: 'user-1', deletedAt: new Date(), isFlagged: true, version: 2 });
+
+      const result = await service.setFlagged('email-1', 'user-1', true);
+      expect(result.isFlagged).toBe(true);
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: { id: 'email-1' },
+        data: {
+          isFlagged: true,
+          updatedAt: expect.any(Date),
+          version: { increment: 1 },
+        },
+      });
+    });
+  });
+
   describe('sendEmail', () => {
     it('composes and sends an email in one call', async () => {
       const svc = new EmailService(prisma as never, createWorkingPipeline() as never, suppression);

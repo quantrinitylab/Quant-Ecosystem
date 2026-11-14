@@ -23,6 +23,7 @@ import {
 } from '../lib/offline/folders';
 import { mailboxKey, readMailbox, writeMailbox, patchEmail } from '../lib/offline/mail-cache';
 import { InboxCursorPager } from '../lib/inbox-cursor-pager';
+import { readFlag } from '../lib/message-flag';
 import { enqueue, type MailMutationKind } from '../lib/offline/outbox';
 import { dismissToast, showToast } from '../lib/toast-bus';
 import {
@@ -98,6 +99,7 @@ export interface MailMutations {
   restore: (ids: string | string[]) => Promise<void>;
   toggleStar: (ids: string | string[]) => Promise<void>;
   togglePin: (ids: string | string[]) => Promise<void>;
+  setFlagged: (ids: string | string[], flagged: boolean, unitCount?: number) => Promise<void>;
   markRead: (ids: string | string[]) => Promise<void>;
   markUnread: (ids: string | string[]) => Promise<void>;
   moveToCategory: (
@@ -197,9 +199,15 @@ function emailListQueries(queryClient: QueryClient): Array<[readonly unknown[], 
   return result;
 }
 
+export const activePagers = new Set<{ pager: InboxCursorPager; bump: () => void }>();
+
 function findCachedEmail(queryClient: QueryClient, id: string): Email | undefined {
   for (const [, data] of emailListQueries(queryClient)) {
     const match = data.find((email) => email.id === id);
+    if (match) return match;
+  }
+  for (const entry of activePagers) {
+    const match = entry.pager.tailEmails.find((email) => email.id === id);
     if (match) return match;
   }
   return undefined;
@@ -271,6 +279,14 @@ export function useInbox(options?: UseInboxOptions): UseInboxReturn {
   const [pagerVersion, bumpPagerVersion] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
+
+  useEffect(() => {
+    const entry = { pager, bump: () => bumpPagerVersion((v) => v + 1) };
+    activePagers.add(entry);
+    return () => {
+      activePagers.delete(entry);
+    };
+  }, [pager]);
 
   const seededRef = useRef<string | null>(null);
   useEffect(() => {
@@ -418,10 +434,14 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
     (ids: string[], patch: EmailPatch): (() => void) => {
       const snapshots = emailListQueries(queryClient);
 
+      const originalEmails = new Map<string, Email>();
       const patched = new Map<string, Email>();
       for (const id of ids) {
         const current = findCachedEmail(queryClient, id);
-        if (current) patched.set(id, { ...current, ...patch });
+        if (current) {
+          originalEmails.set(id, current);
+          patched.set(id, { ...current, ...patch });
+        }
       }
       if (patched.size === 0) return () => {};
 
@@ -432,10 +452,23 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
         if (!unchanged) queryClient.setQueryData(key, next);
       }
 
+      for (const entry of activePagers) {
+        if (entry.pager.patch(patched)) {
+          entry.bump();
+        }
+      }
+
       for (const [id, email] of patched) void patchEmail(id, email);
 
       return () => {
         for (const [key, data] of snapshots) queryClient.setQueryData(key, data);
+        if (originalEmails.size > 0) {
+          for (const entry of activePagers) {
+            if (entry.pager.patch(originalEmails)) {
+              entry.bump();
+            }
+          }
+        }
       };
     },
     [queryClient],
@@ -447,40 +480,41 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
       ids: string[];
       patch: EmailPatch;
       snoozeUntil?: Date;
+      flagged?: boolean;
       toast?: string;
-      undo?: { kind: MailMutationKind; patch: EmailPatch };
+      undo?: { kind: MailMutationKind; patch: EmailPatch; flagged?: boolean };
       removesFromView?: boolean;
     }): Promise<void> => {
-      const { kind, ids, patch, snoozeUntil, toast, undo, removesFromView } = config;
+      const { kind, ids, patch, snoozeUntil, flagged, toast, undo, removesFromView } = config;
       if (ids.length === 0) return;
 
       const rollback = applyOptimistic(ids, patch);
       if (removesFromView) onRemovedRef.current?.(ids);
 
-      /*
-       * Confirm the moment the change is applied, the way Gmail does. The toast
-       * used to wait for the outbox round trip (IndexedDB write, the request,
-       * the IndexedDB cleanup). Live on staging, trashing from a thread put the
-       * user back in the inbox and "Conversation moved to trash · Undo" only
-       * showed up about 2.7 s later. In another run it had still not appeared
-       * after 8 s. The row is already gone, so the toast and its Undo belong
-       * to that same instant. If the server refuses, the toast is withdrawn
-       * below.
-       */
       const confirmationId = toast
         ? showToast({
             text: toast,
             type: 'success',
             undoAction: undo
               ? () => {
-                  void run({ kind: undo.kind, ids, patch: undo.patch });
+                  void run({
+                    kind: undo.kind,
+                    ids,
+                    patch: undo.patch,
+                    flagged: undo.flagged,
+                  });
                 }
               : undefined,
           })
         : null;
 
+      const extra: { snoozeUntil?: Date; flagged?: boolean } = {
+        ...(snoozeUntil ? { snoozeUntil } : {}),
+        ...(flagged !== undefined ? { flagged } : {}),
+      };
+
       const results = await Promise.all(
-        ids.map((id) => enqueue(kind, id, snoozeUntil ? { snoozeUntil } : {})),
+        ids.map((id) => enqueue(kind, id, extra)),
       );
       const rejection = results.find((result) => result.rejected)?.rejected;
 
@@ -583,6 +617,32 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
           ) !== target,
       );
       return run({ kind: 'togglePin', ids: wrongSide, patch: { isPinned: target } as EmailPatch });
+    },
+    [queryClient, run],
+  );
+
+  const setFlagged = useCallback(
+    (ids: string | string[], flagged: boolean, unitCount?: number) => {
+      const list = idList(ids);
+      const wrongSide = list.filter((id) => {
+        const cached = findCachedEmail(queryClient, id);
+        return cached === undefined || readFlag(cached) !== flagged;
+      });
+      if (wrongSide.length === 0) return Promise.resolve();
+
+      const noun = unitCount === undefined ? 'Conversation' : conversationNoun(unitCount);
+      return run({
+        kind: 'setFlagged',
+        ids: wrongSide,
+        patch: { isFlagged: flagged } as EmailPatch,
+        flagged,
+        toast: `${noun} ${flagged ? 'flagged' : 'unflagged'}`,
+        undo: {
+          kind: 'setFlagged',
+          patch: { isFlagged: !flagged } as EmailPatch,
+          flagged: !flagged,
+        },
+      });
     },
     [queryClient, run],
   );
@@ -695,6 +755,7 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
       restore,
       toggleStar,
       togglePin,
+      setFlagged,
       markRead,
       markUnread,
       moveToCategory,
@@ -708,6 +769,7 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
       restore,
       toggleStar,
       togglePin,
+      setFlagged,
       markRead,
       markUnread,
       moveToCategory,

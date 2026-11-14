@@ -35,7 +35,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useKeyboardScope, useRegisterCommands } from '../lib/keyboard/hooks';
-import { inboxCommand, type Command } from '../lib/keyboard/command-registry';
+import { inboxCommand, inboxPaletteCommand, type Command } from '../lib/keyboard/command-registry';
 import { hasPendingUndo, runPendingUndo, showToast } from '../lib/toast-bus';
 import type { MailMutations } from './useMailMutations';
 
@@ -54,6 +54,7 @@ export interface InboxKeyboardRow {
   threadId: string;
   isRead: boolean;
   isStarred: boolean;
+  isFlagged?: boolean;
   messages?: unknown[];
 }
 
@@ -474,10 +475,21 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       ...inboxCommand('inbox.pin'),
       scope: SCOPE,
       icon: 'star',
-      keywords: ['flag', 'pin', 'important', 'star'],
+      keywords: ['pin', 'important', 'star'],
       enabled: () => focusedRow !== null,
       run: () => {
         if (focusedRow) void mutations.toggleStar(idsOf(focusedRow));
+      },
+    },
+    {
+      ...inboxPaletteCommand('inbox.flag'),
+      label: focusedRow?.isFlagged ? 'Unflag conversation' : 'Flag conversation',
+      scope: SCOPE,
+      icon: 'flag',
+      keywords: ['flag', 'flagged', 'follow up', 'mark'],
+      enabled: () => focusedRow !== null,
+      run: () => {
+        if (focusedRow) void mutations.setFlagged(idsOf(focusedRow), focusedRow.isFlagged !== true);
       },
     },
     {

@@ -50,7 +50,7 @@ export type FilterPill =
   | { kind: 'turn'; key: `turn:${Exclude<FilterPillTurn, 'any'>}`; label: string }
   | { kind: 'filter'; key: `filter:${FilterPillFilter}`; label: string };
 
-/** Canonical filter order, supporting Outlook filter tokens. */
+/** Canonical filter order, supporting Outlook filter tokens and matching INBOX_FILTERS. */
 export const FILTER_ORDER: FilterPillFilter[] = [
   'unread',
   'flagged',

@@ -9,6 +9,7 @@ interface HoverActionsProps {
   isRead: boolean;
   isStarred?: boolean;
   isPinned?: boolean;
+  isFlagged?: boolean;
   /** When true, the Archive button becomes "Move to inbox" (unarchive). */
   isArchived?: boolean;
   onArchive: () => void;
@@ -25,6 +26,7 @@ interface HoverActionsProps {
   onSnooze: () => void;
   onToggleStar?: (e: React.MouseEvent) => void;
   onTogglePin?: (e: React.MouseEvent) => void;
+  onToggleFlag?: (e: React.MouseEvent) => void;
   onLabel?: () => void;
   isSpam?: boolean;
   onRescueSpam?: () => void;
@@ -41,6 +43,7 @@ export const HoverActions = memo(function HoverActions({
   isRead,
   isStarred,
   isPinned,
+  isFlagged,
   isArchived,
   onArchive,
   onUnarchive,
@@ -51,6 +54,7 @@ export const HoverActions = memo(function HoverActions({
   onSnooze,
   onToggleStar,
   onTogglePin,
+  onToggleFlag,
   onLabel,
   isSpam,
   onRescueSpam,
@@ -121,6 +125,34 @@ export const HoverActions = memo(function HoverActions({
             strokeLinejoin="round"
           >
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+        </button>
+      )}
+      {onToggleFlag && !isSpam && (
+        <button
+          type="button"
+          className={`hover-action-btn ${
+            isFlagged
+              ? 'text-[var(--quant-destructive)] shadow-sm'
+              : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFlag(e);
+          }}
+          aria-label={isFlagged ? 'Unflag' : 'Flag'}
+          title={isFlagged ? 'Unflag' : 'Flag'}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill={isFlagged ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M4 15s1-1 4-1 5 2 8 2V4s-1 1-4 1-5-2-8-2v15" />
+            <line x1="4" y1="22" x2="4" y2="15" />
           </svg>
         </button>
       )}

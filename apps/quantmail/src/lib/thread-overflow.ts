@@ -9,8 +9,7 @@
 // Honesty contract for this file: an item is 'wired' only when a real
 // backend/UI path exists for it today. Items without one are 'unavailable'
 // and the UI must show an honest toast for them — never a fake success.
-//   - Flag: NO flagged field exists on Email/EmailThread (only isStarred /
-//     isPinned). Star is deliberately NOT relabelled as a flag.
+//   - Flag: wired (S1 message flagging).
 //   - Move to Other: Focused is a client-side computed partition (slice 1's
 //     matchesFocusedRule); no server-side focused-override field exists, so
 //     a re-file cannot persist. Needs a later slice (field + migration).
@@ -47,9 +46,7 @@ export const THREAD_OVERFLOW_ITEMS: OverflowItemDef[] = [
   {
     id: 'flag',
     label: 'Flag',
-    kind: 'unavailable',
-    unavailableNote:
-      'There is no flag field on mail yet — starring is not a flag and is not relabelled as one.',
+    kind: 'wired',
   },
   { id: 'categorise', label: 'Categorise', kind: 'wired' },
   { id: 'pin', label: 'Pin', kind: 'wired' },

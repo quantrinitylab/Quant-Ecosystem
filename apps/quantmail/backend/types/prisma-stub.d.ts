@@ -26,6 +26,8 @@ declare module '@prisma/client' {
     isRead: boolean;
     isStarred: boolean;
     isPinned?: boolean;
+    // S1: Outlook-style message flagging. Keep in sync with schema.prisma Email model.
+    isFlagged?: boolean;
     isDraft: boolean;
     isSent: boolean;
     // schema.prisma Email.isSpam (Boolean @default(false)) — filter-spam routing

@@ -450,4 +450,27 @@ describe('personSnippet', () => {
     const conv = convWith({ snippet: '**bold** and `code` here' }, false);
     expect(personSnippet(conv)).toBe('bold and code here');
   });
+
+  it('folds two copies of one send with one flagged into a flagged survivor (AC-14)', () => {
+    const sentTime = at('2026-10-10T12:00:00Z');
+    const sent = email({
+      from: { email: ME },
+      to: [{ email: 'recipient@example.com' }],
+      sentAt: sentTime,
+      isSent: true,
+      isFlagged: false,
+    });
+    const delivered = email({
+      from: { email: ME },
+      to: [{ email: 'recipient@example.com' }],
+      sentAt: sentTime,
+      isSent: false,
+      isFlagged: true,
+    });
+
+    const convs = groupEmailsByPerson([sent, delivered], ME);
+    expect(convs).toHaveLength(1);
+    expect(convs[0].messages).toHaveLength(1);
+    expect(convs[0].messages[0].isFlagged).toBe(true);
+  });
 });

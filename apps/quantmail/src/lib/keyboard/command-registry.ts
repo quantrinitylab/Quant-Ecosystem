@@ -183,6 +183,27 @@ export function inboxCommand(id: InboxCommandId): CommandReference & { id: Inbox
   return inboxReferenceById.get(id)!;
 }
 
+export type InboxPaletteCommandId = 'inbox.flag';
+
+export const INBOX_PALETTE_REFERENCE: Array<Omit<CommandReference, 'keys'> & { id: InboxPaletteCommandId }> = [
+  {
+    id: 'inbox.flag',
+    label: 'Flag conversation',
+    group: 'Conversation',
+    description: 'Flag or unflag the selected conversation',
+  },
+];
+
+const inboxPaletteReferenceById = new Map(
+  INBOX_PALETTE_REFERENCE.map((entry) => [entry.id, entry]),
+);
+
+export function inboxPaletteCommand(
+  id: InboxPaletteCommandId,
+): Omit<CommandReference, 'keys'> & { id: InboxPaletteCommandId } {
+  return inboxPaletteReferenceById.get(id)!;
+}
+
 export type CalendarCommandId =
   | 'calendar.goToday'
   | 'calendar.nextDay'

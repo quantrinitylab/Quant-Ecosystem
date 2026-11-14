@@ -87,4 +87,32 @@ describe('compose/quant-stack.yml contract', () => {
     // No credential-looking literal may live in the compose file itself.
     expect(text).not.toMatch(/(SECRET|PASSWORD|TOKEN|ACCESS_KEY)[A-Z_]*\s*[:=]\s*["']?[A-Za-z0-9+/_-]{12,}/);
   });
+
+  it('ensures every deploy-oci.yml target whose compose services include quantmail-backend or quantai-backend has runs_migrations=true', () => {
+    const workflowPath = resolve(__dirname, '../../.github/workflows/deploy-oci.yml');
+    const workflowText = readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n');
+    const caseBlockMatch = workflowText.match(/case "\$TARGET" in([\s\S]*?)esac/);
+    expect(caseBlockMatch).not.toBeNull();
+    const caseBlock = caseBlockMatch![1];
+
+    const branchRegex = /([a-z0-9_-]+)\)([\s\S]*?);;/g;
+    const branches = [...caseBlock.matchAll(branchRegex)].map((m) => ({
+      target: m[1],
+      body: m[2],
+    }));
+
+    const backendServices = ['quantmail-backend', 'quantai-backend'];
+    for (const branch of branches) {
+      const servicesMatch = branch.body.match(/compose_services="([^"]+)"/);
+      if (!servicesMatch) continue;
+      const declaredServices = servicesMatch[1].split(/\s+/);
+      const includesBackend = declaredServices.some((s) => backendServices.includes(s));
+      if (includesBackend) {
+        expect(
+          branch.body,
+          `target "${branch.target}" includes backend service but lacks runs_migrations=true`,
+        ).toMatch(/runs_migrations=true/);
+      }
+    }
+  });
 });

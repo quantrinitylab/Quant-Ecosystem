@@ -1542,6 +1542,43 @@ export class EmailService {  constructor(
   }
 
   /**
+   * Set or toggle message flag (QuantMail S1). Independent from star and pin.
+   * If target is boolean, sets to that target; if undefined, toggles the current state.
+   * Explicitly sets updatedAt to guarantee cursor advancement on delta sync.
+   */
+  async setFlagged(
+    emailId: string,
+    userId: string,
+    target?: boolean,
+    opts?: MutationOptions,
+  ): Promise<Email> {
+    const email = await this.prisma.email.findUnique({ where: { id: emailId } });
+
+    if (!email) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+
+    if (email.userId !== userId) {
+      throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    }
+
+    const currentFlag = (email as { isFlagged?: boolean }).isFlagged ?? false;
+    const next = target !== undefined ? target : !currentFlag;
+
+    return versionedUpdate<Email>(this.prisma as unknown as VersionedTx, {
+      id: emailId,
+      resource: 'Email',
+      notFoundCode: 'EMAIL_NOT_FOUND',
+      notFoundMessage: 'Email not found',
+      expectedVersion: opts?.expectedVersion,
+      data: {
+        isFlagged: next,
+        updatedAt: new Date(),
+      },
+    });
+  }
+
+  /**
    * Reassign every owner-local row represented by one UI conversation. The
    * anchor must be present in the request and every requested row must belong to
    * the same caller; the transaction rejects the whole correction otherwise.

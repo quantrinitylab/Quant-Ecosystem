@@ -182,7 +182,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       group: 'Navigation',
       keys: 'g *',
       icon: 'star',
-      keywords: ['pinned', 'important', 'flagged', 'starred'],
+      keywords: ['pinned', 'important', 'starred'],
       run: go('/?view=inbox&filter=starred'),
     },
     {

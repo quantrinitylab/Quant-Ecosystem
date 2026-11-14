@@ -63,6 +63,7 @@ import {
   threadCategoryLabel,
   type ThreadCategory,
 } from '../lib/thread-overflow';
+import { anyFlagged, flagChangeIds, settleFlags } from '../lib/message-flag';
 import {
   findConversation,
   groupEmailsIntoThreads,
@@ -460,6 +461,13 @@ export function ConversationalThreadView({
     return [];
   });
   const primaryMessage = messages[0];
+
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const conversationFlagged = useMemo(() => anyFlagged(messages), [messages]);
 
   const [threadSubject, setThreadSubject] = useState(
     subject || initialThread?.subject || '(No Subject)',
@@ -1862,6 +1870,64 @@ export function ConversationalThreadView({
     }
   }, [threadId, primaryMessage, conversationMessageIds, queryClient]);
 
+  const sendFlag = useCallback(
+    async (ids: string[], target: boolean, offerUndo: boolean) => {
+      const idSet = new Set(ids);
+      // 1. Optimistic update
+      setMessages((prev) =>
+        prev.map((m) => {
+          const rowIds = [m.id, ...(m.collapsedIds || [])];
+          return rowIds.some((id) => idSet.has(id)) ? { ...m, isFlagged: target } : m;
+        }),
+      );
+
+      // 2. Network requests
+      let results: Array<{ id: string; success: boolean }>;
+      try {
+        results = await Promise.all(
+          ids.map(async (id) => {
+            const res = await apiClient.setFlagged(id, target);
+            return { id, success: res?.success === true };
+          }),
+        );
+      } catch {
+        results = ids.map((id) => ({ id, success: false }));
+      }
+
+      const accepted = results.filter((r) => r.success).map((r) => r.id);
+      const acceptedSet = new Set(accepted);
+
+      // 3. Settle against current messages
+      const settled = settleFlags(messagesRef.current, target, acceptedSet);
+      setMessages((prev) =>
+        prev.map((m) => (settled.has(m.id) ? { ...m, isFlagged: settled.get(m.id)! } : m)),
+      );
+
+      // 4. Always invalidate mail lists to re-sync
+      invalidateMailLists(queryClient);
+
+      // 5. Toast & Undo
+      if (accepted.length === ids.length) {
+        showToast({
+          text: target ? 'Conversation flagged' : 'Conversation unflagged',
+          type: 'success',
+          undoAction: offerUndo ? () => void sendFlag(accepted, !target, false) : undefined,
+        });
+      } else {
+        showToast({ text: 'Could not update flag', type: 'error' });
+      }
+    },
+    [queryClient],
+  );
+
+  const handleToggleFlag = useCallback(() => {
+    const target = !anyFlagged(messagesRef.current);
+    const ids = flagChangeIds(messagesRef.current, target);
+    if (ids.length > 0) {
+      void sendFlag(ids, target, true);
+    }
+  }, [sendFlag]);
+
   const handleTogglePin = useCallback(async () => {
     const ids = conversationMessageIds;
     if (ids.length === 0) return;
@@ -2873,18 +2939,25 @@ export function ConversationalThreadView({
                   type="button"
                   role="menuitem"
                   tabIndex={-1}
-                  title={overflowNote('flag')}
+                  disabled={messages.length === 0}
                   onClick={() => {
                     close();
-                    handleUnavailableOverflow(overflowNote('flag'));
+                    handleToggleFlag();
                   }}
-                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)]"
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:bg-[var(--quant-surface-elevated)] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <svg className="size-4 shrink-0 text-[var(--quant-muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <svg
+                    className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
+                    viewBox="0 0 24 24"
+                    fill={conversationFlagged ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
                     <path d="M4 15s1-1 4-1 5 2 8 2V4s-1 1-4 1-5-2-8-2v15" />
                     <line x1="4" y1="22" x2="4" y2="15" />
                   </svg>
-                  Flag
+                  {conversationFlagged ? 'Unflag' : 'Flag'}
                 </button>
                 <button
                   type="button"
