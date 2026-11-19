@@ -224,12 +224,26 @@ export async function ssoTicketRoutes(fastify: FastifyInstance) {
     }
     const { client, payload } = result;
 
+    let emailVerified = false;
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: payload.userId },
+        select: { emailVerified: true },
+      });
+      if (user) {
+        emailVerified = Boolean(user.emailVerified);
+      }
+    } catch {
+      // Fail closed: emailVerified remains false
+    }
+
     return reply.send({
       user: {
         id: payload.userId,
         email: payload.email,
         username: payload.username,
         displayName: payload.displayName,
+        email_verified: emailVerified,
       },
       clientId: client.clientId,
     });

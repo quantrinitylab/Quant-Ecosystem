@@ -1459,10 +1459,21 @@ body {
 .auth-feature-card strong { display: block; color: #ececee; font-size: .78rem; font-weight: 700; letter-spacing: -.01em; }
 .auth-feature-card p { margin-top: .25rem; color: #A1A4AC; font-size: .74rem; line-height: 1.55; }
 
-/* ---- v2: designed QuantMail wordmark for the sign-in heading (Instagram-style script) ---- */
-.signin-wordmark { font-family: "Brush Script MT", "Segoe Script", "Apple Chancery", "Snell Roundhand", cursive; font-weight: 700; letter-spacing: 0; white-space: nowrap; }
-.signin-wordmark .wm-quant { color: #fff; }
-.signin-wordmark .wm-mail { color: var(--quant-primary); }
+/* ---- Executive Sovereign QuantMail wordmark (clean, modern enterprise typography) ---- */
+.signin-wordmark {
+  font-family: var(--font-inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+}
+.signin-wordmark .wm-quant {
+  color: #FFFFFF;
+}
+.signin-wordmark .wm-mail {
+  color: var(--quant-primary);
+  margin-left: 2px;
+  font-weight: 600;
+}
 
 /* ---- v2: minimal legal footer under the sign-in form (spacing-only separation; no divider lines per the pure-black lock) ---- */
 .auth-legal-footer { margin-top: 2rem; padding-top: 1.25rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 11px; color: #6b6e76; }

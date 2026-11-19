@@ -81,12 +81,21 @@ void main() {
 
       // VQA-P2-08: unified with the inbox error state — primary
       // FilledButton.icon with the refresh affordance, not tonal.
-      expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
       expect(
-        find.widgetWithIcon(FilledButton, Icons.refresh),
+        find.ancestor(
+          of: find.text('Retry'),
+          matching: find.bySubtype<FilledButton>(),
+        ),
         findsOneWidget,
       );
-      expect(find.byType(FilledButton), findsOneWidget);
+      expect(
+        find.ancestor(
+          of: find.byIcon(Icons.refresh),
+          matching: find.bySubtype<FilledButton>(),
+        ),
+        findsOneWidget,
+      );
+      expect(find.bySubtype<FilledButton>(), findsOneWidget);
     });
 
     testWidgets('starred message shows a filled star with semantics',

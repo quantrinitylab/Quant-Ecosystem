@@ -130,12 +130,40 @@ describe('Sovereign Immutable Audit Logs Routes (Task X06, K9-hardened)', () => 
     expect(delRes.json().error.code).toBe('AUDIT_LOG_IMMUTABLE');
   });
 
-  it('rejects unauthenticated calls to audit logs with 401', async () => {
-    const app = await buildTestApp(); // No userId
+  it('POST /audit-logs binds userId to authenticated caller and prevents spoofing another user', async () => {
+    const app = await buildTestApp('legit-user-42');
     const res = await app.inject({
-      method: 'GET',
+      method: 'POST',
       url: '/audit-logs',
+      payload: {
+        action: 'EMAIL_OPENED',
+        resource: 'EMAIL',
+        resourceId: 'email-123',
+        userId: 'victim-user-999', // Attacker attempts to spoof victim user
+        metadata: { client: 'web' },
+      },
     });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    // userId must be strictly bound to authenticated request.auth.userId ('legit-user-42')
+    expect(body.data.userId).toBe('legit-user-42');
+    expect(body.data.userId).not.toBe('victim-user-999');
+    expect(body.data.action).toBe('EMAIL_OPENED');
+  });
+
+  it('POST /audit-logs rejects unauthenticated write attempts with 401', async () => {
+    const app = await buildTestApp(); // unauthenticated
+    const res = await app.inject({
+      method: 'POST',
+      url: '/audit-logs',
+      payload: {
+        action: 'EMAIL_OPENED',
+        resource: 'EMAIL',
+      },
+    });
+
     expect(res.statusCode).toBe(401);
   });
 });

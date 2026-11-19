@@ -75,13 +75,29 @@ export function QuantMailLogoStatic({ size = 42, className, title }: QuantMailLo
         stroke="rgba(0,0,0,0.35)"
         strokeWidth="1"
       />
-      {/* The M, flat white — the resting state of the animated mark */}
-      <path d={M_PATH} fill="#FFFFFF" />
-      {/* Eyes at rest: open pupils, catchlight upper-left */}
-      <circle cx="40.5" cy="60" r="3.5" fill="#170F0A" />
-      <circle cx="59.5" cy="60" r="3.5" fill="#170F0A" />
-      <circle cx="39.45" cy="58.39" r="0.98" fill="#FFFFFF" opacity="0.86" />
-      <circle cx="58.45" cy="58.39" r="0.98" fill="#FFFFFF" opacity="0.86" />
+      {/* Executive Sovereign Mail Monogram — Layered 3D Precision Geometric Mark */}
+      {/* Base envelope body */}
+      <rect x="20" y="28" width="60" height="44" rx="8" fill="#12151B" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" />
+      
+      {/* Inner envelope shadow fold */}
+      <path d="M 22 70 L 44 48 L 56 48 L 78 70 Z" fill="#0A0C10" opacity="0.85" />
+      
+      {/* Bottom and side envelope faceted folds */}
+      <path d="M 20 72 L 50 49 L 80 72 Z" fill="#181C24" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+      
+      {/* Dynamic left & right diagonal wing folds */}
+      <path d="M 20 32 L 42 53 L 20 68 Z" fill="#141820" opacity="0.9" />
+      <path d="M 80 32 L 58 53 L 80 68 Z" fill="#1C212B" opacity="0.9" />
+      
+      {/* Upper envelope flap — crisp white & amber faceted fold */}
+      <path d="M 20 30 C 20 27 23 25 26 25 L 74 25 C 77 25 80 27 80 30 L 52.4 52.8 C 51 54 49 54 47.6 52.8 Z" fill="#FFFFFF" />
+      
+      {/* Upper flap inner shadow / dimension bevel */}
+      <path d="M 21 28 L 50 51.5 L 79 28 Z" fill="none" stroke="rgba(0,0,0,0.18)" strokeWidth="1.5" />
+
+      {/* Sovereign Center Monogram / Amber Gem Aperture */}
+      <circle cx="50" cy="51" r="5.5" fill="var(--quant-primary)" stroke="#FFFFFF" strokeWidth="1.8" />
+      <circle cx="50" cy="51" r="2.2" fill="#FFFFFF" />
     </svg>
   );
 }

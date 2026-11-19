@@ -35,13 +35,33 @@ import 'package:quant_core/quant_core.dart';
 /// ops (from the M6 modifier queue) surface there with retry/discard
 /// affordances.
 class InboxScreen extends ConsumerStatefulWidget {
-  const InboxScreen({super.key});
+  const InboxScreen({
+    super.key,
+    this.initialFilterTab = InboxFilterTab.focused,
+    this.initialFlaggedFilter = false,
+  });
+
+  /// The initially selected filter tab (Focused vs Other, Outlook parity).
+  final InboxFilterTab initialFilterTab;
+
+  /// Whether the Flagged filter is initially active.
+  final bool initialFlaggedFilter;
 
   @override
   ConsumerState<InboxScreen> createState() => _InboxScreenState();
 }
 
 class _InboxScreenState extends ConsumerState<InboxScreen> {
+  late InboxFilterTab _selectedTab;
+  late bool _filterFlagged;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTab = widget.initialFilterTab;
+    _filterFlagged = widget.initialFlaggedFilter;
+  }
+
   Future<void> _refresh() => ref.read(inboxProvider.notifier).refresh();
 
   @override
@@ -70,11 +90,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.pushNamed('compose'),
-        icon: const Icon(Icons.edit_outlined),
-        label: const Text('Compose'),
-      ),
+      floatingActionButton: _buildDualFab(context),
+      bottomNavigationBar: _buildBottomNav(context),
       body: Column(
         children: <Widget>[
           const FailedOpsBannerHost(),
@@ -82,6 +99,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           // via W2's sentMessagesProvider; sits next to the failed-ops
           // banner so both queue surfaces live in one place.
           const SendUndoHost(),
+          _buildFilterBar(),
           Expanded(
             child: inbox.when(
               // First load with nothing cached yet: full-screen spinner.
@@ -90,7 +108,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
               loading: () {
                 final InboxListState? previous = inbox.valueOrNull;
                 if (previous != null && previous.threads.isNotEmpty) {
-                  return _buildList(previous);
+                  return _buildFilteredList(previous);
                 }
                 return const Center(child: CircularProgressIndicator());
               },
@@ -99,7 +117,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
               error: (Object err, StackTrace _) {
                 final InboxListState? previous = inbox.valueOrNull;
                 if (previous != null && previous.threads.isNotEmpty) {
-                  return _buildList(previous);
+                  return _buildFilteredList(previous);
                 }
                 return _buildError(_errorMessage(err));
               },
@@ -112,7 +130,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                   if (softError != null) return _buildError(softError);
                   return _buildEmpty();
                 }
-                return _buildList(state);
+                return _buildFilteredList(state);
               },
             ),
           ),
@@ -121,22 +139,307 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     );
   }
 
+  /// Outlook Mobile Parity: Focused | Other tabs + Flagged filter chip.
+  Widget _buildFilterBar() {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.5),
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: Row(
+        children: <Widget>[
+          // Focused tab
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              if (_selectedTab != InboxFilterTab.focused) {
+                setState(() => _selectedTab = InboxFilterTab.focused);
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Text(
+                'Focused',
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: _selectedTab == InboxFilterTab.focused
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                  color: _selectedTab == InboxFilterTab.focused
+                      ? scheme.primary
+                      : scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          // Other tab
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              if (_selectedTab != InboxFilterTab.other) {
+                setState(() => _selectedTab = InboxFilterTab.other);
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Text(
+                'Other',
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: _selectedTab == InboxFilterTab.other
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                  color: _selectedTab == InboxFilterTab.other
+                      ? scheme.primary
+                      : scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+          const Spacer(),
+          // Flagged filter chip
+          FilterChip(
+            avatar: Icon(
+              _filterFlagged ? Icons.flag : Icons.flag_outlined,
+              size: 16,
+              color: _filterFlagged ? scheme.primary : scheme.onSurfaceVariant,
+            ),
+            label: const Text('Flagged'),
+            selected: _filterFlagged,
+            onSelected: (bool selected) {
+              setState(() => _filterFlagged = selected);
+            },
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Outlook Mobile Parity: Dual AI + Compose floating pill.
+  Widget _buildDualFab(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    return Material(
+      elevation: 4,
+      borderRadius: BorderRadius.circular(28),
+      color: scheme.primaryContainer,
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            // Quanty AI sparkle button
+            Semantics(
+              button: true,
+              label: 'Quanty AI',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Quanty AI assistant activated'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.auto_awesome,
+                        color: scheme.onPrimaryContainer,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Quanty AI',
+                        style: TextStyle(
+                          color: scheme.onPrimaryContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              height: 24,
+              width: 1,
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              color: scheme.onPrimaryContainer.withValues(alpha: 0.2),
+            ),
+            // Compose button
+            Semantics(
+              button: true,
+              label: 'Compose',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () => context.pushNamed('compose'),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.edit_outlined,
+                        color: scheme.onPrimaryContainer,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Compose',
+                        style: TextStyle(
+                          color: scheme.onPrimaryContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Outlook Mobile Parity: 3-tab bottom navigation bar (Email, Calendar, Apps).
+  Widget _buildBottomNav(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+    return Container(
+      height: 58,
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.45),
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: <Widget>[
+          _BottomNavItem(
+            icon: Icons.mail,
+            label: 'Email',
+            active: true,
+            color: scheme.primary,
+            textStyle: textTheme.labelSmall,
+            onTap: () {},
+          ),
+          _BottomNavItem(
+            icon: Icons.calendar_today_outlined,
+            label: 'Calendar',
+            active: false,
+            color: scheme.onSurfaceVariant,
+            textStyle: textTheme.labelSmall,
+            onTap: () {},
+          ),
+          _BottomNavItem(
+            icon: Icons.grid_view_outlined,
+            label: 'Apps',
+            active: false,
+            color: scheme.onSurfaceVariant,
+            textStyle: textTheme.labelSmall,
+            onTap: () => context.pushNamed('search'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Filters the raw threads by Focused/Other tab and Flagged state.
+  Widget _buildFilteredList(InboxListState state) {
+    final List<ThreadSummary> filtered = state.threads.where((ThreadSummary t) {
+      if (_selectedTab == InboxFilterTab.focused) {
+        if (t.isFocused == false) return false;
+      } else {
+        if (t.isFocused != false) return false;
+      }
+      if (_filterFlagged && !t.isFlagged) return false;
+      return true;
+    }).toList();
+
+    if (filtered.isEmpty) {
+      return _buildEmptyFiltered();
+    }
+    return _buildList(filtered, state);
+  }
+
+  /// Empty state when all threads are filtered out by tab or flag.
+  Widget _buildEmptyFiltered() {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              _filterFlagged ? Icons.flag_outlined : Icons.inbox_outlined,
+              size: 48,
+              color: scheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _filterFlagged
+                  ? 'No flagged messages'
+                  : (_selectedTab == InboxFilterTab.focused
+                      ? 'No focused messages'
+                      : 'No other messages'),
+              style: textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _filterFlagged
+                  ? 'Flag messages to keep track of them here.'
+                  : 'Your ${_selectedTab.name} inbox is empty.',
+              style: textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// The scrollable thread list with pull-to-refresh and a load-more tail.
-  Widget _buildList(InboxListState state) {
+  Widget _buildList(List<ThreadSummary> threads, InboxListState state) {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView.builder(
         // Fixed row height: no measurement pass, jank-free for 10k rows.
         // 76 row + 1 divider (VQA-P2-01).
         itemExtent: 77,
-        itemCount: state.threads.length + (state.hasMore ? 1 : 0),
+        itemCount: threads.length + (state.hasMore ? 1 : 0),
         physics: const AlwaysScrollableScrollPhysics(),
         itemBuilder: (BuildContext context, int index) {
-          if (index >= state.threads.length) {
+          if (index >= threads.length) {
             return _LoadMoreItem(
               // Re-arm per page: each appended page gets a fresh item (keyed
               // by thread count) that fires loadMore exactly once.
-              key: ValueKey<int>(state.threads.length),
+              key: ValueKey<int>(threads.length),
               shouldTrigger: !state.isLoadingMore,
               onLoadMore: () =>
                   unawaited(ref.read(inboxProvider.notifier).loadMore()),
@@ -151,7 +454,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
               SizedBox(
                 height: 76,
                 child: _ThreadRow(
-                  thread: state.threads[index],
+                  thread: threads[index],
                   // The injectable clock (VQA-P2-10): golden-safe labels.
                   clock: ref.watch(clockProvider),
                 ),
@@ -340,13 +643,23 @@ class _ThreadRow extends StatelessWidget {
                     ),
                     if (snippet.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 2),
-                      Text(
-                        snippet,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
+                      Row(
+                        children: <Widget>[
+                          if (thread.colorCategories.isNotEmpty) ...<Widget>[
+                            _CategoryChip(name: thread.colorCategories.first),
+                            const SizedBox(width: 6),
+                          ],
+                          Expanded(
+                            child: Text(
+                              snippet,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ],
@@ -367,7 +680,30 @@ class _ThreadRow extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  _trailingBadge(context, unread),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      if (thread.isPinned)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Icon(
+                            Icons.push_pin,
+                            size: 14,
+                            color: scheme.primary,
+                          ),
+                        ),
+                      if (thread.isFlagged)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: const Icon(
+                            Icons.flag,
+                            size: 14,
+                            color: Colors.redAccent,
+                          ),
+                        ),
+                      _trailingBadge(context, unread),
+                    ],
+                  ),
                 ],
               ),
             ],
@@ -415,6 +751,8 @@ class _ThreadRow extends StatelessWidget {
 
   String _rowSemanticsLabel(String subject, String snippet) {
     final StringBuffer label = StringBuffer();
+    if (thread.isPinned) label.write('Pinned. ');
+    if (thread.isFlagged) label.write('Flagged. ');
     if (!thread.isRead) label.write('Unread. ');
     label.write('Thread');
     if (subject.isNotEmpty) label.write(': $subject');
@@ -446,3 +784,85 @@ class _ThreadRow extends StatelessWidget {
     return '?';
   }
 }
+
+class _BottomNavItem extends StatelessWidget {
+  const _BottomNavItem({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.color,
+    required this.textStyle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool active;
+  final Color color;
+  final TextStyle? textStyle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 20, color: color),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: textStyle?.copyWith(
+                color: color,
+                fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({required this.name});
+
+  final String name;
+
+  Color _resolveColor() {
+    final String lower = name.toLowerCase();
+    if (lower.contains('red')) return const Color(0xFFEF4444);
+    if (lower.contains('orange')) return const Color(0xFFFF6B35);
+    if (lower.contains('yellow')) return const Color(0xFFF59E0B);
+    if (lower.contains('green')) return const Color(0xFF10B981);
+    if (lower.contains('blue')) return const Color(0xFF38BDF8);
+    if (lower.contains('purple')) return const Color(0xFF8B5CF6);
+    return const Color(0xFFFF6B35);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Color c = _resolveColor();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: c.withValues(alpha: 0.45), width: 0.5),
+      ),
+      child: Text(
+        name.replaceAll(' Category', '').replaceAll(' category', ''),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: c,
+        ),
+      ),
+    );
+  }
+}
+

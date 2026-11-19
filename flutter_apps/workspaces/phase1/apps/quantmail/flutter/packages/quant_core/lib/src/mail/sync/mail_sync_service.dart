@@ -304,6 +304,10 @@ class MailSyncService {
         snippet: email.snippet,
         lastMessageDate: email.date,
         isRead: email.isRead,
+        isFlagged: email.isFlagged,
+        isPinned: email.isPinned,
+        colorCategories: email.colorCategories,
+        isFocused: email.isFocused,
         participantNames: [email.from.name ?? email.from.email],
         raw: <String, dynamic>{'emailId': email.id},
       );

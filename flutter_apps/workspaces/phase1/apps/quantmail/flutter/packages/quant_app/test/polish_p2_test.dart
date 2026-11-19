@@ -305,7 +305,10 @@ void main() {
       await tester.pump();
 
       final FilledButton retry = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Retry'),
+        find.ancestor(
+          of: find.text('Retry'),
+          matching: find.bySubtype<FilledButton>(),
+        ),
       );
       final Size min =
           retry.style?.minimumSize?.resolve(<WidgetState>{}) ?? Size.zero;

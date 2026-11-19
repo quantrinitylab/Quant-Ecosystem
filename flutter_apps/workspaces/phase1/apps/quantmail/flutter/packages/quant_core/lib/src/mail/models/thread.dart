@@ -7,6 +7,22 @@
 // below are defensive and optional except [id]; unknown keys are preserved
 // in [raw].
 
+/// Filter tab for the inbox: Focused vs Other (Outlook mobile parity).
+enum InboxFilterTab {
+  focused,
+  other;
+
+  /// Human-readable label for the tab.
+  String get label {
+    switch (this) {
+      case InboxFilterTab.focused:
+        return 'Focused';
+      case InboxFilterTab.other:
+        return 'Other';
+    }
+  }
+}
+
 /// Summary of a conversation thread, as shown in the inbox list row.
 ///
 /// A thread groups messages; the row shows the participants, a summary, and
@@ -21,6 +37,10 @@ class ThreadSummary {
     this.messageCount,
     this.lastMessageDate,
     this.isRead = true,
+    this.isFlagged = false,
+    this.isPinned = false,
+    this.colorCategories = const [],
+    this.isFocused,
     this.participantNames = const [],
     this.raw = const {},
   });
@@ -50,6 +70,21 @@ class ThreadSummary {
       return const [];
     }
 
+    List<String> categories(dynamic value) {
+      if (value is List) {
+        return value
+            .map((e) => e.toString())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
+      return const [];
+    }
+
+    bool? focused(dynamic value) {
+      if (value is bool) return value;
+      return null;
+    }
+
     return ThreadSummary(
       id: (json['id'] as String?) ?? json['threadId'] as String? ?? '',
       subject: json['subject'] as String?,
@@ -57,6 +92,10 @@ class ThreadSummary {
       messageCount: count(json['messageCount'] ?? json['count']),
       lastMessageDate: date(json['lastMessageDate'] ?? json['lastDate']),
       isRead: json['isRead'] == true || json['isRead'] == null,
+      isFlagged: json['isFlagged'] == true || json['flagged'] == true,
+      isPinned: json['isPinned'] == true || json['pinned'] == true,
+      colorCategories: categories(json['colorCategories'] ?? json['categories']),
+      isFocused: focused(json['isFocused'] ?? json['focused']),
       participantNames: participants(json['participants']),
       raw: json,
     );
@@ -80,6 +119,19 @@ class ThreadSummary {
   /// Whether every message in the thread is read.
   final bool isRead;
 
+  /// Whether the thread is flagged for follow-up (Outlook parity).
+  final bool isFlagged;
+
+  /// Whether the thread is pinned to the top of the mailbox (Outlook parity).
+  final bool isPinned;
+
+  /// Outlook-style color category labels (e.g. 'Red category', 'Work').
+  final List<String> colorCategories;
+
+  /// Outlook-style Focused inbox categorization (`true` for Focused,
+  /// `false` for Other, `null` when uncategorized).
+  final bool? isFocused;
+
   /// Participant display names/emails for the inbox row, when provided.
   final List<String> participantNames;
 
@@ -95,10 +147,45 @@ class ThreadSummary {
         if (lastMessageDate != null)
           'lastMessageDate': lastMessageDate!.toIso8601String(),
         'isRead': isRead,
+        'isFlagged': isFlagged,
+        'isPinned': isPinned,
+        if (colorCategories.isNotEmpty) 'colorCategories': colorCategories,
+        if (isFocused != null) 'isFocused': isFocused,
         'participants': participantNames,
       };
 
+  /// Creates a copy of this thread summary with the given fields replaced.
+  ThreadSummary copyWith({
+    String? id,
+    String? subject,
+    String? snippet,
+    int? messageCount,
+    DateTime? lastMessageDate,
+    bool? isRead,
+    bool? isFlagged,
+    bool? isPinned,
+    List<String>? colorCategories,
+    bool? isFocused,
+    List<String>? participantNames,
+    Map<String, dynamic>? raw,
+  }) {
+    return ThreadSummary(
+      id: id ?? this.id,
+      subject: subject ?? this.subject,
+      snippet: snippet ?? this.snippet,
+      messageCount: messageCount ?? this.messageCount,
+      lastMessageDate: lastMessageDate ?? this.lastMessageDate,
+      isRead: isRead ?? this.isRead,
+      isFlagged: isFlagged ?? this.isFlagged,
+      isPinned: isPinned ?? this.isPinned,
+      colorCategories: colorCategories ?? this.colorCategories,
+      isFocused: isFocused ?? this.isFocused,
+      participantNames: participantNames ?? this.participantNames,
+      raw: raw ?? this.raw,
+    );
+  }
+
   @override
   String toString() =>
-      'ThreadSummary(id: $id, messageCount: $messageCount, isRead: $isRead)';
+      'ThreadSummary(id: $id, messageCount: $messageCount, isRead: $isRead, isFlagged: $isFlagged, isPinned: $isPinned)';
 }
