@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authCookieSecure } from '../../_lib/cookie-options';
+import {
+  checkSameOrigin,
+  clearSessionCookies,
+  csrfBlockedResponse,
+} from '../../_lib/session-cookies';
 
 const BACKEND_URL =
   process.env.QUANTCHAT_BACKEND_URL ||
@@ -31,8 +35,16 @@ const BACKEND_URL =
  * the same cookies. Expired below: `quant_access_token` + `token`
  * (current writers) and `quant_refresh_token` (the cookie PR #861's SSO
  * callback/ticket routes set).
+ *
+ * QC-F-154 (Slice-1 / Release A): expiry goes through the canonical helper
+ * so flags and PATHS always match the writers (the refresh cookie lives on
+ * '/api/auth' — expiring it on '/' alone would leave it alive, QC-F-154
+ * §3.1-6). This route expires session cookies, so foreign-origin POSTs are
+ * rejected (CSRF, QC-F-154 §3.6).
  */
 export async function POST(request: NextRequest) {
+  if (!checkSameOrigin(request)) return csrfBlockedResponse();
+
   // Best-effort backend revocation. Body/headers are read defensively:
   // older callers POST with no body at all, and revocation must never be
   // what makes logout fail.
@@ -60,19 +72,10 @@ export async function POST(request: NextRequest) {
   }
 
   const nextResp = NextResponse.json({ success: true, data: { signedOut: true } });
-  const expired = {
-    path: '/',
-    httpOnly: true,
-    secure: authCookieSecure(),
-    sameSite: 'lax' as const,
-    maxAge: 0,
-    expires: new Date(0),
-  };
-  nextResp.cookies.set('quant_access_token', '', expired);
-  nextResp.cookies.set('token', '', expired);
-  // PR #861's SSO callback/ticket routes additionally set a
-  // `quant_refresh_token` cookie; expiring it here too keeps sign-out
-  // complete if that flow is live (a no-op where the cookie was never set).
-  nextResp.cookies.set('quant_refresh_token', '', expired);
+  // Canonical expiry: matches the writers' flags AND paths (refresh cookie
+  // expired on '/api/auth' as well as '/', QC-F-154 §3.1-6). Covers PR #861's
+  // SSO callback/ticket `quant_refresh_token` cookie too — a no-op where it
+  // was never set.
+  clearSessionCookies(nextResp);
   return nextResp;
 }

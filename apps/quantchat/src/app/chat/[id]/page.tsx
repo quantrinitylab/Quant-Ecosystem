@@ -17,6 +17,7 @@ import { useRealtimeChat } from '../../../hooks/useRealtimeChat';
 import { useChatSocket } from '../../../hooks/useChatSocket';
 import { messageListVariants, messageVariants } from '../../../lib/motion-variants';
 import { ReactionPicker } from '../../../components/ReactionPicker';
+import { DoubleTapTracker } from '../../../lib/double-tap';
 import { CustomEmojiText } from '../../../components/CustomEmojiText';
 import { EmojiStatusBadge } from '../../../components/EmojiStatusBadge';
 import { VoiceNoteRecorder } from '../../../components/VoiceNoteRecorder';
@@ -438,6 +439,107 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       [msgId]: [...(prev[msgId] || []), emoji],
     }));
   }, []);
+
+    // QC-F-648 Slice-1 — double-tap quick-react (web thread only; Flutter
+  // double-tap waits for F-079's gesture plumbing, see the build brief §3).
+  // The thread page's picker path stays local-only by design (§2.6): this
+  // slice adds a NEW real-API handler and never reuses handleReaction.
+  // No tap-delay: the bubble has no single-tap action to protect, and the
+  // tracker below (src/lib/double-tap.ts) decides double-tap purely from
+  // pointerup timing/distance. Snap messages are never reactable here: a
+  // double-tap on an unopened snap must open it once, never also react.
+  const doubleTapRef = useRef(new DoubleTapTracker());
+  const doubleTapInFlightRef = useRef(new Set<string>());
+  const [reactionError, setReactionError] = useState<Record<string, string>>({});
+  const [heartBurst, setHeartBurst] = useState<{ id: string; key: number } | null>(null);
+
+  const isReactableMessage = useCallback(
+    (type: EnhancedMessage['type']) => type === 'text' || type === 'image' || type === 'voice',
+    [],
+  );
+
+  // Q1 decision (brief §1 C1): seed the current user's own server-persisted
+  // ❤️ on load, so a double-tap heart survives reload. Only the current
+  // user's ❤️ is seeded: local reaction state is just an emoji list, and
+  // other users' reactions are still not rendered here (QC-F-020 fan-out /
+  // render gap, pre-existing — not absorbed by this slice). The merge only
+  // ever ADDS a server-confirmed ❤️, so it can never resurrect a heart the
+  // user just toggled off (the server set is already off in that case).
+  useEffect(() => {
+    if (!myUserId) return;
+    const rawMessages = [
+      ...(Array.isArray(data) ? data : []),
+      ...incomingMessages,
+    ] as unknown as Array<{
+      id?: string;
+      metadata?: { reactions?: Record<string, string[]> };
+    }>;
+    const seeded: Record<string, string[]> = {};
+    for (const raw of rawMessages) {
+      if (!raw?.id) continue;
+      const users = raw.metadata?.reactions?.['❤️'];
+      if (Array.isArray(users) && users.includes(myUserId)) seeded[raw.id] = ['❤️'];
+    }
+    if (Object.keys(seeded).length === 0) return;
+    setReactions((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const [id, emojis] of Object.entries(seeded)) {
+        if (!(next[id] ?? []).includes('❤️')) {
+          next[id] = [...(next[id] ?? []), ...emojis];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [data, incomingMessages, myUserId]);
+
+  const handleDoubleTapReact = useCallback(
+    async (msgId: string) => {
+      if (doubleTapInFlightRef.current.has(msgId)) return;
+      doubleTapInFlightRef.current.add(msgId);
+      setReactionError((prev) => {
+        const next = { ...prev };
+        delete next[msgId];
+        return next;
+      });
+      setHeartBurst({ id: msgId, key: Date.now() });
+      // Optimistic toggle: the heart appears at once, never after network.
+      const toggleHeart = (list: string[]) =>
+        list.includes('❤️') ? list.filter((e) => e !== '❤️') : [...list, '❤️'];
+      setReactions((prev) => ({ ...prev, [msgId]: toggleHeart(prev[msgId] ?? []) }));
+      try {
+        const res = await apiClient.addReaction(msgId, '❤️');
+        if (!res.success) throw new Error(res.error?.message || 'Reaction failed');
+        // Reconcile with the authoritative server set for the current user.
+        // If the response carries no reactions metadata, the optimistic
+        // toggle stands (the POST itself succeeded).
+        const serverUsers = (
+          res.data as unknown as {
+            metadata?: { reactions?: Record<string, string[]> };
+          } | null
+        )?.metadata?.reactions?.['❤️'];
+        if (myUserId && Array.isArray(serverUsers)) {
+          setReactions((prev) => {
+            const current = prev[msgId] ?? [];
+            const has = current.includes('❤️');
+            if (serverUsers.includes(myUserId) && !has)
+              return { ...prev, [msgId]: [...current, '❤️'] };
+            if (!serverUsers.includes(myUserId) && has)
+              return { ...prev, [msgId]: current.filter((e) => e !== '❤️') };
+            return prev;
+          });
+        }
+      } catch {
+        // Honest failure: never leave a heart the server does not have.
+        setReactions((prev) => ({ ...prev, [msgId]: toggleHeart(prev[msgId] ?? []) }));
+        setReactionError((prev) => ({ ...prev, [msgId]: 'Reaction not sent — no connection' }));
+      } finally {
+        doubleTapInFlightRef.current.delete(msgId);
+      }
+    },
+    [myUserId],
+  );
 
   // Countdown timer for active fullscreen snap viewer
   useEffect(() => {
@@ -869,7 +971,55 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               <motion.div
                 key={msg.id}
                 variants={messageVariants}
-                className="relative group"
+                className="relative group touch-manipulation"
+                data-message-id={msg.id}
+                tabIndex={isReactableMessage(msg.type) ? 0 : undefined}
+                aria-label={
+                  isReactableMessage(msg.type)
+                    ? 'Double-tap or press Enter to react with heart'
+                    : undefined
+                }
+                onPointerDown={(e) => {
+                  if (!isReactableMessage(msg.type)) return;
+                  doubleTapRef.current.pointerDown(msg.id, e.pointerId, e.clientX, e.clientY);
+                }}
+                onPointerMove={(e) => {
+                  if (!isReactableMessage(msg.type)) return;
+                  doubleTapRef.current.pointerMove(msg.id, e.pointerId, e.clientX, e.clientY);
+                }}
+                onPointerUp={(e) => {
+                  if (!isReactableMessage(msg.type)) return;
+                  const target = e.target as Element | null;
+                  const interactive = Boolean(
+                    target?.closest?.('button, a, input, textarea, select, [role="button"]'),
+                  );
+                  if (
+                    doubleTapRef.current.pointerUp(
+                      msg.id,
+                      e.pointerId,
+                      e.clientX,
+                      e.clientY,
+                      Date.now(),
+                      interactive,
+                    )
+                  ) {
+                    handleDoubleTapReact(msg.id);
+                    // A desktop double-click also selects a word; clear that
+                    // selection after firing (never user-select: none).
+                    try {
+                      window.getSelection()?.removeAllRanges();
+                    } catch {
+                      /* selection API unavailable */
+                    }
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (!isReactableMessage(msg.type)) return;
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleDoubleTapReact(msg.id);
+                  }
+                }}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   setReactionPickerMsgId(msg.id);
@@ -1046,6 +1196,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                 {/* Reactions display */}
                 {msg.reactions.length > 0 && (
                   <div
+                    data-testid="reaction-chips"
                     className={`flex gap-0.5 mt-1 ${msg.sender === 'self' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-[var(--quant-muted)] border border-[var(--quant-border)] text-sm">
@@ -1063,6 +1214,28 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                         </span>
                       )}
                     </div>
+                  </div>
+                )}
+
+                                {/* QC-F-648: brief double-tap heart burst + honest failure note.
+                    The burst is content feedback (the ❤️ itself), not UI chrome;
+                    the error never leaves a heart the server does not have. */}
+                {heartBurst?.id === msg.id && (
+                  <motion.span
+                    key={heartBurst.key}
+                    initial={{ scale: 0.4, opacity: 0 }}
+                    animate={{ scale: [0.5, 1.4, 1], opacity: [0, 1, 0] }}
+                    transition={{ duration: 0.6 }}
+                    onAnimationComplete={() => setHeartBurst(null)}
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none text-3xl"
+                    aria-hidden="true"
+                  >
+                    ❤️
+                  </motion.span>
+                )}
+                {reactionError[msg.id] && (
+                  <div role="alert" className="mt-1 text-xs text-red-500">
+                    {reactionError[msg.id]}
                   </div>
                 )}
 

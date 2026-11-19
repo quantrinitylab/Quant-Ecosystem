@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { setSessionCookies } from '../../../_lib/session-cookies';
 
 export async function POST(req: Request) {
   try {
@@ -32,7 +33,22 @@ export async function POST(req: Request) {
       // tokens. Whatever it answers — success or rejection — is passed
       // through verbatim; this proxy never second-guesses it.
       const data = await response.json();
-      return NextResponse.json(data, { status: response.status });
+      const resp = NextResponse.json(data, { status: response.status });
+      // QC-F-154 (Slice-1 / Release A): OTP-issued tokens also become the
+      // canonical HttpOnly session cookies. Body tokens stay for the old
+      // client (Release B stops reading them).
+      if (response.ok) {
+        const issued = (data as { data?: { accessToken?: unknown; refreshToken?: unknown } } | null)?.data;
+        const accessToken = issued?.accessToken;
+        if (typeof accessToken === 'string' && accessToken) {
+          const refreshToken = issued?.refreshToken;
+          setSessionCookies(resp, {
+            accessToken,
+            refreshToken: typeof refreshToken === 'string' && refreshToken ? refreshToken : undefined,
+          });
+        }
+      }
+      return resp;
     } catch (error) {
       clearTimeout(timeoutId);
 

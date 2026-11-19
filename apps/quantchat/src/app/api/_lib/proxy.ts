@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authCookieSecure } from './cookie-options';
+import {
+  ACCESS_COOKIE_NAME,
+  checkSameOrigin,
+  csrfBlockedResponse,
+  readCookie,
+  setSessionCookies,
+} from './session-cookies';
 
 const BACKEND_URL = process.env.QUANTCHAT_BACKEND_URL || 'http://localhost:3002';
 
@@ -9,11 +15,26 @@ export async function proxyToBackend(
   options?: { method?: string; body?: unknown },
 ) {
   const method = options?.method || request.method;
+  // QC-F-154 (Slice-1 / Release A): mutating requests that ride the session
+  // cookie are CSRF-gated — a foreign Origin/Referer is rejected 403
+  // (defense in depth beside SameSite=Lax).
+  if (!checkSameOrigin(request)) return csrfBlockedResponse();
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   const authHeader = request.headers.get('Authorization');
-  if (authHeader) headers['Authorization'] = authHeader;
+  if (authHeader) {
+    headers['Authorization'] = authHeader;
+  } else {
+    // QC-F-154: the canonical HttpOnly session cookie now travels to the
+    // backend. Only this one cookie is whitelisted — the raw Cookie header
+    // (analytics/theme cookies) is NEVER blind-forwarded. The backend's
+    // Bearer contract is untouched: the cookie value is re-attached as the
+    // Authorization header server-side.
+    const cookieToken = readCookie(request, ACCESS_COOKIE_NAME);
+    if (cookieToken) headers['Authorization'] = `Bearer ${cookieToken}`;
+  }
 
   // QC-F-450: the 'My Eyes Only' vault unlock token travels only in this
   // one header (never body/query — URLs get logged). Allowlist-forward
@@ -110,22 +131,10 @@ export async function proxyToBackend(
               if (retryRes.ok) {
                 const retryData = await retryRes.json();
                 const nextResp = NextResponse.json(retryData, { status: retryRes.status });
-                nextResp.cookies.set('quant_access_token', newAccessToken, {
-                  path: '/',
-                  httpOnly: true,
-                  // Secure on every deployed env (QC-F-080 shared helper);
-                  // only local dev/test skip it so http://localhost login works.
-                  secure: authCookieSecure(),
-                  sameSite: 'lax',
-                });
-                nextResp.cookies.set('token', newAccessToken, {
-                  path: '/',
-                  httpOnly: true,
-                  // Secure on every deployed env (QC-F-080 shared helper);
-                  // only local dev/test skip it so http://localhost login works.
-                  secure: authCookieSecure(),
-                  sameSite: 'lax',
-                });
+                // QC-F-154: canonical cookie writer — the exchanged access
+                // token now gets a real maxAge (1h) instead of a session cookie
+                // (the one-release `token` mirror is inside the helper).
+                setSessionCookies(nextResp, { accessToken: newAccessToken });
                 return nextResp;
               }
             }

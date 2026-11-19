@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authCookieSecure } from '../../_lib/cookie-options';
+import {
+  ACCESS_COOKIE_NAME,
+  readCookie,
+  setSessionCookies,
+} from '../../_lib/session-cookies';
 
 const BACKEND_URL =
   process.env.QUANTCHAT_BACKEND_URL ||
@@ -76,22 +80,20 @@ function handleFallback(authHeader: string | null): NextResponse {
  * responds 401 UNAUTHORIZED.
  */
 export async function GET(request: NextRequest | Request) {
-  const authHeader = request.headers.get('authorization');
+  // QC-F-154 (Slice-1 / Release A): accept the HttpOnly session cookie as
+  // well as the Authorization header. Next server routes can read HttpOnly
+  // cookies — browser JS cannot, which is exactly the point. The credential
+  // is re-attached as a Bearer header for the backend call, so the backend's
+  // auth contract is unchanged. Fail-closed behaviour (401/503) is identical.
+  const headerAuth = request.headers.get('authorization');
+  const headerToken =
+    headerAuth && /^Bearer\s+/i.test(headerAuth)
+      ? headerAuth.replace(/^Bearer\s*/i, '').trim()
+      : null;
+  // Cookie second: the canonical HttpOnly session. Never localStorage —
+  // server-side code has no business there.
+  const token = headerToken || readCookie(request, ACCESS_COOKIE_NAME);
 
-  if (!authHeader) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'No authorization header',
-        },
-      },
-      { status: 401 },
-    );
-  }
-
-  const token = authHeader.replace(/^Bearer\s*/i, '').trim();
   if (!token) {
     return NextResponse.json(
       {
@@ -104,6 +106,15 @@ export async function GET(request: NextRequest | Request) {
       { status: 401 },
     );
   }
+
+  // (headerToken truthy implies headerAuth is a non-null string; the
+  // conjunction below is what lets TypeScript see that.)
+  const authHeader: string = headerToken && headerAuth ? headerAuth : `Bearer ${token}`;
+  // The transparent SSO-ticket exchange below only makes sense for a Bearer
+  // header the browser sent deliberately (an SSO JWT); a cookie-carried
+  // QuantChat access token must never be offered to /auth/sso/exchange as
+  // an ssoToken.
+  const ssoCandidate = headerToken || null;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 1500);
@@ -127,12 +138,12 @@ export async function GET(request: NextRequest | Request) {
       return handleFallback(authHeader);
     }
 
-    if (res.status === 401) {
+    if (res.status === 401 && ssoCandidate) {
       try {
         const exchangeRes = await fetch(new URL('/auth/sso/exchange', BACKEND_URL).toString(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ssoToken: token }),
+          body: JSON.stringify({ ssoToken: ssoCandidate }),
         });
 
         if (exchangeRes.ok) {
@@ -141,21 +152,10 @@ export async function GET(request: NextRequest | Request) {
             const nextResp = NextResponse.json({ success: true, data: exchangeData.data.user });
             if (exchangeData.data.accessToken) {
               // P0-B fix: HttpOnly (+ Secure on deployed envs, QC-F-080) so XSS cannot
-              // steal the session token via document.cookie.
-              nextResp.cookies.set('quant_access_token', exchangeData.data.accessToken, {
-                path: '/',
-                httpOnly: true,
-                // Secure on every deployed env (QC-F-080 shared helper);
-                // only local dev/test skip it so http://localhost login works.
-                secure: authCookieSecure(),
-                sameSite: 'lax',
-              });
-              nextResp.cookies.set('token', exchangeData.data.accessToken, {
-                path: '/',
-                httpOnly: true,
-                secure: authCookieSecure(),
-                sameSite: 'lax',
-              });
+              // steal the session token via document.cookie. QC-F-154: routed
+              // through the canonical helper — the exchanged access token now
+              // gets a real maxAge (1h) instead of a session cookie.
+              setSessionCookies(nextResp, { accessToken: exchangeData.data.accessToken });
             }
             return nextResp;
           }
