@@ -42,7 +42,8 @@ describe('SSO Flow (no phone-KYC gate)', () => {
   it('renders the sign-in form without any phone verification step', () => {
     const html = renderToString(<SsoChooserContent initialStage="credentials" />);
 
-    expect(html).toContain('Sign in to Quant Account');
+    expect(html).toContain('Sign in to QuantMail');
+    expect(html).not.toContain('Quant Account');
     expect(html).not.toContain('Quant Identity KYC');
     expect(html).not.toContain('Phone &amp; Email Verification');
     expect(html).not.toContain('Google KYC Parity');
