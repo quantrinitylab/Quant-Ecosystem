@@ -25,9 +25,12 @@
 //
 // Wire protocol aligns with `backend/routes/websocket.ts` (K25: contract §18):
 //   client -> server: { type: 'join_conversation', conversationId, last_event_cursor? }
-//                      { type: 'chat_message', conversationId, ... }
 //                      { type: 'typing', conversationId, isTyping }
 //                      { type: 'heartbeat' }
+//   (QC-F-117: `{ type: 'chat_message', ... }` was removed from the protocol —
+//   the server-side relay was a phantom-message injection path. Sends go
+//   through REST; live delivery is the persisted `chat.message.created.v1`
+//   fan-out.)
 //   server -> client: §18 envelopes, e.g.
 //                      { event_id, event_type: 'chat.message.created.v1',
 //                        resource_ref, sequence, payload, cursor, ... }

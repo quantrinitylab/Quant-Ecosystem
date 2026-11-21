@@ -39,14 +39,13 @@
 // (the QC-F-037 harness pattern); the REAL ScheduledMessageWorker
 // against a rollback-modelling fake tx (the QC-F-095 pattern).
 //
-// Negative control (brief §6.4, band signature): on the pre-fix code
-// exactly 17 cases FAIL — B1, B2, B5, B6, B7, B8, B9, B11, B12, B13,
-// W1, W2, W3, W4, S1, S2, S4 — and exactly 12 controls PASS on both
-// versions: B3, B4, B10, W5, W6, W7, S3, S5, G1, G2, G3, G4.
-// (B4 passes pre-fix because both sends succeed there; its second half
-// is the control. W6 passes pre-fix because the unblocked conversation
-// publishes there too — the case pins that the fixed gate does not
-// over-block the sender's other conversations.)
+// Negative control (brief §6.4, band signature — SUPERSEDED by QC-F-117):
+// the pre-fix band signature above described the QC-F-359 gate fix. QC-F-117
+// deleted the WS `chat_message` relay (and the W1–W4 gate it pinned):
+// W1–W6 now assert the frame is silently ignored (no USER_BLOCKED /
+// UPSTREAM_UNAVAILABLE frames, nothing published, nothing buffered, socket
+// open) — on the post-fix code. W7 (typing ungated) is untouched. The
+// durable blocked-pair gate lives on in MessageService (B-series unchanged).
 // ============================================================================
 
 import { createHmac } from 'node:crypto';
@@ -785,7 +784,7 @@ function makeWsToken(userId: string): string {
   return `${header}.${payload}.${signature}`;
 }
 
-describe('QC-F-359 W-series — WS chat_message blocked-pair gate', () => {
+describe('QC-F-359 W-series — WS chat_message frames silently ignored (relay deleted, QC-F-117)', () => {
   let app: FastifyInstance;
   let wsBaseUrl = '';
   const openSockets: TestSocket[] = [];
@@ -866,7 +865,7 @@ describe('QC-F-359 W-series — WS chat_message blocked-pair gate', () => {
     await app.close();
   });
 
-  it('W1: peer blocked the sender → frame dropped with USER_BLOCKED error frame; room receives nothing', async () => {
+  it('W1: peer blocked the sender → chat_message frame silently ignored; room receives nothing (QC-F-117)', async () => {
     wsPrefs.set('w1-peer', prefsBlocking(['w1-sender']));
     const sender = await connect('w1-sender');
     const peer = await connect('w1-peer');
@@ -879,12 +878,17 @@ describe('QC-F-359 W-series — WS chat_message blocked-pair gate', () => {
       content: 'w1-blocked',
       client_message_id: 'w1-1',
     });
-    await sender.frames.waitFor(isGateError('USER_BLOCKED', 'conv-w1'), 'USER_BLOCKED frame');
+    // QC-F-117: the WS `chat_message` relay (and its blocked-pair gate) is
+    // deleted — the frame is silently ignored. No USER_BLOCKED error frame
+    // (there is no gate left to answer), nothing published, socket open.
+    // The durable block is still enforced on the REST send path (B-series).
+    await sender.frames.expectNone(isGateError('USER_BLOCKED', 'conv-w1'), 'USER_BLOCKED frame');
     await peer.frames.expectNone(isCreatedWith('w1-blocked'), 'blocked frame published to room');
     expect(sender.frames.closeCode).toBeNull();
+    expect(sender.socket.readyState).toBe(1);
   });
 
-  it('W2: a blocked frame never enters the resume buffer — a reconnecting sender is not replayed it', async () => {
+  it('W2: a chat_message frame never enters the resume buffer — a reconnecting sender is not replayed it (QC-F-117)', async () => {
     const sender = await connect('w2-sender');
     const peer = await connect('w2-peer');
     await join(sender, 'conv-w2');
@@ -893,13 +897,13 @@ describe('QC-F-359 W-series — WS chat_message blocked-pair gate', () => {
     send(sender.socket, {
       type: 'chat_message',
       conversationId: 'conv-w2',
-      content: 'w2-anchor',
+      content: 'w2-phantom',
       client_message_id: 'w2-1',
     });
-    const anchor = await sender.frames.waitFor(isCreatedWith('w2-anchor'), 'anchor echo');
-    expect(typeof anchor.cursor).toBe('string');
+    await sender.frames.expectNone(isCreatedWith('w2-phantom'), 'phantom published');
+    await sender.frames.expectNone(isGateError('USER_BLOCKED', 'conv-w2'), 'USER_BLOCKED frame');
 
-    // The block lands now; the next frame must be dropped, not buffered.
+    // The block lands now; the next frame is equally ignored (no gate, no buffer).
     wsPrefs.set('w2-peer', prefsBlocking(['w2-sender']));
     send(sender.socket, {
       type: 'chat_message',
@@ -907,7 +911,7 @@ describe('QC-F-359 W-series — WS chat_message blocked-pair gate', () => {
       content: 'w2-blocked',
       client_message_id: 'w2-2',
     });
-    await sender.frames.waitFor(isGateError('USER_BLOCKED', 'conv-w2'), 'USER_BLOCKED frame');
+    await sender.frames.expectNone(isGateError('USER_BLOCKED', 'conv-w2'), 'USER_BLOCKED frame');
     await peer.frames.expectNone(isCreatedWith('w2-blocked'), 'blocked frame published');
 
     sender.socket.close();
@@ -917,14 +921,15 @@ describe('QC-F-359 W-series — WS chat_message blocked-pair gate', () => {
     send(sender2.socket, {
       type: 'join_conversation',
       conversationId: 'conv-w2',
-      last_event_cursor: anchor.cursor,
+      last_event_cursor: 'conversation.conv-w2:0',
     });
     const resumed = await sender2.frames.waitFor(isResumed, 'resumed after reconnect');
     expect(resumed.replayed).toBe(0);
     await sender2.frames.expectNone(isCreatedWith('w2-blocked'), 'blocked frame replayed on resume', 200);
+    await sender2.frames.expectNone(isCreatedWith('w2-phantom'), 'phantom frame replayed on resume', 200);
   });
 
-  it('W3: sender blocked the peer (reverse direction) → frame dropped with USER_BLOCKED', async () => {
+  it('W3: sender blocked the peer (reverse direction) → frame silently ignored (QC-F-117)', async () => {
     wsPrefs.set('w3-sender', prefsBlocking(['w3-peer']));
     const sender = await connect('w3-sender');
     const peer = await connect('w3-peer');
@@ -937,11 +942,12 @@ describe('QC-F-359 W-series — WS chat_message blocked-pair gate', () => {
       content: 'w3-blocked',
       client_message_id: 'w3-1',
     });
-    await sender.frames.waitFor(isGateError('USER_BLOCKED', 'conv-w3'), 'USER_BLOCKED frame');
+    await sender.frames.expectNone(isGateError('USER_BLOCKED', 'conv-w3'), 'USER_BLOCKED frame');
     await peer.frames.expectNone(isCreatedWith('w3-blocked'), 'blocked frame published to room');
+    expect(sender.socket.readyState).toBe(1);
   });
 
-  it('W4: block list malformed → frame dropped with UPSTREAM_UNAVAILABLE; the socket stays alive (typing still flows)', async () => {
+  it('W4: block list malformed → frame silently ignored; the socket stays alive (typing still flows) (QC-F-117)', async () => {
     wsPrefs.set('w4-peer', MALFORMED_PREFS);
     const sender = await connect('w4-sender');
     const peer = await connect('w4-peer');
@@ -954,7 +960,8 @@ describe('QC-F-359 W-series — WS chat_message blocked-pair gate', () => {
       content: 'w4-unavailable',
       client_message_id: 'w4-1',
     });
-    await sender.frames.waitFor(
+    // QC-F-117: no gate left to answer UPSTREAM_UNAVAILABLE — silent ignore.
+    await sender.frames.expectNone(
       isGateError('UPSTREAM_UNAVAILABLE', 'conv-w4'),
       'UPSTREAM_UNAVAILABLE frame',
     );
@@ -963,10 +970,10 @@ describe('QC-F-359 W-series — WS chat_message blocked-pair gate', () => {
 
     // Socket alive: a typing frame from the same socket still publishes.
     send(sender.socket, { type: 'typing', conversationId: 'conv-w4', isTyping: true });
-    await peer.frames.waitFor(isTyping, 'typing after gate denial');
+    await peer.frames.waitFor(isTyping, 'typing after ignored frame');
   });
 
-  it('W5 control: clear pair → chat_message publishes to the room exactly as before', async () => {
+  it('W5 control: clear pair → chat_message is STILL silently ignored (relay deleted for everyone) (QC-F-117)', async () => {
     const sender = await connect('w5-sender');
     const peer = await connect('w5-peer');
     await join(sender, 'conv-w5');
@@ -978,11 +985,12 @@ describe('QC-F-359 W-series — WS chat_message blocked-pair gate', () => {
       content: 'w5-clear',
       client_message_id: 'w5-1',
     });
-    const delivered = await peer.frames.waitFor(isCreatedWith('w5-clear'), 'clear frame delivered');
-    expect(delivered.payload?.senderId).toBe('w5-sender');
+    await peer.frames.expectNone(isCreatedWith('w5-clear'), 'clear frame published to room');
+    await sender.frames.expectNone(isCreatedWith('w5-clear'), 'clear frame echoed to sender');
+    expect(sender.socket.readyState).toBe(1);
   });
 
-  it("W6 control: a blocked frame does not poison the socket — the sender's other, unblocked conversation still publishes", async () => {
+  it("W6 control: an ignored frame does not poison the socket — the sender's other, unblocked conversation is equally silent, typing still flows (QC-F-117)", async () => {
     wsPrefs.set('w6-peer', prefsBlocking(['w6-sender']));
     const sender = await connect('w6-sender');
     const peer = await connect('w6-peer');
@@ -998,7 +1006,7 @@ describe('QC-F-359 W-series — WS chat_message blocked-pair gate', () => {
       content: 'w6-blocked',
       client_message_id: 'w6-1',
     });
-    await sender.frames.waitFor(isGateError('USER_BLOCKED', 'conv-w6a'), 'USER_BLOCKED frame');
+    await sender.frames.expectNone(isGateError('USER_BLOCKED', 'conv-w6a'), 'USER_BLOCKED frame');
 
     send(sender.socket, {
       type: 'chat_message',
@@ -1006,8 +1014,12 @@ describe('QC-F-359 W-series — WS chat_message blocked-pair gate', () => {
       content: 'w6-clear',
       client_message_id: 'w6-2',
     });
-    const delivered = await carol.frames.waitFor(isCreatedWith('w6-clear'), 'other conversation publishes');
-    expect(delivered.payload?.senderId).toBe('w6-sender');
+    await carol.frames.expectNone(isCreatedWith('w6-clear'), 'other conversation published');
+    expect(sender.socket.readyState).toBe(1);
+
+    // The socket is healthy: typing still flows on both conversations.
+    send(sender.socket, { type: 'typing', conversationId: 'conv-w6b', isTyping: true });
+    await carol.frames.waitFor(isTyping, 'typing still flows after ignored frames');
   });
 
   it('W7 control: typing frames are NOT gated — a blocked pair still exchanges typing signals', async () => {

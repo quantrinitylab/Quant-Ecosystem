@@ -5,8 +5,9 @@
 // checked conversation membership. Any logged-in user could:
 //   * join ANY conversation room via ?conversationId= or a join_conversation
 //     frame and receive its live events + §20 resume replays,
-//   * inject chat_message / typing frames into conversations they are not a
-//     member of,
+//   * inject typing frames into conversations they are not a member of
+//     (the `chat_message` relay that also allowed live message injection
+//     was deleted by QC-F-117),
 //   * persist + fan out forged delivery/read receipts for any message.
 // Plus: packages/realtime accepted the JWT via ?token= in the URL (leaks
 // into logs/history/Referer) and preferred it over the Authorization header.

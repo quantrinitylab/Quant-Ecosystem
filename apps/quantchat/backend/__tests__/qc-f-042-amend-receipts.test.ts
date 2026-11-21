@@ -37,6 +37,7 @@ import receiptsRoutes from '../routes/receipts';
 import { websocketRoutes } from '../routes/websocket';
 import { ReceiptService } from '../services/receipt.service';
 import { InProcessBackplane, type RoomEvent } from '../services/realtime-backplane';
+import { publishConversationEvent } from '../services/realtime-publisher';
 import { PresenceManager } from '@quant/realtime/presence';
 
 // Stable identities (module-level).
@@ -547,12 +548,12 @@ describe('QC-F-042 amend gaps 2+3: WS receipt binding + sender reciprocity', () 
         async findMany() {
           return [];
         },
-        // QC-F-359 fixture migration: the WS blocked-send gate reads
-        // the conversation type via findUnique before a chat_message
-        // publish. The anchor conversation (conv-w1) has three active
-        // members in MEMBERS — a group scenario, so GROUP is its real
-        // type and the DIRECT-only gate skips it; other known
-        // conversations answer DIRECT (their member sets are pairs).
+        // QC-F-359 fixture note (kept for history): the deleted WS
+        // blocked-send gate used to read the conversation type via
+        // findUnique before a chat_message publish. QC-F-117 removed both
+        // the relay and that gate — the durable gate lives in
+        // MessageService (REST path). The GROUP/DIRECT answers below are
+        // now inert for WS frames; assertions unchanged.
         // The gate additionally derives peers from
         // conversationMember.findMany, which this fake answers [] —
         // either way no pre-existing frame flow changes. Assertions
@@ -655,11 +656,12 @@ describe('QC-F-042 amend gaps 2+3: WS receipt binding + sender reciprocity', () 
 
     // Anchor: a room message both observers receive; its envelope cursor
     // predates the read tick published below.
-    send(reader.socket, {
-      type: 'chat_message',
-      conversationId: 'conv-w1',
-      content: 'resume-anchor',
-      client_message_id: 'amend-anchor-1',
+    // QC-F-117: the WS `chat_message` relay is deleted — the anchor comes
+    // from the persisted REST fan-out (publishConversationEvent).
+    await publishConversationEvent(app, 'conv-w1', {
+      eventType: 'chat.message.created.v1',
+      resourceRef: 'msg-anchor-w1',
+      data: { id: 'msg-anchor-w1', content: 'resume-anchor', senderId: 'reader' },
     });
     const anchor = await sender.frames.waitFor(
       (f) => f.event_type === 'chat.message.created.v1' && f.payload?.content === 'resume-anchor',
