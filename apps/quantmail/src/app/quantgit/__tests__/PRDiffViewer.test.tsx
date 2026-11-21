@@ -183,6 +183,111 @@ describe('PRDiffViewer', () => {
     expect(html).toContain('&lt;script&gt;');
   });
 
+  it('renders a suggestion block as a Suggested-change card with an Apply button for the PR author', () => {
+    const lineId = 'src/app.ts-l2';
+    const html = renderToStaticMarkup(
+      <PRDiffViewer
+        {...baseProps({
+          canApplySuggestions: true,
+          onApplySuggestion: vi.fn(),
+          diffComments: {
+            [lineId]: [
+              {
+                id: 'c-sug',
+                lineId,
+                author: 'reviewer',
+                body: 'nit: use the constant\n```suggestion\nconst y = MAX_RETRIES;\n```',
+                createdAt: 'Just now',
+                side: 'RIGHT',
+              },
+            ],
+          },
+        })}
+      />,
+    );
+    expect(html).toContain('Suggested change');
+    expect(html).toContain('const y = MAX_RETRIES;');
+    expect(html).toContain('data-testid="diff-line-suggestion-c-sug"');
+    expect(html).toContain('data-testid="diff-line-suggestion-apply-c-sug"');
+    expect(html).toContain('Apply suggestion');
+    // The fence itself is never shown as raw text.
+    expect(html).not.toContain('```suggestion');
+  });
+
+  it('hides the Apply button from non-authors and shows an Applied chip once applied', () => {
+    const lineId = 'src/app.ts-l2';
+    const comment = {
+      id: 'c-sug',
+      lineId,
+      author: 'reviewer',
+      body: '```suggestion\nconst y = 3;\n```',
+      createdAt: 'Just now',
+      side: 'RIGHT' as const,
+    };
+    const noApply = renderToStaticMarkup(
+      <PRDiffViewer {...baseProps({ diffComments: { [lineId]: [comment] } })} />,
+    );
+    expect(noApply).toContain('Suggested change');
+    expect(noApply).not.toContain('diff-line-suggestion-apply-c-sug');
+    const applied = renderToStaticMarkup(
+      <PRDiffViewer
+        {...baseProps({
+          canApplySuggestions: true,
+          onApplySuggestion: vi.fn(),
+          appliedCommentIds: new Set(['c-sug']),
+          diffComments: { [lineId]: [comment] },
+        })}
+      />,
+    );
+    expect(applied).toContain('data-testid="diff-line-suggestion-applied-c-sug"');
+    expect(applied).toContain('Applied');
+    expect(applied).not.toContain('diff-line-suggestion-apply-c-sug');
+  });
+
+  it('never offers Apply for suggestions anchored on removed lines', () => {
+    const lineId = 'src/app.ts-l2';
+    const html = renderToStaticMarkup(
+      <PRDiffViewer
+        {...baseProps({
+          canApplySuggestions: true,
+          onApplySuggestion: vi.fn(),
+          diffComments: {
+            [lineId]: [
+              {
+                id: 'c-left-sug',
+                lineId,
+                author: 'reviewer',
+                body: '```suggestion\nconst y = 3;\n```',
+                createdAt: 'Just now',
+                side: 'LEFT',
+              },
+            ],
+          },
+        })}
+      />,
+    );
+    expect(html).toContain('Suggested change');
+    expect(html).not.toContain('diff-line-suggestion-apply-c-left-sug');
+    expect(html).toContain('removed lines');
+  });
+
+  it('shows the Add suggestion toggle in the open comment box', () => {
+    const html = renderToStaticMarkup(
+      <PRDiffViewer {...baseProps({ activeLineKey: '0:0:2', lineCommentText: 'nit' })} />,
+    );
+    expect(html).toContain('data-testid="diff-line-comment-suggestion-btn"');
+    expect(html).toContain('Add suggestion');
+    const withBlock = renderToStaticMarkup(
+      <PRDiffViewer
+        {...baseProps({
+          activeLineKey: '0:0:2',
+          lineCommentText: 'nit\n```suggestion\nconst y = 3;\n```',
+        })}
+      />,
+    );
+    expect(withBlock).toContain('Remove suggestion');
+  });
+
   it('never renders dead view-mode toggle copy', () => {
     const html = renderToStaticMarkup(<PRDiffViewer {...baseProps()} />);
     expect(html).not.toContain('Unified');
