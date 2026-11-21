@@ -181,7 +181,9 @@ Required: recipient resolution, autosave status, attachment/Drive insertion, sch
 Dependencies: QM-WORK-004; platform idempotency contract.
 
 ## QM-WORK-006 — Search and command palette truthfulness
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-work-006-search-command-palette-truthfulness
 Scope: M04/M13 search + command palette.
 Finding: current labels claim people search and priority inbox behavior not established by destinations.
 Required: implement real universal search + priority semantics, or use honest labels until backend exists.
