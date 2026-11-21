@@ -2408,7 +2408,9 @@ Mail ↔ Contacts; Mail ↔ Calendar; Mail ↔ Drive; Mail ↔ QuantGit; Calenda
 Acceptance: typed resource refs, source-of-truth ownership, authorization recheck, event propagation, failure behavior, no direct cross-product DB writes.
 
 ## QM-SCREEN-020 — All-platform acceptance matrix
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix-qm-screen-020-acceptance-matrix
 Platforms: Web, Tauri, Capacitor/Android, Capacitor/iOS, Flutter workspace/mobile where retained.
 Widths/devices: 390, 768, 1024, 1280, 1440, 1920 plus keyboard/screen-reader/touch/reduced-motion.
 Required evidence: screenshots/video where useful, test results, network/offline behavior, accessibility, performance, deep-link/SSO, background/resume, notification behavior.
