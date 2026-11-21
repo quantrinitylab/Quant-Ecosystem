@@ -135,6 +135,7 @@ describe('SecurityTab server alert-list wiring (fix/qm-securitytab-alerts-wired)
     it('keeps the honest empty state when the server returns no lists', () => {
       const result = normalizeSecurityAlertsPayload({ securityPolicy: null });
       expect(result.policy).toBeNull();
+      expect(result.dependabot).toEqual([]);
       expect(result.secrets).toEqual([]);
       expect(result.codeql).toEqual([]);
     });
@@ -153,11 +154,13 @@ describe('SecurityTab server alert-list wiring (fix/qm-securitytab-alerts-wired)
     it('handles a null or missing envelope without inventing rows', () => {
       expect(normalizeSecurityAlertsPayload(null)).toEqual({
         policy: null,
+        dependabot: [],
         secrets: [],
         codeql: [],
       });
       expect(normalizeSecurityAlertsPayload(undefined)).toEqual({
         policy: null,
+        dependabot: [],
         secrets: [],
         codeql: [],
       });
