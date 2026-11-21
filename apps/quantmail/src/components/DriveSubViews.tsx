@@ -545,12 +545,16 @@ export interface DriveTrashItemsListProps {
   items?: DriveItem[];
   onRestoreTrashItem?: (id: string, name: string, e?: React.MouseEvent) => void;
   onPurgeTrashItem?: (id: string, name: string, e?: React.MouseEvent) => void;
+  // fix/qm-drive-trash-empty — bulk "Empty trash" for the category-trash
+  // surface. Optional so existing callers (and tests) keep working.
+  onEmptyTrash?: () => void;
 }
 
 export function DriveTrashItemsList({
   items = [],
   onRestoreTrashItem,
   onPurgeTrashItem,
+  onEmptyTrash,
 }: DriveTrashItemsListProps) {
   if (items.length === 0) {
     return (
@@ -565,6 +569,22 @@ export function DriveTrashItemsList({
   }
   return (
     <div className="space-y-2">
+      {/* fix/qm-drive-trash-empty — trash auto-empties after 30 days
+          (server-side sweep); bulk "Empty trash" for everything now. */}
+      <div className="flex items-center justify-between gap-2 pb-1">
+        <p className="text-[11px] text-[#64748B]">
+          Items in trash are automatically deleted after 30 days.
+        </p>
+        {onEmptyTrash && (
+          <button
+            type="button"
+            onClick={onEmptyTrash}
+            className="px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-xs font-semibold text-rose-400 hover:bg-rose-500/25 transition-colors shrink-0"
+          >
+            Empty Trash
+          </button>
+        )}
+      </div>
       {items.map((item) => (
         <div
           key={item.id}
@@ -709,6 +729,8 @@ export interface DriveHomeSubViewProps {
   trashItems?: DriveItem[];
   onRestoreTrashItem?: (id: string, name: string, e?: React.MouseEvent) => void;
   onPurgeTrashItem?: (id: string, name: string, e?: React.MouseEvent) => void;
+  // fix/qm-drive-trash-empty — bulk "Empty trash" for the category-trash surface.
+  onEmptyTrash?: () => void;
 }
 
 export function DriveHomeSubView({
@@ -729,6 +751,7 @@ export function DriveHomeSubView({
   trashItems = [],
   onRestoreTrashItem,
   onPurgeTrashItem,
+  onEmptyTrash,
 }: DriveHomeSubViewProps) {
   const [selectedCategory, setSelectedCategory] = useState<DriveCategory | null>(null);
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
@@ -1341,6 +1364,7 @@ export function DriveHomeSubView({
               items={categoryItems}
               onRestoreTrashItem={onRestoreTrashItem}
               onPurgeTrashItem={onPurgeTrashItem}
+              onEmptyTrash={onEmptyTrash}
             />
 
           ) : categoryItems.length === 0 ? (

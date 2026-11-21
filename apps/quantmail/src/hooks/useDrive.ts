@@ -132,6 +132,10 @@ export interface UseDriveReturn {
   fetchTrashFiles: () => Promise<DriveFile[]>;
   restoreFile: (fileId: string) => Promise<void>;
   purgeFile: (fileId: string) => Promise<void>;
+  // fix/qm-drive-trash-empty — bulk "Empty trash": purges every trashed row
+  // for the user via POST /api/drive/trash/cleanup { purgeAll: true }.
+  // Resolves with the backend's purgedCount.
+  emptyTrash: () => Promise<number>;
 }
 
 const getDriveErrorMessage = (err: unknown, fallback: string): string => {
@@ -955,6 +959,33 @@ export function useDrive(): UseDriveReturn {
     }
   }, []);
 
+  // fix/qm-drive-trash-empty — bulk "Empty trash". POSTs
+  // /api/drive/trash/cleanup with purgeAll: true; the catch-all Next proxy
+  // ([...path] + ALLOWED_BACKEND_ROUTES) forwards it to the backend's
+  // retention endpoint, which purges files, folders AND trashed documents.
+  const emptyTrash = useCallback(async (): Promise<number> => {
+    setError(null);
+    try {
+      const response = await apiRequest('/api/drive/trash/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purgeAll: true }),
+      });
+      if (!response.ok) {
+        // Surface the backend's honest instruction verbatim (e.g. 503
+        // STORAGE_UNAVAILABLE) — same contract as restoreFile/purgeFile.
+        const instruction = await readErrorInstruction(response);
+        throw new Error(instruction ?? 'Failed to empty trash');
+      }
+      const data = await response.json();
+      return typeof data.purgedCount === 'number' ? data.purgedCount : 0;
+    } catch (err) {
+      const msg = getDriveErrorMessage(err, 'Failed to empty trash');
+      setError(msg);
+      throw err;
+    }
+  }, []);
+
   return {
     files,
     loading,
@@ -989,6 +1020,7 @@ export function useDrive(): UseDriveReturn {
     fetchTrashFiles,
     restoreFile,
     purgeFile,
+    emptyTrash,
   };
 }
 

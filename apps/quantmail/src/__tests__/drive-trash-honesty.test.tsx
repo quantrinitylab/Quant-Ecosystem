@@ -159,3 +159,30 @@ describe('QM-FIX: DriveHomeSubView trash category never fabricates items', () =>
     assertNoFabrications(html);
   });
 });
+
+describe('fix/qm-drive-trash-empty: bulk Empty trash action', () => {
+  it('renders the 30-day auto-delete policy note with real items', () => {
+    const html = renderToStaticMarkup(
+      <DriveTrashItemsList items={[realTrashItem]} onEmptyTrash={() => {}} />,
+    );
+    expect(html).toContain('automatically deleted after 30 days');
+    assertNoFabrications(html);
+  });
+
+  it('renders an Empty Trash button only when items exist and a handler is provided', () => {
+    const withItems = renderToStaticMarkup(
+      <DriveTrashItemsList items={[realTrashItem]} onEmptyTrash={() => {}} />,
+    );
+    expect(withItems).toContain('Empty Trash');
+
+    const noHandler = renderToStaticMarkup(<DriveTrashItemsList items={[realTrashItem]} />);
+    expect(noHandler).not.toContain('Empty Trash');
+
+    const empty = renderToStaticMarkup(
+      <DriveTrashItemsList items={[]} onEmptyTrash={() => {}} />,
+    );
+    expect(empty).not.toContain('Empty Trash');
+    expect(empty).toContain('Trash is empty');
+    assertNoFabrications(empty);
+  });
+});
