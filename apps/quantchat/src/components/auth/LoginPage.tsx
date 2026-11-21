@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { UniversalSSOTokenBridge, useAuth } from '@quant/shared-ui';
-import { apiClient } from '../../services/api-client';
+import { apiClient, isTwoFactorChallenge } from '../../services/api-client';
 import { persistSession } from '../../lib/auth-session';
 import { resolveReturnTo } from '../../lib/return-to';
 import { CryptographicMeshCanvas } from './CryptographicMeshCanvas';
@@ -186,6 +186,11 @@ export default function LoginPage(props: LoginPageProps) {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  // QC-F-141: second-factor state. The challenge lives ONLY in component
+  // state — never in localStorage/sessionStorage, where it would be a
+  // half-login the app could resume without the password.
+  const [twoFactorChallenge, setTwoFactorChallenge] = useState<string | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
   // SSO entry href. Starts as the bare QuantMail SSO URL (valid even before
   // hydration) and is refined on mount with this origin + any returnTo.
   const [ssoHref, setSsoHref] = useState(`${SSO_BASE_URL}/sso?client_id=quantchat`);
@@ -323,6 +328,15 @@ export default function LoginPage(props: LoginPageProps) {
     setSsoHref(buildSsoUrl(window.location.origin, params.get('returnTo')));
   }, []);
 
+  const resetTwoFactor = useCallback(() => {
+    // QC-F-141: leaving the code step destroys the half-login entirely —
+    // the challenge is not persisted anywhere, so going back means the
+    // password step starts over.
+    setTwoFactorChallenge(null);
+    setTwoFactorCode('');
+    setPassword('');
+  }, []);
+
   const handlePasswordLogin = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -344,7 +358,22 @@ export default function LoginPage(props: LoginPageProps) {
           password,
         });
         if (!res.success || !res.data) {
-          setError(res.error?.message ?? 'Invalid credentials');
+          if (res.error?.code === 'TWO_FACTOR_STATE_INVALID') {
+            setError(
+              'This account needs a security recovery before sign-in. Manage it in QuantMail security settings, or contact support.',
+            );
+          } else {
+            setError(res.error?.message ?? 'Invalid credentials');
+          }
+          return;
+        }
+        if (isTwoFactorChallenge(res.data)) {
+          // QC-F-141: password accepted, second factor outstanding. The
+          // challenge stays in component state only; nothing is persisted
+          // and no navigation happens until the code verifies.
+          setTwoFactorChallenge(res.data.challenge);
+          setTwoFactorCode('');
+          setInfo('Enter the 6-digit code from your authenticator app to finish signing in.');
           return;
         }
         persistSession(res.data.accessToken, res.data.refreshToken);
@@ -356,6 +385,47 @@ export default function LoginPage(props: LoginPageProps) {
       }
     },
     [identifier, password, router, returnTarget],
+  );
+
+  const handleTwoFactorVerify = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!twoFactorChallenge) return;
+      const code = twoFactorCode.trim();
+      if (!code) {
+        setError('Enter your verification code');
+        return;
+      }
+      setError(null);
+      setInfo(null);
+      setBusy(true);
+      try {
+        const res = await apiClient.verifyTwoFactorLogin({ challenge: twoFactorChallenge, code });
+        if (!res.success || !res.data) {
+          const errorCode = res.error?.code;
+          if (errorCode === 'CHALLENGE_EXPIRED') {
+            // The half-login is dead; start over from the password step.
+            resetTwoFactor();
+            setInfo('Sign-in expired — enter your password again.');
+          } else if (errorCode === 'CODE_ALREADY_USED') {
+            setError('That code has already been used. Wait for the next code in your authenticator app.');
+            setTwoFactorCode('');
+          } else {
+            setError(res.error?.message ?? 'Invalid code. Try again.');
+            setTwoFactorCode('');
+          }
+          return;
+        }
+        resetTwoFactor();
+        persistSession(res.data.accessToken, res.data.refreshToken);
+        router.replace(returnTarget);
+      } catch {
+        setError('Network error. Please try again.');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [twoFactorChallenge, twoFactorCode, router, returnTarget, resetTwoFactor],
   );
 
   return (
@@ -459,8 +529,52 @@ export default function LoginPage(props: LoginPageProps) {
           <div className="flex-1 h-px bg-white/10" aria-hidden="true" />
         </div>
 
-        {/* Password fallback form: rendered inline, toggled by the link above */}
+        {/* Password fallback form: rendered inline, toggled by the link above.
+            QC-F-141: when the backend answers the password with a 2FA
+            challenge, this same slot renders the second-factor step instead. */}
         <div className={showPassword ? 'block' : 'hidden'}>
+          {twoFactorChallenge ? (
+            <form className="space-y-4" onSubmit={handleTwoFactorVerify} data-testid="two-factor-form">
+              <div className="space-y-1.5">
+                <label htmlFor="two-factor-code" className="block text-xs font-medium text-slate-400">
+                  Two-factor code
+                </label>
+                <p className="text-xs text-slate-500">
+                  Enter the 6-digit code from your authenticator app, or one of your recovery codes.
+                </p>
+                <input
+                  id="two-factor-code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={64}
+                  placeholder="123456"
+                  value={twoFactorCode}
+                  onChange={(e) => setTwoFactorCode(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.05] transition-all"
+                  data-testid="two-factor-code-input"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={busy}
+                className="w-full rounded-xl bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 hover:from-emerald-500/30 hover:to-cyan-500/30 border border-emerald-500/30 py-3 font-semibold text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-emerald-950/30"
+                data-testid="verify-two-factor-btn"
+              >
+                {busy ? 'Verifying…' : 'Verify and sign in'}
+              </button>
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={resetTwoFactor}
+                  className="text-xs text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
+                  data-testid="two-factor-back-btn"
+                >
+                  Back to password
+                </button>
+              </div>
+            </form>
+          ) : (
           <form className="space-y-4" onSubmit={handlePasswordLogin}>
             <div className="space-y-1.5">
               <label htmlFor="identifier" className="block text-xs font-medium text-slate-400">
@@ -513,6 +627,7 @@ export default function LoginPage(props: LoginPageProps) {
               {busy ? 'Signing in…' : 'Sign in to QuantChat'}
             </button>
           </form>
+          )}
 
           {/* Password recovery lives on QuantMail (the identity host, same
               base as the Create account link above): its /forgot-password
