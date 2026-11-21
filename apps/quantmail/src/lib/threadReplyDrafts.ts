@@ -69,6 +69,20 @@
  * the React wiring, this module owns the persistence logic.
  */
 
+/**
+ * A contact the user added to a thread reply through the "+" mention
+ * picker (CODEX-REVIEW on PR #1549: the pre-fix picker inserted only
+ * "@Name" text and added nobody, so a pick must now land in a real
+ * recipient list that the send path addresses). Persisted with the draft
+ * so a pick can never silently evaporate on a person switch or reload
+ * while the "@Name" text survives — the chips the composer shows are
+ * always the list that will actually be sent to.
+ */
+export interface MentionedRecipient {
+  email: string;
+  name?: string;
+}
+
 export interface ThreadReplyDraft {
   /** Unsent reply text. */
   body: string;
@@ -78,6 +92,13 @@ export interface ThreadReplyDraft {
   customSubject: string;
   /** Epoch ms of the last write — lets housekeeping prune stale drafts. */
   updatedAt: number;
+  /**
+   * Contacts added via the "+" mention picker, in pick order. Absent (or
+   * empty) means none — old drafts written before this field existed parse
+   * exactly as before, and the parser drops the key again when it
+   * normalizes to empty, so the round-trip shape is stable.
+   */
+  mentionedRecipients?: MentionedRecipient[];
 }
 
 /**
@@ -247,6 +268,29 @@ export function isThreadDraftExpired(
 }
 
 /**
+ * Normalize a stored mentioned-recipients value defensively: only entries
+ * with a non-blank string email survive, duplicates fold case-insensitively
+ * (first wins, pick order kept), and a blank name degrades to "no name"
+ * (the composer renders the email then — it never invents a display name).
+ * Non-arrays and garbage entries degrade to an empty list, never a throw.
+ */
+export function normalizeMentionedRecipients(value: unknown): MentionedRecipient[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const out: MentionedRecipient[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    const record = entry as { email?: unknown; name?: unknown };
+    const email = typeof record.email === 'string' ? record.email.trim() : '';
+    if (!email || seen.has(email.toLowerCase())) continue;
+    seen.add(email.toLowerCase());
+    const name = typeof record.name === 'string' && record.name.trim() ? record.name.trim() : undefined;
+    out.push(name ? { email, name } : { email });
+  }
+  return out;
+}
+
+/**
  * Parse a stored payload defensively. Corrupt or foreign entries degrade to
  * null — a poisoned key must never break the composer or surface garbage
  * text in the box.
@@ -258,11 +302,13 @@ export function parseThreadDraft(raw: string | null | undefined): ThreadReplyDra
     if (!parsed || typeof parsed !== 'object' || typeof parsed.body !== 'string') {
       return null;
     }
+    const mentionedRecipients = normalizeMentionedRecipients(parsed.mentionedRecipients);
     return {
       body: parsed.body,
       newTopic: parsed.newTopic === true,
       customSubject: typeof parsed.customSubject === 'string' ? parsed.customSubject : '',
       updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
+      ...(mentionedRecipients.length > 0 ? { mentionedRecipients } : {}),
     };
   } catch {
     return null;
@@ -299,9 +345,22 @@ export function loadThreadDraft(
   }
 }
 
-/** True when there is nothing worth keeping — an empty box with no subject. */
-export function isThreadDraftEmpty(draft: { body: string; customSubject: string }): boolean {
-  return draft.body.trim().length === 0 && draft.customSubject.trim().length === 0;
+/**
+ * True when there is nothing worth keeping — an empty box with no subject
+ * AND no picked recipients. A recipients-only draft (text deleted after
+ * the pick, chips still standing) is NOT empty: dropping it would lose
+ * the recipient list while the user still sees chips to remove.
+ */
+export function isThreadDraftEmpty(draft: {
+  body: string;
+  customSubject: string;
+  mentionedRecipients?: MentionedRecipient[];
+}): boolean {
+  return (
+    draft.body.trim().length === 0 &&
+    draft.customSubject.trim().length === 0 &&
+    (draft.mentionedRecipients?.length ?? 0) === 0
+  );
 }
 
 /**
@@ -428,10 +487,21 @@ export function switchThreadDraft(args: {
   nextPersonKey: string;
   /** The account whose namespace both people belong to. */
   accountKey: string;
-  latest: { body: string; newTopic: boolean; customSubject: string };
+  latest: {
+    body: string;
+    newTopic: boolean;
+    customSubject: string;
+    mentionedRecipients?: MentionedRecipient[];
+  };
   /** Epoch ms — injected so tests don't depend on the clock. */
   now: number;
-}): { body: string; newTopic: boolean; customSubject: string; hadSavedDraft: boolean } {
+}): {
+  body: string;
+  newTopic: boolean;
+  customSubject: string;
+  mentionedRecipients?: MentionedRecipient[];
+  hadSavedDraft: boolean;
+} {
   const { store, prevPersonKey, nextPersonKey, accountKey, latest, now } = args;
   const empty = { body: '', newTopic: false, customSubject: '', hadSavedDraft: false };
   if (!accountKey) return empty;
@@ -439,10 +509,15 @@ export function switchThreadDraft(args: {
     saveThreadDraft(store, prevPersonKey, accountKey, { ...latest, updatedAt: now });
   }
   const incoming = loadThreadDraft(store, nextPersonKey, accountKey, now);
+  const incomingRecipients = incoming?.mentionedRecipients ?? [];
   return {
     body: incoming?.body ?? '',
     newTopic: incoming?.newTopic ?? false,
     customSubject: incoming?.customSubject ?? '',
+    // Absent when none, mirroring parseThreadDraft — so callers that pin
+    // the no-recipients shape (and drafts written before this field) are
+    // unaffected, while a picked list survives the switch intact.
+    ...(incomingRecipients.length > 0 ? { mentionedRecipients: incomingRecipients } : {}),
     hadSavedDraft: incoming !== null,
   };
 }
