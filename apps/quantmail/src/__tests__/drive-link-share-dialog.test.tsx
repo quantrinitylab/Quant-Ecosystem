@@ -118,6 +118,7 @@ describe('link-share-api (no invented state)', () => {
         audienceEmails: ['a@example.com'],
         role: 'viewer',
         expiresDate: '2026-10-20',
+        disableDownload: false,
       }),
     ).rejects.toThrow('Server did not return a share link');
     const [, init] = apiFetchRaw.mock.calls[0] as [string, RequestInit];
@@ -136,8 +137,43 @@ describe('link-share-api (no invented state)', () => {
       audienceEmails: [],
       role: 'editor',
       expiresDate: null,
+      disableDownload: false,
     });
     expect(result).toEqual(share);
+  });
+
+  it('createDriveLink forwards the disableDownload flag in the request body', async () => {
+    apiFetchRaw.mockResolvedValue(
+      jsonResponse({ success: true, share: { id: 'x', shareUrl: '/drive/share/tok' } }),
+    );
+    await createDriveLink('file-1', {
+      scope: 'anyone',
+      audienceEmails: [],
+      role: 'viewer',
+      expiresDate: null,
+      disableDownload: true,
+    });
+    const [, init] = apiFetchRaw.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.disableDownload).toBe(true);
+  });
+
+  it('updateDriveLink forwards the disableDownload flag in the request body', async () => {
+    const { updateDriveLink } = await import('../app/drive/components/link-share-api');
+    apiFetchRaw.mockResolvedValue(
+      jsonResponse({ success: true, share: { id: 'l9', shareUrl: '/drive/share/tok9' } }),
+    );
+    await updateDriveLink('l9', {
+      scope: 'anyone',
+      audienceEmails: [],
+      role: 'viewer',
+      expiresDate: null,
+      disableDownload: false,
+    });
+    const [, init] = apiFetchRaw.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.id).toBe('l9');
+    expect(body.disableDownload).toBe(false);
   });
 
   it('revokeDriveLink throws the backend message instead of pretending', async () => {

@@ -13,6 +13,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   downloadUrlFor,
   previewKindFor,
+  previewUrlFor,
   resolveShareToken,
   ShareResolveError,
   TEXT_PREVIEW_MAX_BYTES,
@@ -187,6 +188,18 @@ describe('downloadUrlFor', () => {
   it('appends the password as the backend-supported query fallback', () => {
     expect(downloadUrlFor('abc123', 's3cret & more')).toBe(
       '/api/drive/public/share/abc123/download?password=s3cret%20%26%20more',
+    );
+  });
+});
+
+describe('previewUrlFor', () => {
+  it('builds the preview-lane path for a token', () => {
+    expect(previewUrlFor('abc123')).toBe('/api/drive/public/share/abc123/download?preview=1');
+  });
+
+  it('appends the password as the backend-supported query fallback', () => {
+    expect(previewUrlFor('abc123', 's3cret')).toBe(
+      '/api/drive/public/share/abc123/download?preview=1&password=s3cret',
     );
   });
 });

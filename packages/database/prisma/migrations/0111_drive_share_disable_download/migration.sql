@@ -1,0 +1,12 @@
+-- fix/qm-drive-disable-download-3 (2026-10-24): Google Drive parity — owners
+-- can disable downloads for viewer-role share links (QM-M39-006 competitor
+-- gap: "disable download" for viewers/commenters).
+--
+-- Additive and safe:
+--   * drive_share_links."disableDownload" defaults false — every existing
+--     link keeps its current download behavior until an owner opts in.
+--   * Old code reading DriveShare rows without this column is unaffected:
+--     Prisma reads the schema from the same release that carries this
+--     migration (deploy-staging.yml runs `prisma migrate deploy` before the
+--     new backend image rolls out).
+ALTER TABLE "drive_share_links" ADD COLUMN "disableDownload" BOOLEAN NOT NULL DEFAULT false;
