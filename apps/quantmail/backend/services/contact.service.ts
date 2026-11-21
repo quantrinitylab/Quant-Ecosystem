@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { createAppError } from '@quant/server-core';
 
 export interface Contact {
@@ -227,6 +228,99 @@ function buildDuplicateGroups(contacts: Contact[]): DuplicateGroup[] {
   }
 
   return groups;
+}
+
+/**
+ * One post-dismissal, survivor-resolved merge group. This is the unit BOTH
+ * the wizard preview (findDuplicates) and the bulk executor
+ * (deduplicateContacts) consume — "Auto-Merge All" merges exactly the groups
+ * the wizard listed, by construction, because there is only one plan.
+ */
+export interface MergePlanGroup {
+  /** The survivor after deterministic resolution (see buildMergePlan). */
+  survivor: Contact;
+  /** Ids absorbed into the survivor, in deterministic merge order. */
+  mergeIds: string[];
+  reason: 'email' | 'name' | 'phone';
+}
+
+/**
+ * Build THE merge plan from a contact list and the user's persisted
+ * "keep separate" dismissals. Shared by findDuplicates (preview) and
+ * deduplicateContacts (execution) — this is what fixed the #1328 follow-up:
+ * the preview used to filter dismissals against the ORIGINAL (DB-order)
+ * primary while the bulk path re-sorted members (picking a different
+ * survivor) and applied dismissal filtering differently, so bulk merged
+ * groups the preview never showed (or showed differently) and deleted
+ * contacts the preview had excluded.
+ *
+ * Plan semantics:
+ *  1. Group with the wizard's grouping algorithm (buildDuplicateGroups).
+ *  2. Resolve the survivor with the deterministic order: favorite first,
+ *     then higher frequency, then earlier createdAt, then id (final
+ *     tiebreak so the plan is independent of DB row order).
+ *  3. Apply dismissals AFTER survivor resolution, pairwise, over the whole
+ *     group: a contact is kept only if it has no dismissed "keep separate"
+ *     pair with ANY already-kept contact. A dismissed pair can therefore
+ *     never be collapsed into one record no matter which contact the sort
+ *     picks as survivor — the cannot-merge relationship survives survivor
+ *     changes atomically.
+ * Groups left with nothing to merge (dismissal-exhausted) are dropped: they
+ * neither surface in the preview nor merge in bulk.
+ */
+/**
+ * Sort-safe createdAt: a missing or invalid date sorts as epoch, never NaN.
+ * A NaN comparator result is treated as "equal" by V8's sort, which would
+ * silently make the survivor follow DB row order instead of the tiebreak
+ * chain — the tiebreak must be total even for partial rows.
+ */
+function toSortTime(value: unknown): number {
+  const time = value ? new Date(value as string | number | Date).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+export function buildMergePlan(contacts: Contact[], dismissed: Set<string>): MergePlanGroup[] {
+  const plan: MergePlanGroup[] = [];
+  for (const group of buildDuplicateGroups(contacts)) {
+    const members = [group.primaryContact, ...group.duplicates];
+    members.sort((a, b) => {
+      if (Boolean(a.isFavorite) !== Boolean(b.isFavorite)) return a.isFavorite ? -1 : 1;
+      const freqA = a.frequency ?? 0;
+      const freqB = b.frequency ?? 0;
+      if (freqA !== freqB) return freqB - freqA;
+      const timeA = toSortTime(a.createdAt);
+      const timeB = toSortTime(b.createdAt);
+      if (timeA !== timeB) return timeA - timeB;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
+
+    const kept: Contact[] = [];
+    for (const c of members) {
+      const conflicts = kept.some((k) => dismissed.has(duplicatePairKey(k.id, c.id)));
+      if (!conflicts) kept.push(c);
+    }
+
+    const survivor = kept[0];
+    if (!survivor) continue;
+    const mergeIds = kept.slice(1).map((c) => c.id);
+    if (mergeIds.length === 0) continue;
+    plan.push({ survivor, mergeIds, reason: group.reason });
+  }
+  return plan;
+}
+
+/**
+ * Stable fingerprint of a merge plan (order-independent): survivor id +
+ * sorted merge ids per group, groups sorted. The wizard hands this back to
+ * POST /contacts/deduplicate; a mismatch means the data changed under the
+ * preview and the bulk path 409s instead of silently expanding the merge.
+ */
+export function fingerprintMergePlan(plan: MergePlanGroup[]): string {
+  const canonical = plan
+    .map((g) => `${g.survivor.id}<${[...g.mergeIds].sort().join(',')}`)
+    .sort()
+    .join('|');
+  return createHash('sha1').update(canonical).digest('hex').slice(0, 16);
 }
 
 export class ContactService {
@@ -1071,27 +1165,40 @@ export class ContactService {
     return { imported, duplicates, errors, total: dataLines.length };
   }
 
+  /**
+   * The wizard preview: EXACTLY the shared merge plan (survivor-resolved,
+   * post-dismissal). What the modal lists is what "Auto-Merge All" will
+   * merge — they cannot diverge because both consume buildMergePlan.
+   */
   async findDuplicates(userId: string): Promise<DuplicateGroup[]> {
+    return (await this.findDuplicatePlan(userId)).groups;
+  }
+
+  /**
+   * Wizard preview plus the plan fingerprint the client hands back to
+   * POST /contacts/deduplicate for staleness detection.
+   */
+  async findDuplicatePlan(userId: string): Promise<{
+    groups: DuplicateGroup[];
+    planFingerprint: string;
+  }> {
     const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
     const contacts = await contactModel.findMany({ where: { userId } });
 
-    // The SAME grouping the bulk auto-merge path uses — what the wizard lists
-    // is what "Auto-Merge All" will merge.
-    const groups = buildDuplicateGroups(contacts);
-
     // A pair the user explicitly marked "keep separate" must not reappear on
-    // rescan. Dismissal is per pair, not per group: a group that still has
-    // non-dismissed duplicates keeps showing with those.
+    // rescan. Dismissal is per pair, and it is applied inside buildMergePlan
+    // AFTER survivor resolution — against the resolved survivor set, not the
+    // pre-sort original primary — so the preview and the bulk executor see
+    // the identical merge set.
     const dismissed = await this.getDismissedPairKeys(userId);
-    if (dismissed.size > 0) {
-      for (const group of groups) {
-        group.duplicates = group.duplicates.filter(
-          (dup) => !dismissed.has(duplicatePairKey(group.primaryContact.id, dup.id)),
-        );
-      }
-    }
-
-    return groups.filter((group) => group.duplicates.length > 0);
+    const plan = buildMergePlan(contacts, dismissed);
+    const byId = new Map(contacts.map((c) => [c.id, c]));
+    const groups = plan.map((g) => ({
+      primaryContact: g.survivor,
+      duplicates: g.mergeIds.map((id) => byId.get(id)!).filter(Boolean),
+      reason: g.reason,
+    }));
+    return { groups, planFingerprint: fingerprintMergePlan(plan) };
   }
 
   /**
@@ -1127,6 +1234,52 @@ export class ContactService {
   }
 
   async mergeContacts(userId: string, primaryId: string, duplicateIds: string[]): Promise<Contact> {
+    const dismissed = await this.getDismissedPairKeys(userId);
+    return this.mergeContactsWithDismissals(userId, primaryId, duplicateIds, dismissed);
+  }
+
+  /**
+   * mergeContacts with the caller's dismissal set already loaded (so the bulk
+   * path does not re-read the table per group).
+   *
+   * A "keep separate" decision is a cannot-merge relationship: merging a
+   * dismissed pair — directly (A into B) or transitively (both A and B into
+   * a third primary P, which collapses the pair into one record) — destroys
+   * the user's explicit decision. This is enforced here, at the single merge
+   * entry point, so it holds for the wizard's per-cluster "Merge" (which lets
+   * the user pick any survivor), for stale previews merged on a second call,
+   * and across service instances — POST /contacts/merge used to bypass the
+   * dismissal table entirely (#1241).
+   *
+   * Enforcement alone is not enough for SEQUENTIAL calls: each call checks
+   * only its own ids, so A→P followed by B→P (each individually clean) would
+   * still collapse the dismissed pair (A,B) into P. The merge therefore also
+   * PROPAGATES dismissals: every dismissed pair naming an absorbed contact
+   * is re-recorded against the survivor (A,B) becomes (P,B) when A merges
+   * into P. The row lives in the dismissal table — never in memory — so it
+   * holds across service instances, and it chains: a later merge of P into Q
+   * propagates (P,B) to (Q,B) the same way. A dismissed pair can thus never
+   * collapse no matter how many merges, in how many calls, absorb its sides.
+   */
+  private async mergeContactsWithDismissals(
+    userId: string,
+    primaryId: string,
+    duplicateIds: string[],
+    dismissed: Set<string>,
+  ): Promise<Contact> {
+    const blocked = duplicateIds.filter(
+      (id) =>
+        dismissed.has(duplicatePairKey(primaryId, id)) ||
+        duplicateIds.some((other) => other !== id && dismissed.has(duplicatePairKey(id, other))),
+    );
+    if (blocked.length > 0) {
+      throw createAppError(
+        `Cannot merge: ${blocked.length} contact(s) are marked "keep separate" from a merge target`,
+        409,
+        'KEEP_SEPARATE_CONFLICT',
+      );
+    }
+
     const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
     const primary = await this.requireOwnedContact(primaryId, userId);
 
@@ -1171,64 +1324,87 @@ export class ContactService {
       await contactModel.delete({ where: { id } });
     }
 
+    // Dismissal propagation (see the doc comment above): re-record every
+    // dismissed pair that named an absorbed contact against the survivor, so
+    // a later call cannot absorb the pair's other side into this same record.
+    // This runs AFTER the deletes so a failed merge never writes a row for a
+    // merge that did not happen. Pairs already naming the survivor, or both
+    // sides of this same merge (already 409'd above), are skipped; upsert
+    // makes re-propagation of an already-recorded pair a no-op.
+    const absorbedIds = new Set(duplicateIds);
+    const dismissedPairModel = (
+      this.prisma as unknown as { dismissedDuplicatePair: DismissedPairModel }
+    ).dismissedDuplicatePair;
+    for (const key of dismissed) {
+      const parts = key.split('::');
+      if (parts.length !== 2) continue;
+      const [first, second] = parts as [string, string];
+      const absorbed = absorbedIds.has(first)
+        ? first
+        : absorbedIds.has(second)
+          ? second
+          : null;
+      if (!absorbed) continue;
+      const other = absorbed === first ? second : first;
+      if (other === primaryId || absorbedIds.has(other)) continue;
+      const propagatedKey = duplicatePairKey(primaryId, other);
+      if (propagatedKey === key || dismissed.has(propagatedKey)) continue;
+      await dismissedPairModel.upsert({
+        where: { userId_pairKey: { userId, pairKey: propagatedKey } },
+        update: {},
+        create: { userId, pairKey: propagatedKey },
+      });
+    }
+
     return updated;
   }
 
-  async deduplicateContacts(userId: string): Promise<{ mergedCount: number }> {
+  /**
+   * Bulk "Auto-Merge All". Executes EXACTLY the shared merge plan the wizard
+   * previewed (buildMergePlan) — never a wider set.
+   *
+   * When the caller passes the fingerprint of the plan it previewed
+   * (GET /contacts/duplicates returns it), a mismatch means the underlying
+   * data changed since the preview (new duplicates, new dismissals, ...) and
+   * the call 409s with STALE_MERGE_PLAN instead of silently merging an
+   * expanded set — the client re-previews and retries. Without a fingerprint
+   * (legacy callers) the current plan is executed as-is.
+   */
+  async deduplicateContacts(
+    userId: string,
+    options?: { expectedFingerprint?: string },
+  ): Promise<{ mergedCount: number; planFingerprint: string }> {
     const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
     const contacts = await contactModel.findMany({ where: { userId } });
 
     if (!contacts || contacts.length <= 1) {
-      return { mergedCount: 0 };
+      return { mergedCount: 0, planFingerprint: fingerprintMergePlan([]) };
     }
-
-    // Bulk "Auto-Merge All" merges EXACTLY the groups the wizard surfaced:
-    // the same buildDuplicateGroups algorithm the dedupe modal lists. The old
-    // union-find (normalized email + digits-only last-10 phone, fully
-    // transitive) could merge pairs the wizard never displayed, so it was
-    // removed entirely.
-    const groups = buildDuplicateGroups(contacts);
 
     // A pair the user explicitly marked "keep separate" must never be
-    // union-merged by the bulk path either. findDuplicates filters dismissed
-    // pairs via getDismissedPairKeys; deduplicateContacts must apply the same
-    // filter, otherwise "Auto-Merge All" silently overrides the user's
-    // explicit keep-separate decision and deletes those records anyway.
+    // union-merged by the bulk path either. The dismissal set is applied
+    // inside buildMergePlan, after survivor resolution, identically to the
+    // wizard preview — the two paths cannot diverge.
     const dismissed = await this.getDismissedPairKeys(userId);
+    const plan = buildMergePlan(contacts, dismissed);
+    const planFingerprint = fingerprintMergePlan(plan);
 
-    let mergedCount = 0;
-    for (const group of groups) {
-      const members = [group.primaryContact, ...group.duplicates];
-      members.sort((a, b) => {
-        if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
-        if (a.frequency !== b.frequency) return b.frequency - a.frequency;
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return timeA - timeB;
-      });
-
-      // Greedily keep only contacts with no dismissed "keep separate" pair
-      // against any already-kept contact. findDuplicates filters per-pair
-      // against the primary; the bulk path must go one step further because
-      // dismissed pairs can sit inside a larger wizard group (e.g. A
-      // keeps-separate-from B, both share an email with C). Merging both A
-      // and B into C would still collapse the dismissed pair into one
-      // contact, so they must not all merge.
-      const kept: Contact[] = [];
-      for (const c of members) {
-        const conflicts = kept.some((k) => dismissed.has(duplicatePairKey(k.id, c.id)));
-        if (!conflicts) kept.push(c);
-      }
-
-      const primary = kept[0]!;
-      const duplicateIds = kept.slice(1).map((c) => c.id);
-      if (duplicateIds.length > 0) {
-        await this.mergeContacts(userId, primary.id, duplicateIds);
-        mergedCount += duplicateIds.length;
-      }
+    if (options?.expectedFingerprint && options.expectedFingerprint !== planFingerprint) {
+      throw createAppError(
+        'Duplicate merge plan changed since the preview — please review the updated list and try again',
+        409,
+        'STALE_MERGE_PLAN',
+        { planFingerprint },
+      );
     }
 
-    return { mergedCount };
+    let mergedCount = 0;
+    for (const group of plan) {
+      await this.mergeContactsWithDismissals(userId, group.survivor.id, group.mergeIds, dismissed);
+      mergedCount += group.mergeIds.length;
+    }
+
+    return { mergedCount, planFingerprint };
   }
 
   async importBatch(
