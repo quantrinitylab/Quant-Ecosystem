@@ -218,6 +218,38 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     }
   }
 
+  /**
+   * QC-F-129: shared teardown path for POST /calls/end and
+   * POST /calls/:id/end. One participant-gated destroy — F-039's shipped
+   * gate (404 not-found → 403 CALL_NOT_PARTICIPANT → destroy) — plus the
+   * durable ENDED write, so the two route spellings can never diverge.
+   * Fail closed without LiveKit (503 CALLS_UNAVAILABLE); never returns a
+   * fake "Call ended" without a real teardown. Unknown / already-ended
+   * callIds answer idempotent 'Call already ended' (200 at the route).
+   * 403/502 rethrow — a denied end must NOT write ENDED into history.
+   */
+  async function endCallAndPersist(
+    callId: string,
+    userId: string,
+  ): Promise<{ alreadyEnded: boolean }> {
+    // Fail closed: throws 503 CALLS_UNAVAILABLE when LiveKit is not configured.
+    // Never return a fake "Call ended" acknowledgement without a real teardown.
+    const callService = getCallService(callRecord);
+
+    try {
+      await callService.endCall(callId, userId);
+      await persistEnded(callId);
+      return { alreadyEnded: false };
+    } catch (err) {
+      // If call not found, it may have already ended
+      if ((err as { statusCode?: number }).statusCode === 404) {
+        await persistEnded(callId);
+        return { alreadyEnded: true };
+      }
+      throw err;
+    }
+  }
+
   // POST /calls/create — Creates a LiveKit room for conversation members.
   //
   // QC-F-075: this handler used to mint a LiveKit token for EVERY
@@ -291,6 +323,12 @@ export default async function callsRoutes(fastify: FastifyInstance) {
   });
 
   // POST /calls/end — Destroys the LiveKit room
+  //
+  // QC-F-129: the body field is named `roomId` but carries a CALL id —
+  // the registry and persistStarted are both keyed by call.callId, and the
+  // real LiveKit room name (chat-call:<callId>) is internal to the service.
+  // Sending the actual LiveKit room name here 404s into the idempotent
+  // 'already ended' reply, so new clients must use POST /calls/:id/end.
   fastify.post('/end', async (request, reply) => {
     const parseResult = endCallSchema.safeParse(request.body);
     if (!parseResult.success) {
@@ -303,23 +341,32 @@ export default async function callsRoutes(fastify: FastifyInstance) {
     }
 
     const { roomId } = parseResult.data;
+    const { alreadyEnded } = await endCallAndPersist(roomId, userId);
+    return reply.send({
+      success: true,
+      data: { message: alreadyEnded ? 'Call already ended' : 'Call ended' },
+    });
+  });
 
-    // Fail closed: throws 503 CALLS_UNAVAILABLE when LiveKit is not configured.
-    // Never return a fake "Call ended" acknowledgement without a real teardown.
-    const callService = getCallService(callRecord);
-
-    try {
-      await callService.endCall(roomId, userId);
-      await persistEnded(roomId);
-      return reply.send({ success: true, data: { message: 'Call ended' } });
-    } catch (err) {
-      // If call not found, it may have already ended
-      if ((err as { statusCode?: number }).statusCode === 404) {
-        await persistEnded(roomId);
-        return reply.send({ success: true, data: { message: 'Call already ended' } });
-      }
-      throw err;
+  // POST /calls/:id/end — QC-F-129: the frontend's endCall() contract.
+  //
+  // Before this route existed the web hangup posted to a phantom path —
+  // apiClient.endCall(callId) targets POST /calls/:id/end, but there was no
+  // Next proxy and no backend route, so the UI claimed 'ended' while the
+  // server-side call stayed alive. Same gate + teardown as POST /end via
+  // the shared helper, so the two spellings can never diverge. The body is
+  // ignored (the client sends {}); params.id is the authority.
+  fastify.post<{ Params: { id: string } }>('/:id/end', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
+
+    const { alreadyEnded } = await endCallAndPersist(request.params.id, userId);
+    return reply.send({
+      success: true,
+      data: { message: alreadyEnded ? 'Call already ended' : 'Call ended' },
+    });
   });
 
   // GET /calls/history — Durable, user-scoped call history (newest-first)

@@ -78,6 +78,11 @@ interface RequestOptions {
   timeout?: number;
 }
 
+// Exported for callers that need a per-call ceiling (QC-F-129: the call
+// page hangs up with a 5s local timeout so a slow backend never freezes
+// the End button — the 30s global ceiling is too long for a hangup).
+export type { RequestOptions };
+
 // ---------------------------------------------------------------------------
 // QuantMeet (C08) meeting-room types — mirrors backend room.service shapes
 // ---------------------------------------------------------------------------
@@ -573,8 +578,27 @@ export class QuantChatApiClient {
     return this.post(`/calls/${callId}/answer`, {});
   }
 
-  async endCall(callId: string): Promise<ApiResponse<Call>> {
-    return this.post(`/calls/${callId}/end`, {});
+  /**
+   * End a call for everyone (the 1:1 hangup contract). POST /calls/:id/end
+   * is a REAL backend route (QC-F-129): the participant-gated teardown from
+   * POST /calls/end, reachable through the Next proxy. Idempotent — an
+   * already-ended call answers 200 'Call already ended'. The optional
+   * timeout (default 30s) lets the call page fail fast on a slow backend.
+   */
+  async endCall(callId: string, options?: RequestOptions): Promise<ApiResponse<Call>> {
+    return this.post(`/calls/${callId}/end`, {}, options);
+  }
+
+  /**
+   * Leave a call — removes ONLY the requesting participant; the call stays
+   * alive for everyone else. Group-hangup contract (QC-F-129). The 1:1 call
+   * page uses endCall; this method exists for the group slice and for
+   * "leave this call but keep it running for the others" flows. Its backend
+   * route POST /calls/:id/leave and Next proxy are both real — this is not
+   * a phantom like the QC-F-131 family.
+   */
+  async leaveCall(callId: string): Promise<ApiResponse<Call>> {
+    return this.post(`/calls/${callId}/leave`, {});
   }
 
   async getCallHistory(): Promise<ApiResponse<Call[]>> {

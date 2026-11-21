@@ -41,7 +41,14 @@ import {
   type RemotePublicationLike,
 } from '../../../lib/call-data';
 
-type Phase = 'joining' | 'in-call' | 'ended' | 'error';
+type Phase = 'joining' | 'in-call' | 'ended' | 'ended-unconfirmed' | 'error';
+
+// QC-F-129: the hangup's local timeout. endCall/leave run LiveKit
+// deleteRoom/removeParticipant behind the proxy; if the backend accepts the
+// connection and stalls, the 30s global apiClient ceiling would freeze the
+// End button. 5s is long enough for a real teardown and short enough that a
+// stalled one surfaces the honest unconfirmed state instead of hanging.
+const HANGUP_TIMEOUT_MS = 5_000;
 
 export default function CallRoomPage({
   params,
@@ -357,18 +364,41 @@ export default function CallRoomPage({
     }
   }, [room, audioOnly, isCameraOn, collectRemoteVideoPublications, attachTracks]);
 
-  const endCall = useCallback(async () => {
+  // QC-F-129: honest hangup.
+  //
+  // The old code disconnected locally FIRST and never read apiClient.endCall's
+  // result (request() returns ApiResponse — it never throws — so the try/catch
+  // was dead code). The page then claimed 'Call ended' unconditionally, even
+  // when the request 404'd on the phantom path: the registry entry, the
+  // participant list and the history row all stayed alive server-side.
+  //
+  // New order — server first, then local disconnect. 'ended' is shown only
+  // when the server confirmed the teardown; otherwise the page shows an
+  // honest unconfirmed state (with Retry) instead of a false 'Call ended'.
+  // Returns true when the server confirmed the end (callers use it to decide
+  // whether navigating away is safe).
+  const endingRef = useRef(false);
+  const endCall = useCallback(async (): Promise<boolean> => {
+    if (endingRef.current) return false; // double-tap guard — one POST per hangup
+    endingRef.current = true;
     try {
-      room.disconnect();
-    } catch {
-      /* already disconnected */
+      const res = await apiClient.endCall(callId, { timeout: HANGUP_TIMEOUT_MS });
+      // The user asked to leave either way, so disconnect locally in both
+      // cases — but do NOT trap them in the call on a failed hangup.
+      try {
+        room.disconnect();
+      } catch {
+        /* already disconnected */
+      }
+      if (res.success) {
+        setPhase('ended');
+        return true;
+      }
+      setPhase('ended-unconfirmed');
+      return false;
+    } finally {
+      endingRef.current = false;
     }
-    try {
-      await apiClient.endCall(callId);
-    } catch {
-      /* call record cleanup is best-effort */
-    }
-    setPhase('ended');
   }, [room, callId]);
 
   return (
@@ -376,7 +406,14 @@ export default function CallRoomPage({
       topBar={
         <TopBar
           title={phase === 'in-call' ? remoteName : 'Call'}
-          onBack={() => void endCall().then(() => router.back())}
+          onBack={() => {
+            // QC-F-129: on a failed hangup stay on the page showing the
+            // unconfirmed state (with Retry) instead of navigating away
+            // from it — the user must see that the end was not confirmed.
+            void endCall().then((confirmed) => {
+              if (confirmed) router.back();
+            });
+          }}
         />
       }
     >
@@ -421,6 +458,34 @@ export default function CallRoomPage({
             >
               Back to chat
             </button>
+          </div>
+        )}
+
+        {phase === 'ended-unconfirmed' && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
+            <p className="font-medium">
+              You left the call, but we couldn&apos;t confirm it ended
+            </p>
+            <p className="text-sm text-white/60">
+              The server didn&apos;t confirm the hangup, so the other person
+              may still be connected and the call may still show as active.
+            </p>
+            <div className="mt-2 flex gap-3">
+              <button
+                type="button"
+                onClick={() => void endCall()}
+                className="h-11 px-6 rounded-full bg-white text-black font-medium"
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="h-11 px-6 rounded-full bg-white/10 active:bg-white/20"
+              >
+                Leave anyway
+              </button>
+            </div>
           </div>
         )}
 
