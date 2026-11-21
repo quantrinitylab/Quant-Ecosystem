@@ -500,7 +500,19 @@ describe('QC-F-330 avatar + profile gates (route level)', () => {
       ...data,
     }));
     app = await buildRouteApp(
-      { avatar: { upsert: avatarUpsert }, user: { update: userUpdate } },
+      {
+        avatar: { upsert: avatarUpsert },
+        user: { update: userUpdate },
+        // QC-F-564: select now writes Avatar + User.avatarUrl inside one
+        // interactive $transaction; the fake hands the callback the same
+        // mocks, so A1/A2 observe both writes (or their absence).
+        $transaction: async (
+          fn: (tx: {
+            avatar: { upsert: typeof avatarUpsert };
+            user: { update: typeof userUpdate };
+          }) => Promise<unknown>,
+        ) => fn({ avatar: { upsert: avatarUpsert }, user: { update: userUpdate } }),
+      },
       async (a) => {
         await a.register(avatarRoutes, { prefix: '/avatar' });
         await a.register(authRoutes, { prefix: '/auth' });
@@ -519,6 +531,13 @@ describe('QC-F-330 avatar + profile gates (route level)', () => {
     });
     expect(res.statusCode).toBe(201);
     expect(avatarUpsert).toHaveBeenCalledTimes(1);
+    // QC-F-564: the same validated value is also projected onto
+    // User.avatarUrl in the same transaction (the flow's persistence now
+    // has two targets by design; everything else about it is unchanged).
+    expect(userUpdate).toHaveBeenCalledTimes(1);
+    expect(userUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { avatarUrl: DATA_SVG } }),
+    );
   });
 
   it('A2: an external-host avatar image is rejected 400, never persisted', async () => {
@@ -530,6 +549,9 @@ describe('QC-F-330 avatar + profile gates (route level)', () => {
     expect(res.statusCode).toBe(400);
     expect(res.json()).toMatchObject({ success: false, error: { code: 'MEDIA_URL_NOT_ALLOWED' } });
     expect(avatarUpsert).not.toHaveBeenCalled();
+    // QC-F-564: the gate fires before the transaction — the projection
+    // write must not happen either.
+    expect(userUpdate).not.toHaveBeenCalled();
   });
 
   it('A3: a tracking avatarUrl on profile update is rejected 400, never persisted', async () => {
