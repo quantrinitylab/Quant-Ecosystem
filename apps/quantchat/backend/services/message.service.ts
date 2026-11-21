@@ -35,6 +35,44 @@ export function extractStorageKey(mediaUrl: string): string {
 }
 
 /**
+ * QC-F-109: is this stored row a view-once snap? The marker lives in
+ * metadata (sendMessage persists viewOnce/isSnap there — QC-F-019); the
+ * Prisma type enum collapses snap types to IMAGE/VIDEO, so metadata is
+ * the only operative signal on stored rows. Keep this EXACTLY the test
+ * getMessages has always used — one definition, every outbound path.
+ */
+export function isViewOnceMessage(msg: { metadata?: unknown }): boolean {
+  const meta = (msg.metadata as Record<string, unknown> | null) ?? {};
+  return Boolean(meta.viewOnce) || Boolean(meta.isSnap);
+}
+
+/**
+ * QC-F-109: return a COPY of a message row that is safe to hand to anyone
+ * other than consumeSnap. For a view-once snap the media payload must be
+ * deliverable ONLY through consumeSnap (which records the view and
+ * destroys the stored copy), so every other outbound path — message list,
+ * search results, pin/react responses, realtime fan-out — passes its rows
+ * through here. The payload-bearing fields are nulled:
+ *   - mediaUrl          (the payload itself; an inline data: URL today)
+ *   - mediaThumbnailUrl (schema sibling; no writer sets it today, but a
+ *                        thumbnail of a snap is still the snap)
+ * and metadata.storageKey is dropped from the copy (consumeSnap reads it
+ * from the DB row, never from an API response; no client reads it).
+ * Everything else — id, conversationId, senderId, type, content (the
+ * caption a search matched on), the view-once metadata markers and
+ * duration, timestamps — is preserved, so a recipient sees an honest
+ * "view-once snap" card, identical in shape to the message list.
+ * Non-snap rows are returned untouched (same reference). The input row
+ * is NEVER mutated.
+ */
+export function redactViewOnceMedia<T extends Message>(msg: T): T {
+  if (!isViewOnceMessage(msg)) return msg;
+  const meta = { ...((msg.metadata as Record<string, unknown> | null) ?? {}) };
+  delete meta.storageKey;
+  return { ...msg, mediaUrl: null, mediaThumbnailUrl: null, metadata: meta };
+}
+
+/**
  * QC-F-329: a snap's persisted mediaUrl is sender-controlled, so the storage
  * key derived from it is too. The only ownership fact the system actually
  * issues is the upload key shape (MediaService.generateUploadUrl:
@@ -605,18 +643,11 @@ export class MessageService {
 
     const totalPages = Math.ceil(total / pageSize);
     return {
-      // QC-F-019: a view-once snap's media must be deliverable ONLY through
-      // consumeSnap (which records the view and destroys the stored copy).
-      // The list payload previously handed the raw mediaUrl to every fetch,
-      // so the media could be copied/replayed forever without ever being
-      // consumed. Strip it here; the snap card needs only type + duration.
-      data: data.map((msg) => {
-        const meta = (msg.metadata as Record<string, unknown> | null) ?? {};
-        if (meta.viewOnce || meta.isSnap) {
-          return { ...msg, mediaUrl: null };
-        }
-        return msg;
-      }),
+      // QC-F-019 + QC-F-109: a view-once snap's media must be deliverable ONLY
+      // through consumeSnap (which records the view and destroys the stored
+      // copy). Every other outbound copy (list, search, pin/react, fan-out)
+      // passes through the same shared sanitiser — one definition, no drift.
+      data: data.map((msg: Message) => redactViewOnceMedia(msg)),
       total,
       page,
       pageSize,
@@ -693,10 +724,12 @@ export class MessageService {
       throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
     }
 
-    return this.prisma.message.update({
+    // QC-F-109: the pin response must not leak a snap's payload either.
+    const updated = await this.prisma.message.update({
       where: { id: messageId },
       data: { metadata: { ...(message.metadata as object), pinned: true, pinnedBy: userId } },
     });
+    return redactViewOnceMedia(updated);
   }
 
   async reactToMessage(messageId: string, userId: string, reaction: string): Promise<Message> {
@@ -732,10 +765,14 @@ export class MessageService {
       reactions[reaction] = [...usersForReaction, userId];
     }
 
-    return this.prisma.message.update({
+    // QC-F-109: same shared sanitiser — a reaction response must not leak a
+    // snap's payload (the reactions route landed via QC-F-410, so this is
+    // live, not latent).
+    const updated = await this.prisma.message.update({
       where: { id: messageId },
       data: { metadata: { ...currentMetadata, reactions } },
     });
+    return redactViewOnceMedia(updated);
   }
 
   async searchMessages(
@@ -778,8 +815,12 @@ export class MessageService {
     ]);
 
     const totalPages = Math.ceil(total / pageSize);
+    // QC-F-109: search must never hand a view-once snap's payload to a
+    // member-recipient. Same shared sanitiser as the list path; `total`
+    // still counts the row (parity with getMessages — payload is what
+    // we hide, not the fact that a message matched).
     return {
-      data,
+      data: data.map((msg: Message) => redactViewOnceMedia(msg)),
       total,
       page,
       pageSize,

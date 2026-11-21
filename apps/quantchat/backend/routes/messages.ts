@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError, enableIdempotency } from '@quant/server-core';
-import { MessageService, assertNoServerSideE2eeRequest } from '../services/message.service';
+import { MessageService, assertNoServerSideE2eeRequest, redactViewOnceMedia } from '../services/message.service';
 import { publishConversationEvent } from '../services/realtime-publisher';
 import { triggerAutoReplies } from '../services/auto-reply.service';
 
@@ -93,7 +93,10 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
       resourceRef: sentMessage.id,
       aggregateVersion:
         typeof sentMessage.version === 'number' ? sentMessage.version : 1,
-      data: message,
+      // QC-F-109: the broadcast copy must never carry a snap's payload —
+      // the sender's own preview comes from the 201 response below, so the
+      // wire copy is always safe to redact for everyone, sender included.
+      data: redactViewOnceMedia(message),
     });
 
     // QC-F-067: the auto-reply trigger that never existed. Members who
@@ -169,7 +172,8 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
         eventType: 'chat.message.updated.v1',
         resourceRef: edited.id,
         aggregateVersion: typeof edited.version === 'number' ? edited.version : 1,
-        data: message,
+        // QC-F-109: same broadcast-copy rule as the send path above.
+        data: redactViewOnceMedia(message),
       });
     }
 
