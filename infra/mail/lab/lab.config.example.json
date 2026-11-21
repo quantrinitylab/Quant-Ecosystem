@@ -1,0 +1,19 @@
+{
+  "_comment": "Copy to lab.config.local.json (git-ignored) and fill in. No value here is a secret, but OCIDs and your IP must stay out of the repo.",
+  "profile": "MAIL",
+  "compartmentId": "ocid1.compartment.oc1..REPLACE_WITH_quant-mail_COMPARTMENT_OCID",
+  "compartmentName": "quant-mail",
+  "namePrefix": "quantmail-lab",
+  "vcnCidr": "10.20.0.0/16",
+  "subnetCidr": "10.20.1.0/24",
+  "shapePreference": "auto",
+  "bootVolumeGb": 50,
+  "a1Ocpus": 1,
+  "a1MemoryGb": 6,
+  "sshPublicKeyPath": "C:\\Users\\YOU\\.ssh\\quant_agent_ed25519.pub",
+  "bastionClientCidr": "auto",
+  "repoUrl": "https://github.com/quantrinitylab/Quant-Ecosystem.git",
+  "repoBranch": "feat/quantmail-stalwart-lab-2026-10-24",
+  "fqdn": "mail.lab.quantrinity.in",
+  "monthlyCostCapUsd": 20
+}

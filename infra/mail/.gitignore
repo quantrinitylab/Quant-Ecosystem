@@ -1,0 +1,13 @@
+# Local environment and generated state. Never commit these.
+.env
+.env.*
+!.env.example
+*.local.json
+*.local.env
+lab/lab.config.local.json
+lab/.state/
+lab/tests/out/
+stalwart/.rendered/
+*.pem
+*.key
+*.log

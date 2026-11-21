@@ -1,0 +1,3 @@
+{"@type":"upsert","object":"NetworkListener","matchOn":["name"],"value":{"l-http-acme":{"name":"http-acme","protocol":"http","bind":{"[::]:80":true},"useTls":false}}}
+{"@type":"upsert","object":"AcmeProvider","matchOn":["directory"],"value":{"acme-main":{"directory":"${ACME_DIRECTORY}","challengeType":"Http01","contact":{"${ACME_CONTACT}":true},"renewBefore":"R23"}}}
+{"@type":"upsert","object":"Domain","matchOn":["name"],"value":{"dom-lab":{"name":"${LAB_DOMAIN}","certificateManagement":{"@type":"Automatic","acmeProviderId":"#acme-main","subjectAlternativeNames":{"mail":true}},"dkimManagement":{"@type":"Automatic","algorithms":{"Dkim1Ed25519Sha256":true,"Dkim1RsaSha256":true}},"dnsManagement":{"@type":"Manual"},"subAddressing":{"@type":"Enabled"}}}}

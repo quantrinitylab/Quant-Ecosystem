@@ -1,0 +1,101 @@
+# Stalwart lab stack. Pinned images (tag + multi-arch index digest, resolved 2026-10-24).
+# Usage on the VM: see README.md in this folder. Run provision.sh, not "up", the first time.
+name: quantmail-lab
+
+services:
+  stalwart:
+    image: stalwartlabs/stalwart:v0.16.27@sha256:c429b311c93db5606598abc1c68225a85a6953183848ae01bee9c6a98885836c
+    container_name: stalwart
+    restart: unless-stopped
+    hostname: ${MAIL_HOSTNAME:-mail.lab.quantrinity.in}
+    # Secrets (Cloudflare token, R2 keys, relay password, Postgres password) are read by Stalwart
+    # from its own environment through "EnvironmentVariable" secret references in the plan.
+    env_file:
+      - .env
+    ports:
+      - "25:25"
+      - "465:465"
+      - "587:587"
+      - "993:993"
+      - "443:443"
+      - "80:80" # only answers when the HTTP-01 fallback plan is applied
+      - "127.0.0.1:8080:8080" # admin HTTP listener: loopback only, reach it through the OCI Bastion
+    volumes:
+      - stalwart-etc:/etc/stalwart # config.json (written by bootstrap)
+      - stalwart-data:/var/lib/stalwart # embedded RocksDB: metadata, queue, and blobs while STORAGE_BLOBS=local
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'curl -fsSk -H "X-Forwarded-For: 127.0.0.1" https://127.0.0.1:443/healthz/live || curl -fsS -H "X-Forwarded-For: 127.0.0.1" http://127.0.0.1:8080/healthz/live'
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    # The image runs as UID 2000 and carries cap_net_bind_service; nothing else is needed.
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 700m # fits the 1 GB Always Free shape together with the host; raise on A1.Flex
+
+  # Accepts every webhook and MTA hook call, logs the JSON, always answers "accept".
+  hooks:
+    image: node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+    container_name: stalwart-hooks
+    restart: unless-stopped
+    command: ["node", "/app/hook-receiver.mjs"]
+    environment:
+      HOOK_PORT: "9000"
+      HOOK_DATA_DIR: /data
+    ports:
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - ../lab/tests/hook-receiver.mjs:/app/hook-receiver.mjs:ro
+      - hooks-data:/data
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 96m
+
+  # Alternative directory backend: the Quant users table in Postgres (profile "sqldir").
+  postgres:
+    image: postgres:17-alpine@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb
+    container_name: stalwart-pg
+    profiles: ["sqldir"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PG_DB:-quantusers}
+      POSTGRES_USER: pgadmin
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD:-} # required when the sqldir profile is used (postgres refuses an empty one)
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 192m
+
+  # One-shot admin CLI. Used by provision.sh; run: docker compose run --rm -T cli <args>
+  cli:
+    image: stalwartlabs/cli:1.0.13@sha256:9a1e07307d6f890a193322c4b737fc0868405f0f8486a19922cbf362f43884fd
+    profiles: ["tools"]
+    environment:
+      STALWART_URL: ${STALWART_URL:-https://stalwart}
+      STALWART_USER: ${STALWART_ADMIN_USER:-}
+      STALWART_PASSWORD: ${STALWART_ADMIN_PASSWORD:-}
+    volumes:
+      - cli-cache:/home/nonroot/.cache
+
+volumes:
+  stalwart-etc:
+  stalwart-data:
+  hooks-data:
+  pg-data:
+  cli-cache:
