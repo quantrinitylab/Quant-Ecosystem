@@ -149,7 +149,9 @@ Required: surface/type/focus/motion/responsive tokens, product accent semantics,
 Dependencies: QM-AUTH-002.
 
 ## QM-WORK-002 — Shell and scroll ownership
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-work-002-shell-scroll-ownership
 Scope: AppShell.tsx, AppSidebar.tsx, global layout/CSS.
 Finding: audit found nested/competing scroll owners and responsive layout issues.
 Required: one documented scroll owner per layout mode; tested widths 768/1024/1280/1440/1920; preserve mobile drawer focus and Escape.
