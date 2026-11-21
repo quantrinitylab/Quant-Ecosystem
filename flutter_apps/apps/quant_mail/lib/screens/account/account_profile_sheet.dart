@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
+import '../../services/quant_auth_controller.dart';
+import '../auth/quant_login_screen.dart';
 
 /// Sovereign Identity Profile Model
 class QuantIdentity {
@@ -255,18 +257,33 @@ class _AccountProfileSheetState extends State<AccountProfileSheet>
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(ctx).pop();
               Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  backgroundColor: QuantColors.darkSlateSurface,
-                  content: Text(
-                    'Sovereign session terminated. Vault locked successfully.',
-                    style: TextStyle(color: QuantColors.statusSuccess),
+              await QuantAuthController.instance.logout();
+              if (context.mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  PageRouteBuilder(
+                    transitionDuration: const Duration(milliseconds: 500),
+                    pageBuilder: (context, animation, secondaryAnimation) =>
+                        const QuantLoginScreen(),
+                    transitionsBuilder:
+                        (context, animation, secondaryAnimation, child) {
+                      return FadeTransition(opacity: animation, child: child);
+                    },
                   ),
-                ),
-              );
+                  (route) => false,
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    backgroundColor: QuantColors.darkSlateSurface,
+                    content: Text(
+                      'Sovereign session terminated. Vault locked successfully.',
+                      style: TextStyle(color: QuantColors.statusSuccess),
+                    ),
+                  ),
+                );
+              }
             },
             child: const Text('Sign Out & Lock Vault'),
           ),
