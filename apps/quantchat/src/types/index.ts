@@ -889,7 +889,11 @@ export type NotificationType =
   | 'friend_request'
   | 'streak_warning'
   | 'mention'
-  | 'reaction';
+  | 'reaction'
+  // QC-F-101: the durable-inbox writer's Spotlight row type (backend
+  // `type: 'spotlight_featured'`). Type-only addition — no existing
+  // consumer changes meaning by it.
+  | 'spotlight_featured';
 
 export interface Notification extends BaseEntity {
   userId: string;
@@ -901,6 +905,21 @@ export interface Notification extends BaseEntity {
   actionUrl?: string;
   imageUrl?: string;
   senderId?: string;
+}
+
+// QC-F-101: backend GET /notifications contract shapes. A `type` alias
+// (not `interface`) so it stays assignable to api-client's
+// `Record<string, string | number | boolean | undefined>` params.
+export type NotificationListParams = {
+  limit?: number;
+  sourceApp?: string;
+  unreadOnly?: boolean;
+};
+
+export interface NotificationListResponse {
+  notifications: Notification[];
+  unreadCount: number;
+  total: number;
 }
 
 // ============================================================================

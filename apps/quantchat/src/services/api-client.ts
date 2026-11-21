@@ -25,6 +25,8 @@ import type {
   TranslationResult,
   ModerationResult,
   Notification,
+  NotificationListParams,
+  NotificationListResponse,
   AuthTokens,
   SendMessageRequest,
   MessageRequest,
@@ -763,8 +765,23 @@ export class QuantChatApiClient {
   // Notifications
   // --------------------------------------------------------------------------
 
-  async getNotifications(limit?: number): Promise<ApiResponse<Notification[]>> {
-    return this.get('/notifications', { params: { limit } });
+  // QC-F-101: real inbox list — backend GET /notifications. The old
+  // `limit`-only signature was a phantom over a backend that had no list
+  // endpoint at all; the shape now matches the backend contract exactly.
+  async getNotifications(
+    params?: NotificationListParams,
+  ): Promise<ApiResponse<NotificationListResponse>> {
+    return this.get('/notifications', { params });
+  }
+
+  async markNotificationRead(
+    id: string,
+  ): Promise<ApiResponse<Notification>> {
+    return this.request('PATCH', `/notifications/${encodeURIComponent(id)}/read`);
+  }
+
+  async markAllNotificationsRead(): Promise<ApiResponse<{ updated: number }>> {
+    return this.request('POST', '/notifications/read-all');
   }
 
   // --------------------------------------------------------------------------
