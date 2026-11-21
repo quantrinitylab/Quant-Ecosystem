@@ -9,6 +9,7 @@ import { CaptureButton } from './CaptureButton';
 import { CameraControls } from './CameraControls';
 import { PermissionDenied } from './PermissionDenied';
 import { ARLensCarousel, type ARLensConfig } from './ARLensCarousel';
+import { CapturePreview, type CapturedMedia } from './CapturePreview';
 
 type PermissionStatus = 'prompt' | 'granted' | 'denied';
 type FlashMode = 'off' | 'torch' | 'screen';
@@ -30,8 +31,14 @@ export default function CameraPage() {
   const [isFlipping, setIsFlipping] = useState(false);
   const [screenFlashActive, setScreenFlashActive] = useState(false);
   const [activeLens, setActiveLens] = useState<ARLensConfig | null>(null);
+  // QC-F-138: captured media awaiting the user's decision (preview/send/save).
+  // Before this state existed, the capture handlers discarded the blob.
+  const [captured, setCaptured] = useState<CapturedMedia | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // The objectUrl of the live capture — this page is its single revoke owner.
+  const capturedUrlRef = useRef<string | null>(null);
 
   // Initialize camera stream
   const initializeCamera = useCallback(
@@ -105,6 +112,24 @@ export default function CameraPage() {
     };
   }, [stream]);
 
+  // Revoke the capture's objectUrl on unmount (single revoke owner: here and
+  // clearCapture below — nowhere else).
+  useEffect(() => {
+    return () => {
+      if (capturedUrlRef.current) {
+        URL.revokeObjectURL(capturedUrlRef.current);
+        capturedUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  // Confirmation notice auto-dismiss
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
+
   // Flip camera — stop current, request opposite facing, target 500ms
   const handleFlipCamera = useCallback(async () => {
     if (isFlipping) return;
@@ -153,6 +178,47 @@ export default function CameraPage() {
     }
   }, [flashMode, stream, facingMode]);
 
+  // QC-F-138: a capture is kept, never discarded. The handlers hand the blob
+  // to the preview (retake / send / save) — the old code built a download
+  // link it never clicked and revoked the URL, so every capture vanished
+  // while the UI behaved as if it had succeeded.
+  const keepCapture = useCallback(
+    (blob: Blob, kind: 'photo' | 'video') => {
+      if (capturedUrlRef.current) {
+        URL.revokeObjectURL(capturedUrlRef.current);
+      }
+      const objectUrl = URL.createObjectURL(blob);
+      capturedUrlRef.current = objectUrl;
+      setCaptured({
+        blob,
+        kind,
+        objectUrl,
+        sizeBytes: blob.size,
+        // The lens is baked into photo pixels by the Viewfinder canvas;
+        // video records the raw stream, so it honestly carries no lens.
+        lensId: kind === 'photo' ? (activeLens?.id ?? null) : null,
+        lensName: kind === 'photo' ? (activeLens?.name ?? null) : null,
+      });
+    },
+    [activeLens],
+  );
+
+  const clearCapture = useCallback(() => {
+    if (capturedUrlRef.current) {
+      URL.revokeObjectURL(capturedUrlRef.current);
+      capturedUrlRef.current = null;
+    }
+    setCaptured(null);
+  }, []);
+
+  const handleCaptureDone = useCallback(
+    (message: string) => {
+      clearCapture();
+      setNotice(message);
+    },
+    [clearCapture],
+  );
+
   // Photo capture handler
   const handlePhotoCaptured = useCallback(
     (blob: Blob) => {
@@ -161,28 +227,18 @@ export default function CameraPage() {
         setScreenFlashActive(true);
         setTimeout(() => setScreenFlashActive(false), 200);
       }
-
-      // In a real app, this would save to gallery / upload
-      // For now, create a download link as proof of concept
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `quantchat-photo-${Date.now()}.jpg`;
-      // Don't auto-download, just log
-      URL.revokeObjectURL(url);
+      keepCapture(blob, 'photo');
     },
-    [flashMode, facingMode],
+    [flashMode, facingMode, keepCapture],
   );
 
   // Video recording handler
-  const handleVideoRecorded = useCallback((blob: Blob) => {
-    // In a real app, this would navigate to editor / upload
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `quantchat-video-${Date.now()}.webm`;
-    URL.revokeObjectURL(url);
-  }, []);
+  const handleVideoRecorded = useCallback(
+    (blob: Blob) => {
+      keepCapture(blob, 'video');
+    },
+    [keepCapture],
+  );
 
   // Permission denied state
   if (permissionStatus === 'denied') {
@@ -209,7 +265,7 @@ export default function CameraPage() {
       {screenFlashActive && <div className="absolute inset-0 bg-white z-50 pointer-events-none" />}
 
       {/* Canvas-based viewfinder */}
-      <Viewfinder stream={stream} canvasRef={canvasRef} activeLens={activeLens} />
+      <Viewfinder stream={stream} canvasRef={canvasRef} activeLens={activeLens} paused={!!captured} />
 
       {/* Loading state while waiting for permission/stream */}
       {permissionStatus === 'prompt' && !stream && (
@@ -258,6 +314,21 @@ export default function CameraPage() {
           }}
         />
       </div>
+
+      {/* QC-F-138: post-capture preview — retake / send / save destinations */}
+      {captured && (
+        <CapturePreview captured={captured} onDiscard={clearCapture} onDone={handleCaptureDone} />
+      )}
+
+      {/* Honest confirmation after a successful send/save */}
+      {notice && !captured && (
+        <div
+          role="status"
+          className="absolute left-1/2 top-20 z-50 -translate-x-1/2 rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-black shadow-lg"
+        >
+          {notice}
+        </div>
+      )}
     </div>
   );
 }
