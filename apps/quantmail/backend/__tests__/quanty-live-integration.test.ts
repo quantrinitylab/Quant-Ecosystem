@@ -14,9 +14,11 @@ import {
   clearTools,
   getTool,
   registerRealTools,
+  registerTool,
 } from '../services/quanty-agent/tool-registry';
 import { undoTaskSteps } from '../services/quanty-agent/undo';
 import { buildPopupData, buildActivityFeed } from '../services/quanty-agent/popup-data';
+import { quantyAgentState } from '../services/quanty-agent/agent-state';
 import { InMemoryTaskStore, createTask, QuantyExecutor } from '../services/quanty-agent/executor';
 import type { QuantyMailToolsDeps } from '../services/quanty-agent/tools/mail-tools';
 import type { QuantyTask, QuantyToolContext } from '../services/quanty-agent/types';
@@ -243,6 +245,48 @@ describe('quanty popup data', () => {
     expect(data.status.status).toBe('idle');
   });
 
+  it('buildPopupData never shows another user\'s live run in your popup status', async () => {
+    clearTools();
+    registerTool({
+      name: 'test.slow',
+      app: 'core',
+      description: 'slow work',
+      parameters: {},
+      destructive: false,
+      reversible: false,
+      handler: async () => {
+        await new Promise((r) => setTimeout(r, 400));
+        return { ok: true, summary: 'worked' };
+      },
+    });
+    const store = new InMemoryTaskStore();
+    const executor = new QuantyExecutor({ store });
+    const other = createTask('other-user', 'secret work', 'Other user plan summary', [
+      { id: 's1', toolName: 'test.slow', label: 'Other user step label', args: {}, status: 'pending' },
+    ]);
+    const runPromise = executor.run(other, null, { onEvent: () => {}, onAudit: () => {} });
+    await vi.waitFor(() => expect(executor.liveStatus('other-user').status).toBe('is working'));
+    // The owner still sees their own run; the caller sees honest idle.
+    // (Poll: the run registers before its step label is set.)
+    await vi.waitFor(() => expect(executor.liveStatus('other-user').detail).toBe('Other user step label'));
+    const ownerData = await buildPopupData({
+      userId: 'other-user',
+      store,
+      executor,
+      toolAppOf: () => undefined,
+    });
+    expect(ownerData.status.status).toBe('is working');
+    expect(ownerData.status.detail).toBe('Other user step label');
+    const data = await buildPopupData({
+      userId: USER_ID,
+      store,
+      executor,
+      toolAppOf: () => undefined,
+    });
+    expect(data.status).toEqual({ status: 'idle', detail: 'Waiting for your command' });
+    await runPromise;
+  });
+
   it('buildPopupData surfaces real task history after a task runs', async () => {
     const store = new InMemoryTaskStore();
     const executor = new QuantyExecutor({ store });
@@ -320,6 +364,66 @@ describe('quanty popup data', () => {
       prisma: {},
     });
     expect(data.approvals).toEqual([]);
+  });
+
+  it('buildPopupData never shows another user\'s browser tasks in your popup (Alice/Bob/no-task)', async () => {
+    // quantyAgentState is a process singleton: isolate this test from the
+    // rest of the file (and vice versa) with clear() on both sides.
+    quantyAgentState.clear();
+    try {
+      const aliceTask = quantyAgentState.recordBrowserTask({
+        userId: 'alice',
+        title: 'Alice secret research',
+        url: 'https://alice-private.example/research',
+        thumbnailUrl: 'https://img/alice-thumb.png',
+      });
+      quantyAgentState.recordBrowserTask({
+        userId: 'bob',
+        title: 'Bob secret research',
+        url: 'https://bob-private.example/research',
+        thumbnailUrl: 'https://img/bob-thumb.png',
+      });
+      quantyAgentState.updateBrowserTask(aliceTask.id, 'alice', { status: 'done' });
+
+      const store = new InMemoryTaskStore();
+      const executor = new QuantyExecutor({ store });
+      const popupFor = (userId: string) =>
+        buildPopupData({ userId, store, executor, toolAppOf: () => undefined });
+
+      // Alice's popup: only her task, with her exact surfaced fields.
+      const aliceData = await popupFor('alice');
+      expect(aliceData.browserTasks).toHaveLength(1);
+      expect(aliceData.browserTasks[0]).toMatchObject({
+        title: 'Alice secret research',
+        url: 'https://alice-private.example/research',
+        thumbnailUrl: 'https://img/alice-thumb.png',
+        status: 'done',
+      });
+      const aliceBlob = JSON.stringify(aliceData.browserTasks);
+      expect(aliceBlob).not.toContain('Bob secret research');
+      expect(aliceBlob).not.toContain('bob-private.example');
+      expect(aliceBlob).not.toContain('bob-thumb.png');
+      // Bob's popup: only his running task, never Alice's done one.
+      const bobData = await popupFor('bob');
+      expect(bobData.browserTasks).toHaveLength(1);
+      expect(bobData.browserTasks[0]).toMatchObject({
+        title: 'Bob secret research',
+        url: 'https://bob-private.example/research',
+        thumbnailUrl: 'https://img/bob-thumb.png',
+        status: 'running',
+      });
+      const bobBlob = JSON.stringify(bobData.browserTasks);
+      expect(bobBlob).not.toContain('Alice secret research');
+      expect(bobBlob).not.toContain('alice-private.example');
+      expect(bobBlob).not.toContain('alice-thumb.png');
+      // No-task user: honest empty list, and an idle status — never a
+      // neighbour's running task leaking into the header.
+      const carolData = await popupFor('carol');
+      expect(carolData.browserTasks).toEqual([]);
+      expect(carolData.status).toEqual({ status: 'idle', detail: 'Waiting for your command' });
+    } finally {
+      quantyAgentState.clear();
+    }
   });
 
   it('buildPopupData degrades to the in-memory list when the durable read fails', async () => {
