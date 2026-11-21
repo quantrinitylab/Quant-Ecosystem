@@ -624,6 +624,23 @@ describe('QuantDrive Duplicate Cleaner Test Suite', () => {
       }
     });
 
+    it('scanning loader copy matches the real scan: exact stored-content-hash grouping, no perceptual claim', () => {
+      // Backend AIDuplicateService.findDuplicates groups only by exact
+      // stored contentHash equality — there is no perceptual-hash path.
+      const manager = new DuplicateCleanerManager({
+        apiFetch: () => new Promise<Response>(() => {}),
+      });
+      void manager.scanDuplicates();
+      const html = renderToStaticMarkup(
+        <AIDuplicateCleanerModal isOpen={true} onClose={vi.fn()} manager={manager} />,
+      );
+      expect(html).toContain('data-testid="scanning-state"');
+      expect(html).toContain('Scanning Drive files for duplicates...');
+      expect(html).toContain('Comparing stored content hashes to find identical files.');
+      expect(html).not.toContain('perceptual');
+      expect(html).not.toContain('Perceptual');
+    });
+
     it('renders potential savings summary banner with Select All and Deselect All buttons', () => {
       const manager = new DuplicateCleanerManager({ initialGroups: sampleGroups });
       const html = renderToStaticMarkup(

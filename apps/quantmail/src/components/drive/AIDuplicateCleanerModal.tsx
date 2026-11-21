@@ -626,7 +626,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                 Scanning Drive files for duplicates...
               </p>
               <p className="text-xs text-[#9CA3AF]">
-                Analyzing perceptual and cryptographic content hashes.
+                Comparing stored content hashes to find identical files.
               </p>
             </div>
           )}

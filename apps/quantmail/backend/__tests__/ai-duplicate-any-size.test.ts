@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from 'vitest';
-import { AIDuplicateService, PERCEPTUAL_MIN_BYTES } from '../services/ai-duplicate.service';
+import { AIDuplicateService } from '../services/ai-duplicate.service';
 
 describe('AIDuplicateService exact duplicates', () => {
   it('queries all active user files and groups byte-identical files at any size', async () => {
@@ -27,12 +27,23 @@ describe('AIDuplicateService exact duplicates', () => {
     });
   });
 
-  it('retains the minimum size guard for perceptual comparison only', () => {
-    const service = new AIDuplicateService({ file: { findMany: vi.fn() } });
-    expect(PERCEPTUAL_MIN_BYTES).toBe(64);
-    expect(service.compareTwoFiles(Buffer.alloc(63), Buffer.alloc(63))).toEqual({
-      similarity: 0,
-      isLikelyDuplicate: false,
+  it('skips files with no stored content hash (no perceptual fallback exists)', async () => {
+    const findMany = vi.fn().mockResolvedValue([
+      { id: 'a', name: 'a.bin', size: 1, contentHash: null },
+      { id: 'b', name: 'b.bin', size: 1, contentHash: null },
+      { id: 'c', name: 'c.bin', size: 1, contentHash: 'same' },
+      { id: 'd', name: 'd.bin', size: 1, contentHash: 'same' },
+    ]);
+    const service = new AIDuplicateService({ file: { findMany } });
+
+    await expect(service.findDuplicates('user-1')).resolves.toEqual({
+      groups: [{
+        hash: 'same',
+        files: [
+          { id: 'c', name: 'c.bin', size: 1 },
+          { id: 'd', name: 'd.bin', size: 1 },
+        ],
+      }],
     });
   });
 });
