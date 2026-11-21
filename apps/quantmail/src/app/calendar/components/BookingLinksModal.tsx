@@ -253,6 +253,54 @@ export function isLocalOnlyBookingLink(link: BookingLinkItem): boolean {
   return link.pendingSync === true || link.id.startsWith('link-');
 }
 
+// ============================================================================
+// Account-session binding (fix/qm-booking-links-account-bound).
+// The storage keys were already account-scoped, but three pieces of React
+// wiring were not: (1) the open-fetch depended only on `isOpen`, so a
+// response held across an account switch merged the previous account's
+// links into the new account's state; (2) the reload/persist effect pair
+// both depended on `accountKey`, so on a switch the persist effect re-ran
+// with the previous account's still-in-memory array and wrote it under the
+// new account's key; (3) create/delete completions applied to whichever
+// account was current when the await resolved. The component below binds
+// every one of those to an account SESSION (a generation number that bumps
+// on each account change) via these two pure guards — kept exported and
+// DOM-free so the contract is unit-testable.
+// ============================================================================
+
+/**
+ * A booking-links account session: increments every time the signed-in
+ * account changes. Async completions capture the session they started in.
+ */
+export type BookingLinksSession = number;
+
+/**
+ * May the current in-memory links be persisted under `accountKey`?
+ * False when the account is unknown (fail closed — nothing is ever written
+ * without an account) or when the links were loaded for a DIFFERENT
+ * account: that is the stale A→B write, and it must be refused.
+ */
+export function shouldPersistBookingLinksForAccount(
+  accountKey: string,
+  linksAccountKey: string,
+): boolean {
+  if (!accountKey) return false;
+  return linksAccountKey === accountKey;
+}
+
+/**
+ * Is an async booking-links completion (open-fetch, create re-read,
+ * delete) stale? True when the account switched after the request started
+ * — the completion must be discarded, never merged into the new account's
+ * state.
+ */
+export function isStaleBookingLinksCompletion(
+  requestSession: BookingLinksSession,
+  currentSession: BookingLinksSession,
+): boolean {
+  return requestSession !== currentSession;
+}
+
 const WEEKDAY_NAMES = [
   { day: 1, label: 'Mon', full: 'Monday' },
   { day: 2, label: 'Tue', full: 'Tuesday' },
@@ -303,37 +351,67 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
   const [serverSyncError, setServerSyncError] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // fix/qm-booking-links-account-bound: the account SESSION. A generation
+  // number that bumps every time the signed-in account changes. Every async
+  // completion (open-fetch, create re-read, delete) captures the session it
+  // started in and is discarded when the session moved on — so opening as A,
+  // holding the server response, switching to B, and releasing A's response
+  // can no longer land A's links in B's state (and from there, under B's key).
+  const accountSessionRef = useRef<BookingLinksSession>(0);
+  useEffect(() => {
+    // Declared first so the session bumps before the reload/persist
+    // effects below re-run on the same account-switch commit.
+    accountSessionRef.current += 1;
+  }, [accountKey]);
+
   // qm-booking-links-scope: offline cache is account-scoped
   // (`quant_calendar_booking_links.v2.<immutable-user-id>`); the legacy
   // unscoped key is purged once per page load (never read, never migrated).
-  // `linksBelongToAccount` guards the write path: on an account switch the
-  // persist effect must never write the previous account's in-memory links
-  // under the new account's key before the reload effect runs.
-  const linksBelongToAccount = useRef<string>('');
+  // `linksAccountKeyRef` records which account the in-memory `links` were
+  // loaded for. The persist effect only writes when this matches the
+  // current account — the reload effect sets it BEFORE its setLinks
+  // commits, so the persist effect can never write the previous account's
+  // still-in-memory array under the new account's key.
+  const linksAccountKeyRef = useRef<string>('');
   useEffect(() => {
     const store = windowBookingLinksStorage();
     ensureBookingLinksNamespaceV2(store);
     setLinks(getBookingLinks(store, accountKey));
-    linksBelongToAccount.current = accountKey;
+    linksAccountKeyRef.current = accountKey;
   }, [accountKey]);
 
-  // Sync to localStorage (offline cache only — the server is the source of truth)
+  // Sync to localStorage (offline cache only — the server is the source of truth).
+  // Deliberately depends on `links` ONLY: on an account switch this effect
+  // does not re-run with the previous account's still-in-memory array (the
+  // stale A→B write this fix closes). It re-runs after the reload above
+  // commits the new account's array, which the guard then allows — an
+  // idempotent re-write of what is already stored under that account's key.
   useEffect(() => {
-    if (!accountKey) return; // fail closed: unknown account persists nothing
-    if (linksBelongToAccount.current !== accountKey) return; // mid-switch guard
+    if (!shouldPersistBookingLinksForAccount(accountKey, linksAccountKeyRef.current)) return;
     saveBookingLinks(windowBookingLinksStorage(), accountKey, links);
-  }, [accountKey, links]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- accountKey is
+    // intentionally NOT a dep: re-running on account change with the stale
+    // `links` closure is exactly the cross-account write this fix removes.
+  }, [links]);
 
-  // Load the host's links from the backend every time the modal opens.
-  // Without this, backend-created links (and links made on other devices)
-  // never appeared — the write/read split-brain this fix closes.
+  // Load the host's links from the backend every time the modal opens, and
+  // again when the account changes while it is open. Session-bound: a
+  // response that arrives after an account switch is discarded instead of
+  // merging the previous account's links into the new account's state.
+  // Without the open-fetch, backend-created links (and links made on other
+  // devices) never appeared — the write/read split-brain an earlier fix closed.
   useEffect(() => {
     if (!isOpen) return;
+    const requestSession = accountSessionRef.current;
     let cancelled = false;
     (async () => {
       setIsLoadingLinks(true);
+      setServerSyncError(false);
       const serverLinks = await fetchBookingLinksFromServer();
       if (cancelled) return;
+      // Stale completion: the account switched while the request was in
+      // flight — discard it; never merge into the new account's state.
+      if (isStaleBookingLinksCompletion(requestSession, accountSessionRef.current)) return;
       if (serverLinks === null) {
         // Honest fallback: server unreachable — keep the localStorage copy
         // loaded above and say so; never render a fake empty list.
@@ -347,7 +425,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [isOpen]);
+  }, [isOpen, accountKey]);
 
   // Handle title changes & auto-slugification
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -449,16 +527,32 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
     // is kept (a pendingSync copy would be permanently unsyncable dead
     // weight). The form stays open with the values intact so the host can
     // pick another slug.
+    // fix/qm-booking-links-account-bound: bind the whole async completion
+    // to the account session it started in. A save that finishes after an
+    // account switch is discarded — the previous account's new link must
+    // never land in the new account's list state (and from there, under the
+    // new account's storage key).
+    const submitSession = accountSessionRef.current;
     const sync = await persistBookingLinkToServer(newLink);
+    // The submission UI always resets; only the data mutation is session-gated.
+    setIsSubmitting(false);
+    if (isStaleBookingLinksCompletion(submitSession, accountSessionRef.current)) {
+      // The save belonged to the previous account. When the POST succeeded
+      // the server already has the record — switching back to that account
+      // re-reads it from the server. Nothing is applied to the current
+      // account's state, and no toast claims a result for the wrong account.
+      return;
+    }
 
     if (sync.slugTaken) {
-      setIsSubmitting(false);
       showToast(bookingLinkSaveToast(sync));
       return;
     }
 
     if (sync.ok) {
       const refreshed = await fetchBookingLinksFromServer();
+      // The re-read is a second await: re-check the session before merging.
+      if (isStaleBookingLinksCompletion(submitSession, accountSessionRef.current)) return;
       if (refreshed !== null) {
         setLinks((prev) => mergeServerAndLocalLinks(refreshed, [newLink]));
       } else {
@@ -466,10 +560,8 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
         // copy so it is not silently lost.
         setLinks((prev) => [{ ...newLink, pendingSync: true }, ...prev]);
       }
-      setIsSubmitting(false);
       showToast(bookingLinkSaveToast(sync));
     } else {
-      setIsSubmitting(false);
       setLinks((prev) => [{ ...newLink, pendingSync: true }, ...prev]);
       showToast(bookingLinkSaveToast(sync));
     }
@@ -503,8 +595,13 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
       return;
     }
     setDeletingId(link.id);
+    // fix/qm-booking-links-account-bound: bind the async completion to the
+    // session — a delete that finishes after an account switch must not
+    // remove a row from the new account's list.
+    const deleteSession = accountSessionRef.current;
     const deleted = await deleteBookingLinkOnServer(link.id);
     setDeletingId(null);
+    if (isStaleBookingLinksCompletion(deleteSession, accountSessionRef.current)) return;
     if (deleted) {
       setLinks((prev) => prev.filter((l) => l.id !== link.id));
       showToast({ text: 'Booking link deleted', type: 'success' });

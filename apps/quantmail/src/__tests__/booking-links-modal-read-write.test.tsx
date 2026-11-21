@@ -20,6 +20,8 @@ import {
   parseStoredBookingLinks,
   defaultHostTimezone,
   hostTimezoneOptions,
+  shouldPersistBookingLinksForAccount,
+  isStaleBookingLinksCompletion,
   type BookingLinkItem,
 } from '../app/calendar/components/BookingLinksModal';
 
@@ -48,7 +50,7 @@ const envelope = { success: true, data: [serverRecord] };
 describe('BookingLinksModal read/write split-brain fix (fix/qm-bookinglinks-read-write)', () => {
   beforeEach(() => {
     vi.mocked(apiFetchRaw).mockReset();
-  });
+});
 
   // ---------------------------------------------------------------------------
   // 1. READ: open -> GET /api/booking/links -> links render from the backend
@@ -320,6 +322,47 @@ describe('BookingLinksModal read/write split-brain fix (fix/qm-bookinglinks-read
       // starts empty — the empty state must be honest, not seeded samples.
       expect(open).toContain('No booking links created yet');
       expect(open).not.toContain('Strategy Session');
+    });
+  });
+    // ---------------------------------------------------------------------------
+  // 5. Account-session binding (fix/qm-booking-links-account-bound): the
+  //    offline cache keys were already account-scoped, but the React wiring
+  //    was not — an open-fetch held across an account switch merged A's
+  //    links into B's state, and the reload/persist effect pair wrote A's
+  //    in-memory array under B's key. The guards below are the contract the
+  //    effects use; they are pure and DOM-free so they pin without a
+  //    renderer (this package has no @testing-library/react).
+  // ---------------------------------------------------------------------------
+  describe('account-session binding (fix/qm-booking-links-account-bound)', () => {
+    describe('shouldPersistBookingLinksForAccount', () => {
+      it('allows the write when the in-memory links were loaded for the current account', () => {
+        expect(shouldPersistBookingLinksForAccount('user-A', 'user-A')).toBe(true);
+      });
+
+      it('refuses the stale A→B write: links still belong to the previous account', () => {
+        // The reload effect has not committed B's array yet; the persist
+        // effect must not write A's array under B's storage key.
+        expect(shouldPersistBookingLinksForAccount('user-B', 'user-A')).toBe(false);
+      });
+
+      it('refuses when no account is known — fail closed, never an unscoped key', () => {
+        expect(shouldPersistBookingLinksForAccount('', '')).toBe(false);
+        expect(shouldPersistBookingLinksForAccount('', 'user-A')).toBe(false);
+      });
+    });
+
+    describe('isStaleBookingLinksCompletion', () => {
+      it('marks a completion stale when the account switched mid-flight', () => {
+        // Open as A (session 4), hold the server response, switch to B
+        // (session 5): releasing A's response must be discarded.
+        expect(isStaleBookingLinksCompletion(4, 5)).toBe(true);
+      });
+
+      it('keeps a completion fresh when the session did not move', () => {
+        // Open as A (session 4), hold the server response, switch to B
+        // (session 5): releasing A's response must be discarded.
+        expect(isStaleBookingLinksCompletion(5, 5)).toBe(false);
+      });
     });
   });
 });
