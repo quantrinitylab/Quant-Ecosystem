@@ -1,24 +1,24 @@
-import type { PrismaClient, Message } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { MessageType } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { getPrivacyService, type PrivacyService } from './privacy.service';
 
-export type ExpiryMode = 'after_view' | '24h' | '7d' | '30d';
-
-interface ScheduledExpiry {
-  messageId: string;
-  expiresAt: Date;
-  mode: ExpiryMode;
-}
-
-const EXPIRY_DURATIONS: Record<Exclude<ExpiryMode, 'after_view'>, number> = {
+/**
+ * QC-F-231: send-anchored expiry durations in milliseconds. Shared with
+ * MessageService.sendMessage (Slice A) — a second map MUST NOT be created.
+ * `after_view` is deliberately NOT here: its expiry is stamped on first
+ * view (markViewedAndScheduleDeletion), never at send time (D1).
+ */
+export const EXPIRY_DURATIONS = {
   '24h': 24 * 60 * 60 * 1000,
   '7d': 7 * 24 * 60 * 60 * 1000,
   '30d': 30 * 24 * 60 * 60 * 1000,
-};
+} as const;
+
+/** Timed disappear modes that stamp `expiresAt` at send time (QC-F-231 Slice A). */
+export type TimedDisappearMode = keyof typeof EXPIRY_DURATIONS;
 
 export class DisappearingService {
-  private scheduledJobs: Map<string, NodeJS.Timeout> = new Map();
   private readonly privacy: PrivacyService;
 
   constructor(
@@ -28,65 +28,21 @@ export class DisappearingService {
     this.privacy = privacy ?? getPrivacyService(prisma);
   }
 
-  async scheduleExpiry(messageId: string, mode: ExpiryMode): Promise<ScheduledExpiry> {
-    const message = await this.prisma.message.findUnique({
-      where: { id: messageId },
-    });
-
-    if (!message) {
-      throw createAppError('Message not found', 404, 'MESSAGE_NOT_FOUND');
-    }
-
-    let expiresAt: Date;
-
-    if (mode === 'after_view') {
-      // For after_view, set expiry far in future, actual deletion on view
-      expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-    } else {
-      const duration = EXPIRY_DURATIONS[mode];
-      expiresAt = new Date(Date.now() + duration);
-    }
-
-    await this.prisma.message.update({
-      where: { id: messageId },
-      data: { expiresAt },
-    });
-
-    // Schedule the cleanup job (in-memory for now, BullMQ in production)
-    if (mode !== 'after_view') {
-      const delay = expiresAt.getTime() - Date.now();
-      const timer = setTimeout(() => {
-        void this.expireMessage(messageId);
-      }, delay);
-      this.scheduledJobs.set(messageId, timer);
-    }
-
-    return { messageId, expiresAt, mode };
-  }
-
-  async cancelExpiry(messageId: string): Promise<void> {
-    const message = await this.prisma.message.findUnique({
-      where: { id: messageId },
-    });
-
-    if (!message) {
-      throw createAppError('Message not found', 404, 'MESSAGE_NOT_FOUND');
-    }
-
-    // Clear scheduled timer
-    const timer = this.scheduledJobs.get(messageId);
-    if (timer) {
-      clearTimeout(timer);
-      this.scheduledJobs.delete(messageId);
-    }
-
-    await this.prisma.message.update({
-      where: { id: messageId },
-      data: { expiresAt: null },
-    });
-  }
-
-  async processExpiredMessages(): Promise<number> {
+  /**
+   * QC-F-231 Slice B: durable expiry sweep — ONE batch per call. The
+   * MessageExpiryWorker loops (cap 20 batches/tick) so a huge backlog can
+   * never stall a single tick.
+   *
+   * D2 (DB hi sach): zero in-memory state — a brand-new instance purges
+   * the same rows, so the sweep survives restarts and multi-replica
+   * deploys. The old per-request `setTimeout` design (retired in Slice C)
+   * could never do this.
+   *
+   * D4 (poora mitna): the purge wipes content AND media URLs AND metadata
+   * (an "expired" row that still serves its media is a lie). The row
+   * itself stays (`isDeleted`) so receipts/replies keep their relations.
+   */
+  async processExpiredMessages(batchSize = 500): Promise<number> {
     const now = new Date();
 
     const expired = await this.prisma.message.findMany({
@@ -94,26 +50,27 @@ export class DisappearingService {
         expiresAt: { lte: now },
         isDeleted: false,
       },
+      take: batchSize,
+      orderBy: { expiresAt: 'asc' },
+      select: { id: true },
     });
 
     if (expired.length === 0) return 0;
 
-    await this.prisma.message.updateMany({
+    const result = await this.prisma.message.updateMany({
       where: {
-        id: { in: expired.map((m: Message) => m.id) },
+        id: { in: expired.map((m) => m.id) },
       },
-      data: { isDeleted: true, content: '[Message expired]' },
+      data: {
+        isDeleted: true,
+        content: '[Message expired]',
+        mediaUrl: null,
+        mediaThumbnailUrl: null,
+        metadata: { expired: true },
+      },
     });
 
-    return expired.length;
-  }
-
-  private async expireMessage(messageId: string): Promise<void> {
-    this.scheduledJobs.delete(messageId);
-    await this.prisma.message.update({
-      where: { id: messageId },
-      data: { isDeleted: true, content: '[Message expired]' },
-    });
+    return result.count;
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -168,10 +125,16 @@ export class DisappearingService {
   // ──────────────────────────────────────────────────────────────────────────
 
   /**
-   * Mark a message as viewed and schedule its deletion `timerSeconds` after the
+   * Mark a message as viewed and stamp its expiry `timerSeconds` after the
    * view. The view timestamp is recorded in message metadata (the schema has no
    * dedicated viewedAt column). Repeated calls are idempotent — the first view
    * wins so the timer is not extended (Requirement 18.2).
+   *
+   * QC-F-231 Slice C: the in-memory `setTimeout` fast-path is RETIRED. Expiry
+   * is stamped in the DB here and purged by the MessageExpiryWorker; the
+   * serve-guarantee in MessageService keeps expired rows out of read paths
+   * even with the worker stopped. The old design (per-request instance
+   * timers) died with every restart and never actually ran in production.
    */
   async markViewedAndScheduleDeletion(
     messageId: string,
@@ -214,6 +177,10 @@ export class DisappearingService {
     const expiresAt = new Date(viewedAt.getTime() + timerSeconds * 1000);
 
     if (!existingViewedAt) {
+      // QC-F-231 Slice C: DB stamp ONLY — no setTimeout. The durable
+      // MessageExpiryWorker owns the purge; the serve-guarantee owns the
+      // read paths. A 5s preset may take up to ~30s (worker interval) to
+      // physically purge, which is invisible next to the serve-guarantee.
       await this.prisma.message.update({
         where: { id: messageId },
         data: {
@@ -221,12 +188,6 @@ export class DisappearingService {
           metadata: { ...metadata, viewedAt: viewedAt.toISOString() },
         },
       });
-
-      const delay = Math.max(0, expiresAt.getTime() - Date.now());
-      const timer = setTimeout(() => {
-        void this.expireMessage(messageId);
-      }, delay);
-      this.scheduledJobs.set(messageId, timer);
     }
 
     return { messageId, viewedAt, expiresAt };
@@ -304,13 +265,5 @@ export class DisappearingService {
       systemMessageId: systemMessage.id,
       notified: true,
     };
-  }
-
-  /** Clean up timers on service shutdown */
-  destroy(): void {
-    for (const timer of this.scheduledJobs.values()) {
-      clearTimeout(timer);
-    }
-    this.scheduledJobs.clear();
   }
 }

@@ -41,6 +41,7 @@ import { websocketRoutes } from './routes/websocket';
 import { createE2EERelay } from './services/e2ee-relay-factory';
 import { AutoReplyManager } from './lib/auto-reply-manager';
 import { ScheduledMessageWorker } from './services/scheduled-message-worker';
+import { MessageExpiryWorker } from './services/message-expiry-worker';
 import { createRealtimeContext } from './lib/realtime-context';
 import { PrismaOutboxService } from './services/outbox.service';
 import { DeliveryWorker } from './services/delivery-worker';
@@ -215,6 +216,24 @@ export async function buildApp(config?: AppConfig) {
   scheduledWorker.start();
   app.addHook('onClose', async () => {
     scheduledWorker.stop();
+  });
+
+  // QC-F-231 Slice B: durable disappearing-message purge. The sweep is
+  // stateless (DB only) — safe to run on every replica. R3: never start
+  // the live interval inside test suites.
+  const expiryWorker = new MessageExpiryWorker(
+    (app as unknown as { prisma: PrismaClient }).prisma,
+    {
+      onError: (error) => {
+        app.log.error({ err: error }, 'message expiry sweep failed');
+      },
+    },
+  );
+  if (appConfig.env !== 'test') {
+    expiryWorker.start();
+  }
+  app.addHook('onClose', async () => {
+    expiryWorker.stop();
   });
 
   await app.register(reelsRoutes, { prefix: '/reels' });

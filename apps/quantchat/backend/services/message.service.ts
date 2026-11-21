@@ -6,6 +6,7 @@ import { assertMediaUrlAllowed } from '../lib/media-url';
 import { PrismaOutboxService, type OutboxService } from './outbox.service';
 import { StreakService } from './streak.service';
 import { getPrivacyService, type PrivacyService } from './privacy.service';
+import { EXPIRY_DURATIONS } from './disappearing.service';
 
 /**
  * Extract an object storage key from a media URL or raw path.
@@ -89,6 +90,11 @@ export const RESERVED_METADATA_KEYS: ReadonlySet<string> = new Set([
   'event',
   'screenshotBy',
   'targetMessageId',
+  // QC-F-231 (R2): the conversation-timer snapshot stamp is server-owned —
+  // a client must never be able to forge it. It is written by sendMessage
+  // (and the scheduled-delivery worker) from the server-side conversation
+  // read, below.
+  'disappearTimerSeconds',
 ]);
 
 /** Longest legitimate snap duration a client may request: 24h in seconds. */
@@ -514,6 +520,33 @@ export class MessageService {
       storedMetadata.snap = { ...snapMeta, durationSec };
     }
 
+    // QC-F-231 Slice A: snapshot the conversation's disappear timer
+    // server-side. `disappearTimerSeconds` is a RESERVED_METADATA_KEYS
+    // entry (R2) so a client can never forge it — the stamp is trusted by
+    // construction. `expiresAt` is NOT stamped for conversation timers:
+    // the timer is view-anchored (D1) — the first view creates expiresAt
+    // via markViewedAndScheduleDeletion. A timer changed later does not
+    // rewrite older messages' snapshots (snapshot semantics).
+    {
+      const conv = await this.prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { disappearTimer: true },
+      });
+      const timer = conv?.disappearTimer;
+      if (typeof timer === 'number' && timer > 0) {
+        storedMetadata.disappearTimerSeconds = timer;
+      }
+    }
+
+    // QC-F-231 Slice A: timed disappear modes are send-anchored (D1) —
+    // expiresAt = createdAt + duration, computed from the SAME
+    // EXPIRY_DURATIONS map the sweeper consumes (no second map).
+    // `after_view` is NOT stamped here (view-anchored — first view stamps).
+    let expiresAt: Date | null = null;
+    if (disappearMode === '24h' || disappearMode === '7d' || disappearMode === '30d') {
+      expiresAt = new Date(Date.now() + EXPIRY_DURATIONS[disappearMode]);
+    }
+
     // Stored exactly as supplied. If the caller client-encrypted the
     // content before sending, this is opaque ciphertext to the server;
     // otherwise it is ordinary server-stored plaintext (the honest,
@@ -541,6 +574,9 @@ export class MessageService {
           replyToId: replyToId ?? null,
           isAIGenerated: isAIGenerated ?? false,
           metadata: storedMetadata as Prisma.InputJsonValue,
+          // QC-F-231 Slice A: timed modes stamp expiresAt at send time;
+          // null otherwise (conversation timers stamp on first view).
+          expiresAt,
         },
       });
 
@@ -593,14 +629,25 @@ export class MessageService {
     const pageSize = options.pageSize ?? 50;
     const skip = (page - 1) * pageSize;
 
+    // QC-F-231 Slice B (D3 serve-guarantee): an expired row must never be
+    // served from a read path — even when the expiry worker is stopped.
+    // The worker's purge is the durable cleanup; this clause is the
+    // guarantee. `now` is captured once so list + count agree.
+    const now = new Date();
+    const visibleWhere = {
+      conversationId,
+      isDeleted: false,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    };
+
     const [data, total] = await Promise.all([
       this.prisma.message.findMany({
-        where: { conversationId, isDeleted: false },
+        where: visibleWhere,
         skip,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.message.count({ where: { conversationId, isDeleted: false } }),
+      this.prisma.message.count({ where: visibleWhere }),
     ]);
 
     const totalPages = Math.ceil(total / pageSize);
@@ -760,11 +807,16 @@ export class MessageService {
     // server-side; the blind index (routes/search.ts) covers that case.
     // For now, we exclude messages whose content looks like a ciphertext
     // payload from this plaintext search.
+    //
+    // QC-F-231 Slice B (D3 serve-guarantee): expired rows never surface
+    // from search either — same clause as getMessages.
+    const searchNow = new Date();
     const where = {
       conversationId: { in: conversationIds },
       isDeleted: false,
       content: { contains: query, mode: 'insensitive' as const },
       NOT: { content: { startsWith: '{"ciphertext"' } },
+      OR: [{ expiresAt: null }, { expiresAt: { gt: searchNow } }],
     };
 
     const [data, total] = await Promise.all([
