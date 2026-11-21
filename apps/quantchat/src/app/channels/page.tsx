@@ -102,12 +102,13 @@ function ChannelList({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [joinId, setJoinId] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [joinError, setJoinError] = useState<string | null>(null);
 
   const handleCreate = useCallback(async () => {
-    setFormError(null);
+    setCreateError(null);
     if (name.trim().length === 0) {
-      setFormError('Enter a channel name');
+      setCreateError('Enter a channel name');
       return;
     }
     try {
@@ -116,14 +117,14 @@ function ChannelList({
       setDescription('');
       onChanged();
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Failed to create channel');
+      setCreateError(e instanceof Error ? e.message : 'Failed to create channel');
     }
   }, [name, description, createChannel, onChanged]);
 
   const handleJoin = useCallback(async () => {
-    setFormError(null);
+    setJoinError(null);
     if (joinId.trim().length === 0) {
-      setFormError('Enter a channel ID to join');
+      setJoinError('Enter a channel ID to join');
       return;
     }
     try {
@@ -131,7 +132,7 @@ function ChannelList({
       setJoinId('');
       onChanged();
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Failed to join channel');
+      setJoinError(e instanceof Error ? e.message : 'Failed to join channel');
     }
   }, [joinId, subscribe, onChanged]);
 
@@ -139,9 +140,9 @@ function ChannelList({
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 py-4">
       <section className="space-y-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-muted)]/30 p-4">
         <h3 className="text-sm font-semibold text-[var(--quant-foreground)]">Create a channel</h3>
-        {formError && (
+        {createError && (
           <div role="alert" className="text-sm text-red-500">
-            {formError}
+            {createError}
           </div>
         )}
         <input
@@ -168,27 +169,34 @@ function ChannelList({
         </button>
       </section>
 
-      <section className="flex items-end gap-2 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-muted)]/30 p-4">
-        <div className="flex-1">
-          <label htmlFor="joinId" className="mb-1 block text-sm font-semibold">
-            Join by channel ID
-          </label>
-          <input
-            id="joinId"
-            placeholder="Channel ID"
-            value={joinId}
-            onChange={(e) => setJoinId(e.target.value)}
-            className="w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-[var(--quant-foreground)]"
-          />
+      <section className="space-y-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-muted)]/30 p-4">
+        {joinError && (
+          <div role="alert" className="text-sm text-red-500">
+            {joinError}
+          </div>
+        )}
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <label htmlFor="joinId" className="mb-1 block text-sm font-semibold">
+              Join by channel ID
+            </label>
+            <input
+              id="joinId"
+              placeholder="Channel ID"
+              value={joinId}
+              onChange={(e) => setJoinId(e.target.value)}
+              className="w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-[var(--quant-foreground)]"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleJoin()}
+            disabled={subscribe.isPending}
+            className="rounded-lg border border-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-600 disabled:opacity-60"
+          >
+            {subscribe.isPending ? 'Joining…' : 'Join'}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => void handleJoin()}
-          disabled={subscribe.isPending}
-          className="rounded-lg border border-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-600 disabled:opacity-60"
-        >
-          {subscribe.isPending ? 'Joining…' : 'Join'}
-        </button>
       </section>
 
       <section>
