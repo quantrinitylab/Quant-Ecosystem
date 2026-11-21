@@ -5,7 +5,12 @@ import React from 'react';
 // so the auth shell can render it server-side with zero client JS.
 
 export type BrandWordmarkProps = {
-  app?: 'mail' | 'calendar' | 'drive' | 'contacts' | 'code';
+  // 'quantgit' is the route-style id for the same app whose internal id is
+  // 'code' — both must resolve to QuantGit. Before this alias, any caller
+  // passing 'quantgit' silently fell back to Mail, which is how wrong-app
+  // 'Quant Mail' branding leaked onto a QuantGit surface (2026-10-22 live QA:
+  // 'Quant Mail' wordmark + envelope icon above 'No repositories yet').
+  app?: 'mail' | 'calendar' | 'drive' | 'contacts' | 'code' | 'quantgit';
   size?: 'text-sm' | 'text-base' | 'text-lg' | 'text-xl' | 'text-2xl' | 'text-4xl';
   className?: string;
 };
@@ -18,6 +23,9 @@ const APP_TITLES: Record<string, { brand: string; name: string }> = {
   // The app *id* stays `code` (it owns the `/codehub` route); only the
   // user-visible name is QuantGit.
   code: { brand: 'Quant', name: 'Git' },
+  // Route-style alias for `code` (the app owns the `/quantgit` route).
+  // Must resolve to QuantGit — never fall through to the Mail default.
+  quantgit: { brand: 'Quant', name: 'Git' },
 };
 
 /**
