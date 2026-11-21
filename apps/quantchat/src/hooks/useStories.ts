@@ -44,6 +44,14 @@ interface UseStoriesReturn {
     duration?: number;
   }) => Promise<void>;
   replyToStory: (storyId: string, message: string) => Promise<void>;
+  /** QC-F-556: share a story into a conversation as a gated reference
+   * card. Rejects on any failure — the share sheet shows the real error
+   * and never claims a send the backend did not persist. */
+  shareStory: (storyId: string, conversationId: string) => Promise<void>;
+  /** QC-F-556: gated single-story fetch for share-card / link targets.
+   * Resolves null when the story is not available to this user (missing,
+   * expired, or audience-gated — the backend answers 404 for all three). */
+  fetchStoryById: (storyId: string) => Promise<Story | null>;
   getViewers: (storyId: string) => Promise<{ userId: string; name: string; viewedAt: string }[]>;
   deleteStory: (storyId: string) => Promise<void>;
   nextStory: () => void;
@@ -174,6 +182,48 @@ export function useStories(): UseStoriesReturn {
     }
   }, []);
 
+  // QC-F-556: unlike replyToStory (which logs and swallows), shareStory
+  // propagates failures — a share the backend rejected (audience gate,
+  // membership, expiry) must surface in the sheet, never as a fake "Sent".
+  const shareStory = useCallback(async (storyId: string, conversationId: string) => {
+    const response = await apiFetchRaw(`/api/stories/${storyId}/share`, {
+      method: 'POST',
+      headers: {
+        ...getAuthHeadersWithContent(),
+      },
+      body: JSON.stringify({ conversationId }),
+    });
+    if (!response.ok) {
+      let detail = '';
+      try {
+        const body = (await response.json()) as {
+          error?: string | { message?: string };
+          message?: string;
+        };
+        detail =
+          typeof body?.error === 'string'
+            ? body.error
+            : body?.error?.message || body?.message || '';
+      } catch {
+        /* non-JSON error body */
+      }
+      throw new Error(detail || `Couldn't share this story (${response.status})`);
+    }
+  }, []);
+
+  const fetchStoryById = useCallback(async (storyId: string): Promise<Story | null> => {
+    try {
+      const response = await apiFetchRaw(`/api/stories/${storyId}`, {
+        headers: { ...getAuthHeaders() },
+      });
+      if (!response.ok) return null;
+      const data = (await response.json()) as { story?: Story };
+      return data.story ?? null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const getViewers = useCallback(async (storyId: string) => {
     try {
       const response = await apiFetchRaw(`/api/stories/${storyId}/viewers`, {
@@ -253,6 +303,8 @@ export function useStories(): UseStoriesReturn {
     viewStory,
     createStory,
     replyToStory,
+    shareStory,
+    fetchStoryById,
     getViewers,
     deleteStory,
     nextStory,

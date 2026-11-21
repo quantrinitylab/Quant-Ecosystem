@@ -279,8 +279,11 @@ describe('QC-F-274 send path strips forged server-owned metadata', () => {
     });
   });
 
-  it('case 13: the reserved set is exactly the 17 server-owned keys (snap is sanitized, not stripped)', () => {
-    expect(RESERVED_METADATA_KEYS.size).toBe(17);
+  it('case 13: the reserved set is exactly the 18 server-owned keys (snap is sanitized, not stripped)', () => {
+    // QC-F-556 census update: 'storyShare' joined the set as the 18th
+    // server-owned key (stories share route only — clients cannot forge it).
+    expect(RESERVED_METADATA_KEYS.size).toBe(18);
+    expect(RESERVED_METADATA_KEYS.has('storyShare')).toBe(true);
     expect(RESERVED_METADATA_KEYS.has('snap')).toBe(false);
     expect(sanitizeClientMetadata(undefined)).toEqual({});
     expect(sanitizeClientMetadata({ snap: 'not-an-object' })).toEqual({});

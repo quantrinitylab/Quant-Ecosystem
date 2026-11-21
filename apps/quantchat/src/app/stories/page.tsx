@@ -22,6 +22,7 @@ import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useStories } from '../../hooks/useStories';
 import { StoryViewer } from '../../components/StoryViewer';
 import { StoryCreator } from '../../components/StoryCreator';
+import { StoryShareSheet } from '../../components/StoryShareSheet';
 import { navItems, routes } from '../../lib/navigation';
 import { circleVariants, staggerContainer } from '../../lib/motion-variants';
 
@@ -45,11 +46,14 @@ export default function StoriesPage() {
     error,
     fetchStories,
     createStory,
+    shareStory,
     nextStory,
     prevStory,
     setCurrentStoryGroup,
   } = useStories();
   const [viewerOpen, setViewerOpen] = useState(false);
+  // QC-F-556: story currently targeted by the share sheet (from the viewer).
+  const [shareTarget, setShareTarget] = useState<{ id: string; authorName: string } | null>(null);
   const [activeGroupIndex, setActiveGroupIndex] = useState(0);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [creatorNotice, setCreatorNotice] = useState<string | null>(null);
@@ -269,6 +273,18 @@ export default function StoriesPage() {
           onClose={() => setViewerOpen(false)}
           onNext={nextStory}
           onPrev={prevStory}
+          onShare={(story) => setShareTarget({ id: story.id, authorName: story.authorName })}
+        />
+      )}
+
+      {/* QC-F-556: share sheet — conversation picker + gated copy link */}
+      {shareTarget && (
+        <StoryShareSheet
+          storyId={shareTarget.id}
+          authorName={shareTarget.authorName}
+          isOpen={shareTarget !== null}
+          onClose={() => setShareTarget(null)}
+          onShare={(conversationId) => shareStory(shareTarget.id, conversationId)}
         />
       )}
 

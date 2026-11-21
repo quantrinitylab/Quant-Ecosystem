@@ -76,6 +76,7 @@ export const RESERVED_METADATA_KEYS: ReadonlySet<string> = new Set([
   'pinned',
   'pinnedBy',
   'storyReply',
+  'storyShare',
   'viewOnce',
   'isSnap',
   'duration',
@@ -234,8 +235,9 @@ export interface SendMessageInput {
   // route schema does not accept this from clients — only trusted
   // server-side callers set it.
   isAIGenerated?: boolean;
-  // QC-F-274: server-owned metadata (currently only the stories reply
-  // route's `storyReply`) merged OVER the sanitized client metadata, so a
+  // QC-F-274: server-owned metadata (the stories reply route's
+  // `storyReply`, the stories share route's `storyShare` — QC-F-556)
+  // merged OVER the sanitized client metadata, so a
   // server key always wins. Like `isAIGenerated`, the REST route schema
   // does not accept this from clients — only trusted server-side callers
   // set it.
