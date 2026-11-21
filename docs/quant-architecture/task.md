@@ -158,7 +158,9 @@ Required: one documented scroll owner per layout mode; tested widths 768/1024/12
 Dependencies: QM-WORK-001.
 
 ## QM-WORK-003 — Inbox flagship UX audit/upgrade
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-work-003-inbox-flagship-ux
 Scope: M01 apps/quantmail/src/app/page.tsx plus inbox components/hooks/API.
 Keep: cursor pagination, virtualizer, skeletons, empty states, swipe actions, pull-to-refresh, keyboard navigation, real smart replies.
 Required: evidence-backed smart brief, clear priority explanation, commitment/needs-reply views only when backend supports them, consistent states, no fake counts/categories.
