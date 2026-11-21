@@ -43,6 +43,20 @@ import {
 
 type Phase = 'joining' | 'in-call' | 'ended' | 'error';
 
+// QC-F-408: the peer's presence is its OWN state, separate from Phase
+// (which tracks OUR join lifecycle). It is derived ONLY from the live
+// Room (remoteParticipants + Room events) — never guessed, never timed
+// into existence. 'left' is reachable only after 'present' (a peer who
+// never joined stays 'waiting'; see §3.3/§3.4 of the build brief).
+type PeerState = 'waiting' | 'present' | 'left';
+
+// QC-F-408: waiting clock, honest elapsed time only (m:ss).
+function formatWaitingClock(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 export default function CallRoomPage({
   params,
 }: {
@@ -54,7 +68,23 @@ export default function CallRoomPage({
   const [error, setError] = useState<string | null>(null);
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCameraOn, setIsCameraOn] = useState(true);
-  const [remoteName, setRemoteName] = useState<string>('Connecting…');
+  // QC-F-408: peer presence (replaces the old `remoteName` state, whose
+  // 'Connecting…' placeholder doubled as a name and was only ever set
+  // from inside the remote VIDEO branch of attachTracks — an audio-only
+  // peer was therefore heard but stayed "Connecting…" forever).
+  // peerName is the REAL name/identity of the first remote participant,
+  // or null while nobody is in the room; a placeholder is never stored
+  // in it.
+  const [peerState, setPeerState] = useState<PeerState>('waiting');
+  const [peerName, setPeerName] = useState<string | null>(null);
+  const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
+  const [connectionNotice, setConnectionNotice] = useState<string | null>(
+    null,
+  );
+  const [waitingSeconds, setWaitingSeconds] = useState(0);
+  const [noAnswer, setNoAnswer] = useState(false);
+  const [endReason, setEndReason] = useState<'peer-left' | null>(null);
+  const peerWasPresentRef = useRef(false);
   const [room] = useState(
     () => new Room({ adaptiveStream: true, dynacast: true }),
   );
@@ -106,17 +136,23 @@ export default function CallRoomPage({
     if (localVideo && localVideoRef.current) {
       localVideo.attach(localVideoRef.current);
     }
-    // Remote video (first remote participant's camera)
+    // Remote video (first remote participant's camera). QC-F-408: this
+    // loop now ONLY binds media and reports whether a remote camera
+    // track is actually attached — the peer's NAME no longer lives
+    // here (it comes from syncPeerPresence, so an audio-only peer is
+    // named too).
+    let videoAttached = false;
     for (const participant of room.remoteParticipants.values()) {
       const remoteVideo = participant.getTrackPublication(
         Track.Source.Camera,
       )?.videoTrack;
       if (remoteVideo && remoteVideoRef.current) {
         remoteVideo.attach(remoteVideoRef.current);
-        setRemoteName(participant.name || participant.identity || 'On the call');
+        videoAttached = true;
         break;
       }
     }
+    setHasRemoteVideo(videoAttached);
     // QC-F-455: remote audio — the FIRST remote participant's microphone
     // track, chosen independently of the video loop above (an audio-only
     // peer has no camera publication, and must still be heard). LiveKit
@@ -167,6 +203,28 @@ export default function CallRoomPage({
     attachedAudioElementRef.current = null;
   }, []);
 
+  // QC-F-408: derive peer presence from the ONE source of truth — who
+  // is in room.remoteParticipants RIGHT NOW. Idempotent: every Room
+  // event re-runs it and the latest room state wins, whatever order
+  // events arrived in. The name comes from the participant itself
+  // (name || identity || 'On the call' — the same fallback order the
+  // old video branch used); the server join response carries no peer
+  // name, and none is invented here (HG-408-2).
+  const syncPeerPresence = useCallback(() => {
+    const first = room.remoteParticipants.values().next().value as
+      | { name?: string; identity?: string }
+      | undefined;
+    if (first) {
+      peerWasPresentRef.current = true;
+      setPeerName(first.name || first.identity || 'On the call');
+      setPeerState('present');
+      setNoAnswer(false);
+    } else {
+      setHasRemoteVideo(false);
+      setPeerState(peerWasPresentRef.current ? 'left' : 'waiting');
+    }
+  }, [room]);
+
   useEffect(() => {
     if (joinedRef.current || !callId) return;
     joinedRef.current = true;
@@ -194,8 +252,32 @@ export default function CallRoomPage({
             attachTracks();
           })
           .on(RoomEvent.TrackUnsubscribed, attachTracks)
-          .on(RoomEvent.ParticipantConnected, attachTracks)
-          .on(RoomEvent.ParticipantDisconnected, attachTracks)
+          .on(RoomEvent.ParticipantConnected, () => {
+            attachTracks();
+            syncPeerPresence();
+          })
+          .on(RoomEvent.ParticipantDisconnected, () => {
+            attachTracks();
+            syncPeerPresence();
+          })
+          // QC-F-408: Meet-room pattern (meet/[roomId] page) — the
+          // notice is shown ONLY on the room's own Reconnecting event
+          // and cleared ONLY on Reconnected, which also re-derives
+          // peer presence (the peer may have come or gone meanwhile).
+          .on(RoomEvent.Reconnecting, () => {
+            if (!cancelled) {
+              setConnectionNotice(
+                'Reconnecting… your media will resume automatically.',
+              );
+            }
+          })
+          .on(RoomEvent.Reconnected, () => {
+            if (!cancelled) {
+              setConnectionNotice(null);
+              syncPeerPresence();
+              attachTracks();
+            }
+          })
           .on(RoomEvent.AudioPlaybackStatusChanged, () => {
             // QC-F-455: the room is the only source of truth for whether
             // audio playback is currently permitted (autoplay policy).
@@ -236,6 +318,10 @@ export default function CallRoomPage({
           initialLowData,
         );
         attachTracks();
+        // QC-F-408: a peer who was ALREADY in the room before we
+        // connected produces no ParticipantConnected event — this
+        // post-connect sync is the only thing that can see them.
+        syncPeerPresence();
         setPhase('in-call');
       } catch (e) {
         if (!cancelled) {
@@ -257,7 +343,7 @@ export default function CallRoomPage({
         /* already disconnected */
       }
     };
-  }, [callId, room, attachTracks, detachRemoteAudio]);
+  }, [callId, room, attachTracks, detachRemoteAudio, syncPeerPresence]);
 
   // QC-F-455: attachTracks() runs at join time while the page is still in
   // the 'joining' phase — the in-call media elements do not exist yet, so
@@ -371,11 +457,51 @@ export default function CallRoomPage({
     setPhase('ended');
   }, [room, callId]);
 
+  // QC-F-408: waiting clock — runs ONLY while we are in-call and the
+  // peer has not joined. The timer measures elapsed waiting; it never
+  // creates presence. At 60s the copy becomes the honest no-answer
+  // state — there is deliberately NO auto-disconnect and NO backend
+  // 'missed'/'declined' record: the page cannot know whether it is the
+  // caller or the callee, or why the peer has not joined (§3.3).
+  useEffect(() => {
+    if (phase !== 'in-call' || peerState !== 'waiting') return;
+    setWaitingSeconds(0);
+    setNoAnswer(false);
+    let ticks = 0;
+    const interval = setInterval(() => {
+      ticks += 1;
+      setWaitingSeconds(ticks);
+      if (ticks >= 60) setNoAnswer(true);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [phase, peerState]);
+
+  // QC-F-408: rejoin grace — when a peer who WAS present leaves, wait
+  // 20s (a LiveKit disconnect is often a network blip) before ending
+  // through the real endCall() path. The effect cleanup clears the
+  // timer if the peer rejoins, the call ends another way, or the page
+  // unmounts — so it can never fire endCall twice or after 'ended'
+  // (HG-408-7).
+  useEffect(() => {
+    if (phase !== 'in-call' || peerState !== 'left') return;
+    const timer = setTimeout(() => {
+      setEndReason('peer-left');
+      void endCall();
+    }, 20_000);
+    return () => clearTimeout(timer);
+  }, [phase, peerState, endCall]);
+
   return (
     <AppShell
       topBar={
         <TopBar
-          title={phase === 'in-call' ? remoteName : 'Call'}
+          title={
+            phase === 'in-call'
+              ? peerState === 'waiting'
+                ? 'Call'
+                : (peerName ?? 'Call')
+              : 'Call'
+          }
           onBack={() => void endCall().then(() => router.back())}
         />
       }
@@ -413,7 +539,11 @@ export default function CallRoomPage({
             <p className="text-5xl" aria-hidden>
               📞
             </p>
-            <p className="font-medium">Call ended</p>
+            <p className="font-medium">
+              {endReason === 'peer-left' && peerName
+                ? `${peerName} left the call`
+                : 'Call ended'}
+            </p>
             <button
               type="button"
               onClick={() => router.back()}
@@ -421,6 +551,15 @@ export default function CallRoomPage({
             >
               Back to chat
             </button>
+          </div>
+        )}
+
+        {phase === 'in-call' && connectionNotice && (
+          <div
+            role="status"
+            className="bg-amber-500/90 text-black text-center text-sm px-4 py-2"
+          >
+            {connectionNotice}
           </div>
         )}
 
@@ -432,8 +571,50 @@ export default function CallRoomPage({
                 autoPlay
                 playsInline
                 className="absolute inset-0 w-full h-full object-cover"
-                aria-label={`${remoteName} video`}
+                aria-label={`${peerName ?? 'Remote participant'} video`}
               />
+              {/* QC-F-408: peer-presence overlays — exactly one shows at
+                  a time, inside the big area (never in the dock, so the
+                  QC-F-487 390px dock math is untouched). They render
+                  BEFORE the local preview so your own camera stays
+                  visible above them. No emoji, no invented imagery:
+                  the avatar is the peer's real initial. */}
+              {peerState === 'waiting' && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center bg-black">
+                  <p aria-live="polite" className="font-medium">
+                    Waiting for the other person to join…
+                  </p>
+                  <p className="text-sm text-white/60">
+                    {formatWaitingClock(waitingSeconds)}
+                  </p>
+                  {noAnswer && (
+                    <p className="text-sm text-white/60">
+                      Still no answer — the other person hasn&apos;t
+                      joined yet. You can keep waiting, or end the call.
+                    </p>
+                  )}
+                </div>
+              )}
+              {peerState === 'present' && !hasRemoteVideo && peerName && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black">
+                  <div
+                    className="w-24 h-24 rounded-full bg-white/15 flex items-center justify-center text-4xl font-medium"
+                    aria-hidden
+                  >
+                    {peerName.charAt(0).toUpperCase()}
+                  </div>
+                  <p className="text-lg font-medium">{peerName}</p>
+                  <p className="text-sm text-white/60">Camera off</p>
+                </div>
+              )}
+              {peerState === 'left' && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center bg-black">
+                  <p className="font-medium">{peerName} left the call</p>
+                  <p className="text-sm text-white/60">
+                    Waiting briefly in case they rejoin…
+                  </p>
+                </div>
+              )}
               <video
                 ref={localVideoRef}
                 autoPlay
