@@ -512,6 +512,15 @@ export async function authRoutes(fastify: FastifyInstance) {
       // and our burn, the count comes up short and this request loses
       // cleanly BEFORE any email goes out: exactly one winner, one live
       // code, one email — a just-received code never arrives dead.
+      //
+      // Second layer (empty-empty race, same class as CODEX-REVIEW 6167000384
+      // on password-reset #1151): the compare-and-set only serializes when
+      // the snapshot is NON-empty. Two concurrent resends with EMPTY
+      // snapshots both pass 0===0 and both reach the create under READ
+      // COMMITTED. Migration 0107's partial unique index (userId) WHERE
+      // usedAt IS NULL closes that hole: the loser's create blocks on the
+      // index until the winner commits, then fails P2002, which is mapped
+      // to the same superseded-loser path in the catch below.
       const verificationCode = generateVerificationCode();
       try {
         await prisma.$transaction(async (tx: any) => {
@@ -551,13 +560,20 @@ export async function authRoutes(fastify: FastifyInstance) {
         if (err === RESEND_ALREADY_VERIFIED) {
           return reply.send({ success: true, data: { emailVerified: true, alreadyVerified: true } });
         }
-        if (err === RESEND_CODE_SUPERSEDED) {
-          // The address may have been proven by the winning sibling (a
-          // verify racing this resend) — answer that honestly instead of
-          // telling the user to check their inbox for a code they no longer
-          // need.
+        if (err === RESEND_CODE_SUPERSEDED || isUniqueConstraintViolation(err)) {
+          // A sibling won the race — either it burned one of this request's
+          // snapshot rows (RESEND_CODE_SUPERSEDED) or both snapshots were
+          // empty and this request's create lost on the partial unique index
+          // email_verification_codes_user_live_unique (P2002; migration 0107,
+          // same class as CODEX-REVIEW 6167000384 on #1151). The only other
+          // unique constraint on this table is the id PK (a generated cuid),
+          // so a P2002 from this transaction's create is the index — the
+          // winner's email carries the live code.
           const latest = await prisma.user.findUnique({ where: { id: user.id } });
           if (latest?.emailVerified) {
+            // The address was proven by the winning sibling (a verify racing
+            // this resend) — answer that honestly instead of telling the
+            // user to check their inbox for a code they no longer need.
             return reply.send({ success: true, data: { emailVerified: true, alreadyVerified: true } });
           }
           return fail(
