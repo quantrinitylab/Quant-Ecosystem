@@ -29,6 +29,9 @@ import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
 import { fetchDeepLinkFileItem } from './components/file-deep-link';
 import { useDrive, type ReceivedShare, type SentShareItem, isDocumentDriveId, readErrorInstruction } from '../../hooks/useDrive';
+// QuantDrive offline minimal slice: honest offline indicator for the surface.
+import { DriveOfflineBanner } from './components/DriveOfflineBanner';
+import { isOfflineNow } from '../../lib/drive-offline';
 import { formatBytes } from '../../lib/format-bytes';
 import { isUploadAction, driveUrlAfterConsumingAction } from '../../lib/drive-action-params';
 import { showToast } from '../../components/InboxToast';
@@ -381,6 +384,7 @@ function DrivePageContent() {
     files,
     loading,
     error,
+    servedFromCache,
     breadcrumbs,
     currentFolderId,
     fetchFiles,
@@ -648,7 +652,15 @@ function DrivePageContent() {
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
-        setTextPreviewError(err instanceof Error ? err.message : 'Failed to load file preview');
+        // Honest offline state: a failed preview fetch while offline means
+        // the file isn't cached — say so instead of a generic failure.
+        setTextPreviewError(
+          isOfflineNow()
+            ? 'You are offline and this file is not cached for offline viewing.'
+            : err instanceof Error
+              ? err.message
+              : 'Failed to load file preview',
+        );
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -715,7 +727,14 @@ function DrivePageContent() {
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
-        setMediaPreviewError(err instanceof Error ? err.message : 'Failed to load file preview');
+        // Honest offline state — see the text-preview catch above.
+        setMediaPreviewError(
+          isOfflineNow()
+            ? 'You are offline and this file is not cached for offline viewing.'
+            : err instanceof Error
+              ? err.message
+              : 'Failed to load file preview',
+        );
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -1343,6 +1362,9 @@ function DrivePageContent() {
       searchPlaceholder="Search files, folders, documents…"
     >
       <div className="workspace-page drive-workspace flex flex-col h-full bg-[var(--quant-background)]">
+        {/* QuantDrive offline minimal slice: honest network-state indicator.
+            Rendered only while offline; never claims caching it can't prove. */}
+        <DriveOfflineBanner cached={servedFromCache} />
         {/*
          * Visually hidden but RENDERED. A `display: none` (Tailwind `hidden`)
          * file input ignores programmatic .click() in Chrome, which made the
