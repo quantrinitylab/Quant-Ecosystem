@@ -175,7 +175,9 @@ Required: evidence-backed summary, decisions/commitments, related Calendar/Drive
 Dependencies: QM-WORK-003.
 
 ## QM-WORK-005 — Compose flagship workflow
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-work-005-compose-flagship-workflow
 Scope: M03 compose/DockedComposer plus mail mutation APIs.
 Required: recipient resolution, autosave status, attachment/Drive insertion, schedule/signature/security disclosure, AI diff/preview, clear Send, idempotent mutation, authoritative success verification.
 Dependencies: QM-WORK-004; platform idempotency contract.
