@@ -871,7 +871,7 @@ export function QuantyFileWorkspace({
 
             {taskRunning && !task && <BusyLine label="Starting the task…" />}
             {task && (
-              <div className="mt-3 rounded-lg border border-white/[0.08] bg-white/[0.02] p-3" aria-live="polite">
+              <div className="mt-3 rounded-lg border border-white/[0.08] bg-[var(--quant-surface)] p-3" aria-live="polite">
                 <p className="text-xs text-[#8A8D96]">
                   Task: <span className="text-[var(--quant-foreground)]">“{task.command}”</span>
                 </p>
@@ -989,7 +989,7 @@ export function QuantyFileWorkspace({
                       className={`flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left hover:border-[var(--quant-primary)]/40 ${
                         currentFile?.id === result.fileId
                           ? 'border-[var(--quant-primary)]/50 bg-[var(--quant-primary)]/[0.06]'
-                          : 'border-white/[0.08] bg-white/[0.02]'
+                          : 'border-white/[0.08] bg-[var(--quant-surface)]'
                       }`}
                     >
                       <span className="min-w-0">
@@ -1014,7 +1014,7 @@ export function QuantyFileWorkspace({
           <section aria-label="Organize this file">
             <SectionTitle>Organize this file</SectionTitle>
             {currentFile ? (
-              <div className="mt-2 rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
+              <div className="mt-2 rounded-lg border border-white/[0.08] bg-[var(--quant-surface)] p-3">
                 <p className="truncate text-xs font-medium text-[var(--quant-foreground)]">
                   {currentFile.name}
                 </p>
@@ -1103,7 +1103,7 @@ export function QuantyFileWorkspace({
                 )}
                 {summarize.status === 'busy' && <BusyLine label="Reading the file…" />}
                 {summarize.data && (
-                  <div className="mt-2 rounded-lg border border-white/[0.08] bg-white/[0.02] p-3" aria-live="polite">
+                  <div className="mt-2 rounded-lg border border-white/[0.08] bg-[var(--quant-surface)] p-3" aria-live="polite">
                     <p className="text-xs leading-relaxed text-[#D6D8DD]">
                       {summarize.data.summary || 'No summary was returned.'}
                     </p>
