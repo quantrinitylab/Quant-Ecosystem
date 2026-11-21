@@ -29,6 +29,13 @@
 // window elapses. The clock is injectable so tests can drive backoff
 // deterministically without real timers.
 //
+// Claims are real (QC-F-541): `claimBatch` stamps a lease on every event it
+// returns, so a second worker instance never claims the same event while the
+// lease is live. A tick that claims an event but then SKIPS it (backoff window
+// not yet elapsed) releases that claim before moving on — otherwise the lease
+// would silently stretch the event's retry delay from its backoff window
+// (5s, 10s, …) to the full lease duration.
+//
 // PushDispatcher is implemented in Task 13; here it is an injected dependency
 // (interface only) with a no-op default so the worker is self-contained and
 // testable. Task 13 supplies the real `web-push`-backed dispatcher.
@@ -274,6 +281,15 @@ export class DeliveryWorker {
         // Respect the exponential backoff window for previously-failed events.
         const notBefore = this.retryAfter.get(event.id);
         if (notBefore !== undefined && nowMs < notBefore) {
+          // Not attempting this event this tick: hand the claim back so its
+          // retry is governed by the backoff window, not the claim lease
+          // (QC-F-541). A failed release is not fatal — the lease expiry is
+          // the fallback — but it is surfaced, never swallowed silently.
+          try {
+            await this.outbox.releaseClaim(event.id);
+          } catch (releaseError) {
+            this.onError?.(releaseError, event);
+          }
           continue;
         }
 
