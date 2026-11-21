@@ -3098,7 +3098,9 @@ Dependencies: QM-TRUST-003; QM-SCREEN-010/011; QuantDrive security architecture.
 Validation: source audit on 2026-10-08 confirmed the contradictory copy in both components; no remediation implementation claim yet.
 
 ## QM-SCREEN-034 — Contacts must purge seeded public-figure identities across Web and Flutter
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-screen-034-contacts-purge-public-figure-seeds
 Finding: the current Web Contacts implementation still exports `SOVEREIGN_DEFAULT_CONTACTS` containing real public figures (Sundar Pichai, Satya Nadella, Sam Altman) with fabricated-looking phone/email/contact metadata, and the same component renders a hard-coded Sundar Pichai collision/Personal Address Book scenario plus executive/circle membership derived from named people. Flutter separately seeds the same real-person identities in `composer_models.dart` and the Contacts pillar. This is broader than the previously tracked Web contact-list cleanup: the platform-specific Flutter composer/VIP/circle surfaces can still inject invented identities even after the Web default-contact path is removed.
 Required: remove all production seeded public-figure identities and fabricated contact details from Web and Flutter; make autocomplete, VIP, collision, company and circle views derive only from the authenticated user's contact domain; keep fixtures confined to explicit tests; ensure phone/call actions can only target an actual user-owned contact record.
 Scope: `apps/quantmail/src/app/contacts/components/ContactsSubViews.tsx`; `apps/quantmail/src/app/contacts/page.tsx`; `flutter_apps/apps/quant_mail/lib/models/composer_models.dart`; `flutter_apps/apps/quant_mail/lib/screens/contacts/contacts_pillar_view.dart`; contact APIs/services/tests.
