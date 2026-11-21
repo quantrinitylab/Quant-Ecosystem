@@ -22,6 +22,14 @@ export interface AppNotification {
   body: string | null;
   imageUrl?: string | null;
   actionUrl: string | null;
+  /**
+   * The row's stored payload. The backend already returns the full row on
+   * GET /api/notifications, and `new_email` rows carry
+   * `{ emailId, threadId, snippet }` here (see createNewMailNotification in
+   * backend/routes/inbound-webhook.ts). Other notification types leave it
+   * absent, so every read must tolerate it missing.
+   */
+  data?: { emailId?: string | null; threadId?: string | null; snippet?: string | null } | null;
   sourceApp?: string | null;
   priority: NotificationPriority;
   isRead: boolean;
