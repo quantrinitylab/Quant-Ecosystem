@@ -80,7 +80,9 @@ export default async function dataLifecycleRoutes(fastify: FastifyInstance) {
 
   // POST /data-lifecycle/exports/:id/build — generate the artifact and complete.
   // v1 artifact: a data-inventory manifest from live DB counts (M15 "what data
-  // exists"). Delivered inline; artifactRef records the delivery.
+  // exists"). Delivered inline AND persisted on the request row via
+  // completeDataExport, so GET /exports and GET /exports/:id re-serve the same
+  // manifest in any later session — it is no longer session-only.
   fastify.post<{ Params: { id: string } }>('/exports/:id/build', async (request, reply) => {
     const userId = requireUserId(request);
     const prisma = requirePrisma(fastify);
@@ -106,7 +108,7 @@ export default async function dataLifecycleRoutes(fastify: FastifyInstance) {
         ),
       );
       const artifactRef = `inline-manifest:${exportId}`;
-      await completeDataExport(prisma, exportId, userId, artifactRef);
+      await completeDataExport(prisma, exportId, userId, artifactRef, manifest);
       return reply.send({ success: true, data: { exportId, status: 'completed', artifactRef, manifest } });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Export build failed';
@@ -114,6 +116,30 @@ export default async function dataLifecycleRoutes(fastify: FastifyInstance) {
         await failDataExport(prisma, exportId, userId, message);
       } catch {
         // The failure record itself failed — surface the original error.
+      }
+      // Terminal-state race guard: failDataExport is compare-and-set (a
+      // no-op on rows that already left `requested`), so a concurrent
+      // builder may have completed this export while this build failed —
+      // or this build may itself be the loser whose complete hit 409.
+      // The completed row is the truth: report it (with its stored
+      // manifest) instead of a spurious failure for an export that did
+      // complete. A genuinely failed row still falls through to the 500.
+      try {
+        const current = await prisma.dataExportRequest.findUnique({ where: { id: exportId } });
+        if (current && String((current as { status?: string }).status) === 'completed') {
+          const currentRow = current as { artifactRef?: string; manifest?: unknown };
+          return reply.send({
+            success: true,
+            data: {
+              exportId,
+              status: 'completed',
+              artifactRef: currentRow.artifactRef ?? `inline-manifest:${exportId}`,
+              manifest: currentRow.manifest ?? null,
+            },
+          });
+        }
+      } catch {
+        // Re-read failed — fall through to the original error below.
       }
       throw createAppError(`Export build failed: ${message}`, 500, 'EXPORT_BUILD_FAILED');
     }

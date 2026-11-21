@@ -56,6 +56,10 @@ interface FakeTx {
     create(a: { data: Row }): Promise<Row>;
     findUnique(a: { where: { id: string } }): Promise<Row | null>;
     update(a: { where: { id: string }; data: Row }): Promise<Row>;
+    // CAS primitive: applies `data` ONLY when the row's status still
+    // matches `where.status` — the real Prisma `updateMany` guard the
+    // service relies on so a losing builder cannot overwrite a terminal row.
+    updateMany(a: { where: Row; data: Row }): Promise<{ count: number }>;
     count(a: { where: Row }): Promise<number>;
   };
   retentionPolicyRecord: {
@@ -180,6 +184,12 @@ function createFakeDb(opts: { failOutbox?: boolean } = {}): FakeDb {
         if (!row) throw new Error('not found');
         Object.assign(row, data);
         return row;
+      },
+      updateMany: async ({ where, data }) => {
+        const row = db.exportRequests.get(where.id as string);
+        if (!row || row.status !== where.status) return { count: 0 };
+        Object.assign(row, data);
+        return { count: 1 };
       },
       count: async ({ where }) => [...db.exportRequests.values()].filter((r) => matchWhere(r, where)).length,
     },
@@ -409,12 +419,29 @@ describe('QM-BACK-006 data-lifecycle events', () => {
     expect((manifest.classes as Row).contacts).toMatchObject({ count: 7 });
     expect((manifest.classes as Row).driveFiles).toMatchObject({ count: 11 });
 
-    await completeDataExport(db as never, exportId, 'user-1', `inline-manifest:${exportId}`);
+    await completeDataExport(
+      db as never,
+      exportId,
+      'user-1',
+      `inline-manifest:${exportId}`,
+      manifest,
+    );
     const types = db.outbox.map((e) => e.eventType);
     expect(types).toEqual([LifecycleEvents.exportRequested, LifecycleEvents.exportCompleted]);
     expect((db.outbox[1].payload as Row).artifactRef).toBe(`inline-manifest:${exportId}`);
     const req = db.exportRequests.get(exportId);
     expect(req?.status).toBe('completed');
+    // Durable manifest: completion persists the manifest on the row, so a
+    // later session can re-show it instead of only the generating session.
+    expect(req?.manifest).toEqual(manifest);
+  });
+
+  it('export: completing without a manifest leaves the row without one (back-compat)', async () => {
+    const { exportId } = await requestDataExport(db as never, 'user-1');
+    await completeDataExport(db as never, exportId, 'user-1', `inline-manifest:${exportId}`);
+    const req = db.exportRequests.get(exportId);
+    expect(req?.status).toBe('completed');
+    expect(req?.manifest).toBeUndefined();
   });
 
   it('export: build failure is recorded as failed, never silent', async () => {
@@ -426,6 +453,98 @@ describe('QM-BACK-006 data-lifecycle events', () => {
     ]);
     expect(db.exportRequests.get(exportId)?.status).toBe('failed');
     expect((db.outbox[1].payload as Row).error).toBe('disk full');
+  });
+
+  it('export: concurrent builders — winner completes, loser cannot write failed (CAS, one terminal event)', async () => {
+    const { exportId } = await requestDataExport(db as never, 'user-1');
+    const manifest = await db.$transaction(async (tx) =>
+      generateInventoryManifest(tx as never, 'user-1'),
+    );
+    // Winner completes the export and persists its manifest.
+    await completeDataExport(
+      db as never,
+      exportId,
+      'user-1',
+      `inline-manifest:${exportId}`,
+      manifest,
+    );
+    // Loser: its own complete already 409'd, so the build route's catch
+    // block calls fail — which must be a no-op on the completed row.
+    await expect(
+      completeDataExport(db as never, exportId, 'user-1', `inline-manifest:${exportId}`, manifest),
+    ).rejects.toThrow('already completed');
+    await failDataExport(db as never, exportId, 'user-1', 'loser build failed');
+    // The winner's row stands untouched: still completed, manifest intact.
+    expect(db.exportRequests.get(exportId)?.status).toBe('completed');
+    expect(db.exportRequests.get(exportId)?.manifest).toEqual(manifest);
+    expect(db.exportRequests.get(exportId)?.error).toBeUndefined();
+    // Exactly one terminal event — no data.export.failed.v1 from the loser.
+    expect(db.outbox.map((e) => e.eventType)).toEqual([
+      LifecycleEvents.exportRequested,
+      LifecycleEvents.exportCompleted,
+    ]);
+    // And no failed operation row from the loser either.
+    const exportOps = [...db.operations.values()].filter((op) => op.aggregateId === exportId);
+    expect(exportOps.map((op) => op.status)).toEqual(['requested', 'completed']);
+  });
+
+  it('export: failDataExport on an already-failed row is a no-op (no second event, first error kept)', async () => {
+    const { exportId } = await requestDataExport(db as never, 'user-1');
+    await failDataExport(db as never, exportId, 'user-1', 'disk full');
+    await failDataExport(db as never, exportId, 'user-1', 'second failure');
+    expect(db.exportRequests.get(exportId)?.status).toBe('failed');
+    expect(db.exportRequests.get(exportId)?.error).toBe('disk full');
+    expect(db.outbox.map((e) => e.eventType)).toEqual([
+      LifecycleEvents.exportRequested,
+      LifecycleEvents.exportFailed,
+    ]);
+    const exportOps = [...db.operations.values()].filter((op) => op.aggregateId === exportId);
+    expect(exportOps.map((op) => op.status)).toEqual(['requested', 'failed']);
+  });
+
+  it('export: CAS blocks a stale transition even when the pre-read looks requested', async () => {
+    // The true race, deterministically: the service's pre-read sees
+    // `requested`, but a concurrent builder committed first, so the
+    // guarded update matches 0 rows. Neither the fail nor the complete
+    // path may write anything after that — no row write, no operation
+    // row, no outbox event.
+    const writes: string[] = [];
+    const tx = {
+      dataExportRequest: {
+        findUnique: async () => ({
+          id: 'exp-stale',
+          scope: 'mailbox-inventory',
+          status: 'requested',
+        }),
+        update: async () => {
+          writes.push('update');
+          throw new Error('update must not run after a lost CAS race');
+        },
+        updateMany: async () => ({ count: 0 }),
+      },
+      lifecycleOperation: {
+        create: async () => {
+          writes.push('operation');
+          throw new Error('operation must not be created after a lost CAS race');
+        },
+      },
+      outboxEvent: {
+        create: async () => {
+          writes.push('outbox');
+          throw new Error('outbox must not be written after a lost CAS race');
+        },
+      },
+    };
+    const staleDb = {
+      $transaction: async <T>(cb: (txArg: never) => Promise<T>): Promise<T> => cb(tx as never),
+    };
+    // fail on the stale row: a silent no-op, not a throw, not a write.
+    await failDataExport(staleDb as never, 'exp-stale', 'user-1', 'loser build failed');
+    // complete on the stale row: the race surfaces as a 409, not a write.
+    await expect(
+      completeDataExport(staleDb as never, 'exp-stale', 'user-1', 'inline-manifest:exp-stale'),
+    ).rejects.toThrow('already in a terminal state');
+    expect(writes).toEqual([]);
   });
 
   it('runRetentionSweep: expired email permanently deleted with erasure-proof events; held email blocked', async () => {
