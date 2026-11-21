@@ -2400,7 +2400,9 @@ Required: reconcile extra routes; each retained route gets real contracts and pl
 Dependencies: QM-PLAT-004.
 
 ## QM-SCREEN-019 — End-to-end connection graph verification
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix-qm-screen-019-connection-graph
 Required verified flows:
 Mail ↔ Contacts; Mail ↔ Calendar; Mail ↔ Drive; Mail ↔ QuantGit; Calendar ↔ QuantMeet/Chat; Drive ↔ Mail/Calendar/Quanty; Contacts ↔ Chat/Calendar/Mail; QuantGit ↔ creator platform/QuantMax/QuantCooks; Quanty ↔ every owned capability; Notifications ↔ every event source.
 Acceptance: typed resource refs, source-of-truth ownership, authorization recheck, event propagation, failure behavior, no direct cross-product DB writes.
