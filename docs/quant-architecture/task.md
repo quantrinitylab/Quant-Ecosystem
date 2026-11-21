@@ -108,7 +108,9 @@ Required: signed/server-verifiable ticket, audience/client binding, nonce/replay
 Dependencies: QM-AUTH-008; ecosystem contract 20.
 
 ## QM-AUTH-010 — Auth journey test matrix
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-auth-010-auth-journey-test-matrix
 Required: 390/768/1024/1280/1440/1920 layouts; keyboard-only; reduced motion; offline; timeout; rate-limit; expired challenge; invalid recovery; cross-app return; no token in URL/logs; no account enumeration.
 Dependencies: QM-AUTH-002 through QM-AUTH-009.
 
