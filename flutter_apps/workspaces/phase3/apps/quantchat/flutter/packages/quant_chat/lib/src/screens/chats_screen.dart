@@ -41,8 +41,12 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     });
   }
 
+  // QC-F-015 build — pre-existing compile drift fix (origin/main did not
+  // compile): `ConsumerState.build` takes only `(BuildContext)`; the ref is
+  // the inherited `ref` field. The `(context, ref)` two-arg form belongs to
+  // `ConsumerWidget.build`.
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final AsyncValue<List<Conversation>> conversations =
         ref.watch(conversationListProvider);
 
@@ -60,7 +64,8 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
       ),
       body: conversations.when(
         loading: () => const _ChatsLoadingView(),
-        error: (Object _, StackTrace _) => _ChatsErrorView(
+        // QC-F-015 build: pre-existing compile drift — duplicate `_` params.
+        error: (Object error, StackTrace stackTrace) => _ChatsErrorView(
           onRetry: () =>
               ref.read(conversationListProvider.notifier).refresh(),
         ),

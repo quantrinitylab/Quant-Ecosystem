@@ -158,7 +158,9 @@ abstract final class QuantChatTheme {
         scrolledUnderElevation: 0,
         titleTextStyle: QuantTextStyles.h5.copyWith(color: foreground),
       ),
-      cardTheme: CardTheme(
+      // QC-F-015 build: pre-existing compile drift — the SDK renamed
+      // `CardTheme`/`DialogTheme` to `CardThemeData`/`DialogThemeData`.
+      cardTheme: CardThemeData(
         color: surfaceElevated,
         elevation: 0,
         margin: EdgeInsets.zero,
@@ -167,7 +169,7 @@ abstract final class QuantChatTheme {
           side: BorderSide(color: border),
         ),
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: surfaceElevated,
         shape: RoundedRectangleBorder(
           borderRadius: const BorderRadius.all(Radius.circular(16)),

@@ -12,14 +12,17 @@
 // in when ready"). Until then this file imports the barrel directly.
 
 import 'package:chat_core/src/chat/chat.dart';
+import 'package:chat_core/src/realtime/realtime.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// One row in the conversation list.
 ///
-/// Tap handling is owned by the caller ([onTap]) so the tile stays dumb and
-/// testable. Archived conversations render dimmed; the archive filter UI is
-/// a later shift.
-class ChatListTile extends StatelessWidget {
+/// A [ConsumerWidget]: for direct conversations the peer's live presence is
+/// read from [userPresenceProvider] (QC-F-015) and an online dot is painted
+/// on the avatar. Tap handling stays with the caller ([onTap]) so the tile
+/// itself owns no navigation.
+class ChatListTile extends ConsumerWidget {
   /// Creates a tile for [conversation].
   const ChatListTile({
     super.key,
@@ -34,7 +37,7 @@ class ChatListTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme scheme = theme.colorScheme;
 
@@ -44,13 +47,26 @@ class ChatListTile extends StatelessWidget {
     final String preview = c.lastMessage?.content ?? 'No messages yet';
     final int unread = c.unreadCount;
 
+    // Presence (QC-F-015): for direct conversations the peer is the first
+    // participant id (there is no current-user id on the auth session yet,
+    // so the tile cannot subtract self — documented limitation).
+    final String? peerId =
+        !isGroup && c.participantIds.isNotEmpty ? c.participantIds.first : null;
+    final bool peerOnline = peerId != null &&
+        (ref.watch(userPresenceProvider(peerId))?.isOnline ?? false);
+
     final Widget tile = InkWell(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: <Widget>[
-            _Avatar(isGroup: isGroup, name: name, scheme: scheme),
+            _Avatar(
+              isGroup: isGroup,
+              name: name,
+              scheme: scheme,
+              isOnline: peerOnline,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -119,6 +135,9 @@ String _displayName(Conversation conversation) {
 
 /// Leading avatar: group icon for group chats, person initial for directs.
 ///
+/// [isOnline] paints the QuantChat emerald presence dot (QC-F-015) over the
+/// avatar's bottom-right corner — the first real consumer of `PresenceEvent`.
+///
 /// TODO(UNVERIFIED): avatar URL is not in the spec — placeholder
 /// initial/group-icon until the user-directory contract lands.
 class _Avatar extends StatelessWidget {
@@ -126,18 +145,22 @@ class _Avatar extends StatelessWidget {
     required this.isGroup,
     required this.name,
     required this.scheme,
+    this.isOnline = false,
   });
 
   final bool isGroup;
   final String name;
   final ColorScheme scheme;
 
+  /// Whether the peer is currently online (direct chats only).
+  final bool isOnline;
+
   @override
   Widget build(BuildContext context) {
     final String trimmed = name.trim();
     final String initial =
         trimmed.isEmpty ? '?' : trimmed[0].toUpperCase();
-    return CircleAvatar(
+    final Widget avatar = CircleAvatar(
       radius: 24,
       backgroundColor: scheme.secondary.withValues(alpha: 0.16),
       child: isGroup
@@ -150,6 +173,31 @@ class _Avatar extends StatelessWidget {
                 fontSize: 20,
               ),
             ),
+    );
+    if (!isOnline) return avatar;
+    // Emerald = QuantChat's brand accent (scheme.secondary), not a hardcoded
+    // green — stays correct in light and dark themes.
+    return Stack(
+      children: <Widget>[
+        avatar,
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Semantics(
+            label: 'Online',
+            child: Container(
+              key: const Key('presence-online-dot'),
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: scheme.secondary,
+                shape: BoxShape.circle,
+                border: Border.all(color: scheme.surface, width: 2),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

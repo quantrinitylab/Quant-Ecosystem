@@ -455,7 +455,10 @@ class _BootstrappingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
+    // QC-F-015 build: pre-existing compile drift — `CircularProgressIndicator`
+    // has no const constructor, so the enclosing `const Padding` never
+    // compiled.
+    return Padding(
       padding: EdgeInsets.symmetric(vertical: 64),
       child: Center(
         child: Semantics(

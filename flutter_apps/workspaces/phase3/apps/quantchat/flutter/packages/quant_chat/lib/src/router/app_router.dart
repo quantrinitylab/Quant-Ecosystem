@@ -51,12 +51,27 @@ final appRouterProvider = Provider<GoRouter>(
 /// driven by [GoRouterRefreshStream] on the auth-session notifier stream,
 /// never by provider watches inside the redirect.
 GoRouter buildAppRouter(Ref ref) {
-  final refresh = GoRouterRefreshStream(
-    ref.watch(authSessionProvider.notifier).stream,
-  );
+  // QC-F-015 build — pre-existing compile drift fix (origin/main did not
+  // compile): `AuthSessionNotifier` is an `AsyncNotifier`, which exposes no
+  // `.stream` getter (that was a StateNotifier API). The router refresh now
+  // rides a broadcast stream fed by `ref.listen` on the session provider —
+  // same documented intent ("refreshListenable ... on the auth-session"),
+  // wired to the API that actually exists.
+  final StreamController<void> sessionTick =
+      StreamController<void>.broadcast();
+  ref.listen<AsyncValue<AuthSessionState>>(authSessionProvider,
+      (AsyncValue<AuthSessionState>? previous,
+          AsyncValue<AuthSessionState> next) {
+    if (!sessionTick.isClosed) sessionTick.add(null);
+  });
+  final refresh = GoRouterRefreshStream(sessionTick.stream);
   // GoRouter removes its listener on dispose but does not dispose the
   // listenable itself; tie the subscription's lifetime to the provider.
-  ref.onDispose(refresh.dispose);
+  ref.onDispose(() {
+    refresh.dispose();
+    // ignore: discarded_futures
+    sessionTick.close();
+  });
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
@@ -107,8 +122,9 @@ GoRouter buildAppRouter(Ref ref) {
         },
         // Hydration still running (or the stream errored): hold position.
         // Bouncing to /login here would flash the login page on cold start.
+        // (QC-F-015 build: pre-existing compile drift — duplicate `_` params.)
         loading: () => null,
-        error: (_, _) => null,
+        error: (_, __) => null,
       );
     },
     routes: <RouteBase>[
