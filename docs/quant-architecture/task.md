@@ -2675,7 +2675,7 @@ Dependencies: QM-BACK-008; QM-PLAT-007.
 Acceptance: empty/healthy/degraded/unavailable states are truthful; no hard-coded SES/DKIM status reaches production UI.
 
 ## QM-SCREEN-030 — QuantMail booking security copy must match the actual cryptographic contract
-Status: [~] IN_PROGRESS
+Status: [x] DONE — FULLY COVERED by merged PR #578 (build verdict 2026-11-21, BUILD #1 b9ab615d: booking "End-to-End Encrypted Scheduling" copy already corrected on origin/main; no code change needed)
 Owner: muse-main
 Branch: fix/qm-screen-030-booking-security-copy
 Finding: the booking route contains "End-to-End Encrypted Scheduling" copy, while the current QuantMail architecture does not establish end-to-end encryption for booking/scheduling data. This is a trust-boundary mismatch similar to the login security-copy finding.
