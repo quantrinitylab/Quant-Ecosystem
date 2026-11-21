@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { VoiceNoteService, type VoiceMessageSink } from '../services/voice-note.service';
 import { MessageService } from '../services/message.service';
+import { validateMediaUrl, ownStorageHosts } from '../lib/media-url';
 
 const transcribeSchema = z.object({ audioUrl: z.string().url() });
 const autoReplySchema = z.object({
@@ -14,6 +15,28 @@ function userId(request: unknown): string {
   const id = (request as { auth?: { userId?: string } }).auth?.userId;
   if (!id) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
   return id;
+}
+
+/**
+ * QC-F-425: the transcriber is a server-side fetcher-in-waiting — the URL
+ * must be the caller's OWN uploaded media, never an arbitrary host.
+ * F-330's validateMediaUrl gives scheme + ownership key-shape, but its
+ * local-host allowance is calibrated for browser-loaded media; a server
+ * fetch must additionally match the own-storage host set EXACTLY
+ * (localhost/127.0.0.1/minio are this server's own loopback here).
+ * One error for every failure — no host/key oracle.
+ */
+function assertTranscribableAudioUrl(raw: string, ownerId: string): void {
+  let host = '';
+  try {
+    host = new URL(raw).host;
+  } catch {
+    /* verdict below is already false */
+  }
+  const verdict = validateMediaUrl(raw, { ownerId, allowData: false, maxUrlLength: 4096 });
+  if (!verdict.ok || !ownStorageHosts().has(host)) {
+    throw createAppError('Audio URL must reference your own uploaded media', 400, 'MEDIA_URL_NOT_ALLOWED');
+  }
 }
 
 /**
@@ -45,16 +68,20 @@ export default async function voiceNoteRoutes(fastify: FastifyInstance) {
   fastify.post('/transcribe', async (request, reply) => {
     const parsed = transcribeSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
-    const text = await service(userId(request)).transcribe(parsed.data.audioUrl);
+    const callerId = userId(request);
+    assertTranscribableAudioUrl(parsed.data.audioUrl, callerId);
+    const text = await service(callerId).transcribe(parsed.data.audioUrl);
     return reply.send({ success: true, data: { text } });
   });
 
   fastify.post('/auto-reply', async (request, reply) => {
     const parsed = autoReplySchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
-    const data = await service(userId(request)).autoReply({
+    const callerId = userId(request);
+    assertTranscribableAudioUrl(parsed.data.audioUrl, callerId);
+    const data = await service(callerId).autoReply({
       conversationId: parsed.data.conversationId,
-      senderId: userId(request),
+      senderId: callerId,
       audioUrl: parsed.data.audioUrl,
     });
     return reply.status(201).send({ success: true, data });
