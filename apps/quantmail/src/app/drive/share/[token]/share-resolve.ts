@@ -186,13 +186,78 @@ export async function resolveShareToken(
 
 /**
  * Download URL for a drive file share token. The backend streams the real
- * bytes from object storage; a link password travels as the `password` query
- * param — the backend's own documented fallback for plain-navigation downloads
- * (preferred `x-share-password` header is unavailable to a navigation).
+ * bytes from object storage.
+ *
+ * fix/qm-share-pw-query-param: a link password is NEVER placed in this URL —
+ * it travels only in the `x-share-password` header (see fetchShareDownload),
+ * so the secret never lands in browser history, server logs, or referers.
+ * This function intentionally takes no password argument, so no caller can
+ * reintroduce the query-string leak.
  */
-export function downloadUrlFor(token: string, password?: string): string {
-  const base = `/api/drive/public/share/${encodeURIComponent(token)}/download`;
-  return password ? `${base}?password=${encodeURIComponent(password)}` : base;
+export function downloadUrlFor(token: string): string {
+  return `/api/drive/public/share/${encodeURIComponent(token)}/download`;
+}
+
+/** Header that carries a share-link password. Never the query string. */
+export const SHARE_PASSWORD_HEADER = 'x-share-password';
+
+/**
+ * Fetch the share download bytes with the password in a header, never the
+ * URL. Returns the raw Response so callers can stream to blob/text.
+ */
+export async function fetchShareDownload(
+  token: string,
+  password: string | undefined,
+  fetchImpl: FetchImpl = fetch,
+): Promise<Response> {
+  const headers: Record<string, string> = {};
+  if (password) headers[SHARE_PASSWORD_HEADER] = password;
+  return fetchImpl(downloadUrlFor(token), { credentials: 'include', headers });
+}
+
+/**
+ * Download a share file without any navigation carrying a secret: fetch with
+ * the password header, then trigger a blob download with the real filename.
+ */
+export async function downloadShareFile(
+  token: string,
+  password: string | undefined,
+  filename: string,
+  fetchImpl: FetchImpl = fetch,
+): Promise<void> {
+  const res = await fetchShareDownload(token, password, fetchImpl);
+  if (!res.ok) throw await toShareError(res, 'drive-file');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  try {
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.rel = 'noopener';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  } finally {
+    // Revoke on the next tick so the download has started; the blob is
+    // reference-counted by the download itself once initiated.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+}
+
+/**
+ * Blob object URL for inline image/pdf previews. Same header-only password
+ * transport as downloads — previews used to embed the secret in <img>/<iframe>
+ * src URLs via the query fallback.
+ */
+export async function sharePreviewObjectUrl(
+  token: string,
+  password: string | undefined,
+  fetchImpl: FetchImpl = fetch,
+): Promise<string> {
+  const res = await fetchShareDownload(token, password, fetchImpl);
+  if (!res.ok) throw await toShareError(res, 'drive-file');
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }
 
 const IMAGE_MIME = /^image\//;

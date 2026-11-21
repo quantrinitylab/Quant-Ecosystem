@@ -672,13 +672,37 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
     expect(okHeader.statusCode).toBe(200);
     expect(okHeader.body).toBe('quant-public-streamed-file-content');
 
-    // Correct password via query-param fallback -> also streams the file.
-    const okQuery = await app.inject({
+    // fix/qm-share-pw-query-param: the password query-param fallback is gone —
+    // a correct password in the URL is ignored and the gate fails closed with
+    // 401, streaming no bytes.
+    const queryPw = await app.inject({
       method: 'GET',
       url: `/drive/public/share/${token}/download?password=correct-horse-battery`,
     });
-    expect(okQuery.statusCode).toBe(200);
-    expect(okQuery.body).toBe('quant-public-streamed-file-content');
+    expect(queryPw.statusCode).toBe(401);
+    expect(queryPw.body).not.toContain('quant-public-streamed-file-content');
+
+    // Deep-fix: a correct query password must NOT rescue a wrong header
+    // password — the gate reads the header only, so this is a 403 with no
+    // bytes, not a fallback success.
+    const queryCorrectHeaderWrong = await app.inject({
+      method: 'GET',
+      url: `/drive/public/share/${token}/download?password=correct-horse-battery`,
+      headers: { 'x-share-password': 'nope' },
+    });
+    expect(queryCorrectHeaderWrong.statusCode).toBe(403);
+    expect(queryCorrectHeaderWrong.body).not.toContain('quant-public-streamed-file-content');
+
+    // Deep-fix: a query password alongside the correct header is ignored,
+    // not consulted — success comes from the header alone. (A wrong query
+    // value next to the right header must likewise not break the download.)
+    const headerCorrectQueryWrong = await app.inject({
+      method: 'GET',
+      url: `/drive/public/share/${token}/download?password=definitely-not-it`,
+      headers: { 'x-share-password': 'correct-horse-battery' },
+    });
+    expect(headerCorrectQueryWrong.statusCode).toBe(200);
+    expect(headerCorrectQueryWrong.body).toBe('quant-public-streamed-file-content');
   });
 
   it('revokes public share link when requested by owner', async () => {
