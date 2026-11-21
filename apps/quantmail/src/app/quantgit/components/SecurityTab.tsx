@@ -207,6 +207,108 @@ export async function markSecretFalsePositiveOnServer(
   }
 }
 
+/**
+ * Dismiss a Dependabot alert via the REAL backend endpoint
+ * POST /api/repos/:id/security/dependabot/:alertId/dismiss (Next proxy ->
+ * Fastify, which persists state='dismissed' in the server store).
+ *
+ * The success toast is only warranted when the server confirms
+ * data.state === 'dismissed'. Any other outcome returns ok:false with an
+ * honest message and the caller must NOT flip local state or toast success.
+ * This replaces the previous setState-only handler, which claimed a dismissal
+ * the server never recorded. Exported for unit tests.
+ */
+export type DismissDependabotResult = { ok: true; message: string } | { ok: false; message: string };
+
+export async function dismissDependabotAlertOnServer(
+  targetRepo: string,
+  alertId: string,
+  reason = 'Risk accepted',
+): Promise<DismissDependabotResult> {
+  try {
+    const res = await apiFetchRaw(
+      `/api/repos/${encodeURIComponent(targetRepo)}/security/dependabot/${encodeURIComponent(alertId)}/dismiss`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      },
+    );
+    const json = (await res.json().catch(() => null)) as {
+      success?: boolean;
+      data?: { state?: string; message?: string; dismissedReason?: string };
+      error?: { message?: string; code?: string };
+    } | null;
+    if (res.ok && json?.success && json?.data?.state === 'dismissed') {
+      return {
+        ok: true,
+        message:
+          json.data.message ||
+          `Alert dismissed (${json.data.dismissedReason || reason})`,
+      };
+    }
+    // Server refused or returned something unexpected — surface its honest
+    // message (e.g. 404 ALERT_NOT_FOUND) instead of inventing one.
+    return {
+      ok: false,
+      message:
+        json?.error?.message ||
+        'Could not dismiss the alert. Nothing was changed.',
+    };
+  } catch {
+    return {
+      ok: false,
+      message: 'Dismiss request failed — the alert was not dismissed. Nothing was changed.',
+    };
+  }
+}
+
+/**
+ * Dismiss a CodeQL alert via the REAL backend endpoint
+ * POST /api/repos/:id/security/codeql/:alertId/dismiss (Next proxy ->
+ * Fastify, which persists state='dismissed' in the server store).
+ *
+ * The success toast is only warranted when the server confirms
+ * data.state === 'dismissed'. Any other outcome returns ok:false with an
+ * honest message and the caller must NOT flip local state or toast success.
+ * This replaces the previous setState-only handler, which claimed a dismissal
+ * the server never recorded. Exported for unit tests.
+ */
+export type DismissCodeqlResult = { ok: true; message: string } | { ok: false; message: string };
+
+export async function dismissCodeqlAlertOnServer(
+  targetRepo: string,
+  alertId: string,
+): Promise<DismissCodeqlResult> {
+  try {
+    const res = await apiFetchRaw(
+      `/api/repos/${encodeURIComponent(targetRepo)}/security/codeql/${encodeURIComponent(alertId)}/dismiss`,
+      { method: 'POST' },
+    );
+    const json = (await res.json().catch(() => null)) as {
+      success?: boolean;
+      data?: { state?: string; message?: string };
+      error?: { message?: string; code?: string };
+    } | null;
+    if (res.ok && json?.success && json?.data?.state === 'dismissed') {
+      return { ok: true, message: json.data.message || 'CodeQL alert dismissed.' };
+    }
+    // Server refused or returned something unexpected — surface its honest
+    // message (e.g. 404 ALERT_NOT_FOUND) instead of inventing one.
+    return {
+      ok: false,
+      message:
+        json?.error?.message ||
+        'Could not dismiss the alert. Nothing was changed.',
+    };
+  } catch {
+    return {
+      ok: false,
+      message: 'Dismiss request failed — the alert was not dismissed. Nothing was changed.',
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Server alert-list wiring (fix/qm-securitytab-alerts-wired)
 // ---------------------------------------------------------------------------
@@ -369,6 +471,11 @@ export function SecurityTab({
   >('open');
   const [dependabotSearch, setDependabotSearch] = useState('');
   const [generatedFixPrs, setGeneratedFixPrs] = useState<Record<string, number>>({});
+  // Per-alert in-flight Dependabot dismiss markers — honest loading state
+  // while the real backend POST .../dependabot/:alertId/dismiss is pending.
+  // The alert's state is NEVER flipped until the server confirms 'dismissed'.
+  const [dismissingDependabotIds, setDismissingDependabotIds] =
+    useState<ReadonlySet<string>>(new Set());
 
   // 2. Secret Scanning State
   // Genuine empty state — no fabricated secret alerts.
@@ -402,6 +509,11 @@ export function SecurityTab({
   // The alert's state is NEVER flipped until the server confirms 'fixed',
   // so a refused fix needs no rollback: no false state was ever rendered.
   const [applyingCodeqlIds, setApplyingCodeqlIds] = useState<ReadonlySet<string>>(new Set());
+  // Per-alert in-flight CodeQL dismiss markers — honest loading state while
+  // the real backend POST .../codeql/:alertId/dismiss is pending. The alert's
+  // state is NEVER flipped until the server confirms 'dismissed'.
+  const [dismissingCodeqlIds, setDismissingCodeqlIds] =
+    useState<ReadonlySet<string>>(new Set());
 
   // 4. Security Policy & Branch Rules State
   const [securityPolicy, setSecurityPolicy] = useState<string>(DEFAULT_SECURITY_POLICY);
@@ -576,15 +688,41 @@ export function SecurityTab({
     }
   };
 
-  const handleDismissDependabot = (alertId: string, reason = 'Risk accepted') => {
-    setDependabotAlerts((prev) =>
-      prev.map((a) =>
-        a.id === alertId
-          ? { ...a, state: 'dismissed' as SecurityAlertState, dismissedReason: reason }
-          : a,
-      ),
-    );
-    showToast(`Alert dismissed (${reason})`);
+  // HONESTY (fix/qm-securitytab-theater-wire): the Dismiss button calls the
+  // real backend POST /api/repos/:id/security/dependabot/:alertId/dismiss.
+  // Local state flips to 'dismissed' ONLY on confirmed server success, and
+  // the success toast fires only then. On failure nothing flips — there is
+  // no false state to roll back; the per-alert loading marker is always
+  // cleared in `finally`.
+  const handleDismissDependabot = async (alertId: string, reason = 'Risk accepted') => {
+    const targetRepo = repoId || selectedRepo?.id;
+    if (!targetRepo) {
+      showToast('Select a repository before dismissing an alert.');
+      return;
+    }
+    if (dismissingDependabotIds.has(alertId)) return;
+    setDismissingDependabotIds((prev) => new Set(prev).add(alertId));
+    try {
+      const result = await dismissDependabotAlertOnServer(targetRepo, alertId, reason);
+      if (!result.ok) {
+        showToast(result.message);
+        return;
+      }
+      setDependabotAlerts((prev) =>
+        prev.map((a) =>
+          a.id === alertId
+            ? { ...a, state: 'dismissed' as SecurityAlertState, dismissedReason: reason }
+            : a,
+        ),
+      );
+      showToast(result.message || `Alert dismissed (${reason})`);
+    } finally {
+      setDismissingDependabotIds((prev) => {
+        const next = new Set(prev);
+        next.delete(alertId);
+        return next;
+      });
+    }
   };
 
   // --------------------------------------------------------------------------
@@ -768,11 +906,37 @@ export function SecurityTab({
     }
   };
 
-  const handleDismissCodeql = (id: string, ruleName: string) => {
-    setCodeqlAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, state: 'dismissed' as const } : a)),
-    );
-    showToast(`CodeQL alert dismissed for ${ruleName}`);
+  // HONESTY (fix/qm-securitytab-theater-wire): the Dismiss button calls the
+  // real backend POST /api/repos/:id/security/codeql/:alertId/dismiss. Local
+  // state flips to 'dismissed' ONLY on confirmed server success, and the
+  // success toast fires only then. On failure nothing flips — there is no
+  // false state to roll back; the per-alert loading marker is always cleared
+  // in `finally`.
+  const handleDismissCodeql = async (id: string, ruleName: string) => {
+    const targetRepo = repoId || selectedRepo?.id;
+    if (!targetRepo) {
+      showToast('Select a repository before dismissing a CodeQL alert.');
+      return;
+    }
+    if (dismissingCodeqlIds.has(id)) return;
+    setDismissingCodeqlIds((prev) => new Set(prev).add(id));
+    try {
+      const result = await dismissCodeqlAlertOnServer(targetRepo, id);
+      if (!result.ok) {
+        showToast(result.message);
+        return;
+      }
+      setCodeqlAlerts((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, state: 'dismissed' as const } : a)),
+      );
+      showToast(result.message || `CodeQL alert dismissed for ${ruleName}`);
+    } finally {
+      setDismissingCodeqlIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   // --------------------------------------------------------------------------
@@ -1251,9 +1415,10 @@ export function SecurityTab({
                         type="button"
                         data-testid={`dismiss-alert-${sec.id}`}
                         onClick={() => handleDismissDependabot(sec.id)}
-                        className="px-3 py-1.5 rounded bg-[#21262D] border border-[#30363D] text-[#7D8590] hover:text-white font-semibold text-xs hover:bg-[#30363D] transition-colors"
+                        disabled={dismissingDependabotIds.has(sec.id)}
+                        className="px-3 py-1.5 rounded bg-[#21262D] border border-[#30363D] text-[#7D8590] hover:text-white font-semibold text-xs hover:bg-[#30363D] transition-colors disabled:opacity-60"
                       >
-                        Dismiss
+                        {dismissingDependabotIds.has(sec.id) ? 'Dismissing…' : 'Dismiss'}
                       </button>
                     )}
                   </div>
@@ -1564,9 +1729,10 @@ export function SecurityTab({
                             type="button"
                             data-testid={`codeql-dismiss-${alert.id}`}
                             onClick={() => handleDismissCodeql(alert.id, alert.ruleName)}
-                            className="px-3 py-1.5 rounded bg-[#21262D] border border-[#30363D] text-[#7D8590] hover:text-white font-semibold text-xs hover:bg-[#30363D]"
+                            disabled={dismissingCodeqlIds.has(alert.id)}
+                            className="px-3 py-1.5 rounded bg-[#21262D] border border-[#30363D] text-[#7D8590] hover:text-white font-semibold text-xs hover:bg-[#30363D] disabled:opacity-60"
                           >
-                            Dismiss
+                            {dismissingCodeqlIds.has(alert.id) ? 'Dismissing…' : 'Dismiss'}
                           </button>
                         </>
                       )}
