@@ -82,6 +82,8 @@ import { MCPRegistryTab, OFFICIAL_MCP_CATALOG } from './components/MCPRegistryTa
 import { CopilotFleetModeView } from './components/CopilotFleetModeView';
 import { DeveloperAppearanceSettings } from './components/DeveloperAppearanceSettings';
 import { NotificationsInbox } from './components/NotificationsInbox';
+import type { GitNotificationItem } from './components/NotificationsInbox';
+import { mapGitNotifications } from './lib/mapGitNotification';
 import { RepoImportModal } from './components/RepoImportModal';
 import { formatCommitToast } from './components/formatCommitToast';
 import {
@@ -170,6 +172,12 @@ function QuantGitContent() {  const router = useRouter();
   const [activeDeckTab, setActiveDeckTab] = useState<MainDeckTab>('repos');
   const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
   const [activeGitHubTab, setActiveGitHubTab] = useState<GitHubTab>('code');
+  // QuantGit notifications inbox (P2 fix): real data from
+  // GET /api/repos/notifications — previously both mount sites rendered the
+  // inbox prop-less, so it could never show a real review request.
+  const [gitNotifications, setGitNotifications] = useState<GitNotificationItem[]>([]);
+  const [gitNotificationsLoading, setGitNotificationsLoading] = useState(false);
+  const [gitNotificationsError, setGitNotificationsError] = useState<string | null>(null);
   const [currentBranch, setCurrentBranch] = useState<string>('main');
   // QM-SCREEN-013: "Browse code at commit" — the file-tree ref currently being
   // browsed as a detached commit SHA. When set, the code tab's workspace view
@@ -502,6 +510,44 @@ function QuantGitContent() {  const router = useRouter();
       browserAuthSession.authenticatedFetch(input, init),
     [],
   );
+
+  // Fetch the real QuantGit notifications inbox. A failed or malformed
+  // response degrades to the honest error state — never to invented rows.
+  const fetchGitNotifications = useCallback(async () => {
+    setGitNotificationsLoading(true);
+    setGitNotificationsError(null);
+    try {
+      const res = await apiFetch('/api/repos/notifications');
+      if (!res.ok) {
+        throw new Error(`Notifications request failed (${res.status})`);
+      }
+      const json = await res.json();
+      const rows = Array.isArray(json?.data)
+        ? json.data
+        : Array.isArray(json?.data?.notifications)
+          ? json.data.notifications
+          : null;
+      if (rows === null) {
+        throw new Error('Notifications response was not in the expected shape');
+      }
+      setGitNotifications(mapGitNotifications(rows));
+    } catch (err) {
+      setGitNotifications([]);
+      setGitNotificationsError(
+        err instanceof Error ? err.message : 'Notifications could not be loaded',
+      );
+    } finally {
+      setGitNotificationsLoading(false);
+    }
+  }, [apiFetch]);
+
+  // Load the inbox whenever the notifications tab opens (both mount sites
+  // share this one state, so the bell and the tab never disagree).
+  useEffect(() => {
+    if (activeGitHubTab === 'notifications') {
+      fetchGitNotifications();
+    }
+  }, [activeGitHubTab, fetchGitNotifications]);
 
   const repositoryOwner = useCallback(
     (repo: Repo) => {
@@ -2396,7 +2442,12 @@ function QuantGitContent() {  const router = useRouter();
           // 'notifications' — with no repo selected the inbox below would
           // otherwise render nothing and the bell would appear dead.
           activeGitHubTab === 'notifications' ? (
-            <NotificationsInbox />
+            <NotificationsInbox
+              notifications={gitNotifications}
+              loading={gitNotificationsLoading}
+              error={gitNotificationsError}
+              onRetry={fetchGitNotifications}
+            />
           ) : (
           <QuantGitSubViews
             activeTab={activeContextSubTab}
@@ -2594,7 +2645,14 @@ function QuantGitContent() {  const router = useRouter();
 
               {activeGitHubTab === 'mcp' && <MCPRegistryTab />}
 
-              {activeGitHubTab === 'notifications' && <NotificationsInbox />}
+              {activeGitHubTab === 'notifications' && (
+                <NotificationsInbox
+                  notifications={gitNotifications}
+                  loading={gitNotificationsLoading}
+                  error={gitNotificationsError}
+                  onRetry={fetchGitNotifications}
+                />
+              )}
 
               {activeGitHubTab === 'discussions' && (
                 <DiscussionsTab
