@@ -138,6 +138,20 @@ export default async function aiServicesRoutes(fastify: FastifyInstance) {
     host: process.env['REDIS_HOST'] ?? 'localhost',
     port: Number(process.env['REDIS_PORT'] ?? 6379),
   });
+  // Explicit queue lifecycle (fix/qm-ai-undo-send-onclose): the route plugin
+  // owns this BullMQ queue, so close it when the Fastify instance closes.
+  // Without this, the queue's Redis connection outlives app.close() — the
+  // same orphaned-connection class as the ci-runs queue before the
+  // fix/qm-ci-queue-lifecycle-4 onClose fix (gate red: teardown errors +
+  // Redis reconnect refusals in full-app test boots). The guard makes
+  // repeated closes a no-op so the queue is closed exactly once per
+  // registration.
+  let undoQueueClosed = false;
+  fastify.addHook('onClose', async () => {
+    if (undoQueueClosed) return;
+    undoQueueClosed = true;
+    await undoQueue.close();
+  });
   const undoService = new UndoSendService(undoQueue);
 
   // ==================== AI ROUTES ====================
