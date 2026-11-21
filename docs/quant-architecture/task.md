@@ -3088,7 +3088,9 @@ Dependencies: QM-SCREEN-008/009; QM-WORK-007; QM-PLAT-006.
 Validation: source search on 2026-10-08 reproduced `rem-4` in all three Calendar surfaces; no implementation claim yet.
 
 ## QM-SCREEN-033 — Drive mobile vault security state must match the actual encryption contract
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix-qm-screen-033-drive-vault-security-state
 Finding: `apps/quantmail/src/app/drive/components/DriveVaultSubView.tsx` explicitly says client-side encryption is not available yet, while `DriveMobileTabStrip.tsx` still exposes an `E2EE` badge and encrypted-vault accessibility label. This is a direct same-product contradiction and can cause users to infer a cryptographic guarantee that the current Drive surface does not provide.
 Required: derive the vault security badge/label from one authoritative encryption capability contract; until client-side encryption is actually available and reviewed, remove the E2EE claim from mobile and desktop indicators. If a Secret Notes/Vault Documents zero-knowledge path is retained, scope the claim to that exact resource type and document key lifecycle/availability rather than branding the general Drive vault.
 Scope: `apps/quantmail/src/app/drive/components/DriveVaultSubView.tsx`; `apps/quantmail/src/app/drive/components/DriveMobileTabStrip.tsx`; Drive encryption/capability contract.
