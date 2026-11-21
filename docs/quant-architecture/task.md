@@ -202,7 +202,9 @@ Required: authorization-aware federation across permitted Mail/Calendar/Drive/Co
 Dependencies: ecosystem resource/context contract; search architecture.
 
 ## QM-WORK-010 — Settings/security workflow completion
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-work-010-settings-security-workflows
 Scope: M16/M17.
 Required: devices/sessions, 2FA setup/verify/recovery, privacy controls, Quanty grants, memory controls, connected apps, step-up auth, deletion/export.
 Dependencies: QM-AUTH-007/008; platform step-up task.
