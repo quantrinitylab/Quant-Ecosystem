@@ -118,6 +118,24 @@ function storedHashClass(passwordHash: string): string {
   return 'other';
 }
 
+/**
+ * QC-F-305: per-account password-login lockout knobs. Read inside this file
+ * (the SSO handler below already reads QUANTMAIL_BACKEND_URL the same way)
+ * so app.ts needs no change. A malformed value (NaN / <= 0) falls back to
+ * the default — a bad env must never crash or disable the lockout config
+ * parsing itself. Defaults follow the ecosystem's own convention
+ * (@quant/auth parampara + the OTP verify cap): 5 attempts, 15 minutes.
+ */
+function loginLockoutMaxAttempts(): number {
+  const raw = Number(process.env['LOGIN_LOCKOUT_MAX_ATTEMPTS'] ?? 5);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 5;
+}
+
+function loginLockoutMinutes(): number {
+  const raw = Number(process.env['LOGIN_LOCKOUT_MINUTES'] ?? 15);
+  return Number.isFinite(raw) && raw > 0 ? raw : 15;
+}
+
 function decorations(fastify: FastifyInstance) {
   return fastify as unknown as {
     prisma: PrismaClient;
@@ -392,6 +410,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
         phoneNumber: true,
         passwordHash: true,
         role: true,
+        // QC-F-305: the lockout state rides along on the same lookup — the
+        // handler below enforces it after the (always-run) verify.
+        failedLoginAttempts: true,
+        lockoutUntil: true,
       },
       take: 2,
     });
@@ -446,7 +468,27 @@ export default async function authRoutes(fastify: FastifyInstance) {
       );
       isValid = false;
     }
-    if (!isValid) {
+    // QC-F-305: per-account lockout enforcement. The User row's
+    // failedLoginAttempts / lockoutUntil fields have existed since
+    // 0001_init (and QuantMail's password reset already clears them on a
+    // successful reset), but no login path ever read or wrote them, so
+    // password guessing was bounded only by the global per-IP rate limit.
+    // The verify above ALWAYS ran first (real hash for an existing user,
+    // dummy for a missing one), so reaching this point costs the same time
+    // locked or not — the lock state is not a timing oracle. Every failure
+    // below answers the SAME generic 401 body as a wrong password or an
+    // unknown identifier, so it is not an account-existence oracle either.
+    const isLocked = user.lockoutUntil != null && user.lockoutUntil > new Date();
+    if (isLocked) {
+      // Locked attempts change NOTHING: no counter increment and no lock
+      // extension — otherwise an attacker could keep a victim's account
+      // locked forever by guessing once per window. Ops still sees it:
+      // the warn carries only the user id + lock expiry, never the
+      // identifier or any part of the password.
+      request.log.warn(
+        { userId: user.id, lockoutUntil: user.lockoutUntil },
+        'QC-F-305: password login refused — account lockout is active',
+      );
       return reply.status(401).send({
         success: false,
         error: {
@@ -455,6 +497,68 @@ export default async function authRoutes(fastify: FastifyInstance) {
           statusCode: 401,
         },
       });
+    }
+
+    if (!isValid) {
+      // Count on the user ROW, never on identifier or IP: the lookup above
+      // already collapses email / username / phone onto this one row, so
+      // rotating either cannot shed the count. The increment is a single
+      // atomic update (the DB applies { increment: 1 } under the row lock)
+      // — no read-modify-write race. Crossing the threshold sets the lock
+      // and resets the counter, so an expired lock opens a fresh window of
+      // attempts. A failed counter write is logged and the answer stays
+      // the same 401: a counter fault must not become a distinguishable
+      // 500 (a new oracle), and the refusal itself is already honest.
+      try {
+        const updated = await prisma.user.update({
+          where: { id: user.id },
+          data: { failedLoginAttempts: { increment: 1 } },
+        });
+        const lockAlreadyActive =
+          updated.lockoutUntil != null && updated.lockoutUntil > new Date();
+        if (updated.failedLoginAttempts >= loginLockoutMaxAttempts() && !lockAlreadyActive) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              lockoutUntil: new Date(Date.now() + loginLockoutMinutes() * 60_000),
+              failedLoginAttempts: 0,
+            },
+          });
+        }
+      } catch (err) {
+        request.log.warn(
+          { userId: user.id, err },
+          'QC-F-305: failed-login counter update failed; answering INVALID_CREDENTIALS',
+        );
+      }
+      return reply.status(401).send({
+        success: false,
+        error: {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Invalid identifier or password',
+          statusCode: 401,
+        },
+      });
+    }
+
+    // Successful verify on an unlocked account: clear any residue — a
+    // partial count, or a lock whose window has already passed — but only
+    // when there is residue, so a clean login performs no write. A failed
+    // reset is logged and the login still proceeds: a counter fault must
+    // not refuse a user who just proved the password.
+    try {
+      await prisma.user.updateMany({
+        where: {
+          id: user.id,
+          OR: [{ failedLoginAttempts: { gt: 0 } }, { lockoutUntil: { not: null } }],
+        },
+        data: { failedLoginAttempts: 0, lockoutUntil: null },
+      });
+    } catch (err) {
+      request.log.warn(
+        { userId: user.id, err },
+        'QC-F-305: failed-login counter reset failed; login proceeds',
+      );
     }
 
     const tokens = await refreshStore.issueNewSession(
