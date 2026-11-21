@@ -167,7 +167,9 @@ Required: evidence-backed smart brief, clear priority explanation, commitment/ne
 Dependencies: QM-WORK-001; QM-WORK-002.
 
 ## QM-WORK-004 — Thread contextual intelligence
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-work-004-thread-contextual-intelligence
 Scope: M02 thread route/components/backend.
 Required: evidence-backed summary, decisions/commitments, related Calendar/Drive/Contacts, phishing/external-sender warnings, AI draft preview/diff, no silent mutations.
 Dependencies: QM-WORK-003.
