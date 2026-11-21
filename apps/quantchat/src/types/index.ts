@@ -67,6 +67,8 @@ export interface ChannelView {
   description: string | null;
   ownerId: string;
   subscriberCount: number;
+  /** QC-F-518: whether new subscribers can see pre-join posts. */
+  historyVisibility?: 'visible' | 'hidden';
 }
 
 /** A channel plus the caller's membership role and posting capability. */
@@ -210,6 +212,8 @@ export interface Conversation extends BaseEntity {
   muteUntil?: Date;
   disappearMode: DisappearMode;
   encryptionEnabled: boolean;
+  /** QC-F-518: whether new members can see history from before they joined. */
+  historyVisibility?: 'visible' | 'hidden';
 }
 
 export interface ConversationParticipant {
@@ -496,6 +500,8 @@ export interface GroupMember {
 export interface GroupSettings {
   allowMemberInvites: boolean;
   allowMemberEdit: boolean;
+  /** QC-F-518: 'hidden' = new members only see messages from their join on. */
+  historyVisibility?: 'visible' | 'hidden';
   disappearMode: DisappearMode;
   slowMode: number;
   mediaOnly: boolean;

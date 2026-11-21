@@ -18,6 +18,37 @@ export const GroupInfo: React.FC<GroupInfoProps> = ({ group, currentUserId, onCl
   const [activeTab, setActiveTab] = useState<'members' | 'settings' | 'media'>('members');
   const [searchQuery, setSearchQuery] = useState('');
   const [showInvite, setShowInvite] = useState(false);
+  // QC-F-518: history visibility is a REAL setting backed by
+  // PUT /conversations/:id (admin-only server-side) — not a decorative
+  // toggle like the readOnly checkboxes below.
+  const [historyVisibility, setHistoryVisibility] = useState<'visible' | 'hidden'>(
+    group.settings.historyVisibility ?? 'visible',
+  );
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historySaving, setHistorySaving] = useState(false);
+
+  const handleHistoryVisibilityChange = async (next: 'visible' | 'hidden') => {
+    const previous = historyVisibility;
+    setHistoryVisibility(next);
+    setHistoryError(null);
+    setHistorySaving(true);
+    try {
+      const res = await apiClient.updateConversation(group.id, { historyVisibility: next });
+      if (!res.success) {
+        throw new Error(res.error?.message || 'Failed to update history setting');
+      }
+      onUpdate({
+        ...group,
+        settings: { ...group.settings, historyVisibility: next },
+      });
+    } catch {
+      // Honest failure: revert to the value the server still holds.
+      setHistoryVisibility(previous);
+      setHistoryError('Could not update chat history setting. Please try again.');
+    } finally {
+      setHistorySaving(false);
+    }
+  };
 
   const currentMember = group.members.find(m => m.userId === currentUserId);
   const isAdmin = currentMember?.role === 'owner' || currentMember?.role === 'admin';
@@ -155,6 +186,28 @@ export const GroupInfo: React.FC<GroupInfoProps> = ({ group, currentUserId, onCl
             <span>Join Approval Required</span>
             <input type="checkbox" checked={group.settings.joinApproval} disabled={!isAdmin} readOnly />
           </div>
+          <div className="setting-item">
+            <span>Chat history for new members</span>
+            <select
+              aria-label="Chat history for new members"
+              value={historyVisibility}
+              disabled={!isAdmin || historySaving}
+              onChange={(e) =>
+                handleHistoryVisibilityChange(e.target.value as 'visible' | 'hidden')
+              }
+            >
+              <option value="visible">Visible</option>
+              <option value="hidden">Hidden</option>
+            </select>
+          </div>
+          {!isAdmin && (
+            <p className="setting-note">Only group admins can change history visibility.</p>
+          )}
+          {historyError && (
+            <p className="setting-error" role="alert">
+              {historyError}
+            </p>
+          )}
 
           {/* Invite link */}
           {group.inviteLink && (

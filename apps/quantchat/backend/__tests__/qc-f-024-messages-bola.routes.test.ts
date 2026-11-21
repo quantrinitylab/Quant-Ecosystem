@@ -48,6 +48,16 @@ function makeFakePrisma() {
   const calls = { findMany: 0, count: 0 };
 
   const prisma = {
+    // QC-F-518 fixture support: getMessages reads the conversation row
+    // (type + historyVisibility) to apply the joinedAt history cutoff.
+    // This suite's conversation is a visible group — no cutoff.
+    conversation: {
+      async findUnique({ where }: any) {
+        return where.id === 'conv-1'
+          ? { id: 'conv-1', type: 'GROUP', historyVisibility: 'VISIBLE' }
+          : null;
+      },
+    },
     conversationMember: {
       async findFirst({ where }: any) {
         return (

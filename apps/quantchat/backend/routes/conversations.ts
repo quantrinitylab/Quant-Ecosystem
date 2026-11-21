@@ -8,12 +8,16 @@ const createConversationSchema = z.object({
   type: z.enum(['direct', 'group']),
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
+  // QC-F-518: group history visibility for new members (default visible).
+  historyVisibility: z.enum(['visible', 'hidden']).optional(),
 });
 
 const updateConversationSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
   isArchived: z.boolean().optional(),
+  // QC-F-518: admin-only in the service (rides the name/description gate).
+  historyVisibility: z.enum(['visible', 'hidden']).optional(),
 });
 
 const addMemberSchema = z.object({
@@ -47,6 +51,7 @@ export default async function conversationsRoutes(fastify: FastifyInstance) {
       type: parseResult.data.type,
       name: parseResult.data.name,
       description: parseResult.data.description,
+      historyVisibility: parseResult.data.historyVisibility,
     });
 
     return reply.status(201).send({ success: true, data: conversation });

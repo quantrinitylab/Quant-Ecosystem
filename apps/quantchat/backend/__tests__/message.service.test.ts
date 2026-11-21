@@ -15,6 +15,10 @@ function createMockPrisma() {
       // the row; block list from user preferences — null = readable
       // empty list, 'clear' both directions). No assertion changes.
       findUnique: vi.fn().mockResolvedValue({ id: 'conv-1', type: 'DIRECT' }),
+      // QC-F-518 fixture support: searchMessages reads conversation rows
+      // (type + historyVisibility) to bound hidden-history search. This
+      // harness models no hidden conversations, so findMany answers [].
+      findMany: vi.fn().mockResolvedValue([]),
       update: vi.fn(),
     },
     user: {
@@ -483,7 +487,9 @@ describe('MessageService', () => {
       expect(result.total).toBe(1);
       expect(prisma.conversationMember.findMany).toHaveBeenCalledWith({
         where: { userId: 'user-1', leftAt: null },
-        select: { conversationId: true },
+        // QC-F-518: joinedAt is selected too — it is the history bound
+        // search must enforce for HIDDEN conversations.
+        select: { conversationId: true, joinedAt: true },
       });
       expect(prisma.message.findMany).toHaveBeenCalledWith({
         where: {
