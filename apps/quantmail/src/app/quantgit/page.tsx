@@ -57,6 +57,7 @@ import { CodeTab } from './components/CodeTab';
 import { CommitsTab } from './components/CommitsTab';
 import { mapBackendCommitToItem } from './components/mapBackendCommit';
 import { mapBackendBranchToItem } from './components/mapBackendBranch';
+import { mapBackendPullToPRItem } from './components/mapBackendPull';
 import { BranchesTab } from './components/BranchesTab';
 import { IssuesTab } from './components/IssuesTab';
 import { PullRequestsTab } from './components/PullRequestsTab';
@@ -959,31 +960,10 @@ function QuantGitContent() {  const router = useRouter();
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.data)) {
-            const mappedPulls: PRItem[] = json.data.map((item: any) => ({
-              id: item.number || item.id,
-              title: item.title,
-              state:
-                item.status === 'merged' ? 'merged' : item.status === 'closed' ? 'closed' : 'open',
-              author: item.author || 'user',
-              branchSource: item.branchSource || 'main',
-              branchTarget: item.branchTarget || 'main',
-              // checksStatus honesty (#1071): normalize unrecognized values to 'unknown'
-              // so an untyped leak never reaches the PR detail modal's CI cell.
-              checksStatus: (['passing', 'pending', 'failing', 'unknown'] as string[]).includes(
-                item.checksStatus,
-              )
-                ? item.checksStatus
-                : 'unknown',
-              // Pass through honestly: null (unknown) stays null, never becomes an invented 0.
-              commentsCount: item.commentsCount ?? null,
-              createdAt: item.createdAt || 'recently',
-              body: item.body || '',
-              // Diff stats: pass through honestly — the list endpoint reports
-              // null (unknown) and must never become invented +12/-2 counts.
-              additions: item.additions ?? undefined,
-              deletions: item.deletions ?? undefined,
-              changedFiles: item.changedFiles ?? undefined,
-            }));
+            // Mapped via mapBackendPullToPRItem so the TRUE | FALSE | NULL
+            // review verdict survives verbatim — null (unknown) is never
+            // collapsed into false on the way to the row chip.
+            const mappedPulls: PRItem[] = json.data.map(mapBackendPullToPRItem);
             setPulls(mappedPulls);
           }
         }
