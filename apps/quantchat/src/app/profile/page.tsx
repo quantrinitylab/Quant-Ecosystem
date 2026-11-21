@@ -21,6 +21,7 @@ import { apiClient } from '../../services/api-client';
 import { useMe } from '../../hooks/useMe';
 import { EmojiStatusPicker } from '../../components/EmojiStatusPicker';
 import { EmojiStatusBadge } from '../../components/EmojiStatusBadge';
+import { AppSwitcherMount } from '../../components/ecosystem/AppSwitcherMount';
 import type { EmojiStatusView } from '../../types';
 
 interface RouteTile {
@@ -296,6 +297,18 @@ export default function ProfilePage() {
                 <span className="text-xs text-gray-400">Manage alert categories</span>
               </button>
             </div>
+          </section>
+
+          {/* QC-F-050: ecosystem jumps — the only in-app route to the user's
+              other Quant apps (same Quant Account). */}
+          <section>
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">
+              Ecosystem
+            </h3>
+            <p className="mb-3 text-xs text-gray-500">
+              Jump to your other Quant apps — same Quant Account.
+            </p>
+            <AppSwitcherMount user={me} />
           </section>
         </div>
       </div>

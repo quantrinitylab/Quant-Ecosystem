@@ -127,6 +127,9 @@ vi.mock('@quant/shared-ui', () => ({
   BottomNav: () => null,
   LoadingState: () => React.createElement('div', null, 'Loading'),
   ErrorState: () => React.createElement('div', null, 'Error'),
+  // QC-F-050: the profile page now mounts the ecosystem app switcher for real;
+  // stub it so this suite keeps pinning bio-edit behaviour, not the switcher.
+  UniversalAppSwitcher: () => null,
 }));
 
 vi.mock('../components/avatar/AlienAvatar', () => ({
