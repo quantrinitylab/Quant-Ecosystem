@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError, RepositoryHeadConflictError } from '@quant/server-core';
+import { accountLiveness } from '../lib/account-liveness';
 import { RepoMigrationService, repoMigrationService } from '../services/repo-migration.service';
 
 const execFileAsync = promisify(execFile);
@@ -512,6 +513,19 @@ interface CollaboratorRecord {
     email: string | null;
     avatarUrl: string | null;
   };
+}
+
+// The collaborator-grant target account. Declared as a named interface on
+// purpose: `NonNullable<typeof targetUser>` collapses to `never` because a
+// `typeof` type query picks up the control-flow-narrowed type (`null`) at
+// the declaration site — the named interface avoids that trap.
+interface CollaboratorTargetUser {
+  id: string;
+  displayName?: string | null;
+  email?: string | null;
+  avatarUrl?: string | null;
+  status?: string | null;
+  deletedAt?: Date | string | null;
 }
 
 interface TagRecord {
@@ -3631,46 +3645,113 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const parsed = addCollaboratorSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
 
-    let targetUser: {
-      id: string;
-      displayName?: string | null;
-      email?: string | null;
-      avatarUrl?: string | null;
-    } | null = null;
+    // The collaborator grant resolves a target account and then binds the
+    // validated recipient ID to execution — the grant below never re-resolves
+    // the recipient, so a case-colliding row cannot slip back in after
+    // validation. The liveness gate applies to BOTH paths: the userId path
+    // (an approved ID from a user-search preview) and the email path.
+    let targetUser: CollaboratorTargetUser | null = null;
 
     if (parsed.data.userId) {
+      // Approved-recipient binding: the caller already resolved and approved
+      // this exact user ID (e.g. from a user-search preview step), so the
+      // lookup binds to the ID as given — it is never re-resolved by email.
       targetUser = await prisma.user.findUnique({
         where: { id: parsed.data.userId },
-        select: { id: true, displayName: true, email: true, avatarUrl: true },
+        select: {
+          id: true,
+          displayName: true,
+          email: true,
+          avatarUrl: true,
+          status: true,
+          deletedAt: true,
+        },
       });
     } else if (parsed.data.email) {
-      if (typeof prisma.user?.findFirst === 'function') {
-        // Case-insensitive match: legacy User rows predate email normalization
-        // and may carry mixed case (e.g. `LegacyCase@quantmail.in`), so a
-        // case-exact lookup 404s a real account. Mirrors
-        // routes/auth.ts findUserByEmailInsensitive and the drive share-link
-        // audience fix (PR #1336).
-        targetUser = await prisma.user.findFirst({
+      // CODEX-REVIEW 6257321380 (#1345): find ALL live rows matching the
+      // email case-insensitively. Legacy User rows predate email
+      // normalization and two rows may differ only by case
+      // (person@example.com vs Person@example.com); a first-row-wins pick
+      // would grant the collaborator role to the wrong account based on row
+      // order, not the validated subject. `take: 2` is enough to detect the
+      // collision: on ambiguity the grant is REJECTED with zero writes and
+      // the caller must disambiguate by userId. Only non-tombstoned rows
+      // are eligible — `deletedAt: null` mirrors routes/auth.ts
+      // findUserByEmailInsensitive, so a tombstoned case-twin does not block
+      // a live account.
+      const collabUserSelect = {
+        id: true,
+        displayName: true,
+        email: true,
+        avatarUrl: true,
+        status: true,
+        deletedAt: true,
+      };
+      let matches: CollaboratorTargetUser[] = [];
+      if (typeof prisma.user?.findMany === 'function') {
+        matches = await prisma.user.findMany({
+          where: { email: { equals: parsed.data.email, mode: 'insensitive' }, deletedAt: null },
+          select: collabUserSelect,
+          take: 2,
+        });
+      } else if (typeof prisma.user?.findFirst === 'function') {
+        // Fallback for prisma doubles that only implement findFirst. Mirrors
+        // the old single-row behaviour; case-collision detection needs
+        // findMany, which the real Prisma client always provides.
+        const one = await prisma.user.findFirst({
           where: { email: { equals: parsed.data.email, mode: 'insensitive' } },
-          select: { id: true, displayName: true, email: true, avatarUrl: true },
+          select: collabUserSelect,
         });
-      }
-      if (!targetUser && typeof prisma.user?.findUnique === 'function') {
-        // Fallback for prisma doubles that only implement findUnique. Kept
-        // case-exact on purpose: Prisma rejects `mode` inside findUnique's
-        // unique filter ("Argument `email`: Invalid value provided. Expected
-        // String, provided Object"), so an insensitive filter here would 500
-        // on a real client. Real lookups are already handled
-        // case-insensitively by findFirst above.
-        targetUser = await prisma.user.findUnique({
+        matches = one ? [one] : [];
+        if (!one && typeof prisma.user?.findUnique === 'function') {
+          // Fallback for doubles that only implement findUnique: kept
+          // case-exact on purpose — Prisma rejects `mode` inside findUnique's
+          // unique filter ("Expected String, provided Object" on a real
+          // client), so an insensitive filter here would 500.
+          const exact = await prisma.user.findUnique({
+            where: { email: parsed.data.email },
+            select: collabUserSelect,
+          });
+          matches = exact ? [exact] : [];
+        }
+      } else if (typeof prisma.user?.findUnique === 'function') {
+        const exact = await prisma.user.findUnique({
           where: { email: parsed.data.email },
-          select: { id: true, displayName: true, email: true, avatarUrl: true },
+          select: collabUserSelect,
         });
+        matches = exact ? [exact] : [];
       }
+      if (matches.length > 1) {
+        throw createAppError(
+          'This email address matches more than one account with different ' +
+            'capitalisation. The collaborator grant is rejected instead of ' +
+            'picking one account — re-send with the userId of the intended ' +
+            'account.',
+          409,
+          'EMAIL_CASE_CONFLICT',
+        );
+      }
+      targetUser = matches[0] ?? null;
     }
 
     if (!targetUser) {
       throw createAppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+
+    // Active-subject validation (lib/account-liveness): a tombstoned row
+    // answers exactly like a missing one so the tombstone cannot be probed;
+    // a suspended/deactivated live row answers honestly. PENDING_VERIFICATION
+    // stays grant-eligible: address proof gates individual actions, not the
+    // collaborator invitation itself.
+    const liveness = accountLiveness(targetUser);
+    if (liveness === 'deleted') {
+      throw createAppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+    if (liveness === 'suspended') {
+      throw createAppError('This account is suspended.', 403, 'ACCOUNT_SUSPENDED');
+    }
+    if (liveness === 'deactivated') {
+      throw createAppError('This account is deactivated.', 403, 'ACCOUNT_DEACTIVATED');
     }
 
     if (targetUser.id === repo.ownerId) {
@@ -3681,8 +3762,13 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       );
     }
 
+    // Bind the validated recipient ID to execution: every downstream step
+    // (existing-role check, create/update, response) uses this frozen ID —
+    // it is never re-resolved, so a case-colliding row cannot slip back in.
+    const recipientUserId = targetUser.id;
+
     const collabs = await getCollaboratorsForRepo(prisma, repo.id);
-    const existingIndex = collabs.findIndex((c) => c.userId === targetUser!.id);
+    const existingIndex = collabs.findIndex((c) => c.userId === recipientUserId);
     const isUpdate = existingIndex !== -1;
 
     let collaboratorRecord: CollaboratorRecord;
@@ -3714,7 +3800,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       collaboratorRecord = {
         id: `collab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         repoId: repo.id,
-        userId: targetUser.id,
+        userId: recipientUserId,
         role: parsed.data.role,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -3730,7 +3816,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           const created = await prisma.repositoryCollaborator.create({
             data: {
               repoId: repo.id,
-              userId: targetUser.id,
+              userId: recipientUserId,
               role: parsed.data.role,
             },
           });
@@ -3747,7 +3833,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       success: true,
       data: {
         id: collaboratorRecord.id,
-        userId: targetUser.id,
+        userId: recipientUserId,
         role: parsed.data.role,
         user: {
           displayName: targetUser.displayName ?? '',
