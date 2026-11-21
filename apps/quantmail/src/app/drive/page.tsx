@@ -1500,13 +1500,22 @@ function DrivePageContent() {
            * secondary (non-primary) actions below.
            */}
           <div className="relative">
+            {/*
+             * qm-drive-new-touch-target: on coarse pointers (phones/tablets)
+             * this button must meet the >=44px touch floor in both dims.
+             * h-8 is 32px, so the coarse-pointer min-h-11/min-w-11 floor
+             * lifts it to 44px on touch devices only; fine-pointer desktop
+             * keeps h-8, so the desktop toolbar layout is unchanged. The
+             * chevron is an icon inside this one button, not a separate
+             * target, so this single floor covers the whole control.
+             */}
             <button
               type="button"
               onClick={() => setIsNewMenuOpen((prev) => !prev)}
               aria-haspopup="menu"
               aria-expanded={isNewMenuOpen}
               aria-label="New: upload files, create a document or a folder"
-              className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--app-accent)] px-2 text-xs font-semibold text-[#111111] transition-colors hover:bg-[var(--app-accent-hover)] active:bg-[var(--quant-primary-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] md:px-3"
+              className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--app-accent)] px-2 text-xs font-semibold text-[#111111] transition-colors hover:bg-[var(--app-accent-hover)] active:bg-[var(--app-accent-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] md:px-3 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
             >
               <IconUpload size={14} />
               <span className="hidden md:inline">New</span>
