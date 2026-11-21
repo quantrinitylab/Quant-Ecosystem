@@ -12,10 +12,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   SIGNATURE_DELIMITER,
+  buildForwardQuote,
   buildReplyQuote,
   composeMessageBodies,
   escapeHtml,
   htmlToPlainText,
+  normalizeForwardSubject,
   plainTextToHtml,
   stripTrailingSignature,
 } from '../lib/email-body';
@@ -269,5 +271,60 @@ describe('buildReplyQuote', () => {
   it('never invents a sender when from is missing', () => {
     const quote = buildReplyQuote({ bodyText: 'x' });
     expect(quote).toContain('Unknown sender wrote:');
+  });
+});
+
+describe('buildForwardQuote', () => {
+  it('builds a Gmail-class forwarded block with typing room above it', () => {
+    const forwarded = buildForwardQuote({
+      from: { email: 'jane@example.com', name: 'Jane' },
+      to: [{ email: 'bob@example.com' }],
+      subject: 'Hello',
+      receivedAt: '2026-10-18T12:34:00.000Z',
+      bodyText: 'Original words.\nSecond line.',
+    });
+    expect(forwarded.startsWith('\n\n---------- Forwarded message ---------')).toBe(true);
+    expect(forwarded).toContain('From: Jane <jane@example.com>');
+    expect(forwarded).toContain('Subject: Hello');
+    expect(forwarded).toContain('To: bob@example.com');
+    // The full original travels with the forward — nothing elided.
+    expect(forwarded).toContain('Original words.\nSecond line.');
+  });
+
+  it('falls back from bodyText to bodyHtml, then to the snippet', () => {
+    const html = buildForwardQuote({
+      from: { email: 'a@b.c' },
+      subject: 'S',
+      bodyHtml: '<p>Hi</p><p>there</p>',
+    });
+    expect(html).toContain('Hi\nthere');
+    const snip = buildForwardQuote({ from: { email: 'a@b.c' }, subject: 'S', snippet: 'Just a snippet' });
+    expect(snip).toContain('Just a snippet');
+  });
+
+  it('never invents content when the original has no text or sender', () => {
+    const empty = buildForwardQuote({ subject: 'S' });
+    expect(empty).toContain('From: Unknown sender');
+    expect(empty).toContain('Date: an unknown date');
+    expect(empty).toContain('(the original message has no text to forward)');
+    expect(empty).not.toContain('To:');
+  });
+
+  it('falls back to a no-subject header instead of inventing one', () => {
+    const noSubject = buildForwardQuote({ from: { email: 'a@b.c' }, bodyText: 'x' });
+    expect(noSubject).toContain('Subject: (no subject)');
+  });
+});
+
+describe('normalizeForwardSubject', () => {
+  it('collapses stacked Fwd:/Fw: prefixes down to exactly one Fwd:', () => {
+    expect(normalizeForwardSubject('Fwd: Fw: Fwd: Hello')).toBe('Fwd: Hello');
+    expect(normalizeForwardSubject('Hello')).toBe('Fwd: Hello');
+    expect(normalizeForwardSubject('Fwd: Hello')).toBe('Fwd: Hello');
+  });
+
+  it('never produces a bare prefix for an empty or prefix-only subject', () => {
+    expect(normalizeForwardSubject('')).toBe('');
+    expect(normalizeForwardSubject('Fwd:')).toBe('');
   });
 });

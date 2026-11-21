@@ -191,12 +191,88 @@ export function stripTrailingSignature(text: string): string {
  */
 export interface QuotableMessage {
   from?: { email?: string; name?: string } | null;
+  to?: Array<{ email?: string; name?: string } | string> | null;
+  subject?: string | null;
   receivedAt?: DateLike;
   createdAt?: DateLike;
   updatedAt?: DateLike;
   bodyText?: string | null;
   bodyHtml?: string | null;
   snippet?: string | null;
+}
+
+/**
+ * The original's usable text, in the same preference order the reply quote
+ * uses: plain text first, then HTML flattened to text, then the snippet.
+ */
+function extractOriginalText(message: QuotableMessage): string {
+  return (
+    (message?.bodyText && message.bodyText.trim()) ||
+    (message?.bodyHtml ? htmlToPlainText(message.bodyHtml) : '') ||
+    (message?.snippet?.trim() ?? '')
+  );
+}
+
+/**
+ * Normalize a forwarded subject down to exactly ONE "Fwd: " prefix — the
+ * forward twin of the compose page's reply-subject normalizer. Stacked
+ * "Fwd: Fw: …" prefixes (a message forwarded twice) collapse to one; an
+ * empty subject stays empty rather than becoming a bare "Fwd: ".
+ */
+export function normalizeForwardSubject(subject: string): string {
+  const base = subject.replace(/^(Fwd?:\s*)+/i, '').trim();
+  return base ? `Fwd: ${base}` : '';
+}
+
+/**
+ * Build the forwarded body for a forwarded original, Gmail-style:
+ *
+ *     ---------- Forwarded message ---------
+ *     From: Jane <jane@example.com>
+ *     Date: Oct 19, 2026, 6:24 PM
+ *     Subject: Hello
+ *     To: bob@example.com
+ *
+ *     <the original's full text, unelided>
+ *
+ * The two leading blank lines are the typing area above the forwarded block,
+ * mirroring the reply quote. When the message carries no usable text at all
+ * the header still says what is being forwarded, instead of inventing
+ * content. The To line is omitted when the original names no recipients
+ * rather than inventing one.
+ */
+export function buildForwardQuote(message: QuotableMessage): string {
+  const from = message?.from ?? null;
+  const fromName = from?.name?.trim();
+  const fromEmail = from?.email?.trim();
+  const who =
+    fromName && fromEmail
+      ? `${fromName} <${fromEmail}>`
+      : fromName || fromEmail || 'Unknown sender';
+  const when = resolveMessageDate(message ?? {});
+  const whenText = when
+    ? when.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : 'an unknown date';
+  const subject = message?.subject?.trim() || '(no subject)';
+  const recipients = (message?.to ?? [])
+    .map((t) => (typeof t === 'string' ? t.trim() : t?.email?.trim() || ''))
+    .filter(Boolean);
+  const headerLines = [
+    '---------- Forwarded message ---------',
+    `From: ${who}`,
+    `Date: ${whenText}`,
+    `Subject: ${subject}`,
+    ...(recipients.length ? [`To: ${recipients.join(', ')}`] : []),
+  ];
+  const original = extractOriginalText(message);
+  const body = original || '(the original message has no text to forward)';
+  return `\n\n${headerLines.join('\n')}\n\n${body}`;
 }
 
 /**
@@ -225,10 +301,7 @@ export function buildReplyQuote(message: QuotableMessage): string {
         minute: '2-digit',
       })
     : 'an unknown date';
-  const original =
-    (message?.bodyText && message.bodyText.trim()) ||
-    (message?.bodyHtml ? htmlToPlainText(message.bodyHtml) : '') ||
-    (message?.snippet?.trim() ?? '');
+  const original = extractOriginalText(message);
   const quoted = original
     ? original
         .split('\n')
