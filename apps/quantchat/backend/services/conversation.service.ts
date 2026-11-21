@@ -53,7 +53,9 @@ export interface CreateConversationInput {
 
 export interface UpdateConversationInput {
   name?: string;
-  description?: string;
+  // QC-F-553: `null` = clear the description (explicit); `undefined` = omit
+  // (no change). The nullable Prisma column stores the clear as NULL.
+  description?: string | null;
   isArchived?: boolean;
 }
 
@@ -632,6 +634,8 @@ export class ConversationService {
     // the group's identity (name/description) is an admin action — a plain
     // member or outsider renaming the group was the takeover's first step.
     // Archive-only updates stay available to any member.
+    // QC-F-553: a description CLEAR (explicit null) is an identity change
+    // too — `null !== undefined`, so it takes this same admin gate.
     if (data.name !== undefined || data.description !== undefined) {
       await this.requireAdmin(id, requesterId);
     } else {
@@ -642,6 +646,8 @@ export class ConversationService {
       where: { id },
       data: {
         ...(data.name !== undefined && { name: data.name }),
+        // QC-F-553: description may deliberately be null here (clear) — the
+        // `!== undefined` guard passes it through to the nullable column.
         ...(data.description !== undefined && { description: data.description }),
         ...(data.isArchived !== undefined && { isArchived: data.isArchived }),
       },

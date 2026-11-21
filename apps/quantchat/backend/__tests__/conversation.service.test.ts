@@ -440,6 +440,90 @@ describe('ConversationService', () => {
         'Conversation not found',
       );
     });
+
+    // QC-F-553 (pin — the service's `!== undefined` logic was already
+    // null-correct; these lock the behaviour against future refactors.
+    // They are NOT negative controls: the NC lives at the zod/route layer
+    // and the Flutter wire layer, where the defect actually sat.)
+    it('T553-B1: OWNER clear (description: null) reaches Prisma as null', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', name: 'Team Chat' });
+      prisma.conversationMember.findFirst.mockResolvedValue({
+        id: 'member-1',
+        conversationId: 'conv-1',
+        userId: 'user-1',
+        role: 'OWNER',
+      });
+      prisma.conversation.update.mockResolvedValue({ id: 'conv-1', description: null });
+
+      const result = await service.updateConversation('conv-1', 'user-1', { description: null });
+
+      expect(prisma.conversation.update).toHaveBeenCalledWith({
+        where: { id: 'conv-1' },
+        data: { description: null },
+      });
+      expect(result.description).toBeNull();
+    });
+
+    it('T553-B2: plain MEMBER clear is rejected NOT_CONVERSATION_ADMIN, update never called', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', name: 'Team Chat' });
+      prisma.conversationMember.findFirst.mockResolvedValue({
+        id: 'member-2',
+        conversationId: 'conv-1',
+        userId: 'user-2',
+        role: 'MEMBER',
+      });
+
+      await expect(
+        service.updateConversation('conv-1', 'user-2', { description: null }),
+      ).rejects.toMatchObject({ code: 'NOT_CONVERSATION_ADMIN', statusCode: 403 });
+      expect(prisma.conversation.update).not.toHaveBeenCalled();
+    });
+
+    it('T553-B3 (control): plain MEMBER empty update stays on the membership path', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', name: 'Team Chat' });
+      prisma.conversationMember.findFirst.mockResolvedValue({
+        id: 'member-2',
+        conversationId: 'conv-1',
+        userId: 'user-2',
+        role: 'MEMBER',
+      });
+      prisma.conversation.update.mockResolvedValue({ id: 'conv-1', name: 'Team Chat' });
+
+      await service.updateConversation('conv-1', 'user-2', {});
+
+      expect(prisma.conversation.update).toHaveBeenCalledWith({
+        where: { id: 'conv-1' },
+        data: {},
+      });
+    });
+
+    it('T553-B4 (control): MEMBER archive-only + OWNER description set unchanged', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', name: 'Team Chat' });
+      prisma.conversation.update.mockResolvedValue({ id: 'conv-1' });
+      prisma.conversationMember.findFirst.mockResolvedValue({
+        id: 'member-2',
+        conversationId: 'conv-1',
+        userId: 'user-2',
+        role: 'MEMBER',
+      });
+      await service.updateConversation('conv-1', 'user-2', { isArchived: true });
+      expect(prisma.conversation.update).toHaveBeenCalledWith({
+        where: { id: 'conv-1' },
+        data: { isArchived: true },
+      });
+
+      prisma.conversationMember.findFirst.mockResolvedValue({
+        id: 'member-1',
+        conversationId: 'conv-1',
+        userId: 'user-1',
+        role: 'OWNER',
+      });
+      await service.updateConversation('conv-1', 'user-1', { description: 'Naya' });
+      expect(prisma.conversation.update).toHaveBeenCalledWith({
+        where: { id: 'conv-1' },
+        data: { description: 'Naya' },
+      });
+    });
   });
 
   describe('markRead', () => {
