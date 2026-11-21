@@ -2423,7 +2423,9 @@ Dependencies: QM-AUTH-009.
 Validation: source audit reproduced the token query construction; no implementation claim yet.
 
 ## QM-AUTH-012 — Allowlisted login result messaging
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-auth-012-allowlisted-login-result
 Finding: login reads arbitrary `success` query text and renders it as success UI. Replace with allowlisted internal result codes mapped to centralized copy.
 Dependencies: QM-AUTH-004.
 
