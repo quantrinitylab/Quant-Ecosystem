@@ -490,7 +490,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
   // session → the user bounced back to /login forever.
   //
   // This PUBLIC endpoint verifies the SSO token back-channel against QuantMail's
-  // `/api/oauth/userinfo`, upserts the user by verified email, and returns
+  // `/api/oauth/userinfo`, REFUSES the exchange unless QuantMail proves the
+  // email is verified (QC-F-578), upserts the user, and returns
   // QuantChat-native tokens minted by `sessionTokens`.
   fastify.post('/sso/exchange', async (request, reply) => {
     const parsed = ssoExchangeSchema.safeParse(request.body);
@@ -568,6 +569,33 @@ export default async function authRoutes(fastify: FastifyInstance) {
             },
           });
         }
+        // QC-F-578 (P0): QuantMail's /oauth/userinfo returns NO email_verified
+        // field (only the OIDC id_token carries it, and this exchange never
+        // receives it). Treating that silence as "verified" was the account
+        // takeover: an UNVERIFIED QuantMail account exchanged into a
+        // QuantChat session matched by email, and upsertSsoUser/recordLogin
+        // then stamped emailVerified:true/isVerified:true on the victim's
+        // row. Fail closed: the ONLY acceptable proof is an explicit
+        // email_verified === true on the verified userinfo response. Anything
+        // else — absent (current QuantMail behaviour), false, or a
+        // non-boolean — is refused with no upsert and no tokens. QuantMail
+        // must expose email_verified for verified SSO to work again
+        // (cross-lane dependency, escalated in the war room).
+        const emailVerified = (data as { email_verified?: unknown }).email_verified;
+        if (emailVerified !== true) {
+          request.log.warn(
+            { ssoEmailVerifiedPresent: emailVerified !== undefined },
+            'sso exchange refused: QuantMail did not prove email verification (QC-F-578)',
+          );
+          return reply.status(403).send({
+            success: false,
+            error: {
+              code: 'SSO_EMAIL_UNVERIFIED',
+              message: 'SSO identity email is not verified by QuantMail',
+              statusCode: 403,
+            },
+          });
+        }
         identity = {
           email: data.email.toLowerCase(),
           username: typeof data.username === 'string' ? data.username : undefined,
@@ -595,10 +623,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // 2. Upsert the QuantChat user by verified email.
+    // 2. Upsert the QuantChat user by QuantMail-PROVEN-verified email.
+    //    upsertSsoUser receives the verification proof so it never sets
+    //    emailVerified/isVerified from an unverified SSO path (QC-F-578).
     let ssoUpsert: Awaited<ReturnType<typeof upsertSsoUser>>;
     try {
-      ssoUpsert = await upsertSsoUser(prisma, identity);
+      ssoUpsert = await upsertSsoUser(prisma, identity, { emailVerified: true });
     } catch (err) {
       // QC-F-041: deleted QuantChat account — a clean refusal, not a 500.
       if (err instanceof AccountDeletedError) {
@@ -979,10 +1009,18 @@ export default async function authRoutes(fastify: FastifyInstance) {
  * Find-or-create a user by QuantMail-verified SSO identity. New users get an
  * unusable password (they authenticate via QuantMail SSO, never password) and a
  * unique username derived from their QuantMail handle.
+ *
+ * QC-F-578: verification flags are NEVER set from an unverified SSO path.
+ * The caller proves email verification (email_verified === true on QuantMail's
+ * verified userinfo response) and passes it as opts.emailVerified; the upsert
+ * sets emailVerified/isVerified ONLY from that proof. The route refuses
+ * unverified exchanges before reaching here, but this is the second lock:
+ * this function itself never fabricates verification.
  */
 async function upsertSsoUser(
   prisma: PrismaClient,
   identity: { email: string; username?: string; displayName?: string },
+  opts: { emailVerified: boolean },
 ): Promise<{
   user: { id: string; email: string; username: string; displayName: string; role: unknown };
   isNewUser: boolean;
@@ -1045,8 +1083,11 @@ async function upsertSsoUser(
       data: {
         lastLoginAt: new Date(),
         loginCount: { increment: 1 },
-        emailVerified: true,
-        isVerified: true,
+        // QC-F-578: verification flags come ONLY from a verified SSO proof.
+        // An unverified exchange is refused before upsert, and this path
+        // additionally never fabricates them: without the proof the row's
+        // existing verification state is left untouched.
+        ...(opts.emailVerified ? { emailVerified: true, isVerified: true } : {}),
       },
     });
     return { user: row, isNewUser: false as const };
@@ -1080,8 +1121,9 @@ async function upsertSsoUser(
           username,
           displayName: identity.displayName || identity.username || email.split('@')[0] || 'Quant User',
           passwordHash: UNUSABLE_PASSWORD,
-          emailVerified: true,
-          isVerified: true,
+          // QC-F-578: from the verified SSO proof only — never fabricated.
+          emailVerified: opts.emailVerified,
+          isVerified: opts.emailVerified,
           status: 'ACTIVE',
           lastLoginAt: new Date(),
           loginCount: 1,
