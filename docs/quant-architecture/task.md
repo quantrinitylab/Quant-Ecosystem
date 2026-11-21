@@ -3126,7 +3126,7 @@ Dependencies: QM-SCREEN-035; security/secrets architecture.
 Validation: source audit on 2026-10-08 inspected the default secret-alert array and confirmed raw secret-shaped values are embedded in the backend route; no remediation implementation claim yet.
 
 ## QM-SCREEN-037 — Remove the dead Drive legacy sample dataset from production source
-Status: [~] IN_PROGRESS
+Status: [x] DONE — FULLY COVERED on origin/main (build verdict 2026-11-21, BUILD #1 02bb546b: _sampleFeedItems zero hits in production source on origin/main; Drive feed populated only from canonical Drive API/query layer; regression suite 29/29 green — drive-categories-feed-memory 18/18 + drive-fake-data-purge 8/8 + drive-filesubview-deadcode-removed 3/3; no code change needed)
 Owner: muse-main
 Branch: fix/qm-screen-037-drive-legacy-sample-purge
 Finding: `apps/quantmail/src/components/DriveSubViews.tsx` still allocates a large `_sampleFeedItems` array with invented file names, sizes, dates, media metadata and preview gradients. The code comment says it is “kept for reference” and it is not rendered, but the repository's implementation-status document independently lists this exact dataset as a dead legacy dataset that should be removed. Keeping it in the production component creates a second implied data model and makes future regressions easier: a later refactor can accidentally re-enable fabricated Drive activity.
