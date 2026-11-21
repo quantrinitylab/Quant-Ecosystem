@@ -3746,7 +3746,9 @@ Validation: source audit on 2026-10-08 verified `DraftLocalStorage` contains onl
 
 ## QM-SCREEN-064 — QuantMail Flutter SuperApp composer must call the real send contract instead of reporting success from a local toast
 
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-screen-064-flutter-superapp-real-send
 
 Finding: the production Flutter SuperApp compose path wires `EmailComposerModal.show(... onSendQueued: ...)` into `UndoSendManager.enqueueDraft`, but its `onFinalSend` callback does not call a mail API, repository, transport or outbox. In `flutter_apps/apps/quant_mail/lib/screens/superapp/superapp_home_screen.dart`, `onFinalSend: (d) async { ... }` only invokes `ScaffoldMessenger.of(context).showSnackBar(...)` with `Email sent to ...`. It completes normally, so `UndoSendManager._flushSend()` transitions the message to `sent` and displays its own successful-delivery toast even though no send operation is performed by this path. This is a direct production-flow gap, not a test fixture.
 
