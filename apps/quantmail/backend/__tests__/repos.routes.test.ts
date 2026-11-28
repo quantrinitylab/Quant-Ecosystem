@@ -1966,6 +1966,93 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     );
   });
 
+  it('POST /repos/:id/collaborators returns 409 and grants nothing when the email matches two case-colliding accounts', async () => {
+    const app = await buildApp('user-1');
+    // Two legacy rows differing only by case — the exact class the drive
+    // share-recipient fix (#1524) closed. The old findFirst lookup would
+    // have granted repo access to whichever row the DB returned first.
+    (prisma.user as any).findMany = vi.fn().mockResolvedValue([
+      {
+        id: 'user-lower',
+        displayName: 'Lower Case',
+        email: 'person@example.com',
+        avatarUrl: null,
+      },
+      {
+        id: 'user-upper',
+        displayName: 'Upper Case',
+        email: 'Person@example.com',
+        avatarUrl: null,
+      },
+    ]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        email: 'person@example.com',
+        role: 'WRITE',
+      },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'COLLABORATOR_EMAIL_AMBIGUOUS',
+        }),
+      }),
+    );
+    expect((prisma.user as any).findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          email: { equals: 'person@example.com', mode: 'insensitive' },
+        },
+        take: 2,
+      }),
+    );
+
+    // Fail closed means no grant to either colliding account.
+    const listRes = await app.inject({
+      method: 'GET',
+      url: '/repos/repo-1/collaborators',
+    });
+    expect(listRes.json().data).toEqual([]);
+  });
+
+  it('POST /repos/:id/collaborators invites by email when findMany resolves exactly one account', async () => {
+    const app = await buildApp('user-1');
+    (prisma.user as any).findMany = vi.fn().mockResolvedValue([
+      {
+        id: 'user-solo',
+        displayName: 'Solo User',
+        email: 'solo@example.test',
+        avatarUrl: null,
+      },
+    ]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        email: 'solo@example.test',
+        role: 'READ',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({
+          userId: 'user-solo',
+          role: 'READ',
+        }),
+      }),
+    );
+  });
+
   it('POST /repos/:id/collaborators updates an existing collaborator role and returns 200', async () => {
     const app = await buildApp('user-1');
 
