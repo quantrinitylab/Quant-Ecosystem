@@ -34,6 +34,13 @@
  *
  * Deliberately no SMS/phone OTP: the product has no phone OTP infra and the
  * locked design removed phone login/OTP; recovery is email only.
+ *
+ * Case-colliding legacy rows (two accounts differing only by email case) are
+ * never resolved first-row-wins: the request endpoint mints nothing and
+ * mails nothing (still the non-committal 200, so it stays non-oracular),
+ * and the confirm endpoint 409s EMAIL_CASE_CONFLICT exactly like login.
+ * Suspended/deactivated accounts are gated after the password check, also
+ * like login, and re-checked inside the consumption transaction.
  */
 
 /* eslint-disable no-console */
@@ -41,6 +48,7 @@
 import { FastifyInstance } from 'fastify';
 import prisma from '@quant/auth/lib/prisma';
 import * as argon2 from 'argon2';
+import { accountLiveness } from '../lib/account-liveness';
 import { fail, requireTrustedOrigin } from '../lib/auth-session';
 import {
   MAX_VERIFICATION_ATTEMPTS,
@@ -134,6 +142,34 @@ const twoFactorArmed = (user: {
   twoFactorEnabled?: boolean | null;
   twoFactorSecret?: string | null;
 }): boolean => Boolean(user.twoFactorEnabled && user.twoFactorSecret);
+
+/**
+ * Case-insensitive account resolution, mirroring auth.ts's
+ * findUserByEmailInsensitive: legacy rows can collide on case (e.g. Kundan@
+ * vs kundan@), and a findFirst here would silently resolve recovery against
+ * whichever twin the database returns first. take: 2 is enough — more than
+ * one match is the conflict, and the caller decides what it may disclose.
+ */
+type CaseInsensitiveLookup<T> = { user: T | null; conflict: boolean };
+
+const findSingleUserByEmailInsensitive = async <T>(
+  normalizedEmail: string,
+): Promise<CaseInsensitiveLookup<T>> => {
+  const matches = (await prisma.user.findMany({
+    where: { email: { equals: normalizedEmail, mode: 'insensitive' }, deletedAt: null },
+    take: 2,
+  })) as T[];
+  if (matches.length > 1) {
+    return { user: null, conflict: true };
+  }
+  return { user: matches[0] ?? null, conflict: false };
+};
+
+/** The login endpoint's answer for case-colliding rows — reused verbatim so
+ *  both entry points say the same thing about the same condition. */
+const EMAIL_CASE_CONFLICT_MESSAGE =
+  'This email address is registered on more than one account with different capitalisation. ' +
+  'Sign-in is paused for these accounts until the addresses are merged — contact support.';
 
 /** Only a VERIFIED recovery address is the channel. Legacy #1254 rows
  *  (address set, never verified) are inert — exactly as in password-reset. */
@@ -251,26 +287,25 @@ export async function twoFactorRecoveryRoutes(fastify: FastifyInstance) {
       }
       const normalized = normalizeEmail(email);
 
-      const user = (await prisma.user.findFirst({
-        where: {
-          email: { equals: normalized, mode: 'insensitive' },
-          deletedAt: null,
-        },
-      })) as
-        | {
-            id: string;
-            email: string;
-            twoFactorEnabled?: boolean | null;
-            twoFactorSecret?: string | null;
-            recoveryEmail?: string | null;
-            recoveryEmailVerifiedAt?: Date | string | null;
-          }
-        | null;
+      // Case-colliding rows are NOT resolved first-row-wins: with two twins
+      // there is no single account a challenge could belong to, so nothing is
+      // minted and nothing is mailed. The answer stays the non-committal 200
+      // — unlike login, this endpoint must not become an oracle for which
+      // addresses have colliding rows.
+      const lookup = await findSingleUserByEmailInsensitive<{
+        id: string;
+        email: string;
+        twoFactorEnabled?: boolean | null;
+        twoFactorSecret?: string | null;
+        recoveryEmail?: string | null;
+        recoveryEmailVerifiedAt?: Date | string | null;
+      }>(normalized);
+      const user = lookup.conflict ? null : lookup.user;
 
       // Only when the account is genuinely in the both-factors-lost state with
       // a usable channel does anything happen. Every other case — unknown
-      // address, 2FA off, no recovery email, or a legacy unverified address —
-      // gets the same non-committal 200.
+      // address, case-colliding rows, 2FA off, no recovery email, or a legacy
+      // unverified address — gets the same non-committal 200.
       if (user && twoFactorArmed(user) && hasVerifiedRecoveryEmail(user)) {
         const recoveryAddress = normalizeEmail(user.recoveryEmail as string);
         const code = generateVerificationCode();
@@ -344,28 +379,44 @@ export async function twoFactorRecoveryRoutes(fastify: FastifyInstance) {
       }
       const normalized = normalizeEmail(email);
 
-      const user = (await prisma.user.findFirst({
-        where: {
-          email: { equals: normalized, mode: 'insensitive' },
-          deletedAt: null,
-        },
-      })) as
-        | {
-            id: string;
-            email: string;
-            passwordHash: string;
-            twoFactorEnabled?: boolean | null;
-            twoFactorSecret?: string | null;
-            recoveryEmail?: string | null;
-            recoveryEmailVerifiedAt?: Date | string | null;
-          }
-        | null;
+      // Case-colliding rows 409 here, exactly like login: the caller is
+      // about to prove a password, and no single twin can own that proof —
+      // resolving first-row-wins would let one twin's password reset the
+      // other twin's 2FA. Login already discloses this condition
+      // pre-password, so the confirm endpoint does not leak anything new.
+      const lookup = await findSingleUserByEmailInsensitive<{
+        id: string;
+        email: string;
+        passwordHash: string;
+        status?: string | null;
+        twoFactorEnabled?: boolean | null;
+        twoFactorSecret?: string | null;
+        recoveryEmail?: string | null;
+        recoveryEmailVerifiedAt?: Date | string | null;
+      }>(normalized);
+      if (lookup.conflict) {
+        return fail(reply, 409, 'EMAIL_CASE_CONFLICT', EMAIL_CASE_CONFLICT_MESSAGE);
+      }
+      const user = lookup.user;
 
       // Missing account and wrong password are one answer: the password is a
       // second factor of this flow, and distinguishing them would let a caller
       // with a leaked recovery mailbox probe which addresses have accounts.
       if (!user || !(await passwordMatches(user.passwordHash, password))) {
         return fail(reply, 401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
+      }
+
+      // Status gate, AFTER the password check, mirroring login: a suspended
+      // or deactivated account answers honestly instead of proceeding to a
+      // 2FA reset it must never complete. The lookup already excludes
+      // tombstoned rows (deletedAt: null), so a soft-deleted account answers
+      // exactly like a missing one.
+      const liveness = accountLiveness(user);
+      if (liveness === 'suspended') {
+        return fail(reply, 401, 'ACCOUNT_SUSPENDED', 'This account is suspended.');
+      }
+      if (liveness === 'deactivated') {
+        return fail(reply, 401, 'ACCOUNT_DEACTIVATED', 'This account is deactivated.');
       }
 
       // The caller HAS the password here, so these answers do not enumerate:
@@ -473,13 +524,23 @@ export async function twoFactorRecoveryRoutes(fastify: FastifyInstance) {
           // snapshot reads cannot be.
           const fresh = (await tx.user.findUnique({ where: { id: user.id } })) as
             | {
+                deletedAt?: Date | string | null;
+                status?: string | null;
                 twoFactorEnabled?: boolean | null;
                 twoFactorSecret?: string | null;
                 recoveryEmail?: string | null;
                 recoveryEmailVerifiedAt?: Date | string | null;
               }
             | null;
-          if (!fresh || !twoFactorArmed(fresh) || !hasVerifiedRecoveryEmail(fresh)) {
+          // The status gate is re-checked here too: an account suspended or
+          // deactivated between the pre-checks and the write must not have
+          // its 2FA cleared by a stale proof.
+          if (
+            !fresh ||
+            !twoFactorArmed(fresh) ||
+            !hasVerifiedRecoveryEmail(fresh) ||
+            accountLiveness(fresh) !== 'ok'
+          ) {
             return { outcome: 'STALE', fresh };
           }
           // Channel binding: the challenge was mailed to a specific address.
@@ -537,6 +598,12 @@ export async function twoFactorRecoveryRoutes(fastify: FastifyInstance) {
         // was written: either 2FA is no longer armed (a parallel confirm
         // already reset it) or the recovery channel changed mid-flight.
         const fresh = consumed.fresh;
+        if (fresh && accountLiveness(fresh) === 'suspended') {
+          return fail(reply, 401, 'ACCOUNT_SUSPENDED', 'This account is suspended.');
+        }
+        if (fresh && accountLiveness(fresh) === 'deactivated') {
+          return fail(reply, 401, 'ACCOUNT_DEACTIVATED', 'This account is deactivated.');
+        }
         if (fresh && twoFactorArmed(fresh)) {
           return fail(
             reply,
