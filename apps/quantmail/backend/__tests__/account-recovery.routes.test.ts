@@ -42,7 +42,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
   const prisma: any = {
-    user: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    user: { findFirst: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     passwordResetToken: {
       create: vi.fn(),
       deleteMany: vi.fn(),
@@ -210,6 +210,7 @@ beforeEach(() => {
   mocks.sendViaSes.mockResolvedValue('ses-message-id');
   mocks.argon2Hash.mockImplementation(async (password: string) => `hashed_${password}`);
   mocks.prisma.user.findFirst.mockResolvedValue(null);
+  mocks.prisma.user.findMany.mockResolvedValue([]);
   mocks.prisma.user.findUnique.mockResolvedValue({ ...USER });
   mocks.prisma.user.update.mockImplementation(async (args: any) => ({
     recoveryEmail: args?.data?.recoveryEmail ?? null,
@@ -236,11 +237,11 @@ describe('POST /auth/password-reset — recovery-email channel', () => {
     call('POST', '/auth/password-reset', { headers: trustedHeaders, body, ip: '203.0.113.9' });
 
   it('mails the link to BOTH the inbox and the recovery email when it is VERIFIED', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue({
+    mocks.prisma.user.findMany.mockResolvedValue([{
       ...USER,
       recoveryEmail: 'backup@example.com',
       recoveryEmailVerifiedAt: new Date('2026-10-18T00:00:00Z'),
-    });
+    }]);
 
     const reply = await request({ email: 'Kundan@quantmail.in' });
     await settle();
@@ -264,11 +265,11 @@ describe('POST /auth/password-reset — recovery-email channel', () => {
   it('mails ONLY the inbox when the recovery email is UNVERIFIED (legacy #1254 row)', async () => {
     // The CODEX-REVIEW 6241280732 gap: an address activated by session
     // identity alone must be inert until its destination is verified.
-    mocks.prisma.user.findFirst.mockResolvedValue({
+    mocks.prisma.user.findMany.mockResolvedValue([{
       ...USER,
       recoveryEmail: 'backup@example.com',
       recoveryEmailVerifiedAt: null,
-    });
+    }]);
 
     const reply = await request({ email: 'Kundan@quantmail.in' });
     await settle();
@@ -278,7 +279,7 @@ describe('POST /auth/password-reset — recovery-email channel', () => {
   });
 
   it('mails ONLY the inbox when no recovery email is set', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue({ ...USER, recoveryEmail: null });
+    mocks.prisma.user.findMany.mockResolvedValue([{ ...USER, recoveryEmail: null }]);
 
     const reply = await request({ email: 'Kundan@quantmail.in' });
     await settle();
@@ -288,7 +289,7 @@ describe('POST /auth/password-reset — recovery-email channel', () => {
   });
 
   it('treats a blank recovery email as unset', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue({ ...USER, recoveryEmail: '   ' });
+    mocks.prisma.user.findMany.mockResolvedValue([{ ...USER, recoveryEmail: '   ' }]);
 
     await request({ email: 'Kundan@quantmail.in' });
     await settle();
@@ -297,7 +298,7 @@ describe('POST /auth/password-reset — recovery-email channel', () => {
   });
 
   it('still answers non-committally for unknown addresses (no enumeration)', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue(null);
+    mocks.prisma.user.findMany.mockResolvedValue([]);
 
     const reply = await request({ email: 'nobody@quantmail.in' });
     await settle();

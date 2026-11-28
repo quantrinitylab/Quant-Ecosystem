@@ -94,7 +94,8 @@ const fakes = vi.hoisted(() => {
     ...slot.stagedCreates,
   ];
 
-  const findUser = (where: any) => {
+  const findUsers = (where: any) => {
+    const out: any[] = [];
     for (const u of state.users.values()) {
       if (where.email !== undefined) {
         const cond = where.email;
@@ -110,10 +111,11 @@ const fakes = vi.hoisted(() => {
       }
       if (where.id !== undefined && u.id !== where.id) continue;
       if (where.deletedAt !== undefined && u.deletedAt !== where.deletedAt) continue;
-      return { ...u };
+      out.push({ ...u });
     }
-    return null;
+    return out;
   };
+  const findUser = (where: any) => findUsers(where)[0] ?? null;
 
   const testHooks: {
     beforeTransaction: (slotId: number) => Promise<void>;
@@ -235,6 +237,12 @@ const fakes = vi.hoisted(() => {
   const prisma = {
     user: {
       findFirst: async ({ where }: any) => findUser(where ?? {}),
+      // The route now looks users up with findMany + take: 2 so a
+      // case-collision fails closed (409) instead of mailing the first twin.
+      findMany: async ({ where, take }: any) => {
+        const rows = findUsers(where ?? {});
+        return typeof take === 'number' ? rows.slice(0, take) : rows;
+      },
     },
     passwordResetToken: {
       // Top-level writes are autocommit (the pre-fix handler used these).

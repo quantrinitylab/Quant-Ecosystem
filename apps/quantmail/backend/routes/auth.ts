@@ -75,7 +75,9 @@ function normalizeIdentity(value: unknown): string {
 /**
  * Case-insensitive user lookup by an already-normalized email — the lookup
  * counterpart of normalizeIdentity, in the same style as password-reset's
- * `findFirst({ email: { equals: normalized, mode: 'insensitive' } })`.
+ * `findMany({ email: { equals: normalized, mode: 'insensitive' } }, take: 2)`
+ * (password-reset fails closed on >1 match with the same 409, so neither
+ * entry point ever mails or signs into a case-colliding twin).
  *
  * Old rows were created before normalization existed and may carry mixed
  * case, so an exact-match lookup must never be used at an identity entry

@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => {
   // top-level paths share one mock. (The honest concurrency emulation lives
   // in auth-password-reset-race.test.ts.)
   const prisma: any = {
-    user: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    user: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     passwordResetToken: {
       create: vi.fn(),
       deleteMany: vi.fn(),
@@ -136,7 +136,7 @@ beforeEach(() => {
   mocks.isSesConfigured.mockReturnValue(true);
   mocks.sendViaSes.mockResolvedValue('ses-message-id');
   mocks.argon2Hash.mockImplementation(async (password: string) => `hashed_${password}`);
-  mocks.prisma.user.findFirst.mockResolvedValue(null);
+  mocks.prisma.user.findMany.mockResolvedValue([]);
   mocks.prisma.user.findUnique.mockResolvedValue(USER);
   mocks.prisma.passwordResetToken.create.mockResolvedValue({ id: 'prt-1' });
   mocks.prisma.passwordResetToken.deleteMany.mockResolvedValue({ count: 0 });
@@ -156,7 +156,7 @@ describe('POST /auth/password-reset — requesting a link', () => {
       expect(reply.statusCode).toBe(403);
       expect(reply.body.error.code).toBe('UNTRUSTED_ORIGIN');
     }
-    expect(mocks.prisma.user.findFirst).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.findMany).not.toHaveBeenCalled();
     expect(mocks.sendViaSes).not.toHaveBeenCalled();
   });
 
@@ -169,14 +169,14 @@ describe('POST /auth/password-reset — requesting a link', () => {
       expect(reply.statusCode).toBe(400);
       expect(reply.body.error.code).toBe('VALIDATION_ERROR');
     }
-    expect(mocks.prisma.user.findFirst).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.findMany).not.toHaveBeenCalled();
     expect(mocks.sendViaSes).not.toHaveBeenCalled();
   });
 
   it('answers an unknown address exactly as it answers a known one', async () => {
     const unknown = await request({ email: 'nobody@quantmail.in' });
 
-    mocks.prisma.user.findFirst.mockResolvedValue(USER);
+    mocks.prisma.user.findMany.mockResolvedValue([USER]);
     const known = await request({ email: USER.email });
 
     expect(unknown.statusCode).toBe(200);
@@ -196,16 +196,50 @@ describe('POST /auth/password-reset — requesting a link', () => {
   it('looks the account up case-insensitively and skips deleted ones', async () => {
     await request({ email: '  KUNDAN@QuantMail.in ' });
 
-    expect(mocks.prisma.user.findFirst).toHaveBeenCalledWith({
+    expect(mocks.prisma.user.findMany).toHaveBeenCalledWith({
       where: {
         email: { equals: 'kundan@quantmail.in', mode: 'insensitive' },
         deletedAt: null,
       },
+      take: 2,
     });
   });
 
+  /**
+   * Case-colliding legacy rows (person@example.com vs Person@example.com,
+   * possible under the case-sensitive @unique index): the old findFirst
+   * mailed the reset link to whichever twin the database returned first —
+   * a live credential to the wrong mailbox — while login already fails
+   * closed on the same state. The fix fails closed here too: 409, and
+   * zero token rows, zero mail, to either twin. The 409 reveals nothing
+   * login does not already reveal for the same address.
+   */
+  it('fails closed on case-colliding rows: 409, no token, no mail to either twin', async () => {
+    const TWIN = { ...USER, id: 'user-2', email: 'Kundan@quantmail.in' };
+    mocks.prisma.user.findMany.mockResolvedValue([USER, TWIN]);
+
+    const reply = await request({ email: 'kundan@quantmail.in' });
+    await settle();
+
+    expect(reply.statusCode).toBe(409);
+    expect(reply.body.error.code).toBe('EMAIL_CASE_CONFLICT');
+    expect(mocks.prisma.$transaction).not.toHaveBeenCalled();
+    expect(mocks.prisma.passwordResetToken.create).not.toHaveBeenCalled();
+    expect(mocks.sendViaSes).not.toHaveBeenCalled();
+  });
+
+  it('still issues when exactly one live row matches, even with a mixed-case stored spelling', async () => {
+    mocks.prisma.user.findMany.mockResolvedValue([USER]);
+
+    const reply = await request({ email: 'kundan@quantmail.in' });
+
+    expect(reply.statusCode).toBe(200);
+    expect(mocks.prisma.passwordResetToken.create).toHaveBeenCalledTimes(1);
+    expect(mocks.sendViaSes).toHaveBeenCalledTimes(1);
+  });
+
   it('stores only the digest of the token it mailed', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue(USER);
+    mocks.prisma.user.findMany.mockResolvedValue([USER]);
 
     await request({ email: USER.email });
 
@@ -221,7 +255,7 @@ describe('POST /auth/password-reset — requesting a link', () => {
   });
 
   it('never puts the token or the digest in the HTTP response', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue(USER);
+    mocks.prisma.user.findMany.mockResolvedValue([USER]);
 
     const reply = await request({ email: USER.email });
     const written = mocks.prisma.passwordResetToken.create.mock.calls[0]?.[0]?.data;
@@ -237,7 +271,7 @@ describe('POST /auth/password-reset — requesting a link', () => {
    * burns L1, B creates L2) and mail a link that is already dead.
    */
   it('burns the snapshot of outstanding links and reissues inside one transaction', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue(USER);
+    mocks.prisma.user.findMany.mockResolvedValue([USER]);
     mocks.prisma.passwordResetToken.findMany.mockResolvedValue([{ id: 'prt-old' }]);
     mocks.prisma.passwordResetToken.deleteMany.mockResolvedValue({ count: 1 });
 
@@ -262,7 +296,7 @@ describe('POST /auth/password-reset — requesting a link', () => {
   });
 
   it('issues cleanly when no link is outstanding (empty snapshot)', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue(USER);
+    mocks.prisma.user.findMany.mockResolvedValue([USER]);
 
     const reply = await request({ email: USER.email });
 
@@ -283,7 +317,7 @@ describe('POST /auth/password-reset — requesting a link', () => {
    * no dead link is ever delivered. The winner's email carries the live link.
    */
   it('answers the race loser with the same non-committal 200 and mails nothing', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue(USER);
+    mocks.prisma.user.findMany.mockResolvedValue([USER]);
     mocks.prisma.passwordResetToken.findMany.mockResolvedValue([{ id: 'prt-old' }]);
     mocks.prisma.passwordResetToken.deleteMany.mockResolvedValue({ count: 0 });
 
@@ -296,7 +330,7 @@ describe('POST /auth/password-reset — requesting a link', () => {
   });
 
   it('mails the stored spelling of the address, with the link and the name', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue(USER);
+    mocks.prisma.user.findMany.mockResolvedValue([USER]);
 
     await request({ email: 'kundan@quantmail.in' });
 
@@ -310,7 +344,7 @@ describe('POST /auth/password-reset — requesting a link', () => {
   });
 
   it('falls back to the username when the account has no display name', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue({ ...USER, displayName: null });
+    mocks.prisma.user.findMany.mockResolvedValue([{ ...USER, displayName: null }]);
 
     await request({ email: USER.email });
 
@@ -318,7 +352,7 @@ describe('POST /auth/password-reset — requesting a link', () => {
   });
 
   it('never mails the digest that was stored', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue(USER);
+    mocks.prisma.user.findMany.mockResolvedValue([USER]);
 
     await request({ email: USER.email });
 
@@ -334,7 +368,7 @@ describe('POST /auth/password-reset — requesting a link', () => {
    * latency instead, so the send is started and not awaited.
    */
   it('does not wait for delivery before answering', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue(USER);
+    mocks.prisma.user.findMany.mockResolvedValue([USER]);
     let released: () => void = () => {};
     mocks.sendViaSes.mockReturnValue(
       new Promise<string>((resolve) => {
@@ -350,7 +384,7 @@ describe('POST /auth/password-reset — requesting a link', () => {
   });
 
   it('answers the same way when delivery fails outright', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue(USER);
+    mocks.prisma.user.findMany.mockResolvedValue([USER]);
     mocks.sendViaSes.mockRejectedValue(new Error('SES sandbox: recipient not verified'));
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -366,7 +400,7 @@ describe('POST /auth/password-reset — requesting a link', () => {
   });
 
   it('records the failure rather than pretending, when SES is not configured', async () => {
-    mocks.prisma.user.findFirst.mockResolvedValue(USER);
+    mocks.prisma.user.findMany.mockResolvedValue([USER]);
     mocks.isSesConfigured.mockReturnValue(false);
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
 
