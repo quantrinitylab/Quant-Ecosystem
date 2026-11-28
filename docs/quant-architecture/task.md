@@ -192,7 +192,9 @@ Required: implement real universal search + priority semantics, or use honest la
 Dependencies: QM-WORK-003; search architecture.
 
 ## QM-WORK-007 — Calendar event detail completion
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-work-007-calendar-event-detail
 Scope: M09 event-detail route/UI/backend.
 Required: event details, attendees, recurrence, mail relation, Drive artifacts, reminders, edit/cancel permissions, timezone/DST states.
 Dependencies: QM-WORK-004.
@@ -3807,7 +3809,9 @@ Scope: packages/agent-runtime/src/device/action-executor.ts; packages/agent-runt
 Dependencies: QM-QUANTY-006; platform adapter architecture; identity/permission contract.
 
 ## QM-QUANTY-008 — Quanty agent-runtime tasks must be tenant/user scoped and durable
-Status: [ ] TODO
+Status: [~] IN_PROGRESS
+Owner: muse-main
+Branch: fix/qm-quanty-008-agent-runtime-tenant-scope
 Finding: apps/quantai/backend/routes/agent-runtime.ts authenticates POST task creation but does not pass request.auth.userId into Orchestrator.executeTask. GET task status calls getTaskStatus(id) without ownership checking, and the agents list returns the process-wide worker set. packages/agent-runtime/src/orchestrator.ts stores tasks/workers in process-local Maps and OrchestratorTask has no owner/tenant/session identifier. A caller with another task ID can therefore reach global task state through the route, and all task state disappears on process restart.
 Required: bind every task to tenantId/userId/sessionId and persist task state/checkpoints in a shared store. Enforce ownership at every read/mutation boundary; never treat a task ID as authorization. Workers receive immutable principal/task/capability/resource scope. Support leases, heartbeat, cancellation, retry, checkpoint/resume and idempotent completion.
 Tests: cross-user read/cancel denial; cross-tenant worker isolation; restart recovery; worker crash/lease recovery; duplicate delivery; cancellation races; monotonic status; enumeration resistance; sensitive-data log checks.
