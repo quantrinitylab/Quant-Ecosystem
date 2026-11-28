@@ -293,7 +293,7 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
  * the response shape.
  */
 const SEARCH_OPERATOR_PATTERN =
-  /(?:^|\s)(from|to|subject|label|in|folder|has|is|before|after|newer_than|older_than):/i;
+  /(?:^|\s)(from|to|subject|label|in|folder|has|is|before|after|newer_than|older_than|filename|larger|smaller|size):/i;
 const QUOTED_PHRASE_PATTERN = /"[^"]+"/;
 
 export function hasSearchOperatorSyntax(query: string): boolean {

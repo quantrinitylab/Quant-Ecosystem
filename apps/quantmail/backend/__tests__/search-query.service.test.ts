@@ -36,6 +36,34 @@ describe('SearchQueryService.parse', () => {
     expect(service.parse('has:attachments').hasAttachment).toBe(true);
   });
 
+  it('parses filename: and attachment-size operators', () => {
+    const p = service.parse('filename:invoice.pdf larger:10M smaller:1G size:512K');
+    expect(p.filename).toEqual(['invoice.pdf']);
+    expect(p.largerBytes).toBe(10 * 1024 ** 2);
+    expect(p.smallerBytes).toBe(1 * 1024 ** 3);
+    expect(p.sizeBytes).toBe(512 * 1024);
+  });
+
+  it('parses byte sizes with bare bytes and KB/MB/GB suffixes', () => {
+    expect(service.parse('larger:2048').largerBytes).toBe(2048);
+    expect(service.parse('larger:2KB').largerBytes).toBe(2 * 1024);
+    expect(service.parse('larger:1.5M').largerBytes).toBe(Math.floor(1.5 * 1024 ** 2));
+    expect(service.parse('larger:2g').largerBytes).toBe(2 * 1024 ** 3);
+  });
+
+  it('keeps quoted filename values together', () => {
+    expect(service.parse('filename:"year end report.pdf"').filename).toEqual([
+      'year end report.pdf',
+    ]);
+  });
+
+  it('ignores unparseable size values instead of failing the parse', () => {
+    const p = service.parse('larger:banana smaller:10X');
+    expect(p.largerBytes).toBeUndefined();
+    expect(p.smallerBytes).toBeUndefined();
+    expect(p.terms).toEqual([]);
+  });
+
   it('distinguishes in:<knownType> from folder ids', () => {
     const p = service.parse('in:inbox in:CUSTOMID folder:fid-1');
     expect(p.inFolderTypes).toEqual(['inbox']);
@@ -111,14 +139,39 @@ describe('SearchQueryService.buildEmailWhere', () => {
     expect(dateCond.receivedAt.lte?.toISOString()).toBe('2026-02-01T00:00:00.000Z');
   });
 
-  it('maps quoted phrase to an OR over subject/snippet/body', () => {
+  it('maps quoted phrase to an OR over subject/snippet/body/attachments', () => {
     const where = service.buildEmailWhere('user-1', '"quarterly results"');
     const and = where.AND as Record<string, unknown>[];
     const textCond = and.find((c) => 'OR' in c) as { OR: Record<string, unknown>[] };
-    expect(textCond.OR).toHaveLength(3);
+    expect(textCond.OR).toHaveLength(4);
     expect(textCond.OR[0]).toEqual({
       subject: { contains: 'quarterly results', mode: 'insensitive' },
     });
+    expect(textCond.OR).toContainEqual({
+      attachments: { string_contains: 'quarterly results', mode: 'insensitive' },
+    });
+  });
+
+  it('maps a bare term to an attachments branch so invoice.pdf finds its file', () => {
+    const where = service.buildEmailWhere('user-1', 'invoice.pdf');
+    const and = where.AND as Record<string, unknown>[];
+    const textCond = and.find((c) => 'OR' in c) as { OR: Record<string, unknown>[] };
+    expect(textCond.OR).toContainEqual({
+      attachments: { string_contains: 'invoice.pdf', mode: 'insensitive' },
+    });
+  });
+
+  it('maps filename: to an attachments string_contains condition', () => {
+    const where = service.buildEmailWhere('user-1', 'filename:invoice.pdf');
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({
+      attachments: { string_contains: 'invoice.pdf', mode: 'insensitive' },
+    });
+  });
+
+  it('emits no Prisma clause for size operators (raw-SQL path only, never approximated)', () => {
+    const where = service.buildEmailWhere('user-1', 'larger:10M smaller:1M size:5M');
+    expect(where.AND).toBeUndefined();
   });
 
   it('maps multiple terms to separate AND conditions matching in any order', () => {
@@ -432,6 +485,72 @@ describe('SearchQueryService.search', () => {
     expect(dataCall![0]).toContain('OFFSET $');
     expect(dataCall!).toContain(10);
     expect(dataCall!).toContain(0);
+  });
+
+  it('takes the raw-SQL path for a filename:-only query and matches filename/name fields', async () => {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*)')) {
+        return [{ total: 1 }];
+      }
+      return [{ id: 'email-att-1', attachments: [{ filename: 'invoice.pdf', size: 1234 }] }];
+    });
+
+    const result = await service.search('user-1', 'filename:invoice.pdf', { page: 1, limit: 10 });
+
+    expect(result.total).toBe(1);
+    expect(prisma.$queryRawUnsafe).toHaveBeenCalledTimes(2);
+    const countCall = prisma.$queryRawUnsafe.mock.calls.find((c: any[]) =>
+      String(c[0]).includes('COUNT(*)'),
+    )!;
+    expect(countCall[0]).toContain('jsonb_array_elements');
+    expect(countCall[0]).toContain("(elem ->> 'filename') ILIKE $");
+    expect(countCall[0]).toContain("(elem ->> 'name') ILIKE $");
+    expect(countCall).toContain('%invoice.pdf%');
+    // No full-text vector clause when there are no free-text terms.
+    expect(countCall[0]).not.toContain('plainto_tsquery');
+  });
+
+  it('expresses larger:/smaller:/size: against summed/single attachment bytes in raw SQL', async () => {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*)')) {
+        return [{ total: 1 }];
+      }
+      return [{ id: 'email-big-1' }];
+    });
+
+    const result = await service.search('user-1', 'larger:10M smaller:1G size:5M', {
+      page: 1,
+      limit: 10,
+    });
+
+    expect(result.total).toBe(1);
+    const countCall = prisma.$queryRawUnsafe.mock.calls.find((c: any[]) =>
+      String(c[0]).includes('COUNT(*)'),
+    )!;
+    const sql = String(countCall[0]);
+    expect(sql).toContain('COALESCE(SUM(');
+    expect(sql).toContain("(elem->>'size')");
+    expect(sql).toContain('> $');
+    expect(sql).toContain('< $');
+    expect(countCall).toContain(10 * 1024 ** 2);
+    expect(countCall).toContain(1 * 1024 ** 3);
+    expect(countCall).toContain(5 * 1024 ** 2);
+  });
+
+  it('folds the attachments JSON text into the full-text vector for free-text terms', async () => {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*)')) {
+        return [{ total: 1 }];
+      }
+      return [{ id: 'email-fts-att-1' }];
+    });
+
+    await service.search('user-1', 'invoice.pdf', { page: 1, limit: 10 });
+
+    const countCall = prisma.$queryRawUnsafe.mock.calls.find((c: any[]) =>
+      String(c[0]).includes('COUNT(*)'),
+    )!;
+    expect(String(countCall[0])).toContain(`coalesce("attachments"::text, '')`);
   });
 
   it('gracefully falls back to Prisma email.findMany when $queryRawUnsafe throws (G3-11)', async () => {
