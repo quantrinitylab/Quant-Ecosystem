@@ -16,6 +16,7 @@ import {
   composeMessageBodies,
   escapeHtml,
   htmlToPlainText,
+  linkifyMarkdownLinks,
   plainTextToHtml,
   stripTrailingSignature,
 } from '../lib/email-body';
@@ -183,6 +184,79 @@ describe('composeMessageBodies', () => {
     });
     expect(bodyHtml).not.toContain('<ol>');
     expect(bodyText).not.toContain('1. First');
+  });
+});
+
+describe('linkifyMarkdownLinks (compose Insert Link)', () => {
+  it('turns an inserted Markdown link into a real anchor in bodyHtml', () => {
+    const { bodyHtml } = composeMessageBodies(
+      'See [Meeting notes](https://example.com/notes) for details.',
+    );
+    expect(bodyHtml).toBe(
+      '<p>See <a href="https://example.com/notes">Meeting notes</a> for details.</p>',
+    );
+  });
+
+  it('converts links in the plain path, the formatted path and whole-message lists', () => {
+    expect(plainTextToHtml('Read [the doc](https://example.com/doc).')).toBe(
+      '<p>Read <a href="https://example.com/doc">the doc</a>.</p>',
+    );
+    const formatted = composeMessageBodies('See [the doc](https://example.com/doc).', '', {
+      bold: true,
+    });
+    expect(formatted.bodyHtml).toContain('<a href="https://example.com/doc">the doc</a>');
+    const listed = composeMessageBodies('See [the doc](https://example.com/doc)', '', {
+      list: 'bullet',
+    });
+    expect(listed.bodyHtml).toBe(
+      '<ul><li>See <a href="https://example.com/doc">the doc</a></li></ul>',
+    );
+  });
+
+  it('keeps the plain-text half honest: the URL stays visible, the link stays re-sendable', () => {
+    const { bodyText, bodyHtml } = composeMessageBodies(
+      'See [Meeting notes](https://example.com/notes).',
+    );
+    expect(bodyText).toBe('See [Meeting notes](https://example.com/notes).');
+    expect(bodyHtml).toContain('<a href="https://example.com/notes">Meeting notes</a>');
+    // A draft restored from bodyText converts again on the next send.
+    expect(composeMessageBodies(bodyText).bodyHtml).toBe(bodyHtml);
+  });
+
+  it('accepts http, https and mailto, and leaves anything else literal', () => {
+    expect(linkifyMarkdownLinks(escapeHtml('[a](http://example.com)'))).toBe(
+      '<a href="http://example.com">a</a>',
+    );
+    expect(linkifyMarkdownLinks(escapeHtml('[mail me](mailto:ada@example.com)'))).toBe(
+      '<a href="mailto:ada@example.com">mail me</a>',
+    );
+    for (const bad of [
+      '[x](javascript:alert(1))',
+      '[x](data:text/html,<b>hi</b>)',
+      '[x](/relative/path)',
+      '[x](//evil.example.com)',
+    ]) {
+      const out = linkifyMarkdownLinks(escapeHtml(bad));
+      expect(out).not.toContain('<a ');
+      expect(out).toContain('[');
+    }
+  });
+
+  it('escapes link text and encodes ampersands in the href, so neither can break out', () => {
+    expect(linkifyMarkdownLinks(escapeHtml('[a < b](https://example.com/?x=1&y=2)'))).toBe(
+      '<a href="https://example.com/?x=1&amp;y=2">a &lt; b</a>',
+    );
+    expect(linkifyMarkdownLinks(escapeHtml('[click "me"](https://example.com)'))).toBe(
+      '<a href="https://example.com">click &quot;me&quot;</a>',
+    );
+  });
+
+  it('converts several links in one paragraph and leaves non-link brackets alone', () => {
+    expect(
+      plainTextToHtml('[one](https://a.example) and [two](https://b.example) plus [not a link]'),
+    ).toBe(
+      '<p><a href="https://a.example">one</a> and <a href="https://b.example">two</a> plus [not a link]</p>',
+    );
   });
 });
 
