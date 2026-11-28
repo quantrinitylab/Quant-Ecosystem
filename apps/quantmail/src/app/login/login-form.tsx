@@ -31,15 +31,34 @@ const formatCountdown = (seconds: number): string => {
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isAuthenticated, login, completeTwoFactor, cancelTwoFactor, isLoading } = useAuth();
+  const {
+    user,
+    isAuthenticated,
+    login,
+    completeTwoFactor,
+    cancelTwoFactor,
+    completeNewDeviceChallenge,
+    cancelNewDeviceChallenge,
+    resendNewDeviceChallenge,
+    isLoading,
+  } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
 
-  // Second-factor leg
-  const [stage, setStage] = useState<'credentials' | 'two-factor' | 'recovery'>('credentials');
+  // Second-factor leg, plus the new-device email-code leg
+  const [stage, setStage] = useState<'credentials' | 'two-factor' | 'new-device' | 'recovery'>(
+    'credentials',
+  );
+  const [newDeviceEmail, setNewDeviceEmail] = useState('');
+  const [newDeviceDestination, setNewDeviceDestination] = useState('');
+  // 'primary' = the code went to the account inbox itself (no verified
+  // recovery email on file). That user must read it on a device where they
+  // are already signed in — this browser cannot open the inbox until the
+  // code is entered — so the copy below says so explicitly.
+  const [newDeviceChannel, setNewDeviceChannel] = useState<'recovery' | 'primary' | null>(null);
   const [codeMode, setCodeMode] = useState<'totp' | 'backup'>('totp');
   const [code, setCode] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -106,6 +125,8 @@ export function LoginForm() {
   const backToPassword = useCallback(
     (message: string | null) => {
       cancelTwoFactor();
+      cancelNewDeviceChallenge();
+      setNewDeviceChannel(null);
       setStage('credentials');
       setCode('');
       setCodeMode('totp');
@@ -113,7 +134,7 @@ export function LoginForm() {
       setSecondsLeft(0);
       setError(message);
     },
-    [cancelTwoFactor],
+    [cancelTwoFactor, cancelNewDeviceChallenge],
   );
 
   // Recovery finished: 2FA is off, no session was issued — drop the stale
@@ -134,7 +155,7 @@ export function LoginForm() {
   );
 
   useEffect(() => {
-    if (stage !== 'two-factor' || deadline === null) return;
+    if ((stage !== 'two-factor' && stage !== 'new-device') || deadline === null) return;
 
     const tick = () => {
       const remaining = Math.ceil((deadline - Date.now()) / 1000);
@@ -150,7 +171,7 @@ export function LoginForm() {
   }, [stage, deadline, backToPassword]);
 
   useEffect(() => {
-    if (stage === 'two-factor') codeInputRef.current?.focus();
+    if (stage === 'two-factor' || stage === 'new-device') codeInputRef.current?.focus();
   }, [stage]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -178,6 +199,19 @@ export function LoginForm() {
         setStage('two-factor');
         return;
       }
+      if (outcome.status === 'new-device-required') {
+        // This browser is new to the account: the password was right, but
+        // the session waits on the emailed code. The code is redeemable
+        // only from this device, so the form stays put — no navigation.
+        setPassword('');
+        setNewDeviceEmail(email);
+        setNewDeviceDestination(outcome.maskedDestination);
+        setNewDeviceChannel(outcome.channel);
+        setDeadline(Date.now() + outcome.expiresIn * 1000);
+        setSecondsLeft(outcome.expiresIn);
+        setStage('new-device');
+        return;
+      }
       navigateToDestination();
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Sign-in failed. Try again.');
@@ -191,15 +225,21 @@ export function LoginForm() {
     const trimmed = code.trim();
     if (!trimmed) {
       setError(
-        codeMode === 'totp'
-          ? 'Enter the 6-digit code from your authenticator app.'
-          : 'Enter one of your recovery codes.',
+        stage === 'new-device'
+          ? 'Enter the 6-digit code we emailed you.'
+          : codeMode === 'totp'
+            ? 'Enter the 6-digit code from your authenticator app.'
+            : 'Enter one of your recovery codes.',
       );
       return;
     }
 
     try {
-      await completeTwoFactor(trimmed);
+      if (stage === 'new-device') {
+        await completeNewDeviceChallenge(newDeviceEmail, trimmed);
+      } else {
+        await completeTwoFactor(trimmed);
+      }
       navigateToDestination();
     } catch (caughtError) {
       const message =
@@ -211,7 +251,15 @@ export function LoginForm() {
           ? String((caughtError as { code?: unknown }).code ?? '')
           : '';
 
-      if (errorCode === 'CHALLENGE_EXPIRED' || errorCode === 'SESSION_INITIALIZATION_FAILED') {
+      if (
+        errorCode === 'CHALLENGE_EXPIRED' ||
+        errorCode === 'SESSION_INITIALIZATION_FAILED' ||
+        errorCode === 'NEW_DEVICE_MISMATCH' ||
+        errorCode === 'INVALID_OR_EXPIRED_CODE' ||
+        errorCode === 'CODE_ALREADY_USED' ||
+        errorCode === 'TOO_MANY_ATTEMPTS' ||
+        errorCode === 'NO_PENDING_CHALLENGE'
+      ) {
         backToPassword(message);
         return;
       }
@@ -219,6 +267,20 @@ export function LoginForm() {
       setCode('');
       codeInputRef.current?.focus();
       setError(message);
+    }
+  }
+
+  async function handleResendNewDeviceCode() {
+    setError(null);
+    try {
+      await resendNewDeviceChallenge(newDeviceEmail);
+      setDeadline(Date.now() + 15 * 60 * 1000);
+      setSecondsLeft(15 * 60);
+      setNotice(`A new code was sent to ${newDeviceDestination}.`);
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error ? caughtError.message : 'We could not send a new code.',
+      );
     }
   }
 
@@ -243,9 +305,11 @@ export function LoginForm() {
           <p className="mt-2 text-sm leading-relaxed text-zinc-400">
             {stage === 'credentials'
               ? 'Enter your email address and password.'
-              : codeMode === 'totp'
-                ? 'Open your authenticator app and enter the current 6-digit code.'
-                : 'Enter one of the recovery codes saved during two-factor setup.'}
+              : stage === 'new-device'
+                ? `This device is new to your account, so we sent a 6-digit code to ${newDeviceDestination}. Enter it to finish signing in.${newDeviceChannel === 'primary' ? ' Open the code on a device where you are already signed in — this browser cannot open your inbox until the code is entered.' : ''}`
+                : codeMode === 'totp'
+                  ? 'Open your authenticator app and enter the current 6-digit code.'
+                  : 'Enter one of the recovery codes saved during two-factor setup.'}
           </p>
         </div>
       ) : null}
@@ -266,7 +330,7 @@ export function LoginForm() {
         </div>
       ) : null}
 
-      {stage === 'credentials' && notice ? (
+      {(stage === 'credentials' || stage === 'new-device') && notice ? (
         <div
           role="status"
           aria-live="polite"
@@ -396,7 +460,11 @@ export function LoginForm() {
         <form onSubmit={handleCodeSubmit} noValidate className="space-y-4">
           <div>
             <label htmlFor="login-code" className="mb-2 block text-[13px] font-medium text-zinc-300">
-              {codeMode === 'totp' ? 'Authenticator code' : 'Recovery code'}
+              {stage === 'new-device'
+                ? 'Sign-in code'
+                : codeMode === 'totp'
+                  ? 'Authenticator code'
+                  : 'Recovery code'}
             </label>
             <input
               ref={codeInputRef}
@@ -428,9 +496,11 @@ export function LoginForm() {
               id="login-code-hint"
               className="mt-1.5 text-xs text-zinc-500 font-mono"
             >
-              {codeMode === 'totp'
-                ? 'Six digits, refreshed by your app every 30 seconds.'
-                : 'One of the codes you saved. Each one works once.'}
+              {stage === 'new-device'
+                ? 'Six digits from the email we just sent. It works only on this device.'
+                : codeMode === 'totp'
+                  ? 'Six digits, refreshed by your app every 30 seconds.'
+                  : 'One of the codes you saved. Each one works once.'}
             </p>
           </div>
 
@@ -467,30 +537,42 @@ export function LoginForm() {
           ) : null}
 
           <div className="flex flex-col items-center gap-1 pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setStage('recovery');
-              }}
-              className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-[var(--quant-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
-            >
-              Can&apos;t use your authenticator?
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCodeMode((mode) => (mode === 'totp' ? 'backup' : 'totp'));
-                setCode('');
-                setError(null);
-                codeInputRef.current?.focus();
-              }}
-              className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-[var(--quant-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
-            >
-              {codeMode === 'totp'
-                ? 'Use a recovery code instead'
-                : 'Use your authenticator app instead'}
-            </button>
+            {stage === 'new-device' ? (
+              <button
+                type="button"
+                onClick={handleResendNewDeviceCode}
+                className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-[var(--quant-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+              >
+                Send a new code
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setStage('recovery');
+                  }}
+                  className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-[var(--quant-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                >
+                  Can&apos;t use your authenticator?
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCodeMode((mode) => (mode === 'totp' ? 'backup' : 'totp'));
+                    setCode('');
+                    setError(null);
+                    codeInputRef.current?.focus();
+                  }}
+                  className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-[var(--quant-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-primary)]"
+                >
+                  {codeMode === 'totp'
+                    ? 'Use a recovery code instead'
+                    : 'Use your authenticator app instead'}
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={() => backToPassword(null)}

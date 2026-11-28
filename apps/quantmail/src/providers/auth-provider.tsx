@@ -12,6 +12,7 @@ import { getQueryClient } from '../lib/query-client-registry';
 import {
   browserAuthSession,
   cleanupLegacyBrowserTokens,
+  isNewDeviceChallenge,
   isTwoFactorChallenge,
   type BrowserAccessSession,
 } from '../services/browser-auth-session';
@@ -32,7 +33,13 @@ export interface AuthUser {
  */
 export type LoginOutcome =
   | { status: 'signed-in' }
-  | { status: 'two-factor-required'; expiresIn: number };
+  | { status: 'two-factor-required'; expiresIn: number }
+  | {
+      status: 'new-device-required';
+      maskedDestination: string;
+      channel: 'recovery' | 'primary';
+      expiresIn: number;
+    };
 
 /** Structured error lets the form distinguish an expired challenge from a bad code. */
 class AuthFlowError extends Error {
@@ -52,9 +59,14 @@ interface AuthContextValue {
   error: string | null;
   /** True between a password accepted and its second factor answered. */
   isTwoFactorPending: boolean;
+  /** True between a password accepted and its new-device code answered. */
+  isNewDevicePending: boolean;
   login: (email: string, password: string) => Promise<LoginOutcome>;
   completeTwoFactor: (code: string) => Promise<void>;
   cancelTwoFactor: () => void;
+  completeNewDeviceChallenge: (email: string, code: string) => Promise<void>;
+  cancelNewDeviceChallenge: () => void;
+  resendNewDeviceChallenge: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -95,6 +107,7 @@ export function AuthProvider({
   const [isLoading, setIsLoading] = useState(!skipSessionRestore);
   const [error, setError] = useState<string | null>(null);
   const [isTwoFactorPending, setIsTwoFactorPending] = useState(false);
+  const [isNewDevicePending, setIsNewDevicePending] = useState(false);
   // A ref, not state, and never localStorage: the challenge is a credential in
   // its own right, and the only thing that should outlive this tab's memory is
   // the HttpOnly cookie the server sets once the second factor is answered.
@@ -104,6 +117,7 @@ export function AuthProvider({
     browserAuthSession.clearAccessToken();
     challengeRef.current = null;
     setIsTwoFactorPending(false);
+    setIsNewDevicePending(false);
     setUser(null);
   }, []);
 
@@ -225,6 +239,16 @@ export function AuthProvider({
           return { status: 'two-factor-required', expiresIn: session.data.expiresIn };
         }
 
+        if (isNewDeviceChallenge(session.data)) {
+          setIsNewDevicePending(true);
+          return {
+            status: 'new-device-required',
+            maskedDestination: session.data.maskedDestination,
+            channel: session.data.channel,
+            expiresIn: session.data.expiresIn,
+          };
+        }
+
         if (!session.data.accessToken) {
           throw new Error('Login failed');
         }
@@ -315,6 +339,80 @@ export function AuthProvider({
     setError(null);
   }, []);
 
+  // New-device leg: same shape as completeTwoFactor, but the backend binds
+  // the code to the device that started the sign-in, so the email + code
+  // pair (not a challenge token) is what travels. Terminal backend codes
+  // (device mismatch, expired, too many attempts) clear the pending flag —
+  // the form sends the user back to the password stage on those.
+  const completeNewDeviceChallenge = useCallback(
+    async (email: string, code: string) => {
+      setError(null);
+      setIsLoading(true);
+      let sessionIssued = false;
+      try {
+        const session = await browserAuthSession.completeNewDeviceChallenge(email, code);
+        if (!session.success || !session.data?.accessToken) {
+          throw new AuthFlowError(
+            session.error?.message || 'That code was not accepted.',
+            session.error?.code || 'NEW_DEVICE_FAILED',
+          );
+        }
+        sessionIssued = true;
+        try {
+          await applySessionUser(session.data);
+        } catch {
+          throw new AuthFlowError(
+            'Your code was accepted, but the session could not be initialized. Sign in again.',
+            'SESSION_INITIALIZATION_FAILED',
+          );
+        }
+        setIsNewDevicePending(false);
+      } catch (caught) {
+        const flowError =
+          caught instanceof AuthFlowError
+            ? caught
+            : new AuthFlowError('That code was not accepted.', 'NEW_DEVICE_FAILED');
+        if (sessionIssued) {
+          try {
+            await browserAuthSession.logout();
+          } catch {
+            browserAuthSession.clearAccessToken();
+          }
+          clearMemorySession();
+        } else if (
+          flowError.code === 'NEW_DEVICE_MISMATCH' ||
+          flowError.code === 'INVALID_OR_EXPIRED_CODE' ||
+          flowError.code === 'CODE_ALREADY_USED' ||
+          flowError.code === 'TOO_MANY_ATTEMPTS' ||
+          flowError.code === 'NO_PENDING_CHALLENGE'
+        ) {
+          setIsNewDevicePending(false);
+        }
+        setError(flowError.message);
+        throw flowError;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [clearMemorySession, applySessionUser],
+  );
+
+  const cancelNewDeviceChallenge = useCallback(() => {
+    setIsNewDevicePending(false);
+    setError(null);
+  }, []);
+
+  const resendNewDeviceChallenge = useCallback(async (email: string) => {
+    setError(null);
+    const response = await browserAuthSession.resendNewDeviceChallenge(email);
+    if (!response.success || !response.data?.emailSent) {
+      const message =
+        response.error?.message || 'We could not send a new code. Try signing in again.';
+      setError(message);
+      throw new AuthFlowError(message, response.error?.code || 'NEW_DEVICE_RESEND_FAILED');
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await browserAuthSession.logout();
@@ -357,9 +455,13 @@ export function AuthProvider({
     isAuthenticated: Boolean(user),
     error,
     isTwoFactorPending,
+    isNewDevicePending,
     login,
     completeTwoFactor,
     cancelTwoFactor,
+    completeNewDeviceChallenge,
+    cancelNewDeviceChallenge,
+    resendNewDeviceChallenge,
     logout,
   };
 

@@ -150,12 +150,35 @@ export interface BrowserTwoFactorChallenge {
   expiresIn: number;
 }
 
-export type BrowserLoginResult = BrowserAccessSession | BrowserTwoFactorChallenge;
+/**
+ * What `/auth/login` answers when the password was right but the device is
+ * new: no tokens, no refresh cookie, just a masked destination the code was
+ * mailed to. The code itself is redeemed with the account email (not a
+ * challenge token), so the browser holds nothing credential-like here —
+ * the pending email address lives in the auth provider's memory only.
+ */
+export interface BrowserNewDeviceChallenge {
+  newDeviceChallengeRequired: true;
+  challengeId: string;
+  maskedDestination: string;
+  channel: 'recovery' | 'primary';
+  expiresIn: number;
+}
+
+export type BrowserLoginResult =
+  | BrowserAccessSession
+  | BrowserTwoFactorChallenge
+  | BrowserNewDeviceChallenge;
 
 export const isTwoFactorChallenge = (
   data: BrowserLoginResult | undefined,
 ): data is BrowserTwoFactorChallenge =>
   Boolean(data && (data as BrowserTwoFactorChallenge).twoFactorRequired);
+
+export const isNewDeviceChallenge = (
+  data: BrowserLoginResult | undefined,
+): data is BrowserNewDeviceChallenge =>
+  Boolean(data && (data as BrowserNewDeviceChallenge).newDeviceChallengeRequired);
 
 export interface BrowserRegistration {
   email: string;
@@ -289,6 +312,35 @@ export const browserAuthSession = {
     return rememberAccess(
       await post<BrowserAccessSession>('/auth/2fa/verify', { challenge, code }),
     );
+  },
+
+  /**
+   * Second leg of a new-device login. The code is redeemable only from the
+   * device that started the sign-in (the backend binds the challenge to
+   * that device's fingerprint), so this must be called from the same
+   * browser tab that performed the password login — which it is, since the
+   * login form never navigates away between the two legs.
+   */
+  async completeNewDeviceChallenge(
+    email: string,
+    code: string,
+  ): Promise<AuthResponse<BrowserAccessSession>> {
+    return rememberAccess(
+      await post<BrowserAccessSession>('/auth/new-device/verify', { email, code }),
+    );
+  },
+
+  async resendNewDeviceChallenge(
+    email: string,
+  ): Promise<
+    AuthResponse<{
+      emailSent: boolean;
+      maskedDestination: string;
+      channel: 'recovery' | 'primary';
+      expiresIn: number;
+    }>
+  > {
+    return post('/auth/new-device/resend', { email });
   },
 
   /**
