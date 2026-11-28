@@ -97,6 +97,23 @@ describe('matchesSearchFilters', () => {
     expect(matchesSearchFilters(email, { dateTo: 'garbage' })).toBe(true);
   });
 
+  it('filters by read state: the Unread chip sends isRead: false', () => {
+    const read = makeEmail(); // isRead: true
+    const unread = withOverrides(makeEmail(), { isRead: false });
+    expect(matchesSearchFilters(read, { isRead: false })).toBe(false);
+    expect(matchesSearchFilters(unread, { isRead: false })).toBe(true);
+    expect(matchesSearchFilters(read, { isRead: true })).toBe(true);
+    expect(matchesSearchFilters(unread, {})).toBe(true);
+  });
+
+  it('filters by starred state only when isStarred is true', () => {
+    const plain = makeEmail(); // isStarred: false
+    const starred = withOverrides(makeEmail(), { isStarred: true });
+    expect(matchesSearchFilters(plain, { isStarred: true })).toBe(false);
+    expect(matchesSearchFilters(starred, { isStarred: true })).toBe(true);
+    expect(matchesSearchFilters(plain, { isStarred: false })).toBe(true);
+  });
+
   it('ANDs multiple filters together', () => {
     const email = makeEmail();
     expect(matchesSearchFilters(email, { from: 'kundan', subject: 'hello' })).toBe(true);

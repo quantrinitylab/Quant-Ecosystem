@@ -226,6 +226,8 @@ export interface SearchEmailRequest {
   dateTo?: string;
   isRead?: boolean;
   isStarred?: boolean;
+  /** Folder *name* ("Inbox", "Sent", "Archive") — resolved server-side. */
+  folder?: string;
   page?: number;
   pageSize?: number;
 }

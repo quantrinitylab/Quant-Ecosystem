@@ -1200,7 +1200,8 @@ function toEmailList(payload: unknown): Email[] {
 /**
  * Client-side advanced-search filter matching.
  *
- * The /search page's filter chips (From / To / Has attachment / Label / Since)
+ * The /search page's filter chips (From / To / Subject / Has attachment /
+ * Label / In folder / Since / Until / Unread / Starred)
  * are sent to the backend, which applies them server-side — but two paths need
  * a client-side twin:
  *
@@ -1221,6 +1222,15 @@ export interface ClientSearchFilters {
   label?: string;
   dateFrom?: string;
   dateTo?: string;
+  /** Equality filter on the read flag (the Unread chip sends `false`). */
+  isRead?: boolean;
+  /** When true, only starred mail. */
+  isStarred?: boolean;
+  // NOTE: no `folder` here on purpose. The In-folder chip collects a folder
+  // *name* and only the server can resolve it to a folder id, so folder
+  // scoping is server-only: useSearchEmails suppresses the local instant
+  // hits entirely while a folder filter is active, instead of letting
+  // unfiltered local hits leak into a folder-scoped result set.
 }
 
 function toComparableDate(value: unknown): Date | null {
@@ -1289,6 +1299,9 @@ export function matchesSearchFilters(
     if (!received || received > dateTo) return false;
   }
 
+  if (typeof filters.isRead === 'boolean' && email.isRead !== filters.isRead) return false;
+  if (filters.isStarred === true && email.isStarred !== true) return false;
+
   return true;
 }
 
@@ -1309,6 +1322,9 @@ export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
   const filterLabel = params?.label;
   const filterDateFrom = params?.dateFrom;
   const filterDateTo = params?.dateTo;
+  const filterIsRead = params?.isRead;
+  const filterIsStarred = params?.isStarred;
+  const filterFolder = params?.folder;
   const clientFilters: ClientSearchFilters = {
     from: filterFrom,
     to: filterTo,
@@ -1317,6 +1333,8 @@ export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
     label: filterLabel,
     dateFrom: filterDateFrom,
     dateTo: filterDateTo,
+    isRead: filterIsRead,
+    isStarred: filterIsStarred,
   };
   const hasActiveFilters =
     !!filterFrom?.trim() ||
@@ -1325,11 +1343,18 @@ export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
     filterHasAttachment === true ||
     !!filterLabel?.trim() ||
     !!filterDateFrom?.trim() ||
-    !!filterDateTo?.trim();
+    !!filterDateTo?.trim() ||
+    typeof filterIsRead === 'boolean' ||
+    filterIsStarred === true ||
+    !!filterFolder?.trim();
 
   // Synchronous instant local SQLite FTS5 search (local index only)
   const localHits = useMemo(() => {
     if (!queryText) return [];
+    // Folder scoping is server-only (the local index carries no folder-name
+    // mapping): with a folder filter active, instant hits would be
+    // unfiltered, so suppress them and let the server answer alone.
+    if (filterFolder?.trim()) return [];
     const indexer = getFts5Indexer();
     const ftsResults = indexer.search(queryText, { limit: params?.pageSize ?? 50 });
     const emails: Email[] = [];
@@ -1373,6 +1398,9 @@ export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
     filterLabel,
     filterDateFrom,
     filterDateTo,
+    filterIsRead,
+    filterIsStarred,
+    filterFolder,
   ]);
 
   const searchQuery = useQuery<Email[]>({
