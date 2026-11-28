@@ -8,8 +8,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  MAIL_NOTIFICATION_LABEL_OVERRIDE_OPTIONS,
+  MAIL_NOTIFICATION_LABEL_OVERRIDES,
   MAIL_NOTIFICATION_MODE_OPTIONS,
   MAIL_NOTIFICATION_MODES,
+  normalizeMailNotificationLabelOverrides,
   normalizeMailNotificationMode,
 } from '../lib/mail-notification-mode';
 
@@ -37,5 +40,41 @@ describe('mail notification modes', () => {
     expect(normalizeMailNotificationMode('everything')).toBe('all');
     expect(normalizeMailNotificationMode(undefined)).toBe('all');
     expect(normalizeMailNotificationMode(null)).toBe('all');
+  });
+});
+
+describe('mail notification label overrides', () => {
+  it('is exactly the two overrides the backend validates', () => {
+    expect([...MAIL_NOTIFICATION_LABEL_OVERRIDES]).toEqual(['all', 'none']);
+  });
+
+  it('offers follow-global plus one labelled option per override, each with honest copy', () => {
+    expect(MAIL_NOTIFICATION_LABEL_OVERRIDE_OPTIONS.map((option) => option.value)).toEqual([
+      null,
+      'all',
+      'none',
+    ]);
+    for (const option of MAIL_NOTIFICATION_LABEL_OVERRIDE_OPTIONS) {
+      expect(option.label.length).toBeGreaterThan(0);
+      expect(option.description.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('keeps only string ids mapped to all/none', () => {
+    expect(
+      normalizeMailNotificationLabelOverrides({
+        'lbl-1': 'all',
+        'lbl-2': 'none',
+        'lbl-3': 'everything',
+        'lbl-4': null,
+      }),
+    ).toEqual({ 'lbl-1': 'all', 'lbl-2': 'none' });
+  });
+
+  it('normalizes non-objects to an empty map', () => {
+    expect(normalizeMailNotificationLabelOverrides(undefined)).toEqual({});
+    expect(normalizeMailNotificationLabelOverrides(null)).toEqual({});
+    expect(normalizeMailNotificationLabelOverrides('all')).toEqual({});
+    expect(normalizeMailNotificationLabelOverrides([{ 'lbl-1': 'all' }])).toEqual({});
   });
 });

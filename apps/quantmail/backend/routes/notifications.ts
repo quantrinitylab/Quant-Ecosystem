@@ -5,14 +5,65 @@ import { z } from 'zod';
 import { getPushPublicKey, isPushConfigured } from '../services/push-delivery.service';
 import { pruneExpiredNotifications } from '../services/notification-retention.service';
 import {
+  MAIL_NOTIFICATION_LABEL_OVERRIDES,
   MAIL_NOTIFICATION_MODES,
+  MAX_MAIL_NOTIFICATION_LABEL_OVERRIDES,
   readUserMailNotificationMode,
+  readUserMailNotificationPreferences,
+  writeUserMailNotificationLabelOverrides,
   writeUserMailNotificationMode,
+  type MailNotificationLabelOverride,
+  type MailNotificationLabelOverrides,
 } from '../services/mail-notification-mode.service';
 
 const listQuerySchema = z.object({ limit: z.coerce.number().int().min(1).max(100).default(30) });
 
 const mailNotificationModeBodySchema = z.object({ mode: z.enum(MAIL_NOTIFICATION_MODES) });
+
+const mailNotificationLabelOverridesBodySchema = z.object({
+  overrides: z
+    .record(z.string(), z.enum(MAIL_NOTIFICATION_LABEL_OVERRIDES))
+    .refine(
+      (overrides) => Object.keys(overrides).length <= MAX_MAIL_NOTIFICATION_LABEL_OVERRIDES,
+      `at most ${MAX_MAIL_NOTIFICATION_LABEL_OVERRIDES} label overrides`,
+    ),
+});
+
+// Minimal typed view of the Prisma `label` delegate for the overrides routes.
+interface NotificationLabelDelegate {
+  findMany(args: {
+    where: { userId: string; id: { in: string[] } };
+    select: { id: true };
+  }): Promise<Array<{ id: string }>>;
+}
+
+/** The caller-owned subset of `overrides`, plus the requested ids that are
+ *  not the caller's labels. Unknown ids are dropped, never stored: a stored
+ *  override for a label the user does not own could never match their mail
+ *  anyway, and silently keeping it would let a stale client resurrect it. */
+export async function filterOwnedLabelOverrides(
+  labelDelegate: NotificationLabelDelegate,
+  userId: string,
+  overrides: MailNotificationLabelOverrides,
+): Promise<{ owned: MailNotificationLabelOverrides; dropped: string[] }> {
+  const requested = Object.keys(overrides);
+  if (requested.length === 0) return { owned: {}, dropped: [] };
+  const ownedRows = await labelDelegate.findMany({
+    where: { userId, id: { in: requested } },
+    select: { id: true },
+  });
+  const ownedIds = new Set(ownedRows.map((row) => row.id));
+  const owned: MailNotificationLabelOverrides = {};
+  const dropped: string[] = [];
+  for (const labelId of requested) {
+    const override = overrides[labelId] as MailNotificationLabelOverride | undefined;
+    if (ownedIds.has(labelId) && override !== undefined) owned[labelId] = override;
+    else dropped.push(labelId);
+  }
+  return { owned, dropped };
+}
+
+
 
 // QM-UIUX-053: the browser's `PushSubscription.toJSON()` shape. Deliberately
 // no `userId` field — the owner comes from the authenticated session, never
@@ -185,5 +236,39 @@ export default async function notificationRoutes(fastify: FastifyInstance) {
     }
     const mode = await writeUserMailNotificationMode(prisma, userId, parsed.data.mode);
     return reply.send({ success: true, data: { mode } });
+  });
+
+  // ------------------------------------------------------------------------
+  // Per-label notification overrides (Gmail's per-label "Notify for every
+  // message"). GET returns the caller's overrides map (label id → 'all' |
+  // 'none'); an absent entry means "follow the global mode". PUT replaces
+  // the whole map: the client sends the full set it shows, so a removed row
+  // is a real removal, not a stale entry that keeps muting mail. Ids that
+  // are not the caller's labels are dropped from the stored map and listed
+  // in `dropped`, so the client can say so honestly instead of believing
+  // an override it sent took effect.
+  // ------------------------------------------------------------------------
+  fastify.get('/mail-notification-label-overrides', async (request, reply) => {
+    const userId = userIdFrom(request);
+    const preferences = await readUserMailNotificationPreferences(prisma, userId, {
+      warn: (obj, msg) => fastify.log.warn(obj as object, msg),
+    });
+    return reply.send({ success: true, data: { overrides: preferences.overrides } });
+  });
+
+  fastify.put('/mail-notification-label-overrides', async (request, reply) => {
+    const userId = userIdFrom(request);
+    const parsed = mailNotificationLabelOverridesBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw createAppError('Invalid notification label overrides', 400, 'VALIDATION_ERROR');
+    }
+    const labelDelegate = (prisma as { label: NotificationLabelDelegate }).label;
+    const { owned, dropped } = await filterOwnedLabelOverrides(
+      labelDelegate,
+      userId,
+      parsed.data.overrides,
+    );
+    const overrides = await writeUserMailNotificationLabelOverrides(prisma, userId, owned);
+    return reply.send({ success: true, data: { overrides, dropped } });
   });
 }
