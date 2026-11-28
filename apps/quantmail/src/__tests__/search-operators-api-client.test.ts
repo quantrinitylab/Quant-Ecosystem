@@ -22,6 +22,13 @@ describe('hasSearchOperatorSyntax', () => {
     ['subject:"year end review"', true],
     ['Re: from:kundan invoice', true],
     ['invoice from:kundan', true],
+    ['-from:kundan', true],
+    ['from:alice -from:bob', true],
+    ['-unsubscribe', true],
+    ['invoice -spam', true],
+    ['from:alice OR from:bob', true],
+    ['invoice OR receipt', true],
+    ['invoice OR receipt -from:bob', true],
   ])('detects operator syntax in %p', (query, expected) => {
     expect(hasSearchOperatorSyntax(query)).toBe(expected);
   });
@@ -32,6 +39,9 @@ describe('hasSearchOperatorSyntax', () => {
     ['12:30 meeting', false],
     ['note: remember this', false],
     ['Re: project update', false],
+    ['invoice or receipt', false],
+    ['oranges', false],
+    ['e-mail update', false],
     ['', false],
   ])('leaves plain text alone in %p', (query, expected) => {
     expect(hasSearchOperatorSyntax(query)).toBe(expected);

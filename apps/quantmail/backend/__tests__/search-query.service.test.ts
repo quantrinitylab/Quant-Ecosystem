@@ -871,3 +871,345 @@ describe('SearchQueryService.search in:anywhere', () => {
     expect(dataCall!.filter((p) => p === false)).toHaveLength(0);
   });
 });
+
+describe('SearchQueryService.parse OR / negation', () => {
+  const service = new SearchQueryService();
+
+  it('groups from:a OR from:b into one OR-group, leaving flat fields empty', () => {
+    const p = service.parse('from:alice OR from:bob');
+    expect(p.from).toEqual([]);
+    expect(p.terms).toEqual([]);
+    expect(p.orGroups).toHaveLength(1);
+    expect(p.orGroups[0]).toEqual([
+      { op: 'from', value: 'alice', negated: false },
+      { op: 'from', value: 'bob', negated: false },
+    ]);
+  });
+
+  it('OR binds tighter than the implicit AND', () => {
+    const p = service.parse('from:alice OR from:bob invoice');
+    expect(p.orGroups).toHaveLength(1);
+    expect(p.orGroups[0]?.map((a) => a.value)).toEqual(['alice', 'bob']);
+    expect(p.terms).toEqual(['invoice']);
+    expect(p.from).toEqual([]);
+  });
+
+  it('chains three OR branches into a single group', () => {
+    const p = service.parse('invoice OR receipt OR memo');
+    expect(p.orGroups).toHaveLength(1);
+    expect(p.orGroups[0]?.map((a) => a.value)).toEqual(['invoice', 'receipt', 'memo']);
+    expect(p.terms).toEqual([]);
+  });
+
+  it('lowercase or stays an ordinary free-text term', () => {
+    const p = service.parse('invoice or receipt');
+    expect(p.orGroups).toEqual([]);
+    expect(p.terms).toEqual(['invoice', 'or', 'receipt']);
+  });
+
+  it('stray leading/trailing OR becomes an ordinary term', () => {
+    expect(service.parse('OR from:alice').terms).toEqual(['OR']);
+    expect(service.parse('OR from:alice').from).toEqual(['alice']);
+    expect(service.parse('OR from:alice').orGroups).toEqual([]);
+    expect(service.parse('from:alice OR').terms).toEqual(['OR']);
+    expect(service.parse('from:alice OR').from).toEqual(['alice']);
+    expect(service.parse('from:alice OR').orGroups).toEqual([]);
+  });
+
+  it('parses -from: and bare -terms into excluded atoms', () => {
+    const p = service.parse('from:alice -from:bob -unsubscribe');
+    expect(p.from).toEqual(['alice']);
+    expect(p.terms).toEqual([]);
+    expect(p.excluded).toEqual([
+      { op: 'from', value: 'bob', negated: true },
+      { op: 'term', value: 'unsubscribe', negated: true },
+    ]);
+  });
+
+  it('parses -"exact phrase" into one excluded term', () => {
+    const p = service.parse('invoice -"quarterly results"');
+    expect(p.terms).toEqual(['invoice']);
+    expect(p.excluded).toEqual([{ op: 'term', value: 'quarterly results', negated: true }]);
+  });
+
+  it('parses -subject: and -is: into excluded atoms', () => {
+    const p = service.parse('-subject:invoice -is:starred');
+    expect(p.excluded).toEqual([
+      { op: 'subject', value: 'invoice', negated: true },
+      { op: 'is', value: 'starred', negated: true },
+    ]);
+  });
+
+  it('negates only its own branch inside an OR-group', () => {
+    const p = service.parse('-from:alice OR from:bob');
+    expect(p.orGroups).toHaveLength(1);
+    expect(p.orGroups[0]).toEqual([
+      { op: 'from', value: 'alice', negated: true },
+      { op: 'from', value: 'bob', negated: false },
+    ]);
+    expect(p.excluded).toEqual([]);
+  });
+
+  it('parses negated relative dates into excluded date atoms', () => {
+    const p = service.parse('-newer_than:7d', new Date('2026-06-20T00:00:00.000Z'));
+    expect(p.excluded).toHaveLength(1);
+    expect(p.excluded[0]?.op).toBe('after');
+    expect(p.excluded[0]?.date?.toISOString()).toBe('2026-06-13T00:00:00.000Z');
+    expect(p.excluded[0]?.negated).toBe(true);
+  });
+
+  it('drops -in:anywhere without setting the scope flag', () => {
+    const p = service.parse('-in:anywhere invoice');
+    expect(p.inAnywhere).toBeUndefined();
+    expect(p.terms).toEqual(['invoice']);
+    expect(p.excluded).toEqual([]);
+    expect(p.orGroups).toEqual([]);
+  });
+
+  it('keeps in:anywhere as a scope flag when it appears inside an OR-group', () => {
+    const p = service.parse('in:anywhere OR from:alice');
+    expect(p.inAnywhere).toBe(true);
+    expect(p.from).toEqual(['alice']);
+    expect(p.orGroups).toEqual([]);
+  });
+
+  it('keeps quoted operator values inside OR-groups', () => {
+    const p = service.parse('subject:"year end" OR subject:"q1 report"');
+    expect(p.orGroups).toHaveLength(1);
+    expect(p.orGroups[0]?.map((a) => a.value)).toEqual(['year end', 'q1 report']);
+  });
+});
+
+describe('SearchQueryService.buildEmailWhere OR / negation', () => {
+  const service = new SearchQueryService();
+
+  it('ORs from:a OR from:b and keeps the default trash/spam exclusions', () => {
+    const where = service.buildEmailWhere('user-1', 'from:alice OR from:bob');
+    expect(where.isTrash).toBe(false);
+    expect(where.isSpam).toBe(false);
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({
+      OR: [
+        { fromAddress: { contains: 'alice', mode: 'insensitive' } },
+        { fromAddress: { contains: 'bob', mode: 'insensitive' } },
+      ],
+    });
+  });
+
+  it('ANDs an OR-group with the remaining terms', () => {
+    const where = service.buildEmailWhere('user-1', 'from:alice OR from:bob invoice');
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toHaveLength(2);
+    expect(and.some((c) => 'OR' in c && Array.isArray((c as { OR: unknown[] }).OR))).toBe(true);
+    expect(and.some((c) => 'OR' in c && ((c as { OR: unknown[] }).OR[0] as Record<string, unknown>).subject !== undefined)).toBe(true);
+  });
+
+  it('negates -from: with NOT', () => {
+    const where = service.buildEmailWhere('user-1', 'from:alice -from:bob');
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({ fromAddress: { contains: 'alice', mode: 'insensitive' } });
+    expect(and).toContainEqual({
+      NOT: { fromAddress: { contains: 'bob', mode: 'insensitive' } },
+    });
+  });
+
+  it('negates a free-text term with NOT over subject/snippet/body', () => {
+    const where = service.buildEmailWhere('user-1', '-unsubscribe');
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({
+      NOT: {
+        OR: [
+          { subject: { contains: 'unsubscribe', mode: 'insensitive' } },
+          { snippet: { contains: 'unsubscribe', mode: 'insensitive' } },
+          { bodyPlain: { contains: 'unsubscribe', mode: 'insensitive' } },
+        ],
+      },
+    });
+  });
+
+  it('in:trash OR in:spam drops both default exclusions', () => {
+    const where = service.buildEmailWhere('user-1', 'in:trash OR in:spam invoice');
+    expect(where.isTrash).toBeUndefined();
+    expect(where.isSpam).toBeUndefined();
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({ OR: [{ isTrash: true }, { isSpam: true, isTrash: false }] });
+  });
+
+  it('a negated in:trash branch does not lift the default trash exclusion', () => {
+    const where = service.buildEmailWhere('user-1', '-in:trash OR in:inbox invoice');
+    expect(where.isTrash).toBe(false);
+    expect(where.isSpam).toBe(false);
+  });
+
+  it('negates only its own branch inside an OR-group', () => {
+    const where = service.buildEmailWhere('user-1', '-from:alice OR from:bob');
+    const and = where.AND as Record<string, unknown>[];
+    expect(and).toContainEqual({
+      OR: [
+        { NOT: { fromAddress: { contains: 'alice', mode: 'insensitive' } } },
+        { fromAddress: { contains: 'bob', mode: 'insensitive' } },
+      ],
+    });
+  });
+});
+
+describe('SearchQueryService.buildEmailWhere OR / negation acceptance', () => {
+  const service = new SearchQueryService();
+
+  /** Minimal in-memory evaluator for the Prisma `where` shapes this service
+   *  emits: field equality, AND/OR/NOT nesting, and contains
+   *  (case-insensitive). Mirrors the in:anywhere acceptance block. */
+  function matchesWhere(row: Record<string, unknown>, where: Record<string, unknown>): boolean {
+    for (const [key, value] of Object.entries(where)) {
+      if (key === 'AND') {
+        if (!(value as Record<string, unknown>[]).every((c) => matchesWhere(row, c))) return false;
+      } else if (key === 'OR') {
+        if (!(value as Record<string, unknown>[]).some((c) => matchesWhere(row, c))) return false;
+      } else if (key === 'NOT') {
+        if (matchesWhere(row, value as Record<string, unknown>)) return false;
+      } else if (value !== null && typeof value === 'object' && 'contains' in value) {
+        const hay = String(row[key] ?? '');
+        const needle = String((value as { contains: unknown }).contains);
+        const insensitive = (value as { mode?: string }).mode === 'insensitive';
+        const h = insensitive ? hay.toLowerCase() : hay;
+        const n = insensitive ? needle.toLowerCase() : needle;
+        if (!h.includes(n)) return false;
+      } else {
+        if (row[key] !== value) return false;
+      }
+    }
+    return true;
+  }
+
+  const rows: Record<string, unknown>[] = [
+    { id: 'alice-invoice', userId: 'u1', deletedAt: null, isTrash: false, isSpam: false, fromAddress: 'alice@x.com', subject: 'invoice', snippet: '', bodyPlain: '' },
+    { id: 'bob-invoice', userId: 'u1', deletedAt: null, isTrash: false, isSpam: false, fromAddress: 'bob@x.com', subject: 'invoice', snippet: '', bodyPlain: '' },
+    { id: 'carol-receipt', userId: 'u1', deletedAt: null, isTrash: false, isSpam: false, fromAddress: 'carol@x.com', subject: 'receipt', snippet: '', bodyPlain: '' },
+    { id: 'dave-newsletter', userId: 'u1', deletedAt: null, isTrash: false, isSpam: false, fromAddress: 'dave@x.com', subject: 'unsubscribe newsletter', snippet: '', bodyPlain: '' },
+  ];
+
+  const matchedIds = (query: string) =>
+    rows.filter((r) => matchesWhere(r, service.buildEmailWhere('u1', query))).map((r) => r.id);
+
+  it('from:a OR from:b matches either sender only', () => {
+    expect(matchedIds('from:alice@x.com OR from:bob@x.com').sort()).toEqual([
+      'alice-invoice',
+      'bob-invoice',
+    ]);
+  });
+
+  it('OR-group ANDed with a term narrows both branches', () => {
+    expect(matchedIds('from:alice@x.com OR from:bob@x.com invoice').sort()).toEqual([
+      'alice-invoice',
+      'bob-invoice',
+    ]);
+  });
+
+  it('term OR with exclusion drops the excluded sender', () => {
+    expect(matchedIds('invoice OR receipt -from:bob@x.com').sort()).toEqual([
+      'alice-invoice',
+      'carol-receipt',
+    ]);
+  });
+
+  it('-unsubscribe excludes the newsletter row', () => {
+    expect(matchedIds('unsubscribe OR newsletter -from:dave@x.com')).toEqual([]);
+    expect(matchedIds('newsletter -unsubscribe')).toEqual([]);
+    expect(matchedIds('newsletter').sort()).toEqual(['dave-newsletter']);
+  });
+});
+
+describe('SearchQueryService.search OR / negation', () => {
+  function createMockPrisma() {
+    return {
+      $queryRawUnsafe: vi.fn(),
+      email: { findMany: vi.fn(), count: vi.fn() },
+    };
+  }
+
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let service: SearchQueryService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new SearchQueryService(prisma as never);
+  });
+
+  function mockRawSuccess() {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*)')) {
+        return [{ total: 1 }];
+      }
+      return [{ id: 'email-1' }];
+    });
+  }
+
+  function dataCallSql() {
+    const call = prisma.$queryRawUnsafe.mock.calls.find((c: any[]) =>
+      String(c[0]).includes('SELECT id, "userId"'),
+    );
+    expect(call).toBeDefined();
+    return { sql: String(call![0]), params: call!.slice(1) };
+  }
+
+  it('raw FTS path: OR-group from:a OR from:b rides the SQL as an OR clause', async () => {
+    mockRawSuccess();
+    const result = await service.search('user-1', 'invoice from:alice OR from:bob', {
+      page: 1,
+      limit: 10,
+    });
+    expect(result.total).toBe(1);
+    const { sql, params } = dataCallSql();
+    expect(sql).toContain(' OR ');
+    expect(sql.split('"fromAddress" ILIKE $').length - 1).toBe(2);
+    expect(params).toContain('%alice%');
+    expect(params).toContain('%bob%');
+  });
+
+  it('raw FTS path: excluded -from: becomes NOT (fromAddress ILIKE ...)', async () => {
+    mockRawSuccess();
+    await service.search('user-1', 'invoice -from:spammy', { page: 1, limit: 10 });
+    const { sql, params } = dataCallSql();
+    expect(sql).toContain('NOT ("fromAddress" ILIKE $');
+    expect(params).toContain('%spammy%');
+  });
+
+  it('raw FTS path: excluded term becomes NOT (tsvector @@ plainto_tsquery)', async () => {
+    mockRawSuccess();
+    await service.search('user-1', 'invoice -unsubscribe', { page: 1, limit: 10 });
+    const { sql, params } = dataCallSql();
+    expect(sql).toContain('NOT (to_tsvector');
+    expect(sql).toContain("plainto_tsquery('english', $");
+    expect(params).toContain('invoice');
+    expect(params).toContain('unsubscribe');
+  });
+
+  it('Prisma path: OR-group without flat terms builds an OR condition', async () => {
+    prisma.$queryRawUnsafe.mockRejectedValue(new Error('raw query disabled'));
+    prisma.email.findMany.mockResolvedValue([{ id: 'email-1' }]);
+    prisma.email.count.mockResolvedValue(1);
+
+    await service.search('user-1', 'from:alice OR from:bob', { limit: 10 });
+
+    const callArg = prisma.email.findMany.mock.calls[0]?.[0] as { where: { AND: unknown[] } };
+    expect(callArg.where.AND).toContainEqual({
+      OR: [
+        { fromAddress: { contains: 'alice', mode: 'insensitive' } },
+        { fromAddress: { contains: 'bob', mode: 'insensitive' } },
+      ],
+    });
+  });
+
+  it('Prisma fallback path: excluded atom with a flat term builds NOT', async () => {
+    prisma.$queryRawUnsafe.mockRejectedValue(new Error('raw query failed'));
+    prisma.email.findMany.mockResolvedValue([{ id: 'email-1' }]);
+    prisma.email.count.mockResolvedValue(1);
+
+    await service.search('user-1', 'invoice -from:spammy', { limit: 10 });
+
+    const callArg = prisma.email.findMany.mock.calls[0]?.[0] as { where: { AND: unknown[] } };
+    expect(callArg.where.AND).toContainEqual({
+      NOT: { fromAddress: { contains: 'spammy', mode: 'insensitive' } },
+    });
+  });
+});

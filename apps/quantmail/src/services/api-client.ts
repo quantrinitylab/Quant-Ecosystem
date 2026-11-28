@@ -287,18 +287,32 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
  * (backend/services/search-query.service.ts): a known operator prefix at the
  * start of the query or after whitespace, or a "quoted phrase".
  *
+ * The backend parser also understands negation (`-from:x`, `-term`) and
+ * uppercase `OR` (`from:a OR from:b`, `invoice OR receipt`), so those
+ * route here too — otherwise a negated/OR query would stay on the literal
+ * path, which matches the raw string (including the `-`/`OR`) as plain
+ * text and would almost never match. The `OR` check is case-SENSITIVE on
+ * purpose: Gmail honours only uppercase `OR`; lowercase `or` is a term.
+ *
  * Deliberately conservative: `bob@x.com`, `12:30`, and unknown prefixes
  * (`note: blah`) do NOT count — the backend parser treats those as literal
  * terms too, so routing them to the operator path would change nothing but
  * the response shape.
  */
 const SEARCH_OPERATOR_PATTERN =
-  /(?:^|\s)(from|to|subject|label|in|folder|has|is|before|after|newer_than|older_than):/i;
+  /(?:^|\s)-?(from|to|subject|label|in|folder|has|is|before|after|newer_than|older_than):/i;
 const QUOTED_PHRASE_PATTERN = /"[^"]+"/;
+const NEGATED_TERM_PATTERN = /(?:^|\s)-[^\s]/;
+const STANDALONE_OR_PATTERN = /(?:^|\s)OR(?:\s|$)/;
 
 export function hasSearchOperatorSyntax(query: string): boolean {
   if (!query || typeof query !== 'string') return false;
-  return SEARCH_OPERATOR_PATTERN.test(query) || QUOTED_PHRASE_PATTERN.test(query);
+  return (
+    SEARCH_OPERATOR_PATTERN.test(query) ||
+    QUOTED_PHRASE_PATTERN.test(query) ||
+    NEGATED_TERM_PATTERN.test(query) ||
+    STANDALONE_OR_PATTERN.test(query)
+  );
 }
 
 /**
