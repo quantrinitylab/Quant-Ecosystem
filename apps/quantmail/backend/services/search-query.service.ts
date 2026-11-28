@@ -49,6 +49,58 @@ export interface ParsedSearchQuery {
 const KNOWN_FOLDER_TYPES = new Set(['inbox', 'sent', 'drafts', 'spam', 'trash', 'archive']);
 
 /**
+ * Spam/Trash scope operators (Gmail parity) that the legacy literal search
+ * (`EmailService.search`, backing GET /emails/search) must honour. The
+ * operator route (`GET /search/emails`) already honours these via
+ * `buildEmailWhere()`; the legacy path serves filter-chip searches and the
+ * operator route's fallback, and used to match these tokens literally AND
+ * exclude trash/spam — so `in:trash invoice` could never return anything.
+ * Only these four tokens are interpreted here: every other operator-looking
+ * token (`from:`, `to:`, `subject:`, ...) stays literal on the legacy path,
+ * preserving the documented behaviour locked in by
+ * `email-search-contact-thread-filters.test.ts`.
+ */
+const SPAM_TRASH_SCOPE_TOKENS = new Set(['in:trash', 'in:spam', 'is:spam', 'in:anywhere']);
+
+export interface SpamTrashScope {
+  /**
+   * The scope tokens found, joined for `buildEmailWhere()` — null when the
+   * query carries no scope operator. Feeding exactly these tokens back into
+   * `buildEmailWhere()` borrows the operator route's scope semantics
+   * verbatim (`in:trash` = trash only, `in:spam`/`is:spam` = spam only,
+   * `in:anywhere` = everything), so both search paths always agree.
+   */
+  scopeQuery: string | null;
+  /** The query with the scope tokens removed; all other tokens untouched. */
+  text: string;
+}
+
+/**
+ * Split a raw search query into its Spam/Trash scope operators and the
+ * remaining free text. Matching is per whitespace token, case-insensitive,
+ * and exact — a quoted `"in:trash"` phrase or a `subject:"in:trash"` value
+ * is not a scope operator and stays literal text.
+ */
+export function extractSpamTrashScope(query: string): SpamTrashScope {
+  const scopeTokens: string[] = [];
+  const rest: string[] = [];
+  for (const token of query.split(/\s+/)) {
+    if (token.length === 0) {
+      continue;
+    }
+    if (SPAM_TRASH_SCOPE_TOKENS.has(token.toLowerCase())) {
+      scopeTokens.push(token);
+    } else {
+      rest.push(token);
+    }
+  }
+  return {
+    scopeQuery: scopeTokens.length > 0 ? scopeTokens.join(' ') : null,
+    text: rest.join(' '),
+  };
+}
+
+/**
  * Translate one canonical `in:` folder type (lowercased) into a Prisma `Email`
  * condition. Mirrors the folder-listing semantics of `GET /emails`
  * (`apps/quantmail/backend/routes/emails.ts`): system folders are expressed
