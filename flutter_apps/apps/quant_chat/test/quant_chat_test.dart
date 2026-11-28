@@ -7,8 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quant_chat/main.dart';
 import 'package:quant_chat/models/chat_models.dart';
+import 'package:quant_chat/services/quantchat_thread_api.dart';
 import 'package:quant_chat/screens/chat_list_screen.dart';
 import 'package:quant_chat/screens/conversation_screen.dart';
+import 'package:quant_chat/widgets/mini_apps_sheet.dart';
+import 'package:quant_chat/widgets/sticker_picker_sheet.dart';
 import 'package:quant_chat/screens/call_screen.dart';
 import 'package:quant_chat/screens/audio_space_screen.dart';
 import 'package:quant_chat/screens/calls_tab_screen.dart';
@@ -400,7 +403,7 @@ void main() {
       await tester.pump();
 
       // Tap mic button to enter Voice Memo Recording state
-      await tester.tap(find.byTooltip('Record Voice Memo'));
+      await tester.tap(find.byTooltip('Hold to record voice note'));
       await tester.pump();
 
       // Verify Voice Recording Dock is active
@@ -415,7 +418,7 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
 
       // Start recording again and send it
-      await tester.tap(find.byTooltip('Record Voice Memo'));
+      await tester.tap(find.byTooltip('Hold to record voice note'));
       await tester.pump();
       expect(find.byIcon(Icons.delete_outline_rounded), findsOneWidget);
 
@@ -976,6 +979,328 @@ void main() {
         isEmpty,
         reason: 'Violation of Sovereign Impeller Rule: Zero Skia clipPath calls allowed. Use BorderRadius/BoxDecoration.',
       );
+    });
+  });
+
+  // ===========================================================================
+  // PHASE 2B — FULL THREAD SURFACE TESTS
+  // ===========================================================================
+  group('Phase 2B Chat Thread: stickers, likes, contact notice, composer, transport', () {
+    ChatMessage baseMessage() => const ChatMessage(
+          id: 'm-1',
+          conversationId: 'conv-1',
+          senderId: 'u-friend',
+          senderName: 'Friend',
+          text: 'hello',
+          timestamp: '10:00',
+          isOutgoing: false,
+        );
+
+    test('MessageType gains sticker and poll payload kinds', () {
+      expect(MessageType.values, contains(MessageType.sticker));
+      expect(MessageType.values, contains(MessageType.poll));
+    });
+
+    test('ChatMessage 2B fields default to unliked, no sticker, empty metadata', () {
+      final m = baseMessage();
+      expect(m.likeCount, 0);
+      expect(m.likedByMe, isFalse);
+      expect(m.stickerName, isNull);
+      expect(m.stickerSizeLabel, isNull);
+      expect(m.metadata, isEmpty);
+    });
+
+    test('copyWith carries the 2B fields', () {
+      final m = baseMessage().copyWith(
+        likeCount: 3,
+        likedByMe: true,
+        stickerName: 'Quant Bolt',
+        stickerSizeLabel: '24 KB',
+        metadata: {'pollId': 'p-1'},
+      );
+      expect(m.likeCount, 3);
+      expect(m.likedByMe, isTrue);
+      expect(m.stickerName, 'Quant Bolt');
+      expect(m.stickerSizeLabel, '24 KB');
+      expect(m.metadata['pollId'], 'p-1');
+      // Untouched fields survive.
+      expect(m.text, 'hello');
+    });
+
+    test('ChatConversation.isContactAdded defaults true', () {
+      const conv = ChatConversation(
+        id: 'c',
+        contactId: 'u',
+        name: 'N',
+        avatarInitials: 'N',
+        avatarColor: QuantColors.sovereignCyan,
+        lastMessage: '',
+        lastMessageTime: '',
+      );
+      expect(conv.isContactAdded, isTrue);
+      expect(conv.copyWith(isContactAdded: false).isContactAdded, isFalse);
+    });
+
+    test('fromWire maps a plain text row and detects the outgoing side', () {
+      final m = ChatMessage.fromWire(
+        {
+          'id': 'srv-1',
+          'conversationId': 'conv-1',
+          'senderId': 'u-me',
+          'senderName': 'Me',
+          'content': 'hi',
+          'type': 'TEXT',
+          'createdAt': '2026-10-29T08:00:00.000Z',
+          'metadata': {},
+        },
+        currentUserId: 'u-me',
+      );
+      expect(m.type, MessageType.text);
+      expect(m.isOutgoing, isTrue);
+      expect(m.text, 'hi');
+      expect(m.timestamp, isNotEmpty);
+    });
+
+    test('fromWire maps sticker rows via metadata and heart reactions to likes', () {
+      final m = ChatMessage.fromWire(
+        {
+          'id': 'srv-2',
+          'conversationId': 'conv-1',
+          'senderId': 'u-friend',
+          'content': 'Quant Bolt',
+          'type': 'IMAGE',
+          'createdAt': '2026-10-29T08:01:00.000Z',
+          'metadata': {
+            'stickerName': 'Quant Bolt',
+            'stickerSizeLabel': '24 KB',
+            'reactions': {
+              'heart': ['u-me', 'u-other'],
+            },
+          },
+        },
+        currentUserId: 'u-me',
+      );
+      expect(m.type, MessageType.sticker);
+      expect(m.stickerName, 'Quant Bolt');
+      expect(m.stickerSizeLabel, '24 KB');
+      expect(m.likeCount, 2);
+      expect(m.likedByMe, isTrue);
+      expect(m.isOutgoing, isFalse);
+    });
+
+    test('fromWire maps poll rows and system rows; unknown types fall back to text', () {
+      final poll = ChatMessage.fromWire(
+        {
+          'id': 'srv-3',
+          'conversationId': 'conv-1',
+          'senderId': 'u-me',
+          'content': 'Lunch?',
+          'type': 'TEXT',
+          'createdAt': '2026-10-29T08:02:00.000Z',
+          'metadata': {'pollId': 'p-9'},
+        },
+        currentUserId: 'u-me',
+      );
+      expect(poll.type, MessageType.poll);
+
+      final sys = ChatMessage.fromWire(
+        {
+          'id': 'srv-4',
+          'conversationId': 'conv-1',
+          'senderId': 'u-friend',
+          'content': 'Friend took a screenshot',
+          'type': 'SYSTEM',
+          'createdAt': '2026-10-29T08:03:00.000Z',
+        },
+        currentUserId: 'u-me',
+      );
+      expect(sys.type, MessageType.system);
+
+      final weird = ChatMessage.fromWire(
+        {'id': 'srv-5', 'type': 'HOLOGRAM'},
+        currentUserId: 'u-me',
+      );
+      expect(weird.type, MessageType.text);
+      expect(weird.id, 'srv-5');
+    });
+
+    test('QuantChatThreadApi is unconfigured by default and fails closed', () {
+      final api = QuantChatThreadApi();
+      expect(api.isConfigured, isFalse);
+      expect(
+        () => api.sendMessage('conv-1', content: 'x'),
+        throwsA(isA<QuantChatTransportUnavailable>()),
+      );
+      expect(
+        () => api.toggleLike('m-1'),
+        throwsA(isA<QuantChatTransportUnavailable>()),
+      );
+      expect(
+        () => api.reportScreenCapture('conv-1', 'screenshot'),
+        throwsA(isA<QuantChatTransportUnavailable>()),
+      );
+    });
+
+    test('Built-in sticker catalog: original set, unique names, all labeled with sizes', () {
+      expect(kQuantStickerCatalog.length, greaterThanOrEqualTo(4));
+      final names = kQuantStickerCatalog.map((s) => s.name).toList();
+      expect(names.toSet().length, names.length);
+      for (final s in kQuantStickerCatalog) {
+        expect(s.name, isNotEmpty);
+        expect(s.sizeLabel, isNotEmpty);
+      }
+    });
+
+    testWidgets('StickerPickerSheet renders the catalog and returns the chosen sticker',
+        (tester) async {
+      QuantSticker? chosen;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => TextButton(
+                onPressed: () => StickerPickerSheet.show(
+                  ctx,
+                  onStickerSelected: (s) => chosen = s,
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text('Stickers'), findsOneWidget);
+      expect(find.text('Quant Bolt'), findsOneWidget);
+      await tester.tap(find.text('Quant Bolt'));
+      await tester.pumpAndSettle();
+      expect(chosen?.name, 'Quant Bolt');
+      expect(chosen?.sizeLabel, isNotEmpty);
+    });
+
+    testWidgets('MiniAppsSheet lists Quick Poll and Dice Roll with labels, no dead rows',
+        (tester) async {
+      var pollTapped = false;
+      var diceTapped = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => TextButton(
+                onPressed: () => MiniAppsSheet.show(
+                  ctx,
+                  onQuickPoll: () => pollTapped = true,
+                  onDiceRoll: () => diceTapped = true,
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text('Mini apps'), findsOneWidget);
+      expect(find.text('Quick Poll'), findsOneWidget);
+      expect(find.text('Dice Roll'), findsOneWidget);
+      await tester.tap(find.text('Quick Poll'));
+      await tester.pumpAndSettle();
+      expect(pollTapped, isTrue);
+      expect(diceTapped, isFalse);
+    });
+
+    testWidgets('Composer carries every Flow-4 tool with a label, hint reads "Send a chat"',
+        (tester) async {
+      const conv = ChatConversation(
+        id: 'conv-2b',
+        contactId: 'u-friend',
+        name: 'Friend',
+        avatarInitials: 'FR',
+        avatarColor: QuantColors.sovereignCyan,
+        lastMessage: '',
+        lastMessageTime: 'Now',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const ConversationScreen(conversation: conv),
+        ),
+      );
+      await tester.pump();
+
+      // Camera, text field, mic, sticker, mini-apps, attachments, snap mode, send.
+      expect(find.byTooltip('Capture'), findsOneWidget);
+      expect(find.byTooltip('Hold to record voice note'), findsOneWidget);
+      expect(find.byTooltip('Stickers'), findsOneWidget);
+      expect(find.byTooltip('Mini apps'), findsOneWidget);
+      expect(find.byTooltip('Share Media & Data'), findsOneWidget);
+      expect(find.byTooltip('Snap mode'), findsOneWidget);
+      expect(find.byIcon(Icons.send_rounded), findsOneWidget);
+      expect(find.text('Send a chat'), findsOneWidget);
+    });
+
+    testWidgets('Friend-not-added card renders Report or Block and Okay; Okay dismisses',
+        (tester) async {
+      const conv = ChatConversation(
+        id: 'conv-2b-stranger',
+        contactId: 'u-stranger',
+        name: 'Stranger',
+        avatarInitials: 'ST',
+        avatarColor: QuantColors.moltenOrange,
+        lastMessage: '',
+        lastMessageTime: 'Now',
+        isContactAdded: false,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const ConversationScreen(conversation: conv),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Stranger is not in your contacts'), findsOneWidget);
+      expect(find.text('Report or Block'), findsOneWidget);
+      expect(find.text('Okay'), findsOneWidget);
+
+      await tester.tap(find.text('Okay'));
+      await tester.pump();
+      expect(find.text('Stranger is not in your contacts'), findsNothing);
+    });
+
+    testWidgets('Double-tap likes a message and shows the heart badge',
+        (tester) async {
+      const conv = ChatConversation(
+        id: 'conv-2b-like',
+        contactId: 'u-friend',
+        name: 'Friend',
+        avatarInitials: 'FR',
+        avatarColor: QuantColors.sovereignCyan,
+        lastMessage: '',
+        lastMessageTime: 'Now',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const ConversationScreen(conversation: conv),
+        ),
+      );
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField), 'like me');
+      await tester.tap(find.byIcon(Icons.send_rounded));
+      await tester.pump();
+      expect(find.text('like me'), findsOneWidget);
+      expect(find.text('Liked'), findsNothing);
+
+      // Double-tap the bubble: GestureDetector.onDoubleTap fires on the
+      // second tap.
+      await tester.tap(find.text('like me'));
+      await tester.tap(find.text('like me'));
+      await tester.pump();
+      expect(find.text('Liked'), findsOneWidget);
+      expect(find.byIcon(Icons.favorite_rounded), findsWidgets);
     });
   });
 }

@@ -104,12 +104,18 @@ class DeliveryTickWidget extends StatelessWidget {
 }
 
 /// Content payload classification.
+///
+/// `sticker` renders as a thumbnail row with the sticker name and size
+/// (Flow-4 media status pattern). `poll` renders an inline poll card whose
+/// payload rides in [ChatMessage.metadata].
 enum MessageType {
   text,
   audio,
   image,
   document,
   system,
+  sticker,
+  poll,
 }
 
 /// Audio Space participant roles.
@@ -144,6 +150,35 @@ class ChatMessage {
   final bool isServerDestroyed;
   final int serverDestructionCode; // 410 Gone
 
+  // View-once snap lifecycle (Phase 1B). These sit on top of the generic
+  // disappearing fields: a view-once snap hides its content until opened,
+  // then runs a short view timer.
+  final bool isViewOnce;
+  final bool hasBeenViewed;
+  // Recipient asked to keep AND the sender consented (backend keep-consent).
+  final bool isKeptByRecipient;
+  // Recipient display name for the "Saved by ..." caption.
+  final String? keptByName;
+  // Recipient asked to keep; the sender's consent is still outstanding.
+  final bool keepRequestPending;
+  // Sender revoked the message before the recipient viewed it.
+  final bool isRevoked;
+
+  // Phase 2B — sticker message payload (Flow-4 thumbnail rows).
+  final String? stickerName;
+  final String? stickerSizeLabel;
+
+  // Phase 2B — message likes (double-tap / heart). Backed by the
+  // POST /conversations/messages/:id/reactions toggle with the 'heart'
+  // reaction key; likeCount counts distinct likers.
+  final int likeCount;
+  final bool likedByMe;
+
+  // Phase 2B — opaque server payload carried alongside the message
+  // (poll cards, sticker metadata, future extensions). Never rendered
+  // directly; typed accessors above stay the source of truth.
+  final Map<String, dynamic> metadata;
+
   const ChatMessage({
     required this.id,
     required this.conversationId,
@@ -165,6 +200,17 @@ class ChatMessage {
     this.secondsRemaining = 0,
     this.isServerDestroyed = false,
     this.serverDestructionCode = 410,
+    this.isViewOnce = false,
+    this.hasBeenViewed = false,
+    this.isKeptByRecipient = false,
+    this.keptByName,
+    this.keepRequestPending = false,
+    this.isRevoked = false,
+    this.stickerName,
+    this.stickerSizeLabel,
+    this.likeCount = 0,
+    this.likedByMe = false,
+    this.metadata = const {},
   });
 
   ChatMessage copyWith({
@@ -188,6 +234,17 @@ class ChatMessage {
     int? secondsRemaining,
     bool? isServerDestroyed,
     int? serverDestructionCode,
+    bool? isViewOnce,
+    bool? hasBeenViewed,
+    bool? isKeptByRecipient,
+    String? keptByName,
+    bool? keepRequestPending,
+    bool? isRevoked,
+    String? stickerName,
+    String? stickerSizeLabel,
+    int? likeCount,
+    bool? likedByMe,
+    Map<String, dynamic>? metadata,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -210,6 +267,102 @@ class ChatMessage {
       secondsRemaining: secondsRemaining ?? this.secondsRemaining,
       isServerDestroyed: isServerDestroyed ?? this.isServerDestroyed,
       serverDestructionCode: serverDestructionCode ?? this.serverDestructionCode,
+      isViewOnce: isViewOnce ?? this.isViewOnce,
+      hasBeenViewed: hasBeenViewed ?? this.hasBeenViewed,
+      isKeptByRecipient: isKeptByRecipient ?? this.isKeptByRecipient,
+      keptByName: keptByName ?? this.keptByName,
+      keepRequestPending: keepRequestPending ?? this.keepRequestPending,
+      isRevoked: isRevoked ?? this.isRevoked,
+      stickerName: stickerName ?? this.stickerName,
+      stickerSizeLabel: stickerSizeLabel ?? this.stickerSizeLabel,
+      likeCount: likeCount ?? this.likeCount,
+      likedByMe: likedByMe ?? this.likedByMe,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+
+  /// Builds a [ChatMessage] from a backend message row (Phase 2B wire
+  /// mapping). The backend sends Prisma-style rows: `content`, `type` as
+  /// an uppercase enum string ('TEXT', 'IMAGE', 'SYSTEM', ...), ISO-8601
+  /// `createdAt`, and a `metadata` map. Mappings:
+  /// - type 'IMAGE' + metadata.stickerName → [MessageType.sticker];
+  /// - metadata.reactions['heart'] (list of user ids) → [likeCount] /
+  ///   [likedByMe] against [currentUserId];
+  /// - type 'SYSTEM' → [MessageType.system] (banner pills);
+  /// - metadata.pollId → [MessageType.poll] (mini-app poll card).
+  /// Unknown shapes fall back to plain text rather than throwing, so one
+  /// bad row never breaks the thread.
+  factory ChatMessage.fromWire(
+    Map<String, dynamic> wire, {
+    required String currentUserId,
+  }) {
+    final meta = wire['metadata'] is Map
+        ? Map<String, dynamic>.from(wire['metadata'] as Map)
+        : <String, dynamic>{};
+    final rawType = (wire['type'] as String? ?? 'TEXT').toUpperCase();
+    final senderId = wire['senderId'] as String? ?? '';
+
+    MessageType type;
+    switch (rawType) {
+      case 'AUDIO':
+        type = MessageType.audio;
+        break;
+      case 'FILE':
+        type = MessageType.document;
+        break;
+      case 'SYSTEM':
+        type = MessageType.system;
+        break;
+      case 'IMAGE':
+      case 'VIDEO':
+      case 'SNAP_PHOTO':
+      case 'SNAP_VIDEO':
+        type = MessageType.image;
+        break;
+      case 'LOCATION':
+      case 'TEXT':
+      default:
+        type = MessageType.text;
+    }
+    if (meta['stickerName'] is String) type = MessageType.sticker;
+    if (meta['pollId'] is String) type = MessageType.poll;
+
+    int likeCount = 0;
+    bool likedByMe = false;
+    final reactions = meta['reactions'];
+    if (reactions is Map) {
+      final hearts = reactions['heart'];
+      if (hearts is List) {
+        likeCount = hearts.length;
+        likedByMe = hearts.contains(currentUserId);
+      }
+    }
+
+    String timestamp = '';
+    final createdAt = wire['createdAt'];
+    if (createdAt is String) {
+      final dt = DateTime.tryParse(createdAt)?.toLocal();
+      if (dt != null) {
+        timestamp =
+            '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      }
+    }
+
+    return ChatMessage(
+      id: wire['id'] as String? ?? '',
+      conversationId: wire['conversationId'] as String? ?? '',
+      senderId: senderId,
+      senderName: wire['senderName'] as String? ?? 'Unknown',
+      text: wire['content'] as String? ?? '',
+      timestamp: timestamp,
+      isOutgoing: senderId.isNotEmpty && senderId == currentUserId,
+      deliveryStatus: MessageDeliveryStatus.sent,
+      type: type,
+      stickerName: meta['stickerName'] as String?,
+      stickerSizeLabel: meta['stickerSizeLabel'] as String?,
+      likeCount: likeCount,
+      likedByMe: likedByMe,
+      metadata: meta,
     );
   }
 }
@@ -237,6 +390,10 @@ class ChatConversation {
   final String? groupDescription;
   final DisappearingTimerOption disappearingOption;
 
+  // Phase 2B — false when the thread peer is not in the user's contacts.
+  // Drives the inline "not in your contacts" card (Report or Block / Okay).
+  final bool isContactAdded;
+
   const ChatConversation({
     required this.id,
     required this.contactId,
@@ -258,6 +415,7 @@ class ChatConversation {
     this.memberCount = 1,
     this.groupDescription,
     this.disappearingOption = DisappearingTimerOption.off,
+    this.isContactAdded = true,
   });
 
   ChatConversation copyWith({
@@ -281,6 +439,7 @@ class ChatConversation {
     int? memberCount,
     String? groupDescription,
     DisappearingTimerOption? disappearingOption,
+    bool? isContactAdded,
   }) {
     return ChatConversation(
       id: id ?? this.id,
@@ -303,6 +462,7 @@ class ChatConversation {
       memberCount: memberCount ?? this.memberCount,
       groupDescription: groupDescription ?? this.groupDescription,
       disappearingOption: disappearingOption ?? this.disappearingOption,
+      isContactAdded: isContactAdded ?? this.isContactAdded,
     );
   }
 }
@@ -635,3 +795,4 @@ enum ChatMediaType {
   location,
   contact,
 }
+
