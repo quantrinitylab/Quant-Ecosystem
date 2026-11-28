@@ -1279,8 +1279,9 @@ export function EmailComposer({
     // entirely — the button navigated to the inbox silently and the message
     // was never sent, with no confirmation toast. So on this path the send
     // runs immediately instead of through the frontend countdown; the
-    // 10-second recall window is still real, held by the backend (`sendEmail`
-    // with `delayMs: 10000`) and the undo toast the page shows. In a
+    // recall window is still real, held by the backend (`sendEmail`
+    // with `delayMs` from the stored undo-send setting) and the undo toast
+    // the page shows. In a
     // modal/popover the provider survives the send, so `queueSend` keeps its
     // countdown bar there.
     //
@@ -1396,8 +1397,9 @@ export function EmailComposer({
         }
 
         // The host page (e.g. `/compose`) owns the confirmation toast on its
-        // path — it shows "Sending… (10s to undo)" for the 10-second recall
-        // window (QM-UIUX-025: it must not claim "Message sent" while the
+        // path — it shows "Sending… (Ns to undo)" for the recall window
+        // from the stored undo-send setting (QM-UIUX-025: it must not claim
+        // "Message sent" while the
         // send can still be undone) — so the composer does not stack a
         // second one here. The exception is a scheduled send, which the page
         // persists without toasting. The composer's own "Message sent" below
@@ -1436,7 +1438,7 @@ export function EmailComposer({
 
     if (isFullPageCompose) {
       // Send first, navigate after — and ONLY navigate on success. The host
-      // page's "Sending… (10s to undo)" toast is on screen before the route
+      // page's "Sending… (Ns to undo)" toast is on screen before the route
       // changes. On failure the error toast above is already shown and the
       // user stays on the compose page with the draft intact (CUST-P0-3:
       // never navigate away from a failed send — the old unconditional
