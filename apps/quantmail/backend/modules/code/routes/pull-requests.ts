@@ -187,7 +187,10 @@ export default async function pullRequestRoutes(fastify: FastifyInstance) {
       const repo = await loadReadableRepository(prisma, request, owner, name);
 
       const body = MergePRInputSchema.parse(request.body);
-      const result = await prService.mergePR(repo.id, prNumber, body);
+      // The service enforces write access, branch protection (approvals,
+      // CHANGES_REQUESTED, status checks) and a real git merge — the route
+      // must pass the actor through, or the service refuses (401).
+      const result = await prService.mergePR(repo.id, prNumber, body, { actorId: userId });
       return reply.send({ success: true, data: result });
     },
   );
