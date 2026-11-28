@@ -17,6 +17,7 @@ import {
 } from '../services/quanty-agent/tool-registry';
 import { undoTaskSteps } from '../services/quanty-agent/undo';
 import { buildPopupData, buildActivityFeed } from '../services/quanty-agent/popup-data';
+import { quantyAgentState } from '../services/quanty-agent/agent-state';
 import { InMemoryTaskStore, createTask, QuantyExecutor } from '../services/quanty-agent/executor';
 import type { QuantyMailToolsDeps } from '../services/quanty-agent/tools/mail-tools';
 import type { QuantyTask, QuantyToolContext } from '../services/quanty-agent/types';
@@ -212,6 +213,11 @@ describe('quanty undo', () => {
 });
 
 describe('quanty popup data', () => {
+  // quantyAgentState is a process-global singleton — an entry logged in one
+  // test must never leak into another user's popup in a later test.
+  beforeEach(() => {
+    quantyAgentState.clear();
+  });
   it('buildActivityFeed groups finished tasks honestly', () => {
     const now = new Date().toISOString();
     const tasks = [
@@ -307,11 +313,19 @@ describe('quanty popup data', () => {
     ]);
   });
 
-  it('buildPopupData falls back to the in-memory approval list when the durable DB is absent', async () => {
+  it('buildPopupData FAILS CLOSED when the durable DB is absent — never the global list', async () => {
     const store = new InMemoryTaskStore();
     const executor = new QuantyExecutor({ store });
+    // Another user's approval recorded in the process-global mirror (shared
+    // deployment). It must NOT leak into this user's popup.
+    quantyAgentState.logApproval({
+      icon: '⚠️',
+      title: 'Approved: mail.send',
+      description: 'Send email to someone else',
+      scope: 'mail.send',
+    });
     // Prisma mock without the durability delegates (route tests register with
-    // an empty prisma mock) → honest degradation to the in-memory mirror.
+    // an empty prisma mock) → fail closed to the empty list.
     const data = await buildPopupData({
       userId: USER_ID,
       store,
@@ -322,9 +336,15 @@ describe('quanty popup data', () => {
     expect(data.approvals).toEqual([]);
   });
 
-  it('buildPopupData degrades to the in-memory list when the durable read fails', async () => {
+  it('buildPopupData FAILS CLOSED when the durable read fails — never the global list', async () => {
     const store = new InMemoryTaskStore();
     const executor = new QuantyExecutor({ store });
+    quantyAgentState.logApproval({
+      icon: '⚠️',
+      title: 'Approved: mail.send',
+      description: 'Send email to someone else',
+      scope: 'mail.send',
+    });
     const prisma = {
       quantyTask: {},
       quantyTaskEvent: {},
@@ -338,7 +358,8 @@ describe('quanty popup data', () => {
       toolAppOf: () => undefined,
       prisma,
     });
-    // A durable failure must not break the popup — honest degradation.
+    // A durable failure must not break the popup — and must not expose the
+    // process-global list (cross-user approval leak).
     expect(data.approvals).toEqual([]);
   });
 });

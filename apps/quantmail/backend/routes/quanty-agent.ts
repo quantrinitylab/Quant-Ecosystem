@@ -109,9 +109,11 @@ function boot(fastify: FastifyInstance): void {
     store,
     workerId,
     // Durable approval sink: persist each grant with the task's owner so
-    // /api/quanty/approvals can serve it per-user (never the process-global
-    // list). The in-memory mirror is kept for the live popup. A persistence
-    // failure must not break confirm() — it already resolved the waiter.
+    // /api/quanty/approvals and the popup can serve it per-user (never the
+    // process-global list). The in-memory mirror is kept as a diagnostics
+    // snapshot only — nothing user-facing reads it (fail-closed, see
+    // popup-data.ts). A persistence failure must not break confirm() — it
+    // already resolved the waiter.
     approvalSink: async (input) => {
       quantyAgentState.logApproval(input);
       try {
