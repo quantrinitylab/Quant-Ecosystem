@@ -15,7 +15,21 @@ import Link from 'next/link';
  * anything: siblings lay out after it instead of underneath it. No z-index,
  * no `fixed`, no `absolute`, no `sticky` — the test below pins that.
  */
-export function MailboxViewToggle({ isInbox }: { isInbox: boolean }) {
+/**
+ * Spam-lens note (2026-10-25 fix/qm-spam-lens-toggle): the People home
+ * honors exactly one lens — `?lens=spam` (see PeopleHome's isSpamLens) —
+ * so `lens` is deliberately spam-only, not a generic passthrough. Carrying
+ * any other classic-inbox lens to the People view would be a no-op there
+ * (PeopleHome would ignore it) and would mislead the user into thinking
+ * the lens survived the switch. When the spam lens is active both pills
+ * carry it, in both directions: People home -> classic inbox AND classic
+ * inbox -> People home. Without it, tapping either pill silently landed
+ * on the plain inbox people, abandoning the spam review the user was in.
+ */
+export function MailboxViewToggle({ isInbox, lens }: { isInbox: boolean; lens?: string | null }) {
+  const isSpamLens = lens === 'spam';
+  const peopleHref = isSpamLens ? '/?lens=spam' : '/';
+  const inboxHref = isSpamLens ? '/?view=inbox&lens=spam' : '/?view=inbox';
   const linkClass = (active: boolean) =>
     `min-h-[44px] px-4 inline-flex items-center rounded-lg text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF7A00] ${
       active
@@ -29,14 +43,14 @@ export function MailboxViewToggle({ isInbox }: { isInbox: boolean }) {
       className="flex items-center gap-1 rounded-xl bg-[#16181F] p-1 border border-[#232938]"
     >
       <Link
-        href="/?view=inbox"
+        href={inboxHref}
         className={linkClass(isInbox)}
         aria-current={isInbox ? 'page' : undefined}
       >
         Inbox
       </Link>
       <Link
-        href="/"
+        href={peopleHref}
         className={linkClass(!isInbox)}
         aria-current={!isInbox ? 'page' : undefined}
       >
