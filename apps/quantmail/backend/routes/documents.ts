@@ -973,11 +973,23 @@ export default async function documentRoutes(fastify: FastifyInstance) {
       );
     }
 
-    const recipient = await prisma.user.findFirst({
-      where: { email: { equals: parsed.data.email, mode: 'insensitive' } },
+    // Resolve the invitee exactly like drive's resolveLinkAudience: a
+    // case-insensitive findFirst is NOT a resolution — with case-colliding
+    // legacy rows (person@example.com vs Person@example.com, distinct users
+    // under the case-sensitive unique index) it grants document access to
+    // whichever row the DB returns first, a non-deterministic wrong-person
+    // grant. So: findMany, then exactly one live subject per normalized
+    // email or fail closed. deletedAt: null mirrors auth's canonical lookup
+    // (routes/auth.ts) — a soft-deleted row is not a subject.
+    const normalizedEmail = parsed.data.email.trim().toLowerCase();
+    const matches = await prisma.user.findMany({
+      where: {
+        email: { equals: normalizedEmail, mode: 'insensitive' },
+        deletedAt: null,
+      },
       select: { id: true, email: true },
     });
-    if (!recipient) {
+    if (matches.length === 0) {
       // The invitee must have a Quant account — say so plainly instead of
       // pretending the invite went out.
       throw createAppError(
@@ -986,6 +998,21 @@ export default async function documentRoutes(fastify: FastifyInstance) {
         'USER_NOT_FOUND',
       );
     }
+    if (matches.length > 1) {
+      // Fail closed with 409 and ZERO writes: no upsert runs below. The copy
+      // deliberately does NOT say "ask for the exact sign-in email" — a
+      // lowercased case-insensitive match cannot be disambiguated that way
+      // (the #1524 drive-share lesson); the duplicate accounts themselves
+      // must be resolved first.
+      throw createAppError(
+        `More than one Quant account matches ${parsed.data.email}, so this invite was not sent: ` +
+          'it is ambiguous which account should receive access. The duplicate accounts ' +
+          'need to be resolved before this address can be invited.',
+        409,
+        'RECIPIENT_AMBIGUOUS',
+      );
+    }
+    const recipient = matches[0];
     if (recipient.id === userId) {
       throw createAppError('You already have access to this document', 400, 'INVALID_RECIPIENT');
     }
