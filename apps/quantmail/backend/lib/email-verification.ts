@@ -16,7 +16,13 @@ import { isSesConfigured, sendViaSes } from './ses-sender';
 /** Long enough to walk to another device and copy six digits. */
 export const VERIFICATION_CODE_TTL_SECONDS = 15 * 60;
 
-/** 6 digits = 10^6 guesses; the attempt cap plus rate limits are the defense. */
+/**
+ * 6 digits = 10^6 guesses; the attempt cap plus rate limits are the defense.
+ * The cap is per account per code epoch, not per row: the resend handler
+ * carries the failed-attempt count of still-live superseded codes onto the
+ * replacement row, so resending cannot reset the budget. Attempts on an
+ * already-expired code do not carry over — expiry ends the epoch.
+ */
 export const MAX_VERIFICATION_ATTEMPTS = 5;
 
 export const generateVerificationCode = (): string =>
