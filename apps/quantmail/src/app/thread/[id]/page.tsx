@@ -9,6 +9,11 @@ import { useMailMutations } from '../../../hooks/useMailMutations';
 import { useEdgeSwipeBack } from '../../../hooks/useEdgeSwipeBack';
 import { useThreadViewKeyboard } from '../../../hooks/useThreadViewKeyboard';
 import { inboxSelectTarget, lensFromReturnTo } from '../../../lib/inbox-nav';
+import {
+  readAutoAdvance,
+  resolveAutoAdvanceTarget,
+  type AdjacentThreads,
+} from '../../../lib/auto-advance-preference';
 
 function validInternalReturnTo(value: string | null): string | null {
   if (!value) return null;
@@ -109,6 +114,37 @@ export default function ThreadPage() {
   );
 
   /*
+   * Auto-advance (Settings → General → "After delete or archive"): after a
+   * thread-view triage action, open the neighbour the setting names instead
+   * of bouncing back to the list. The neighbours arrive from the view via
+   * onAdjacentThreadsChange and live in a ref — they are navigation input,
+   * not render state, and a ref keeps a neighbour change from re-rendering
+   * the page. The setting is read at triage time, not at mount, so a change
+   * made in another tab applies to the very next triage with no reload.
+   * `replace` (not `push`) matches the old triage-exit semantics: Back from
+   * the advanced-to thread does not return to a conversation that was just
+   * archived or deleted. When the setting is 'list', or the chosen direction
+   * has no neighbour, this is exactly the old leave — never a silent jump
+   * in the opposite direction. Guarded like every other thread exit, so an
+   * unsent quick-reply draft still gets its discard confirm first.
+   */
+  const adjacentThreadsRef = useRef<AdjacentThreads>({ previous: null, next: null });
+  const handleAdjacentThreadsChange = useCallback((adjacent: AdjacentThreads) => {
+    adjacentThreadsRef.current = adjacent;
+  }, []);
+  const advanceAfterTriage = useCallback(() => {
+    const target = resolveAutoAdvanceTarget(readAutoAdvance(), adjacentThreadsRef.current);
+    if (!target) {
+      leaveThread(true);
+      return;
+    }
+    guardedNavigate(() => {
+      const suffix = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '';
+      router.replace(`/thread/${encodeURIComponent(target)}${suffix}`);
+    });
+  }, [guardedNavigate, leaveThread, returnTo, router]);
+
+  /*
    * If threadId is missing, redirect to returnTo or inbox root.
    */
   useEffect(() => {
@@ -131,8 +167,8 @@ export default function ThreadPage() {
     onArchive: useCallback(() => {
       if (!threadId) return;
       void mutations.archive([threadId]);
-      leaveThread(true);
-    }, [threadId, mutations, leaveThread]),
+      advanceAfterTriage();
+    }, [threadId, mutations, advanceAfterTriage]),
     onMarkUnread: useCallback(() => {
       if (!threadId) return;
       void mutations.markUnread([threadId]);
@@ -197,16 +233,17 @@ export default function ThreadPage() {
            */
           onArchive={(ids) => {
             void mutations.archive(ids);
-            leaveThread(true);
+            advanceAfterTriage();
           }}
           onUnarchive={(ids) => {
             void mutations.unarchive(ids);
-            leaveThread(true);
+            advanceAfterTriage();
           }}
           onDelete={(ids) => {
             void mutations.trash(ids);
-            leaveThread(true);
+            advanceAfterTriage();
           }}
+          onAdjacentThreadsChange={handleAdjacentThreadsChange}
           variant="full"
           className="h-full flex-1"
           /*
