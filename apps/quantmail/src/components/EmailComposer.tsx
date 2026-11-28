@@ -15,7 +15,13 @@ import { showToast } from './InboxToast';
 import { formatBytes } from '../lib/format-bytes';
 import { describeAttachmentChip } from '../lib/compose-attachment-chip';
 import { composeMessageBodies, htmlToPlainText } from '../lib/email-body';
-import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
+import {
+  loadDefaultSignatureHtml,
+  loadEmailSignatures,
+  pickDefaultSignature,
+  type EmailSignatureOption,
+} from '../lib/email-signature-preference';
+import { EmailSignaturePicker } from './EmailSignaturePicker';
 import { useSafeEmailHtml } from '../lib/safe-html';
 import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
@@ -818,15 +824,51 @@ export function EmailComposer({
   const [includeSignature, setIncludeSignature] = useState(true);
   const safeSignatureHtml = useSafeEmailHtml(signatureHtml);
 
+  /**
+   * Multiple signatures (fix/qm-multiple-signatures). The account's full
+   * signature list, default first. The picker below mounts only when there
+   * is more than one, so a single-signature account sees exactly the old
+   * block. `selectedSignatureId` is the per-message choice: picking another
+   * signature swaps what this message appends, without touching the saved
+   * default — that stays a Settings decision.
+   */
+  const [signatureOptions, setSignatureOptions] = useState<EmailSignatureOption[]>([]);
+  const [selectedSignatureId, setSelectedSignatureId] = useState<string | null>(null);
+
   useEffect(() => {
     let active = true;
-    void loadDefaultSignatureHtml().then((html) => {
-      if (active) setSignatureHtml(html);
+    void loadEmailSignatures().then((options) => {
+      if (!active) return;
+      if (options.length > 0) {
+        setSignatureOptions(options);
+        const picked = pickDefaultSignature(options);
+        if (picked) {
+          setSelectedSignatureId(picked.id);
+          setSignatureHtml(picked.contentHtml);
+        }
+        return;
+      }
+      // No list (or the list fetch failed): the default-only path is the
+      // honest fallback, and it is what single-signature accounts use.
+      void loadDefaultSignatureHtml().then((html) => {
+        if (active) setSignatureHtml(html);
+      });
     });
     return () => {
       active = false;
     };
   }, []);
+
+  /** Per-message switch: swap the appended signature, leave the default alone. */
+  const handleSelectSignature = useCallback(
+    (id: string) => {
+      const option = signatureOptions.find((signature) => signature.id === id);
+      if (!option) return;
+      setSelectedSignatureId(option.id);
+      setSignatureHtml(option.contentHtml);
+    },
+    [signatureOptions],
+  );
 
   /** '' when there is nothing to append, which `composeMessageBodies` treats as absent. */
   const activeSignatureHtml = includeSignature && !isTemplateMode ? signatureHtml : '';
@@ -2510,11 +2552,14 @@ export function EmailComposer({
           The account signature, shown because it is about to be sent.
 
           Settings described this row as "Appended to messages you send" from the
-          day it shipped, while `getDefaultEmailSignature()` had exactly one caller
-          — the settings page itself. Appending it on the server would have made
-          that sentence true and the behaviour invisible; this block makes it true
-          and checkable in the second before Send, which is why the settings copy
-          now says "above Send, where you can leave it off for one message".
+          day it shipped, while the composer loaded only the default's HTML —
+          the signature list the backend already carried was never read, so a
+          formal and a casual signature could not coexist. Appending it on the
+          server would have made that sentence true and the behaviour
+          invisible; this block makes it true and checkable in the second
+          before Send, which is why the settings copy now says "above Send,
+          where you can leave it off for one message" — and the picker in this
+          block is how one message picks a different signature than the default.
         */}
             {(signatureHtml || signatureSuppressedByTemplate) && (
               <div className="w-full max-w-full box-border rounded-2xl border border-[var(--quant-surface-elevated)]/80 bg-[var(--quant-surface)]/40">
@@ -2522,6 +2567,19 @@ export function EmailComposer({
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--quant-text-muted)]">
                     Signature
                   </span>
+                  {/*
+                    Per-message signature switch (fix/qm-multiple-signatures).
+                    Only when the account actually has a choice to make, and
+                    never in template mode — there the sign-off below is the
+                    message's signature and nothing is appended at all.
+                  */}
+                  {signatureOptions.length > 1 && !signatureSuppressedByTemplate && (
+                    <EmailSignaturePicker
+                      signatures={signatureOptions}
+                      selectedId={selectedSignatureId}
+                      onSelect={handleSelectSignature}
+                    />
+                  )}
                   {signatureSuppressedByTemplate ? (
                     <span className="text-[11px] text-[var(--quant-muted-foreground)]">
                       Not appended — the sign-off below is this message&rsquo;s signature
