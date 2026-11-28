@@ -41,6 +41,7 @@ import { websocketRoutes } from './routes/websocket';
 import { createE2EERelay } from './services/e2ee-relay-factory';
 import { AutoReplyManager } from './lib/auto-reply-manager';
 import { ScheduledMessageWorker } from './services/scheduled-message-worker';
+import { StoryExpiryWorker } from './services/story-expiry.worker';
 import { createRealtimeContext } from './lib/realtime-context';
 import { PrismaOutboxService } from './services/outbox.service';
 import { DeliveryWorker } from './services/delivery-worker';
@@ -215,6 +216,30 @@ export async function buildApp(config?: AppConfig) {
   scheduledWorker.start();
   app.addHook('onClose', async () => {
     scheduledWorker.stop();
+  });
+
+  // Phase 2C: server-side story expiry. Stories hide from the feed at
+  // expiresAt, but only this sweep deletes the rows and their storage
+  // blobs. Skipped in env 'test' (no timers, no DB) like the delivery
+  // worker below.
+  const storyExpiryWorker = new StoryExpiryWorker(
+    (app as unknown as { prisma: PrismaClient }).prisma,
+    {
+      onError: (error) => {
+        app.log.error({ err: error }, 'story expiry sweep failed');
+      },
+      logger: {
+        info: (obj, msg) => app.log.info(obj, msg),
+        warn: (obj, msg) => app.log.warn(obj, msg),
+        error: (obj, msg) => app.log.error(obj, msg),
+      },
+    },
+  );
+  if (appConfig.env !== 'test') {
+    storyExpiryWorker.start();
+  }
+  app.addHook('onClose', async () => {
+    storyExpiryWorker.stop();
   });
 
   await app.register(reelsRoutes, { prefix: '/reels' });

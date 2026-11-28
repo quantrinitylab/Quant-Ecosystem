@@ -17,6 +17,11 @@ dependencies:
     path: ../../packages/quant_ui
   quant_core:
     path: ../../packages/quant_core
+  # Phase 2C (Stories): first-party / BSD-3 media plugins only.
+  # dio matches quant_core's ^5.8.0+1 to keep version resolution unified.
+  dio: ^5.8.0+1
+  image_picker: ^1.1.2
+  video_player: ^2.9.2
 
 dev_dependencies:
   flutter_test:
