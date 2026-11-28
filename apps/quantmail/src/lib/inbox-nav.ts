@@ -1,3 +1,5 @@
+import { findConversation, type ConversationThread } from './threading';
+
 /**
  * CUST-P1-6 — classic-inbox navigation targets.
  *
@@ -47,6 +49,49 @@ export function inboxResetTarget(): string {
 export function inboxSelectTarget(threadId: string, lens?: string): string {
   const lensPart = lens && lens !== 'all' ? `&lens=${encodeURIComponent(lens)}` : '';
   return `/?view=inbox${lensPart}&selected=${encodeURIComponent(threadId)}`;
+}
+
+/**
+ * CUST-P1-4 follow-up (x-shortcut-preselect P2): resolve an incoming
+ * `?selected=` value to the inbox row it names.
+ *
+ * Rows check `selectedIds.has(thread.id)`, and a row's `id` is its newest
+ * message's id — so the value the `x` shortcut carries is a row id only by
+ * accident. The people view sends `lastMessage.threadId || lastMessage.id`:
+ * a server thread id matches no row id, and a legacy fallback message id
+ * matches only when it happens to be the newest message of its row. Either
+ * way the old `setSelectedIds(new Set([selected]))` landed the user on the
+ * inbox with zero rows checked, silently.
+ *
+ * `findConversation` already resolves every id a caller might hold — a
+ * row's own id, any message id inside it, a row's threadId, any message's
+ * threadId — against the same grouping the rows came from, so this returns
+ * the row itself and the call site selects `row.id`. That is deliberately
+ * NOT `conversationIds` (page.tsx): that mapper answers the opposite
+ * question, row -> every message id it stands for, for bulk actions. Stuffing
+ * its output into `selectedIds` would check the row but also inflate the
+ * selection count to the message count and break shift-click anchoring, which
+ * both assume `selectedIds` holds row ids.
+ *
+ * Pools are tried in folder order (inbox, archived, spam, snoozed — the
+ * `conversationIds` order plus snoozed, which `x` can also arrive from via
+ * a lens-carrying thread view). Returns null when no pool names the id, so
+ * the call site can tell "not loaded yet" apart from "not here": it waits
+ * while a folder query is still loading and only then falls back to the raw
+ * value, preserving today's behaviour for ids outside these pools.
+ */
+export function findPreselectThread(
+  selected: string | null | undefined,
+  pools: ReadonlyArray<readonly ConversationThread[] | null | undefined>,
+): ConversationThread | null {
+  if (!selected) return null;
+  for (const pool of pools) {
+    // Copy: `findConversation` takes a mutable array, and pools arrive as
+    // readonly memoised lists — it never mutates, so a shallow copy is safe.
+    const found = findConversation([...(pool ?? [])], selected);
+    if (found) return found;
+  }
+  return null;
 }
 
 /**
