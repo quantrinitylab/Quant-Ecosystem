@@ -34,8 +34,14 @@ export function mapBackendBranchToItem(b: any, defaultBranch?: string): BranchIt
     isDefault: b.isDefault ?? (b.name === defaultBranch || b.name === 'main'),
     isProtected: b.isProtected ?? false,
     protection: b.protection ?? (b.isProtected ? 'require_reviews' : 'none'),
-    aheadBy: b.aheadBy ?? 0,
-    behindBy: b.behindBy ?? 0,
+    // Ahead/behind honesty: the branches endpoints do NOT compute these
+    // counts, so a missing field means "not computed" and must stay
+    // undefined — the old `?? 0` turned every backend row into a fake
+    // measured "behind 0 / ahead 0" badge. Only a real finite number passes
+    // through; anything else (missing, string, NaN) degrades to undefined
+    // so BranchesTab renders its honest "not computed" slot.
+    aheadBy: typeof b.aheadBy === 'number' && Number.isFinite(b.aheadBy) ? b.aheadBy : undefined,
+    behindBy: typeof b.behindBy === 'number' && Number.isFinite(b.behindBy) ? b.behindBy : undefined,
     // Never invent the last-commit author — empty lets BranchesTab render
     // its honest 'Unknown' fallback. Never pass the viewer's username here.
     lastCommitAuthor: b.lastCommitAuthor || '',
