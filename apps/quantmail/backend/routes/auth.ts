@@ -28,10 +28,6 @@ import {
   verificationCodeMatches,
 } from '../lib/email-verification';
 
-// Sentinel thrown inside the verify-email transaction when the code's
-// compare-and-set burn loses a race — caught below, never escapes as a 500.
-const VERIFICATION_CODE_ALREADY_USED = Symbol('verification-code-already-used');
-
 // Sentinel thrown inside the resend-verification transaction when a
 // concurrent resend (or verify) burned one of this request's snapshot rows
 // between the snapshot read and the burn — caught below, never escapes as a
@@ -405,7 +401,9 @@ export async function authRoutes(fastify: FastifyInstance) {
         : null;
 
       // No account, no live code, or an expired code all look the same from
-      // the outside: wrong-or-expired, nothing more.
+      // the outside: wrong-or-expired, nothing more. These pre-transaction
+      // checks are a fast path only — the transaction below re-checks
+      // expiry and the attempt cap authoritatively (see the TOCTOU note).
       if (!user || !row || isVerificationCodeExpired(row.expiresAt)) {
         return fail(reply, 400, 'INVALID_OR_EXPIRED_CODE', 'The verification code is wrong or has expired.');
       }
@@ -418,49 +416,107 @@ export async function authRoutes(fastify: FastifyInstance) {
         );
       }
 
-      if (!verificationCodeMatches(code, row.codeHash)) {
-        await prisma.emailVerificationCode.update({
-          where: { id: row.id },
-          data: { attempts: { increment: 1 } },
-        });
-        return fail(reply, 400, 'INVALID_CODE', 'The verification code is wrong.');
-      }
-
-      // Success: burn this code atomically, then mark the address proven.
+      // Everything below is decided inside ONE interactive transaction, and
+      // the transaction RETURNS its outcome instead of throwing for a
+      // business outcome — a throw would roll the transaction back, which
+      // would silently drop the wrong-guess attempt increment.
       //
-      // Race note: two confirms can both read usedAt: null above before
-      // either commits, so that read is NOT a guard. The burn below is a
-      // compare-and-set — updateMany on { id, usedAt: null } with a required
-      // affected-count of 1 is the linearization point (single atomic
-      // statement in the database; the first committer wins the row lock).
-      // A loser sees count 0, rolls back, and gets an honest error.
-      try {
-        await prisma.$transaction(async (tx: any) => {
-          const claimed = await tx.emailVerificationCode.updateMany({
-            where: { id: row.id, usedAt: null },
-            data: { usedAt: new Date() },
-          });
-          if (claimed.count !== 1) {
-            throw VERIFICATION_CODE_ALREADY_USED;
-          }
-          // Burn any other pending codes for this user, then mark proven.
-          await tx.emailVerificationCode.updateMany({
-            where: { userId: user.id, usedAt: null },
-            data: { usedAt: new Date() },
-          });
-          await tx.user.update({
-            where: { id: user.id },
-            data: { emailVerified: true },
-          });
-        });
-      } catch (err) {
-        if (err === VERIFICATION_CODE_ALREADY_USED) {
-          return fail(reply, 400, 'CODE_ALREADY_USED', 'This verification code has already been used.');
-        }
-        throw err;
-      }
+      // TOCTOU note (this fix): the pre-transaction row above is only a fast
+      // path, never a guard. A code read as live at T0 could expire before
+      // the burn commits at T1, and N parallel wrong guesses could all read
+      // attempts < MAX before any increment landed, overshooting the cap.
+      // So the transaction re-reads the row via tx, re-checks expiry and
+      // the attempt cap on that fresh row, and — critically — folds both
+      // conditions into the UPDATE predicates themselves. A bare JS
+      // re-check inside the transaction would still be stale under
+      // READ COMMITTED (two transactions can both read attempts = 4); the
+      // predicate in the UPDATE is re-evaluated against the newest
+      // committed row under the row lock, so it is the real guard. The
+      // burn statement is therefore the linearization point for expiry,
+      // cap, and single-use together; a lost burn re-reads the row to
+      // answer honestly instead of guessing which condition failed.
+      //
+      // Expiry semantics match isVerificationCodeExpired exactly (expired
+      // means expiresAt <= now), so the burn predicate is expiresAt > now.
+      type VerifyOutcome = 'ok' | 'already-used' | 'expired' | 'too-many' | 'invalid';
+      const outcome: VerifyOutcome = await prisma.$transaction(async (tx: any) => {
+        const now = new Date();
+        // Classify a lost guarded write by re-reading the row: exactly one
+        // of used / expired / capped explains a count of 0.
+        const classify = async (): Promise<VerifyOutcome> => {
+          const current = await tx.emailVerificationCode.findUnique({ where: { id: row.id } });
+          if (!current || current.usedAt) return 'already-used';
+          if (isVerificationCodeExpired(current.expiresAt)) return 'expired';
+          if (current.attempts >= MAX_VERIFICATION_ATTEMPTS) return 'too-many';
+          return 'already-used';
+        };
 
-      return reply.send({ success: true, data: { emailVerified: true } });
+        const fresh = await tx.emailVerificationCode.findUnique({ where: { id: row.id } });
+        if (!fresh || fresh.usedAt) return 'already-used' as VerifyOutcome;
+        if (isVerificationCodeExpired(fresh.expiresAt)) return 'expired' as VerifyOutcome;
+        if (fresh.attempts >= MAX_VERIFICATION_ATTEMPTS) return 'too-many' as VerifyOutcome;
+
+        if (!verificationCodeMatches(code, fresh.codeHash)) {
+          // Guarded atomic increment: the cap lives in the predicate, so
+          // at most (MAX - attempts) parallel wrong guesses can increment
+          // — the rest see count 0 and get TOO_MANY_ATTEMPTS, never an
+          // overshoot past the cap.
+          const bumped = await tx.emailVerificationCode.updateMany({
+            where: {
+              id: row.id,
+              usedAt: null,
+              expiresAt: { gt: now },
+              attempts: { lt: MAX_VERIFICATION_ATTEMPTS },
+            },
+            data: { attempts: { increment: 1 } },
+          });
+          if (bumped.count !== 1) return classify();
+          return 'invalid' as VerifyOutcome;
+        }
+
+        // Success: burn this code atomically, then mark the address proven.
+        // The burn predicate carries single-use + expiry + cap together, so
+        // a code that expired (or hit the cap) between the re-read and this
+        // statement still cannot commit.
+        const claimed = await tx.emailVerificationCode.updateMany({
+          where: {
+            id: row.id,
+            usedAt: null,
+            expiresAt: { gt: now },
+            attempts: { lt: MAX_VERIFICATION_ATTEMPTS },
+          },
+          data: { usedAt: now },
+        });
+        if (claimed.count !== 1) return classify();
+        // Burn any other pending codes for this user, then mark proven.
+        await tx.emailVerificationCode.updateMany({
+          where: { userId: user.id, usedAt: null },
+          data: { usedAt: now },
+        });
+        await tx.user.update({
+          where: { id: user.id },
+          data: { emailVerified: true },
+        });
+        return 'ok' as VerifyOutcome;
+      });
+
+      switch (outcome) {
+        case 'ok':
+          return reply.send({ success: true, data: { emailVerified: true } });
+        case 'already-used':
+          return fail(reply, 400, 'CODE_ALREADY_USED', 'This verification code has already been used.');
+        case 'expired':
+          return fail(reply, 400, 'INVALID_OR_EXPIRED_CODE', 'The verification code is wrong or has expired.');
+        case 'too-many':
+          return fail(
+            reply,
+            429,
+            'TOO_MANY_ATTEMPTS',
+            'Too many wrong codes. Request a new code and try again.',
+          );
+        case 'invalid':
+          return fail(reply, 400, 'INVALID_CODE', 'The verification code is wrong.');
+      }
     },
   );
 
