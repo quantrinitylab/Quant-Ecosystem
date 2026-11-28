@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import type { Repo, BranchItem } from '../types';
+import { buildCreatedBranchRow } from './createdBranchRow';
 
 export interface BranchesTabProps {
   repo: Repo;
@@ -15,6 +16,11 @@ export interface BranchesTabProps {
   onCreateBranch?: (name: string, sourceBranch: string) => Promise<boolean>;
   onDeleteBranch?: (name: string) => Promise<boolean>;
   showToast?: (msg: string) => void;
+  // Retained for call-site compatibility only. It is deliberately NOT used
+  // as a branch's last-commit author anywhere in this tab: a new branch's
+  // last commit is its SOURCE head's commit, not a commit by the creator
+  // (see buildCreatedBranchRow). Passing the viewer here must never make
+  // the viewer appear as an author.
   currentUsername?: string;
 }
 
@@ -48,7 +54,8 @@ export function BranchesTab({
   onCreateBranch,
   onDeleteBranch,
   showToast = () => {},
-  currentUsername = '',
+  // NOTE: currentUsername is intentionally not destructured — it must
+  // never be used as a last-commit author (see the prop comment above).
 }: BranchesTabProps) {
   const defaultBranch = propDefaultBranch || repo.defaultBranch || 'main';
   // Genuine empty state — only real branches from the backend, never fabricated ones.
@@ -110,18 +117,13 @@ export function BranchesTab({
       const created = onCreateBranch ? await onCreateBranch(trimmed, sourceBranch) : false;
       if (!created) return;
 
-      const newBranch: BranchItem = {
-        name: trimmed,
-        sha: repo.latestCommitSha || '',
-        isDefault: false,
-        isProtected: false,
-        protection: 'none',
-        aheadBy: 0,
-        behindBy: 0,
-        lastCommitAuthor: currentUsername || 'Unknown',
-        lastCommitMessage: `Branch created from ${sourceBranch}`,
-        lastCommitTime: 'just now',
-      };
+      // The new branch points at the SOURCE head commit, so its last commit
+      // is the source head's commit — never a commit by the creator, and
+      // never the repo's latest commit (which may be another branch's
+      // head). Copy the source head's real fields when known, otherwise
+      // honest empties until the next refetch replaces this row.
+      const sourceHead = branchList.find((b) => b.name === sourceBranch);
+      const newBranch: BranchItem = buildCreatedBranchRow(trimmed, sourceHead);
 
       setBranchList((prev) => [...prev, newBranch]);
       setNewBranchName('');

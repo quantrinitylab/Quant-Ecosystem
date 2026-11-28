@@ -57,6 +57,7 @@ import { CodeTab } from './components/CodeTab';
 import { CommitsTab } from './components/CommitsTab';
 import { mapBackendCommitToItem } from './components/mapBackendCommit';
 import { mapBackendBranchToItem } from './components/mapBackendBranch';
+import { buildCreatedBranchRow } from './components/createdBranchRow';
 import { BranchesTab } from './components/BranchesTab';
 import { IssuesTab } from './components/IssuesTab';
 import { PullRequestsTab } from './components/PullRequestsTab';
@@ -1054,21 +1055,13 @@ function QuantGitContent() {  const router = useRouter();
         setRepoBranches((prev) => (prev.includes(name) ? prev : [...prev, name]));
         setDetailedBranches((prev) => {
           if (prev.some((b) => b.name === name)) return prev;
-          return [
-            ...prev,
-            {
-              name,
-              sha: json?.data?.sha || 'pending',
-              isDefault: false,
-              isProtected: false,
-              protection: 'none',
-              aheadBy: 0,
-              behindBy: 0,
-              lastCommitAuthor: currentUsername,
-              lastCommitMessage: `Branch created from ${source}`,
-              lastCommitTime: 'just now',
-            },
-          ];
+          // The new branch points at the SOURCE head commit, so its last
+          // commit is the source head's commit — never a commit by the
+          // creator. Copy the source head's real fields when known;
+          // otherwise honest empties (the create response carries the
+          // real head sha but no author/message/time).
+          const sourceHead = prev.find((b) => b.name === source);
+          return [...prev, buildCreatedBranchRow(name, sourceHead, json?.data?.sha)];
         });
         setBrowsingCommitSha(null);
         setCurrentBranch(name);

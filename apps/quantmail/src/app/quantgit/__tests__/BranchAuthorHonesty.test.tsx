@@ -3,6 +3,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { BranchesTab } from '../components/BranchesTab';
 import { mapBackendBranchToItem } from '../components/mapBackendBranch';
+import { buildCreatedBranchRow } from '../components/createdBranchRow';
 import type { BranchItem, Repo } from '../types';
 
 // Minimal clearly-labeled test repo (the dead mock-fixture module
@@ -189,5 +190,95 @@ describe('BranchesTab — branch rows never misattribute authorship', () => {
     expect(html).toContain('devone');
     expect(html).toContain('feat: ship the thing');
     expect(html).toContain('3 hours ago');
+  });
+});
+
+// Optimistic new-branch rows (finding: optimistic rows misattributed the
+// branch's last commit to the creator). A new branch points at its SOURCE
+// head commit, so its last commit IS the source head's commit — same sha,
+// author, message and time — never a commit by the viewer, and never an
+// invented "Branch created from X" message, "just now" recency, or
+// "pending" pseudo-sha. Both create paths (page.tsx and BranchesTab) build
+// the row through buildCreatedBranchRow, so these tests pin the shared
+// helper and the tab's rendering of its rows.
+describe('buildCreatedBranchRow — new branch inherits the source head commit', () => {
+  const SOURCE_HEAD: BranchItem = {
+    name: 'main',
+    sha: 'a1b2c3d4e5f6000000000000000000000000000001',
+    isDefault: true,
+    isProtected: true,
+    protection: 'require_reviews',
+    aheadBy: 0,
+    behindBy: 0,
+    lastCommitAuthor: 'devone',
+    lastCommitMessage: 'feat: ship the thing',
+    lastCommitTime: '3 hours ago',
+  };
+
+  it('copies the source head sha/author/message/time verbatim', () => {
+    const row = buildCreatedBranchRow('feature/new', SOURCE_HEAD);
+    expect(row.name).toBe('feature/new');
+    expect(row.sha).toBe(SOURCE_HEAD.sha);
+    expect(row.lastCommitAuthor).toBe('devone');
+    expect(row.lastCommitMessage).toBe('feat: ship the thing');
+    expect(row.lastCommitTime).toBe('3 hours ago');
+    expect(row.isDefault).toBe(false);
+    expect(row.aheadBy).toBe(0);
+    expect(row.behindBy).toBe(0);
+  });
+
+  it('never attributes the row to the viewer — the helper takes no username at all', () => {
+    const row = buildCreatedBranchRow('feature/new', SOURCE_HEAD);
+    expect(JSON.stringify(row)).not.toContain(VIEWER);
+    expect(JSON.stringify(row)).not.toContain('Branch created from');
+    expect(JSON.stringify(row)).not.toContain('just now');
+    expect(JSON.stringify(row)).not.toContain('pending');
+  });
+
+  it('falls back to the backend-confirmed head sha when the source head is unknown', () => {
+    const backendSha = 'b2c3d4e5f6000000000000000000000000000000002';
+    const row = buildCreatedBranchRow('feature/new', undefined, backendSha);
+    expect(row.sha).toBe(backendSha);
+    // Author/message/time stay honestly empty — the create response
+    // carries no such fields, so nothing is invented for them.
+    expect(row.lastCommitAuthor).toBe('');
+    expect(row.lastCommitMessage).toBe('');
+    expect(row.lastCommitTime).toBe('');
+    expect(JSON.stringify(row)).not.toContain('pending');
+  });
+
+  it('degrades to fully honest empties when neither source head nor backend sha is known', () => {
+    const row = buildCreatedBranchRow('feature/new', undefined);
+    expect(row.sha).toBe('');
+    expect(row.lastCommitAuthor).toBe('');
+    expect(row.lastCommitMessage).toBe('');
+    expect(row.lastCommitTime).toBe('');
+  });
+
+  it('renders the source head author/message for a helper-built row, never the viewer', () => {
+    const row = buildCreatedBranchRow('feature/new', SOURCE_HEAD);
+    const html = renderToStaticMarkup(
+      <BranchesTab repo={TEST_REPO} branches={[SOURCE_HEAD, row]} currentUsername={VIEWER} />,
+    );
+    expect(html).toContain('feature/new');
+    expect(html).toContain('devone');
+    expect(html).toContain('feat: ship the thing');
+    expect(html).toContain('3 hours ago');
+    expect(html).not.toContain(VIEWER);
+    expect(html).not.toContain('Branch created from');
+    expect(html).not.toContain('Updated just now by');
+  });
+
+  it('renders an unknown-source helper-built row honestly (no fabricated recency or message)', () => {
+    const row = buildCreatedBranchRow('feature/fresh', undefined);
+    const html = renderToStaticMarkup(
+      <BranchesTab repo={TEST_REPO} branches={[row]} currentUsername={VIEWER} />,
+    );
+    expect(html).toContain('feature/fresh');
+    expect(html).toContain('Last update unavailable');
+    expect(html).toContain('Unknown');
+    expect(html).not.toContain(VIEWER);
+    expect(html).not.toContain('Branch created from');
+    expect(html).not.toContain('Updated just now by');
   });
 });
