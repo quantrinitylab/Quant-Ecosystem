@@ -26,6 +26,7 @@ import {
   TEXT_PREVIEW_MAX_BYTES,
   type ResolvedShare,
 } from './share-resolve';
+import { decideTextPreview, fetchTextPreview } from './text-preview';
 
 // Locked Drive accent via app theme var; hex fallback only for standalone public pages.
 const DRIVE_GREEN = 'var(--app-accent, var(--quant-success))';
@@ -55,13 +56,18 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
   const [password, setPassword] = useState('');
   const [passwordHint, setPasswordHint] = useState<string | null>(null);
   const [textPreview, setTextPreview] = useState<string | null>(null);
-  const [textPreviewState, setTextPreviewState] = useState<'idle' | 'loading' | 'error' | 'too-large'>(
-    'idle',
-  );
+  const [textPreviewState, setTextPreviewState] = useState<
+    'idle' | 'loading' | 'error' | 'too-large' | 'locked' | 'wrong-password'
+  >('idle');
+  // The password the viewer EXPLICITLY submitted for preview/download via
+  // Unlock/Retry — deliberately separate from the live `password` input, so
+  // typing never fires a byte request and a corrected password only fetches
+  // when the viewer asks for it (fix/qm-drive-share-text-preview).
+  const [submittedPassword, setSubmittedPassword] = useState<string | null>(null);
+  const [previewAttempt, setPreviewAttempt] = useState(0);
 
   const previewKind = previewKindFor(file.mimeType);
   const expiresLabel = formatDate(file.expiresAt);
-  const sizeTooLargeForText = typeof file.size === 'number' && file.size > TEXT_PREVIEW_MAX_BYTES;
 
   const handleDownload = useCallback(() => {
     if (file.requiresPassword && !password) {
@@ -72,36 +78,82 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
     window.location.href = downloadUrlFor(token, password || undefined);
   }, [file.requiresPassword, password, token]);
 
+  // Unlock/Retry for previews: submit the current password input and bump the
+  // attempt counter so the effect below refetches with the corrected value.
+  // This is the wrong-password → corrected-password retry path: the previous
+  // effect run is aborted, the new one fetches with the new password.
+  const submitPreviewPassword = useCallback(() => {
+    // Non-password files retry with no password at all; password files need
+    // the current input submitted explicitly (never the half-typed value).
+    if (file.requiresPassword && !password) {
+      setPasswordHint('Enter the link password to load the preview.');
+      return;
+    }
+    setPasswordHint(null);
+    setSubmittedPassword(file.requiresPassword ? password : null);
+    setPreviewAttempt((n) => n + 1);
+  }, [file.requiresPassword, password]);
+
+  // Deferred text-preview lifecycle (fix/qm-drive-share-text-preview):
+  // this effect NEVER depends on `textPreviewState` — the state it sets —
+  // so setting 'loading' cannot re-run the effect and cancel its own fetch
+  // (the old self-cancel that hung text shares on "Loading preview…").
+  // It depends only on the gate inputs (kind, size, token, submitted
+  // password, attempt counter). While the gate says 'locked' no byte
+  // request fires at all; every unlock/retry aborts the previous fetch.
   useEffect(() => {
-    if (previewKind !== 'text' || textPreviewState !== 'idle') return;
-    if (sizeTooLargeForText) {
+    if (previewKind !== 'text') return;
+    const decision = decideTextPreview({
+      previewKind,
+      requiresPassword: file.requiresPassword,
+      submittedPassword,
+      size: file.size,
+      maxBytes: TEXT_PREVIEW_MAX_BYTES,
+    });
+    if (decision === 'too-large') {
       setTextPreviewState('too-large');
       return;
     }
+    if (decision === 'locked') {
+      setTextPreview(null);
+      setTextPreviewState('locked');
+      return;
+    }
+    if (decision === 'not-text') return;
+    const controller = new AbortController();
     let cancelled = false;
     setTextPreviewState('loading');
-    fetch(downloadUrlFor(token, password || undefined), { credentials: 'include' })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('preview failed');
-        const text = await res.text();
-        if (!cancelled) {
-          setTextPreview(
-            text.length > TEXT_PREVIEW_MAX_BYTES
-              ? text.slice(0, TEXT_PREVIEW_MAX_BYTES) + '\n… (truncated)'
-              : text,
-          );
+    fetchTextPreview(downloadUrlFor(token, submittedPassword ?? undefined), {
+      signal: controller.signal,
+      maxBytes: TEXT_PREVIEW_MAX_BYTES,
+    })
+      .then((result) => {
+        if (cancelled || controller.signal.aborted) return;
+        if (result.status === 'ok') {
+          setTextPreview(result.truncated ? `${result.text}\n… (truncated)` : result.text);
           setTextPreviewState('idle');
+        } else if (result.status === 'too-large') {
+          setTextPreviewState('too-large');
+        } else if (result.status === 'wrong-password') {
+          setTextPreviewState('wrong-password');
+        } else if (result.status !== 'aborted') {
+          setTextPreviewState('error');
         }
       })
       .catch(() => {
-        if (!cancelled) setTextPreviewState('error');
+        if (!cancelled && !controller.signal.aborted) setTextPreviewState('error');
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
-  }, [previewKind, textPreviewState, sizeTooLargeForText, token, password]);
+  }, [previewKind, file.requiresPassword, file.size, token, submittedPassword, previewAttempt]);
 
-  const previewUrl = downloadUrlFor(token, password || undefined);
+  // Previews (image/pdf/text) never request bytes before unlock: for a
+  // password-protected file the preview URL only carries a submitted
+  // password, and media blocks render only once a password was submitted.
+  const previewUnlocked = !file.requiresPassword || submittedPassword !== null;
+  const previewUrl = downloadUrlFor(token, submittedPassword ?? undefined);
 
   return (
     <Card padding="none" className="p-6">
@@ -153,13 +205,13 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
         </div>
       )}
 
-      {previewKind === 'image' && (
+      {previewKind === 'image' && previewUnlocked && (
         <div className="mt-5 overflow-hidden rounded-xl bg-black">
           {/* Real bytes from the backend download endpoint — not a placeholder. */}
           <img src={previewUrl} alt={file.name} className="max-h-[60vh] w-full object-contain" />
         </div>
       )}
-      {previewKind === 'pdf' && (
+      {previewKind === 'pdf' && previewUnlocked && (
         <div className="mt-5 overflow-hidden rounded-xl bg-black">
           <iframe
             src={previewUrl}
@@ -169,13 +221,76 @@ function DriveFileCard({ share, token }: { share: ResolvedShare & { kind: 'drive
           />
         </div>
       )}
+      {previewKind !== null && previewKind !== 'text' && !previewUnlocked && (
+        <div className="mt-5 overflow-hidden rounded-xl bg-black p-4 text-center">
+          <p className="text-xs text-[var(--quant-muted-foreground)]">
+            This preview is password protected — enter the password above, then unlock it.
+          </p>
+          <div className="mt-3">
+            <Button
+              variant="primary"
+              fullWidth
+              onClick={submitPreviewPassword}
+              className="bg-[var(--app-accent,var(--quant-success))] border-[var(--app-accent,var(--quant-success))] text-black"
+            >
+              Unlock preview
+            </Button>
+          </div>
+        </div>
+      )}
       {previewKind === 'text' && (
         <div className="mt-5 overflow-hidden rounded-xl bg-black p-4">
           {textPreviewState === 'loading' && <Skeleton variant="rect" width="100%" height="120px" />}
+          {textPreviewState === 'locked' && (
+            <div className="text-center">
+              <p className="text-xs text-[var(--quant-muted-foreground)]">
+                This preview is password protected — enter the password above, then unlock it.
+              </p>
+              <div className="mt-3">
+                <Button
+                  variant="primary"
+                  fullWidth
+                  onClick={submitPreviewPassword}
+                  className="bg-[var(--app-accent,var(--quant-success))] border-[var(--app-accent,var(--quant-success))] text-black"
+                >
+                  Unlock preview
+                </Button>
+              </div>
+            </div>
+          )}
+          {textPreviewState === 'wrong-password' && (
+            <div className="text-center">
+              <p className="text-xs text-amber-400">
+                That password didn&apos;t unlock this file — check it and try again.
+              </p>
+              <div className="mt-3">
+                <Button
+                  variant="primary"
+                  fullWidth
+                  onClick={submitPreviewPassword}
+                  className="bg-[var(--app-accent,var(--quant-success))] border-[var(--app-accent,var(--quant-success))] text-black"
+                >
+                  Retry preview
+                </Button>
+              </div>
+            </div>
+          )}
           {textPreviewState === 'error' && (
-            <p className="text-xs text-[var(--quant-muted-foreground)]">
-              Preview failed to load — download the file to read it.
-            </p>
+            <div className="text-center">
+              <p className="text-xs text-[var(--quant-muted-foreground)]">
+                Preview failed to load — download the file to read it, or try again.
+              </p>
+              <div className="mt-3">
+                <Button
+                  variant="primary"
+                  fullWidth
+                  onClick={submitPreviewPassword}
+                  className="bg-[var(--app-accent,var(--quant-success))] border-[var(--app-accent,var(--quant-success))] text-black"
+                >
+                  Retry preview
+                </Button>
+              </div>
+            </div>
           )}
           {textPreviewState === 'too-large' && (
             <p className="text-xs text-[var(--quant-muted-foreground)]">
